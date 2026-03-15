@@ -74,7 +74,7 @@ export function HomeTabContent({
       },
       {
         tabId: 'h2h',
-        title: 'Head to Head',
+        title: 'H2H',
         description: 'Pick any two players and see exactly how they compare — win rate, form, and past encounters.',
         meta: `Against your friend and enemy`,
         thumbnail: '/images/thumb-h2h.png',

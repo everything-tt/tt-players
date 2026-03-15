@@ -45,7 +45,7 @@ const tabTitles: Record<AppTabId, string> = {
   home: 'TTLive',
   players: 'Players',
   leagues: 'Leagues',
-  h2h: 'Head to Head',
+  h2h: 'H2H',
 };
 
 const menuConfigs: Record<MenuId, MenuConfig> = {

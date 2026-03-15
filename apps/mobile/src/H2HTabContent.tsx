@@ -5,11 +5,10 @@ import {
   getInitials,
   type H2HResponse,
   type PlayerSearchItem,
-  type PlayerSearchResponse,
 } from './player-shared';
-import { AppButtonLink, AppCard, AppCardContent, AppListGroup, AppListItem } from './ui/appkit';
+import { AppCard, AppCardContent, AppListGroup, AppListItem } from './ui/appkit';
+import { PlayerSearchSheet } from './PlayerSearchSheet';
 
-const SEARCH_DEBOUNCE_MS = 250;
 
 interface H2HTabContentProps {
   selectedLeagueIds: string[];
@@ -25,17 +24,6 @@ interface LeagueEncounterSummary {
   playerBWins: number;
 }
 
-function buildPlayerSearchPath(query: string, leagueIds: string[]): string {
-  const params = new URLSearchParams();
-  const normalized = query.trim();
-  if (normalized.length > 0) {
-    params.set('q', normalized);
-  }
-  if (leagueIds.length > 0) {
-    params.set('league_ids', leagueIds.join(','));
-  }
-  return params.size > 0 ? `/players/search?${params.toString()}` : '/players/search';
-}
 
 function buildH2HPath(playerId: string, opponentId: string, leagueIds: string[]): string {
   const params = new URLSearchParams();
@@ -52,90 +40,31 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
   const [playerA, setPlayerA] = useState<PlayerSearchItem | null>(null);
   const [playerB, setPlayerB] = useState<PlayerSearchItem | null>(null);
 
-  const [queryA, setQueryA] = useState('');
-  const [queryB, setQueryB] = useState('');
-
-  const [resultsA, setResultsA] = useState<PlayerSearchItem[]>([]);
-  const [resultsB, setResultsB] = useState<PlayerSearchItem[]>([]);
-  const [isLoadingA, setIsLoadingA] = useState(false);
-  const [isLoadingB, setIsLoadingB] = useState(false);
-  const [errorA, setErrorA] = useState<string | null>(null);
-  const [errorB, setErrorB] = useState<string | null>(null);
-
   const [h2h, setH2h] = useState<H2HResponse | null>(null);
   const [isH2HLoading, setIsH2HLoading] = useState(false);
   const [h2hError, setH2hError] = useState<string | null>(null);
 
   const sortedLeagueIds = useMemo(() => [...selectedLeagueIds].sort(), [selectedLeagueIds]);
   const selectedLeagueIdsKey = sortedLeagueIds.join(',');
-  const normalizedQueryA = queryA.trim();
-  const normalizedQueryB = queryB.trim();
 
-  useEffect(() => {
-    if (playerA || normalizedQueryA.length <= 2) {
-      setResultsA([]);
-      setErrorA(null);
-      setIsLoadingA(false);
-      return;
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [activePicker, setActivePicker] = useState<'A' | 'B' | null>(null);
+
+  const openSearch = (picker: 'A' | 'B') => {
+    setActivePicker(picker);
+    setIsSheetOpen(true);
+  };
+
+  const onSelectPlayer = (player: PlayerSearchItem) => {
+    if (activePicker === 'A') {
+      setPlayerA(player);
+    } else {
+      setPlayerB(player);
     }
+    setIsSheetOpen(false);
+    setActivePicker(null);
+  };
 
-    const abortController = new AbortController();
-    const timerId = window.setTimeout(async () => {
-      try {
-        setIsLoadingA(true);
-        setErrorA(null);
-        const payload = await apiFetch<PlayerSearchResponse>(
-          buildPlayerSearchPath(normalizedQueryA, sortedLeagueIds),
-          abortController.signal,
-        );
-        setResultsA((payload.data ?? []).filter((item) => item.id !== playerB?.id));
-      } catch (error) {
-        if ((error as Error).name === 'AbortError') return;
-        setResultsA([]);
-        setErrorA((error as Error).message || 'Failed to search players');
-      } finally {
-        setIsLoadingA(false);
-      }
-    }, SEARCH_DEBOUNCE_MS);
-
-    return () => {
-      abortController.abort();
-      window.clearTimeout(timerId);
-    };
-  }, [normalizedQueryA, playerA, playerB?.id, selectedLeagueIdsKey, sortedLeagueIds]);
-
-  useEffect(() => {
-    if (playerB || normalizedQueryB.length <= 2) {
-      setResultsB([]);
-      setErrorB(null);
-      setIsLoadingB(false);
-      return;
-    }
-
-    const abortController = new AbortController();
-    const timerId = window.setTimeout(async () => {
-      try {
-        setIsLoadingB(true);
-        setErrorB(null);
-        const payload = await apiFetch<PlayerSearchResponse>(
-          buildPlayerSearchPath(normalizedQueryB, sortedLeagueIds),
-          abortController.signal,
-        );
-        setResultsB((payload.data ?? []).filter((item) => item.id !== playerA?.id));
-      } catch (error) {
-        if ((error as Error).name === 'AbortError') return;
-        setResultsB([]);
-        setErrorB((error as Error).message || 'Failed to search players');
-      } finally {
-        setIsLoadingB(false);
-      }
-    }, SEARCH_DEBOUNCE_MS);
-
-    return () => {
-      abortController.abort();
-      window.clearTimeout(timerId);
-    };
-  }, [normalizedQueryB, playerA?.id, playerB, selectedLeagueIdsKey, sortedLeagueIds]);
 
   useEffect(() => {
     if (!playerA || !playerB) {
@@ -202,17 +131,6 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
       .sort((a, b) => b.played - a.played || b.playerAWins - a.playerAWins);
   }, [h2h]);
 
-  const onResetComparison = (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-    setPlayerA(null);
-    setPlayerB(null);
-    setQueryA('');
-    setQueryB('');
-    setResultsA([]);
-    setResultsB([]);
-    setH2h(null);
-    setH2hError(null);
-  };
 
   const preventDefault = (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
@@ -220,23 +138,10 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
 
   return (
     <>
-      <div className="content mt-n4 mb-3">
-        <div className="tt-tab-toolbar">
-          <div>
-            <p className="font-11 opacity-70 mb-1">Compare Players</p>
-            <h3 className="mb-0">Head to Head</h3>
-          </div>
-          {(playerA || playerB) ? (
-            <AppButtonLink size="s" tone="outline-highlight" onClick={onResetComparison}>
-              Reset
-            </AppButtonLink>
-          ) : null}
-        </div>
-      </div>
 
       <AppCard className="tt-h2h-hero-card bg-6 mt-2" cardHeight={220}>
         <div className="card-top px-3 pt-3">
-          <span className="badge bg-white color-black font-11">Head to Head Arena</span>
+          <span className="badge bg-white color-black font-11">H2H Arena</span>
         </div>
         <div className="card-bottom px-3 pb-3">
           <p className="color-white opacity-70 mb-1">League scope: {leagueScopeLabel}</p>
@@ -256,178 +161,69 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
         <div className="card-overlay bg-gradient" />
       </AppCard>
 
-      <AppCard className="mt-2">
-        <AppCardContent className="mb-1">
-          <div className="d-flex mb-3">
-            <div className="align-self-center">
-              <p className="mb-n1 color-highlight font-600">Matchup Setup</p>
-              <h4 className="mb-0"><i className="fa fa-users me-2 color-highlight" />Select Two Players</h4>
-            </div>
-          </div>
-
+      <div className="mt-2">
+        <div className="mb-1">
           <div className="tt-h2h-picker-grid">
             <div className="tt-h2h-picker-vs">VS</div>
 
             {/* Player A Picker */}
-            <div className={`tt-h2h-picker-card ${playerA ? 'tt-h2h-picker-card-selected tt-h2h-picker-card-selected-a' : 'tt-h2h-picker-card-empty'}`}>
+            <div
+              className={`tt-h2h-picker-card ${playerA ? 'tt-h2h-picker-card-selected tt-h2h-picker-card-selected-a' : 'tt-h2h-picker-card-empty'}`}
+              onClick={() => openSearch('A')}
+            >
               <p className={`font-11 text-uppercase mb-2 ${playerA ? 'color-white opacity-60' : 'opacity-60'}`}>Player A</p>
               {playerA ? (
-                <>
-                  <div className="tt-h2h-selected-player">
-                    <span className="tt-h2h-selected-avatar">{getInitials(playerA.name)}</span>
-                    <div>
-                      <h5 className="mb-1 font-700">{playerA.name}</h5>
-                      <p className="font-12 mb-0">{playerA.wins}W · {playerA.played} played</p>
-                    </div>
+                <div className="tt-h2h-selected-player">
+                  <span
+                    className="tt-h2h-selected-avatar"
+                    onClick={(e) => { e.stopPropagation(); onOpenPlayer(playerA.id); }}
+                    title="View Profile"
+                  >
+                    {getInitials(playerA.name)}
+                  </span>
+                  <div>
+                    <h5 className="mb-1 font-700">{playerA.name}</h5>
+                    <p className="font-12 mb-0">{playerA.wins}W · {playerA.played} played</p>
                   </div>
-                  <div className="d-flex gap-2 mt-3">
-                    <AppButtonLink
-                      size="s"
-                      tone="gray"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        setPlayerA(null);
-                        setQueryA('');
-                        setResultsA([]);
-                      }}
-                    >
-                      Change
-                    </AppButtonLink>
-                    <AppButtonLink
-                      size="s"
-                      tone="gray"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        onOpenPlayer(playerA.id);
-                      }}
-                    >
-                      Profile
-                    </AppButtonLink>
-                  </div>
-                </>
+                </div>
               ) : (
-                <>
-                  <div className="search-box search-dark shadow-xs border-0 bg-theme rounded-m mb-2">
-                    <i className="fa fa-search ms-1" />
-                    <input
-                      type="text"
-                      className="border-0"
-                      placeholder="Search player A..."
-                      value={queryA}
-                      onChange={(event) => setQueryA(event.target.value)}
-                    />
-                  </div>
-                  {normalizedQueryA.length > 0 && normalizedQueryA.length <= 2 ? (
-                    <p className="font-12 opacity-70 mb-0 px-1">Type at least 3 characters.</p>
-                  ) : null}
-                  {isLoadingA ? <p className="font-12 mb-0 px-1"><i className="fa fa-spinner fa-spin me-1" />Searching...</p> : null}
-                  {errorA ? <p className="font-12 color-red-dark mb-0 px-1">{errorA}</p> : null}
-                  {!isLoadingA && resultsA.length > 0 ? (
-                    <div className="list-group list-custom-small tt-h2h-result-list mt-2">
-                      {resultsA.slice(0, 8).map((player) => (
-                        <a
-                          key={player.id}
-                          href="#"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            setPlayerA(player);
-                            setQueryA('');
-                            setResultsA([]);
-                          }}
-                        >
-                          <i className="tt-h2h-search-avatar bg-highlight color-white">{getInitials(player.name)}</i>
-                          <span>{player.name}</span>
-                          <strong>{player.wins}W · {player.played}</strong>
-                          <i className="fa fa-angle-right" />
-                        </a>
-                      ))}
-                    </div>
-                  ) : null}
-                </>
+                <div className="text-center py-2">
+                  <i className="fa fa-plus-circle font-20 opacity-30 mb-1 d-block" />
+                  <span className="font-12 opacity-50">Select Player</span>
+                </div>
               )}
             </div>
 
             {/* Player B Picker */}
-            <div className={`tt-h2h-picker-card ${playerB ? 'tt-h2h-picker-card-selected tt-h2h-picker-card-selected-b' : 'tt-h2h-picker-card-empty'}`}>
+            <div
+              className={`tt-h2h-picker-card ${playerB ? 'tt-h2h-picker-card-selected tt-h2h-picker-card-selected-b' : 'tt-h2h-picker-card-empty'}`}
+              onClick={() => openSearch('B')}
+            >
               <p className={`font-11 text-uppercase mb-2 ${playerB ? 'color-white opacity-60' : 'opacity-60'}`}>Player B</p>
               {playerB ? (
-                <>
-                  <div className="tt-h2h-selected-player">
-                    <span className="tt-h2h-selected-avatar">{getInitials(playerB.name)}</span>
-                    <div>
-                      <h5 className="mb-1 font-700">{playerB.name}</h5>
-                      <p className="font-12 mb-0">{playerB.wins}W · {playerB.played} played</p>
-                    </div>
+                <div className="tt-h2h-selected-player">
+                  <span
+                    className="tt-h2h-selected-avatar"
+                    onClick={(e) => { e.stopPropagation(); onOpenPlayer(playerB.id); }}
+                    title="View Profile"
+                  >
+                    {getInitials(playerB.name)}
+                  </span>
+                  <div>
+                    <h5 className="mb-1 font-700">{playerB.name}</h5>
+                    <p className="font-12 mb-0">{playerB.wins}W · {playerB.played} played</p>
                   </div>
-                  <div className="d-flex gap-2 mt-3">
-                    <AppButtonLink
-                      size="s"
-                      tone="gray"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        setPlayerB(null);
-                        setQueryB('');
-                        setResultsB([]);
-                      }}
-                    >
-                      Change
-                    </AppButtonLink>
-                    <AppButtonLink
-                      size="s"
-                      tone="gray"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        onOpenPlayer(playerB.id);
-                      }}
-                    >
-                      Profile
-                    </AppButtonLink>
-                  </div>
-                </>
+                </div>
               ) : (
-                <>
-                  <div className="search-box search-dark shadow-xs border-0 bg-theme rounded-m mb-2">
-                    <i className="fa fa-search ms-1" />
-                    <input
-                      type="text"
-                      className="border-0"
-                      placeholder="Search player B..."
-                      value={queryB}
-                      onChange={(event) => setQueryB(event.target.value)}
-                    />
-                  </div>
-                  {normalizedQueryB.length > 0 && normalizedQueryB.length <= 2 ? (
-                    <p className="font-12 opacity-70 mb-0 px-1">Type at least 3 characters.</p>
-                  ) : null}
-                  {isLoadingB ? <p className="font-12 mb-0 px-1"><i className="fa fa-spinner fa-spin me-1" />Searching...</p> : null}
-                  {errorB ? <p className="font-12 color-red-dark mb-0 px-1">{errorB}</p> : null}
-                  {!isLoadingB && resultsB.length > 0 ? (
-                    <div className="list-group list-custom-small tt-h2h-result-list mt-2">
-                      {resultsB.slice(0, 8).map((player) => (
-                        <a
-                          key={player.id}
-                          href="#"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            setPlayerB(player);
-                            setQueryB('');
-                            setResultsB([]);
-                          }}
-                        >
-                          <i className="tt-h2h-search-avatar bg-red-dark color-white">{getInitials(player.name)}</i>
-                          <span>{player.name}</span>
-                          <strong>{player.wins}W · {player.played}</strong>
-                          <i className="fa fa-angle-right" />
-                        </a>
-                      ))}
-                    </div>
-                  ) : null}
-                </>
+                <div className="text-center py-2">
+                  <i className="fa fa-plus-circle font-20 opacity-30 mb-1 d-block" />
+                  <span className="font-12 opacity-50">Select Player</span>
+                </div>
               )}
             </div>
           </div>
-        </AppCardContent>
-      </AppCard>
+        </div>
+      </div>
 
       {!playerA || !playerB ? (
         <AppCard className="mt-2 text-center" cardHeight={140}>
@@ -438,6 +234,16 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
           </AppCardContent>
         </AppCard>
       ) : null}
+
+      <PlayerSearchSheet
+        isOpen={isSheetOpen}
+        onClose={() => setIsSheetOpen(false)}
+        onSelect={onSelectPlayer}
+        selectedLeagueIds={sortedLeagueIds}
+        excludePlayerId={activePicker === 'A' ? playerB?.id : playerA?.id}
+        title={activePicker === 'A' ? 'Select Player A' : 'Select Player B'}
+      />
+
 
 
       {isH2HLoading ? (

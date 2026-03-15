@@ -7,6 +7,9 @@ import {
 } from './player-shared';
 import { AppButtonLink, AppCard, AppCardContent } from './ui/appkit';
 
+const CURRENT_LEAGUE_ID_KEY = 'tt_players_current_league_id';
+const CURRENT_DIVISION_ID_KEY = 'tt_players_current_division_id';
+
 type TeamRosterResponse = {
   data: Array<{ id: string }>;
 };
@@ -38,9 +41,13 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
   const [isLeaguesLoading, setIsLeaguesLoading] = useState(true);
   const [leaguesError, setLeaguesError] = useState<string | null>(null);
 
-  const [selectedLeagueId, setSelectedLeagueId] = useState<string>('');
-  const [selectedDivisionId, setSelectedDivisionId] = useState<string>('');
-  const [isLeagueChooserOpen, setIsLeagueChooserOpen] = useState(true);
+  const [selectedLeagueId, setSelectedLeagueId] = useState<string>(() => {
+    return localStorage.getItem(CURRENT_LEAGUE_ID_KEY) || '';
+  });
+  const [selectedDivisionId, setSelectedDivisionId] = useState<string>(() => {
+    return localStorage.getItem(CURRENT_DIVISION_ID_KEY) || '';
+  });
+  const [isLeagueChooserOpen, setIsLeagueChooserOpen] = useState(!selectedLeagueId);
 
   const [standings, setStandings] = useState<StandingsResponse | null>(null);
   const [isStandingsLoading, setIsStandingsLoading] = useState(false);
@@ -126,6 +133,15 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
       setSelectedDivisionId(currentLeague.divisions[0]?.id ?? '');
     }
   }, [selectedDivisionId, selectedLeagueId, selectedLeagueIds.length, visibleLeagues]);
+
+  useEffect(() => {
+    if (selectedLeagueId) {
+      localStorage.setItem(CURRENT_LEAGUE_ID_KEY, selectedLeagueId);
+    }
+    if (selectedDivisionId) {
+      localStorage.setItem(CURRENT_DIVISION_ID_KEY, selectedDivisionId);
+    }
+  }, [selectedLeagueId, selectedDivisionId]);
 
   useEffect(() => {
     if (!selectedDivisionId) {
@@ -386,7 +402,7 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
                       size="s"
                       tone="outline-highlight"
                     >
-                      Source
+                      <i className="fa fa-globe" />
                     </AppButtonLink>
                   </div>
                 ) : null}

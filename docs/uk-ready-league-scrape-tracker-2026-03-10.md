@@ -1,6 +1,6 @@
 # UK Ready League Scrape Tracker
 
-Last updated: 2026-03-15T09:23:06.583Z
+Last updated: 2026-03-15T09:43:06.578Z
 
 ## Summary
 
@@ -52,7 +52,7 @@ Last updated: 2026-03-15T09:23:06.583Z
 | Dorset | Blackmore Vale Table Tennis League | 2/2 (completed) | 2/2 (completed) | completed | 2026-03-15T09:01:43.439Z | 2026-03-15T09:01:44.154Z | ttleagues | https://blackmorevale.ttleagues.com |
 | Dorset | Weymouth Table Tennis League | 3/3 (completed) | 15/15 (completed) | completed | 2026-03-15T09:01:44.158Z | 2026-03-15T09:01:46.919Z | ttleagues | https://weymouth.ttleagues.com |
 | Durham | Darlington Table Tennis League | 2/2 (completed) | 9/9 (completed) | completed | 2026-03-15T09:01:46.920Z | 2026-03-15T09:01:48.830Z | ttleagues | https://darlington.ttleagues.com |
-| Durham | Sunderland Table Tennis League | 3/3 (completed) | 13/18 (partial) | in_progress | 2026-03-15T09:01:48.837Z |  | tt365 | https://www.tabletennis365.com/Sunderland |
+| Durham | Sunderland Table Tennis League | 3/3 (completed) | 15/18 (partial) | in_progress | 2026-03-15T09:01:48.837Z |  | tt365 | https://www.tabletennis365.com/Sunderland |
 | Essex | Basildon Table Tennis League | 0/0 (not_required) | 0/0 (not_required) | pending |  |  | tt365 | https://www.tabletennis365.com/Basildon |
 | Essex | Becontree Table Tennis League | 0/6 (pending) | 0/7 (pending) | pending |  |  | ttleagues | https://becontree.ttleagues.com |
 | Essex | Braintree Table Tennis League | 0/3 (pending) | 0/14 (pending) | pending |  |  | ttleagues | https://braintree.ttleagues.com |

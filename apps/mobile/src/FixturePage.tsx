@@ -93,7 +93,7 @@ export function FixturePage() {
               <AppCard>
                 <AppCardContent className="mb-2">
                   <AppButtonLink href={fixtureMeta.source_url} target="_blank" rel="noreferrer" tone="outline-highlight">
-                    Open Source Fixture
+                    <i className="fa fa-globe me-2" /> Source
                   </AppButtonLink>
                 </AppCardContent>
               </AppCard>
