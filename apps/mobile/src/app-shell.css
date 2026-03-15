@@ -1026,23 +1026,43 @@ body.theme-dark .tt-player-summary-divider {
 }
 
 .tt-standings-table {
-  border-collapse: collapse;
   width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-.tt-standings-table th,
+.tt-standings-table thead tr th {
+  border: none !important;
+}
+
+.tt-standings-table tbody tr {
+  transition: background-color 0.2s ease;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.tt-standings-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.tt-standings-table tbody tr:hover {
+  background-color: rgba(var(--highlight-rgb, 227, 28, 35), 0.03);
+}
+
 .tt-standings-table td {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-  font-size: 12px;
-  padding: 9px 8px;
-  text-align: left;
+  padding: 12px 8px !important;
   vertical-align: middle;
-  white-space: nowrap;
 }
 
-.tt-standings-table th:last-child,
-.tt-standings-table td:last-child {
-  text-align: right;
+.tt-standings-table td:first-child,
+.tt-standings-table th:first-child {
+  padding-left: 15px !important;
+}
+
+.tt-standings-table td:last-child,
+.tt-standings-table th:last-child {
+  padding-right: 15px !important;
 }
 
 .tt-h2h-picker-grid {

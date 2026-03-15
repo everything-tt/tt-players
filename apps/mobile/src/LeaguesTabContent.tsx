@@ -95,6 +95,8 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
   );
 
   useEffect(() => {
+    if (isLeaguesLoading) return;
+
     if (visibleLeagues.length === 0) {
       setSelectedLeagueId('');
       setSelectedDivisionId('');
@@ -132,7 +134,7 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
     if (!hasSelectedDivision) {
       setSelectedDivisionId(currentLeague.divisions[0]?.id ?? '');
     }
-  }, [selectedDivisionId, selectedLeagueId, selectedLeagueIds.length, visibleLeagues]);
+  }, [isLeaguesLoading, selectedDivisionId, selectedLeagueId, selectedLeagueIds.length, visibleLeagues]);
 
   useEffect(() => {
     if (selectedLeagueId) {
@@ -416,24 +418,24 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
                 <p className="mb-0">No standings available yet.</p>
               ) : (
                 <div className="tt-table-wrap">
-                  <table className="tt-standings-table" aria-label="League standings">
+                  <table className="table table-borderless tt-standings-table mb-0" aria-label="League standings">
                     <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Team</th>
-                        <th>W</th>
-                        <th>L</th>
-                        <th>Pts</th>
+                      <tr className="bg-highlight">
+                        <th scope="col" className="color-white py-3 font-13 text-center" style={{ width: '40px' }}>#</th>
+                        <th scope="col" className="color-white py-3 font-13 text-start">Team</th>
+                        <th scope="col" className="color-white py-3 font-13 text-center" style={{ width: '40px' }}>W</th>
+                        <th scope="col" className="color-white py-3 font-13 text-center" style={{ width: '40px' }}>L</th>
+                        <th scope="col" className="color-white py-3 font-13 text-center" style={{ width: '50px' }}>Pts</th>
                       </tr>
                     </thead>
                     <tbody>
                       {standingsRows.map((row) => (
-                        <tr key={row.team_id}>
-                          <td>{row.position}</td>
-                          <td>{row.team_name}</td>
-                          <td>{row.won}</td>
-                          <td>{row.lost}</td>
-                          <td><strong>{row.points}</strong></td>
+                        <tr key={row.team_id} className="align-middle">
+                          <td className="text-center font-12 opacity-60">{row.position}</td>
+                          <td className="text-start font-13 font-600 color-theme">{row.team_name}</td>
+                          <td className="text-center font-12">{row.won}</td>
+                          <td className="text-center font-12">{row.lost}</td>
+                          <td className="text-center"><strong className="color-highlight font-14">{row.points}</strong></td>
                         </tr>
                       ))}
                     </tbody>
