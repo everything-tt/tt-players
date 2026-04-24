@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   apiFetch,
   type LeagueWithDivisions,
-  type LeaguesResponse,
   type StandingsResponse,
 } from './player-shared';
+import { useLeaguesQuery, useStandingsQuery } from './queries';
 import { AppButtonLink, AppCard, AppCardContent } from './ui/appkit';
 
 const CURRENT_LEAGUE_ID_KEY = 'tt_players_current_league_id';
@@ -37,9 +38,10 @@ interface LeaguesTabContentProps {
 }
 
 export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps) {
-  const [allSeasonLeagues, setAllSeasonLeagues] = useState<LeagueWithDivisions[]>([]);
-  const [isLeaguesLoading, setIsLeaguesLoading] = useState(true);
-  const [leaguesError, setLeaguesError] = useState<string | null>(null);
+  const leaguesQuery = useLeaguesQuery();
+  const allSeasonLeagues: LeagueWithDivisions[] = leaguesQuery.data?.data ?? [];
+  const isLeaguesLoading = leaguesQuery.isLoading && !leaguesQuery.data;
+  const leaguesError = leaguesQuery.error instanceof Error ? leaguesQuery.error.message : null;
 
   const [selectedLeagueId, setSelectedLeagueId] = useState<string>(() => {
     return localStorage.getItem(CURRENT_LEAGUE_ID_KEY) || '';
@@ -49,36 +51,7 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
   });
   const [isLeagueChooserOpen, setIsLeagueChooserOpen] = useState(!selectedLeagueId);
 
-  const [standings, setStandings] = useState<StandingsResponse | null>(null);
-  const [isStandingsLoading, setIsStandingsLoading] = useState(false);
-  const [standingsError, setStandingsError] = useState<string | null>(null);
-  const [leagueSnapshot, setLeagueSnapshot] = useState<LeagueSnapshot | null>(null);
-  const [isLeagueSnapshotLoading, setIsLeagueSnapshotLoading] = useState(false);
-  const [leagueSnapshotError, setLeagueSnapshotError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const abortController = new AbortController();
-
-    const loadLeagues = async () => {
-      try {
-        setIsLeaguesLoading(true);
-        setLeaguesError(null);
-
-        // Keep leagues list aligned with the global selector source.
-        const payload = await apiFetch<LeaguesResponse>('/leagues', abortController.signal);
-        setAllSeasonLeagues(payload.data ?? []);
-      } catch (error) {
-        if ((error as Error).name === 'AbortError') return;
-        setAllSeasonLeagues([]);
-        setLeaguesError((error as Error).message || 'Failed to load leagues');
-      } finally {
-        setIsLeaguesLoading(false);
-      }
-    };
-
-    loadLeagues();
-    return () => abortController.abort();
-  }, []);
 
   const visibleLeagues = useMemo(() => {
     if (allSeasonLeagues.length === 0) return [];
@@ -130,7 +103,7 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
     const currentLeague = visibleLeagues.find((league) => league.id === selectedLeagueId);
     if (!currentLeague) return;
 
-    const hasSelectedDivision = currentLeague.divisions.some((division) => division.id === selectedDivisionId);
+    const hasSelectedDivision = currentLeague.divisions.some((division: any) => division.id === selectedDivisionId);
     if (!hasSelectedDivision) {
       setSelectedDivisionId(currentLeague.divisions[0]?.id ?? '');
     }
@@ -145,114 +118,73 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
     }
   }, [selectedLeagueId, selectedDivisionId]);
 
-  useEffect(() => {
-    if (!selectedDivisionId) {
-      setStandings(null);
-      setStandingsError(null);
-      setIsStandingsLoading(false);
-      return;
-    }
-    const abortController = new AbortController();
+  const standingsQuery = useStandingsQuery(selectedDivisionId, Boolean(selectedDivisionId));
+  const standings = standingsQuery.data ?? null;
+  const isStandingsLoading = standingsQuery.isLoading;
+  const standingsError = standingsQuery.error instanceof Error ? standingsQuery.error.message : null;
 
-    const loadStandings = async () => {
-      try {
-        setIsStandingsLoading(true);
-        setStandingsError(null);
-        const payload = await apiFetch<StandingsResponse>(
-          `/competitions/${selectedDivisionId}/standings`,
-          abortController.signal,
-        );
-        setStandings(payload);
-      } catch (error) {
-        if ((error as Error).name === 'AbortError') return;
-        setStandings(null);
-        setStandingsError((error as Error).message || 'Failed to load standings');
-      } finally {
-        setIsStandingsLoading(false);
-      }
-    };
+  const leagueSnapshotQuery = useQuery({
+    queryKey: ['league-snapshot', selectedLeague?.id],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      if (!selectedLeague || selectedLeague.divisions.length === 0) return null;
 
-    loadStandings();
-    return () => abortController.abort();
-  }, [selectedDivisionId]);
+      const leaguePlayerIds = new Set<string>();
+      const divisionSnapshots = await Promise.all(
+        selectedLeague.divisions.map(async (division) => {
+          const standingsPayload = await apiFetch<StandingsResponse>(
+            `/competitions/${division.id}/standings`,
+            signal,
+          );
 
-  useEffect(() => {
-    if (!selectedLeague || selectedLeague.divisions.length === 0) {
-      setLeagueSnapshot(null);
-      setLeagueSnapshotError(null);
-      setIsLeagueSnapshotLoading(false);
-      return;
-    }
-
-    const abortController = new AbortController();
-
-    const loadLeagueSnapshot = async () => {
-      try {
-        setIsLeagueSnapshotLoading(true);
-        setLeagueSnapshotError(null);
-
-        const leaguePlayerIds = new Set<string>();
-        const divisionSnapshots = await Promise.all(
-          selectedLeague.divisions.map(async (division) => {
-            const standingsPayload = await apiFetch<StandingsResponse>(
-              `/competitions/${division.id}/standings`,
-              abortController.signal,
-            );
-
-            const teamIds = standingsPayload.data.map((row) => row.team_id);
-            const rosterPayloads = await Promise.all(
-              teamIds.map(async (teamId) => {
-                try {
-                  return await apiFetch<TeamRosterResponse>(`/teams/${teamId}/roster`, abortController.signal);
-                } catch {
-                  return { data: [] } satisfies TeamRosterResponse;
-                }
-              }),
-            );
-
-            const divisionPlayerIds = new Set<string>();
-            for (const rosterPayload of rosterPayloads) {
-              for (const player of rosterPayload.data) {
-                if (!player.id) continue;
-                divisionPlayerIds.add(player.id);
-                leaguePlayerIds.add(player.id);
+          const teamIds = standingsPayload.data.map((row) => row.team_id);
+          const rosterPayloads = await Promise.all(
+            teamIds.map(async (teamId) => {
+              try {
+                return await apiFetch<TeamRosterResponse>(`/teams/${teamId}/roster`, signal);
+              } catch {
+                return { data: [] } satisfies TeamRosterResponse;
               }
+            }),
+          );
+
+          const divisionPlayerIds = new Set<string>();
+          for (const rosterPayload of rosterPayloads) {
+            for (const player of rosterPayload.data) {
+              if (!player.id) continue;
+              divisionPlayerIds.add(player.id);
+              leaguePlayerIds.add(player.id);
             }
+          }
 
-            const playedSum = standingsPayload.data.reduce((sum, row) => sum + row.played, 0);
-            const estimatedMatches = Math.round(playedSum / 2);
+          const playedSum = standingsPayload.data.reduce((sum, row) => sum + row.played, 0);
+          const estimatedMatches = Math.round(playedSum / 2);
 
-            return {
-              divisionId: division.id,
-              divisionName: division.name,
-              teams: standingsPayload.data.length,
-              players: divisionPlayerIds.size,
-              matches: estimatedMatches,
-            } satisfies DivisionSnapshot;
-          }),
-        );
+          return {
+            divisionId: division.id,
+            divisionName: division.name,
+            teams: standingsPayload.data.length,
+            players: divisionPlayerIds.size,
+            matches: estimatedMatches,
+          } satisfies DivisionSnapshot;
+        }),
+      );
 
-        setLeagueSnapshot({
-          divisions: divisionSnapshots,
-          totals: {
-            divisions: divisionSnapshots.length,
-            teams: divisionSnapshots.reduce((sum, division) => sum + division.teams, 0),
-            players: leaguePlayerIds.size,
-            matches: divisionSnapshots.reduce((sum, division) => sum + division.matches, 0),
-          },
-        });
-      } catch (error) {
-        if ((error as Error).name === 'AbortError') return;
-        setLeagueSnapshot(null);
-        setLeagueSnapshotError((error as Error).message || 'Failed to load league snapshot');
-      } finally {
-        setIsLeagueSnapshotLoading(false);
-      }
-    };
+      return {
+        divisions: divisionSnapshots,
+        totals: {
+          divisions: divisionSnapshots.length,
+          teams: divisionSnapshots.reduce((sum, division) => sum + division.teams, 0),
+          players: leaguePlayerIds.size,
+          matches: divisionSnapshots.reduce((sum, division) => sum + division.matches, 0),
+        },
+      } satisfies LeagueSnapshot;
+    },
+    enabled: Boolean(selectedLeague) && selectedLeague!.divisions.length > 0,
+  });
 
-    loadLeagueSnapshot();
-    return () => abortController.abort();
-  }, [selectedLeague]);
+  const leagueSnapshot = leagueSnapshotQuery.data ?? null;
+  const isLeagueSnapshotLoading = leagueSnapshotQuery.isLoading;
+  const leagueSnapshotError = leagueSnapshotQuery.error instanceof Error ? leagueSnapshotQuery.error.message : null;
 
   const standingsRows = standings?.data ?? [];
   const standingsSourceUrl = standings?.source_url ?? null;
@@ -429,7 +361,7 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
                       </tr>
                     </thead>
                     <tbody>
-                      {standingsRows.map((row) => (
+                      {standingsRows.map((row: any) => (
                         <tr key={row.team_id} className="align-middle">
                           <td className="text-center font-12 opacity-60">{row.position}</td>
                           <td className="text-start font-13 font-600 color-theme">{row.team_name}</td>

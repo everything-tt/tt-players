@@ -615,7 +615,11 @@ function App() {
         </div>
       ) : null}
 
-      <div className={`menu-hider ${activeMenuId ? 'menu-active' : ''}`} onClick={closeActiveMenu} aria-hidden="true" />
+      <div
+        className={`menu-hider ${activeMenuId ? 'menu-active' : ''}`}
+        onClick={closeActiveMenu}
+        aria-hidden={activeMenuId ? undefined : true}
+      />
 
         <div id="page" className="app-shell-page">
           {!isLeagueSelectorOpen ? (
@@ -957,6 +961,7 @@ function App() {
           className={`menu menu-box-left rounded-0 ${activeMenuId === 'menu-main' ? 'menu-active' : ''}`}
           data-menu-width={menuConfigs['menu-main'].width}
           style={{ width: menuConfigs['menu-main'].width }}
+          aria-hidden={activeMenuId === 'menu-main' ? undefined : true}
         >
           <div className="card rounded-0 bg-highlight" data-card-height="140">
             <div className="card-top">
@@ -1029,6 +1034,7 @@ function App() {
           className={`menu menu-box-bottom rounded-m ${activeMenuId === 'menu-share' ? 'menu-active' : ''}`}
           data-menu-height={menuConfigs['menu-share'].height}
           style={{ height: menuConfigs['menu-share'].height }}
+          aria-hidden={activeMenuId === 'menu-share' ? undefined : true}
         >
           <div className="menu-title">
             <p className="color-highlight">Tap a link to</p>
@@ -1072,6 +1078,7 @@ function App() {
           className={`menu menu-box-bottom rounded-m ${activeMenuId === 'menu-colors' ? 'menu-active' : ''}`}
           data-menu-height={menuConfigs['menu-colors'].height}
           style={{ height: menuConfigs['menu-colors'].height }}
+          aria-hidden={activeMenuId === 'menu-colors' ? undefined : true}
         >
           <div className="menu-title">
             <p className="color-highlight font-600">Choose your Favorite</p>

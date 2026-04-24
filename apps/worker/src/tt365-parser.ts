@@ -82,6 +82,245 @@ function parseGameCountsFromCellText(cellText: string): { homeGamesWon: number; 
     return { homeGamesWon, awayGamesWon };
 }
 
+function parseGameCountsFromSetNode(
+    $: cheerio.CheerioAPI,
+    node: any,
+): { homeGamesWon: number; awayGamesWon: number } | null {
+    const gameText = $(node)
+        .find('.gameScore')
+        .toArray()
+        .map((el) => normalizeText($(el).text()))
+        .join(' ');
+
+    return parseGameCountsFromCellText(gameText);
+}
+
+function collectTT365PlayerIds(
+    $: cheerio.CheerioAPI,
+    container: cheerio.Cheerio<any>,
+    playerMap: Map<string, ParsedPlayer>,
+): string[] {
+    const playerIds: string[] = [];
+
+    container.find('a[href*="/Results/Player/Statistics/"], a[href*="/results/player/statistics/"]').each(
+        (_i, a) => {
+            const href = $(a).attr('href') || '';
+            const name = normalizeText($(a).text());
+            const extId = extractPlayerIdFromHref(href);
+            playerIds.push(extId);
+            if (!playerMap.has(extId)) {
+                playerMap.set(extId, { externalId: extId, name });
+            }
+        },
+    );
+
+    return playerIds;
+}
+
+function parseTT365TypeAMatchCard(
+    $: cheerio.CheerioAPI,
+    matchExternalId: string,
+    playerMap: Map<string, ParsedPlayer>,
+): ParsedRubber[] {
+    const rubbers: ParsedRubber[] = [];
+
+    $('table tbody tr').each((_i, row) => {
+        const cells = $(row).find('td');
+        if (cells.length < 4) return;
+
+        const firstCell = $(cells[0]);
+        if (firstCell.attr('colspan') || firstCell.text().includes('Submitted By')) {
+            return;
+        }
+
+        const rubberIndex = rubbers.length + 1;
+
+        const homeCell = $(cells[0]);
+        const homePlayers = collectTT365PlayerIds($, homeCell, playerMap);
+        const homeIsForfeit = homePlayers.length === 0 && isForfeitCellText(homeCell.text());
+
+        const awayCell = $(cells[1]);
+        const awayPlayers = collectTT365PlayerIds($, awayCell, playerMap);
+        const awayIsForfeit = awayPlayers.length === 0 && isForfeitCellText(awayCell.text());
+
+        const gamesCellText = normalizeText($(cells[2]).text());
+        const parsedGames = parseGameCountsFromCellText(gamesCellText);
+        const scoreText = normalizeText($(cells[3]).text());
+        const scoreParts = scoreText.split('-').map((s) => parseInt(s.trim(), 10));
+        const homeGamesWon = parsedGames?.homeGamesWon ?? scoreParts[0] ?? 0;
+        const awayGamesWon = parsedGames?.awayGamesWon ?? scoreParts[1] ?? 0;
+
+        rubbers.push({
+            externalId: `${matchExternalId}-${rubberIndex}`,
+            matchExternalId,
+            isDoubles: homePlayers.length > 1 || awayPlayers.length > 1,
+            homePlayers,
+            awayPlayers,
+            homeGamesWon,
+            awayGamesWon,
+            outcomeType: homeIsForfeit || awayIsForfeit ? 'walkover' : 'normal',
+        });
+    });
+
+    return rubbers;
+}
+
+function parseTT365TypeBMatchCard(
+    $: cheerio.CheerioAPI,
+    matchExternalId: string,
+    playerMap: Map<string, ParsedPlayer>,
+): ParsedRubber[] {
+    const rubbers: ParsedRubber[] = [];
+    const rows = $('#CardResults .table-row.rowX').toArray();
+    if (rows.length === 0) return rubbers;
+
+    const headerRow = $(rows[0]!);
+    const awaySlots = headerRow.children('div').toArray().slice(1).map((cell) => {
+        const $cell = $(cell);
+        const playerIds = collectTT365PlayerIds($, $cell, playerMap);
+        const isForfeit = playerIds.length === 0 && isForfeitCellText($cell.text());
+        return { playerIds, isForfeit };
+    });
+
+    for (const row of rows.slice(1)) {
+        const $row = $(row);
+        const rowClass = $row.attr('class') ?? '';
+
+        if (rowClass.includes('row5') || $row.find('.doublesSet').length > 0) {
+            const doublesCell = $row.children('div').first();
+            const doublesBlocks = doublesCell.children('div').toArray();
+            const homePlayers = doublesBlocks[0]
+                ? collectTT365PlayerIds($, $(doublesBlocks[0]), playerMap)
+                : [];
+            const awayPlayers = doublesBlocks[1]
+                ? collectTT365PlayerIds($, $(doublesBlocks[1]), playerMap)
+                : [];
+            const parsedGames = parseGameCountsFromSetNode($, $row.find('.doublesSet').get(0)!);
+            if (!parsedGames) continue;
+
+            rubbers.push({
+                externalId: `${matchExternalId}-${rubbers.length + 1}`,
+                matchExternalId,
+                isDoubles: true,
+                homePlayers,
+                awayPlayers,
+                homeGamesWon: parsedGames.homeGamesWon,
+                awayGamesWon: parsedGames.awayGamesWon,
+                outcomeType: homePlayers.length === 0 || awayPlayers.length === 0 ? 'walkover' : 'normal',
+            });
+            continue;
+        }
+
+        const homeCell = $row.children('div').first();
+        const homePlayers = collectTT365PlayerIds($, homeCell, playerMap);
+        const homeIsForfeit = homePlayers.length === 0 && isForfeitCellText(homeCell.text());
+        const setNodes = $row.children('.set').toArray();
+
+        setNodes.forEach((setNode, index) => {
+            const awaySlot = awaySlots[index];
+            if (!awaySlot) return;
+
+            const parsedGames = parseGameCountsFromSetNode($, setNode);
+            if (!parsedGames) return;
+
+            rubbers.push({
+                externalId: `${matchExternalId}-${rubbers.length + 1}`,
+                matchExternalId,
+                isDoubles: false,
+                homePlayers,
+                awayPlayers: awaySlot.playerIds,
+                homeGamesWon: parsedGames.homeGamesWon,
+                awayGamesWon: parsedGames.awayGamesWon,
+                outcomeType: homeIsForfeit || awaySlot.isForfeit ? 'walkover' : 'normal',
+            });
+        });
+    }
+
+    return rubbers;
+}
+
+function parseTT365ScorecardMatchCard(
+    $: cheerio.CheerioAPI,
+    matchExternalId: string,
+    playerMap: Map<string, ParsedPlayer>,
+): ParsedRubber[] {
+    const homeSingles = new Map<string, string[]>();
+    const awaySingles = new Map<string, string[]>();
+    let homeDoubles: string[] = [];
+    let awayDoubles: string[] = [];
+
+    const registerNamedPlayers = (
+        container: cheerio.Cheerio<any>,
+        target: Map<string, string[]>,
+    ): void => {
+        container.find('.row.cell-border.cell-space').each((_i, row) => {
+            const label = normalizeText($(row).find('strong').first().text())
+                .replace(/\s+/g, ' ')
+                .trim();
+            const scoreCell = $(row).find('.score').first();
+            if (label.toLowerCase().startsWith('doubles') || label.toLowerCase().startsWith('final score')) {
+                return;
+            }
+            const ids = collectTT365PlayerIds($, $(row), playerMap);
+            if (ids.length === 0) return;
+            const key = label.replace('Player ', '').trim();
+            target.set(key, ids);
+        });
+    };
+
+    registerNamedPlayers($('.fixtureDetails > .col-lg-6').first(), homeSingles);
+    registerNamedPlayers($('.fixtureDetails > .col-lg-6').last(), awaySingles);
+
+    const homeDoublesRow = $('.fixtureDetails > .col-lg-6').first().find('.row.cell-border.cell-space.doubles').first();
+    const awayDoublesRow = $('.fixtureDetails > .col-lg-6').last().find('.row.cell-border.cell-space.doubles').first();
+    if (homeDoublesRow.length > 0) {
+        homeDoubles = collectTT365PlayerIds($, homeDoublesRow, playerMap);
+    }
+    if (awayDoublesRow.length > 0) {
+        awayDoubles = collectTT365PlayerIds($, awayDoublesRow, playerMap);
+    }
+
+    const rubbers: ParsedRubber[] = [];
+    $('.resultCard .results').each((_i, row) => {
+        const schedule = normalizeText($(row).find('.schedule').text());
+        const gameText = $(row)
+            .find('.setResult .game')
+            .toArray()
+            .map((el) => normalizeText($(el).text()))
+            .join(' ');
+        const parsedGames = parseGameCountsFromCellText(gameText);
+        if (!parsedGames) return;
+
+        let homePlayers: string[] = [];
+        let awayPlayers: string[] = [];
+        let isDoubles = false;
+
+        if (/^Dbls$/i.test(schedule)) {
+            homePlayers = homeDoubles;
+            awayPlayers = awayDoubles;
+            isDoubles = true;
+        } else {
+            const match = schedule.match(/^([A-Z])\s+v\s+([A-Z])$/i);
+            if (!match) return;
+            homePlayers = homeSingles.get(match[1].toUpperCase()) ?? [];
+            awayPlayers = awaySingles.get(match[2].toUpperCase()) ?? [];
+        }
+
+        rubbers.push({
+            externalId: `${matchExternalId}-${rubbers.length + 1}`,
+            matchExternalId,
+            isDoubles,
+            homePlayers,
+            awayPlayers,
+            homeGamesWon: parsedGames.homeGamesWon,
+            awayGamesWon: parsedGames.awayGamesWon,
+            outcomeType: homePlayers.length === 0 || awayPlayers.length === 0 ? 'walkover' : 'normal',
+        });
+    });
+
+    return rubbers;
+}
+
 // ─── Standings Parser ─────────────────────────────────────────────────────────
 
 export function parseTT365Standings(html: string): {
@@ -93,20 +332,39 @@ export function parseTT365Standings(html: string): {
     const teams: ParsedTeam[] = [];
     const standings: ParsedStanding[] = [];
     const seenTeams = new Set<string>();
+    const seenStandingTeams = new Set<string>();
 
-    // The standings table has columns: #, Team, P, W, D, L, SF, SA, Points
-    $('table tbody tr').each((_i, row) => {
+    const readNumericCell = (
+        cells: cheerio.Cheerio<any>,
+        classSelector: string,
+        fallbackIndex: number,
+    ): number => {
+        const classMatch = cells.filter(classSelector).first();
+        const rawText = classMatch.length > 0
+            ? classMatch.text()
+            : $(cells[fallbackIndex] ?? []).text();
+        return parseInt(normalizeText(rawText), 10);
+    };
+
+    // TT365 standings layouts vary by tenant.
+    // Some expose 8 cells (#, Team, P, W, D, L, PA, Points),
+    // while others include extra for/against ratio columns.
+    $('table tbody tr').each((rowIndex, row) => {
         const cells = $(row).find('td');
-        if (cells.length < 9) return; // skip non-data rows
+        if (cells.length < 7) return; // skip non-data rows
 
-        const position = parseInt($(cells[0]).text().trim(), 10);
-        if (isNaN(position)) return; // skip header/footer rows
+        const rawPosition = parseInt($(cells[0]).text().trim(), 10);
 
         // Team cell contains an <a> with the team name and URL slug
         const teamLink = $(cells[1]).find('a').first();
         const teamName = normalizeText(teamLink.text());
         const teamHref = teamLink.attr('href') || '';
         const teamSlug = extractTeamSlugFromHref(teamHref);
+        if (!teamSlug || !teamName) return;
+
+        const position = Number.isNaN(rawPosition)
+            ? seenStandingTeams.size + 1 || rowIndex + 1
+            : rawPosition;
 
         if (!seenTeams.has(teamSlug)) {
             seenTeams.add(teamSlug);
@@ -116,15 +374,19 @@ export function parseTT365Standings(html: string): {
             });
         }
 
+        if (seenStandingTeams.has(teamSlug)) {
+            return;
+        }
+        seenStandingTeams.add(teamSlug);
+
         standings.push({
             teamExternalId: teamSlug,
             position,
-            played: parseInt($(cells[2]).text().trim(), 10),
-            won: parseInt($(cells[3]).text().trim(), 10),
-            drawn: parseInt($(cells[4]).text().trim(), 10),
-            lost: parseInt($(cells[5]).text().trim(), 10),
-            // cells[6] = SF, cells[7] = SA (skipped, not in ParsedStanding)
-            points: parseInt($(cells[8]).text().trim(), 10),
+            played: readNumericCell(cells, '.played', 2),
+            won: readNumericCell(cells, '.won', 3),
+            drawn: readNumericCell(cells, '.drawn', 4),
+            lost: readNumericCell(cells, '.lost', 5),
+            points: readNumericCell(cells, '.points', cells.length - 1),
         });
     });
 
@@ -294,6 +556,9 @@ export function parseTT365MatchCard(
     if (teamLinks.length < 2) {
         teamLinks = $('#CardSummary .teamNames a');
     }
+    if (teamLinks.length < 2) {
+        teamLinks = $('.fixtureDetails .teamBg a');
+    }
 
     const homeTeamName = normalizeText($(teamLinks[0]).text());
     const homeTeamHref = $(teamLinks[0]).attr('href') || '';
@@ -312,90 +577,12 @@ export function parseTT365MatchCard(
     const timeEl = $('time[datetime]');
     const datePlayed = timeEl.attr('datetime') || '';
 
-    // ── Extract rubbers and players from the match table ──────────────────
-    const playerMap = new Map<string, ParsedPlayer>(); // keyed by externalId
-    const rubbers: ParsedRubber[] = [];
-
-    $('table tbody tr').each((i, row) => {
-        const cells = $(row).find('td');
-        if (cells.length < 4) return;
-
-        // Skip the summary row at the bottom (has colspan or "Submitted By" text)
-        const firstCell = $(cells[0]);
-        if (firstCell.attr('colspan') || firstCell.text().includes('Submitted By')) {
-            return;
-        }
-
-        const rubberIndex = rubbers.length + 1;
-
-        // ── Home player(s) ────────────────────────────────────────────────
-        const homeCell = $(cells[0]);
-        const homePlayerLinks = homeCell.find('a');
-        const homePlayers: string[] = [];
-        let homeIsForfeit = false;
-        homePlayerLinks.each((_j, a) => {
-            const href = $(a).attr('href') || '';
-            const name = normalizeText($(a).text());
-            const extId = extractPlayerIdFromHref(href);
-            homePlayers.push(extId);
-            if (!playerMap.has(extId)) {
-                playerMap.set(extId, { externalId: extId, name });
-            }
-        });
-        if (homePlayerLinks.length === 0 && isForfeitCellText(homeCell.text())) {
-            homeIsForfeit = true;
-        }
-
-        // ── Away player(s) ────────────────────────────────────────────────
-        const awayCell = $(cells[1]);
-        const awayPlayerLinks = awayCell.find('a');
-        const awayPlayers: string[] = [];
-        let awayIsForfeit = false;
-
-        if (awayPlayerLinks.length === 0) {
-            if (isForfeitCellText(awayCell.text())) {
-                awayIsForfeit = true;
-            }
-        } else {
-            awayPlayerLinks.each((_j, a) => {
-                const href = $(a).attr('href') || '';
-                const name = normalizeText($(a).text());
-                const extId = extractPlayerIdFromHref(href);
-                awayPlayers.push(extId);
-                if (!playerMap.has(extId)) {
-                    playerMap.set(extId, { externalId: extId, name });
-                }
-            });
-        }
-
-        // ── Score ─────────────────────────────────────────────────────────
-        // TT365 "Score" is winner points (1-0/0-1); the "Games" column carries set-level detail.
-        // We parse game counts from Games first, then fallback to Score if Games cannot be parsed.
-        const gamesCellText = normalizeText($(cells[2]).text());
-        const parsedGames = parseGameCountsFromCellText(gamesCellText);
-        const scoreText = normalizeText($(cells[3]).text()); // fallback (e.g. "1-0")
-        const scoreParts = scoreText.split('-').map((s) => parseInt(s.trim(), 10));
-        const homeGamesWon = parsedGames?.homeGamesWon ?? scoreParts[0] ?? 0;
-        const awayGamesWon = parsedGames?.awayGamesWon ?? scoreParts[1] ?? 0;
-
-        // ── Doubles detection ─────────────────────────────────────────────
-        const isDoubles = homePlayers.length > 1 || awayPlayers.length > 1;
-
-        // ── Outcome type ──────────────────────────────────────────────────
-        const isForfeit = homeIsForfeit || awayIsForfeit;
-        const outcomeType: OutcomeType = isForfeit ? 'walkover' : 'normal';
-
-        rubbers.push({
-            externalId: `${matchExternalId}-${rubberIndex}`,
-            matchExternalId,
-            isDoubles,
-            homePlayers,
-            awayPlayers,
-            homeGamesWon,
-            awayGamesWon,
-            outcomeType,
-        });
-    });
+    const playerMap = new Map<string, ParsedPlayer>();
+    const rubbers = $('#PublicMatchCardTypeB').length > 0
+        ? parseTT365TypeBMatchCard($, matchExternalId, playerMap)
+        : $('.resultCard .results').length > 0
+            ? parseTT365ScorecardMatchCard($, matchExternalId, playerMap)
+            : parseTT365TypeAMatchCard($, matchExternalId, playerMap);
 
     // ── Build fixture ─────────────────────────────────────────────────────
     const hasScores = rubbers.length > 0;

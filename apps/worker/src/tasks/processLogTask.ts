@@ -26,12 +26,7 @@ const TT365_PLAYER_STATS_RETRY_DELAY_MS = Number(
 const TT365_PLAYER_STATS_FETCH_TIMEOUT_MS = Number(
     process.env['TT365_PLAYER_STATS_FETCH_TIMEOUT_MS'] ?? '15000',
 );
-const TT365_PLAYER_STATS_CACHE_TTL_MS = Number(
-    process.env['TT365_PLAYER_STATS_CACHE_TTL_MS'] ?? '1800000',
-);
-
 type TT365PlayerStatsCacheEntry = {
-    fetchedAtMs: number;
     body: string;
 };
 
@@ -376,6 +371,13 @@ function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function getTT365PlayerStatsCacheKey(target: {
+    seasonToken: string;
+    playerExternalId: string;
+}): string {
+    return `${target.seasonToken}|${target.playerExternalId}`;
+}
+
 function extractTT365FooterScore(
     html: string,
 ): { homeRubbersWon: number; awayRubbersWon: number } | null {
@@ -459,38 +461,35 @@ async function fetchTextWithRetry(url: string): Promise<string> {
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
-function getCachedTT365PlayerStatsBody(url: string): string | null {
-    const entry = tt365PlayerStatsCache.get(url);
-    if (!entry) return null;
-
-    const ageMs = Date.now() - entry.fetchedAtMs;
-    if (ageMs > TT365_PLAYER_STATS_CACHE_TTL_MS) {
-        tt365PlayerStatsCache.delete(url);
-        return null;
-    }
-
-    return entry.body;
+function getCachedTT365PlayerStatsBody(target: {
+    seasonToken: string;
+    playerExternalId: string;
+}): string | null {
+    const entry = tt365PlayerStatsCache.get(getTT365PlayerStatsCacheKey(target));
+    return entry?.body ?? null;
 }
 
-async function fetchTT365PlayerStatsBody(url: string): Promise<string> {
-    const cached = getCachedTT365PlayerStatsBody(url);
+async function fetchTT365PlayerStatsBody(target: {
+    seasonToken: string;
+    playerExternalId: string;
+    url: string;
+}): Promise<string> {
+    const cacheKey = getTT365PlayerStatsCacheKey(target);
+    const cached = getCachedTT365PlayerStatsBody(target);
     if (cached !== null) return cached;
 
-    const existingInFlight = tt365PlayerStatsInFlight.get(url);
+    const existingInFlight = tt365PlayerStatsInFlight.get(cacheKey);
     if (existingInFlight) return existingInFlight;
 
     const inFlight = (async () => {
-        const body = await fetchTextWithRetry(url);
-        tt365PlayerStatsCache.set(url, {
-            fetchedAtMs: Date.now(),
-            body,
-        });
+        const body = await fetchTextWithRetry(target.url);
+        tt365PlayerStatsCache.set(cacheKey, { body });
         return body;
     })().finally(() => {
-        tt365PlayerStatsInFlight.delete(url);
+        tt365PlayerStatsInFlight.delete(cacheKey);
     });
 
-    tt365PlayerStatsInFlight.set(url, inFlight);
+    tt365PlayerStatsInFlight.set(cacheKey, inFlight);
     return inFlight;
 }
 
@@ -525,7 +524,7 @@ async function buildTT365PlayerStatsLookup(
 
     for (const target of targets) {
         try {
-            const playerStatsHtml = await fetchTT365PlayerStatsBody(target.url);
+            const playerStatsHtml = await fetchTT365PlayerStatsBody(target);
             const rows = parseTT365PlayerResultsForMatch(
                 playerStatsHtml,
                 matchExternalId,

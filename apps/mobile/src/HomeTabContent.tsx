@@ -62,7 +62,7 @@ export function HomeTabContent({
         tabId: 'players',
         title: 'Search Players',
         description: 'Browse the full player directory, follow their form, and dive into per-match stats and insights.',
-        meta: `Extensive player database include ${playerCount} players.`,
+        meta: `Extensive player database includes ${playerCount} players.`,
         thumbnail: '/images/thumb-players.png',
       },
       {

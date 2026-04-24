@@ -42,6 +42,17 @@ function buildCookieHeader(setCookies: string[]): string {
         .join('; ');
 }
 
+export function isTT365MatchCardPayload(html: string): boolean {
+    if (!html.includes('CardSummary')) return false;
+
+    return html.includes('CardResults')
+        || (
+            html.includes('fixtureDetails')
+            && html.includes('resultCard')
+            && html.includes('results')
+        );
+}
+
 async function extractAndStoreTT365MatchCard(url: string, platformId: string): Promise<string> {
     const pageRes = await fetchWithTT365Policy(url);
     if (!pageRes.ok) {
@@ -78,7 +89,7 @@ async function extractAndStoreTT365MatchCard(url: string, platformId: string): P
     }
 
     const ajaxHtml = await ajaxRes.text();
-    if (!ajaxHtml.includes('CardSummary') || !ajaxHtml.includes('CardResults')) {
+    if (!isTT365MatchCardPayload(ajaxHtml)) {
         throw new Error(`TT365 ajax match-card payload not found for ${url}`);
     }
 
