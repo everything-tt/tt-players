@@ -6,7 +6,24 @@ import {
   type StandingsResponse,
 } from './player-shared';
 import { useLeaguesQuery, useStandingsQuery } from './queries';
+import { useTabNavigation } from './navigation/tab-navigation';
 import { AppButtonLink, AppCard, AppCardContent } from './ui/appkit';
+
+interface StandingsRow {
+  team_id: string;
+  team_name: string;
+  position: number;
+  played: number;
+  won: number;
+  lost: number;
+  drawn?: number;
+  points: number;
+}
+
+interface DivisionData {
+  id: string;
+  name: string;
+}
 
 const CURRENT_LEAGUE_ID_KEY = 'tt_players_current_league_id';
 const CURRENT_DIVISION_ID_KEY = 'tt_players_current_division_id';
@@ -38,6 +55,7 @@ interface LeaguesTabContentProps {
 }
 
 export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps) {
+  const { navigateInTab } = useTabNavigation();
   const leaguesQuery = useLeaguesQuery();
   const allSeasonLeagues: LeagueWithDivisions[] = leaguesQuery.data?.data ?? [];
   const isLeaguesLoading = leaguesQuery.isLoading && !leaguesQuery.data;
@@ -103,7 +121,7 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
     const currentLeague = visibleLeagues.find((league) => league.id === selectedLeagueId);
     if (!currentLeague) return;
 
-    const hasSelectedDivision = currentLeague.divisions.some((division: any) => division.id === selectedDivisionId);
+    const hasSelectedDivision = currentLeague.divisions.some((division: DivisionData) => division.id === selectedDivisionId);
     if (!hasSelectedDivision) {
       setSelectedDivisionId(currentLeague.divisions[0]?.id ?? '');
     }
@@ -194,9 +212,9 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
   );
   const shouldShowAllLeagues = !selectedLeague || isLeagueChooserOpen;
   const selectedLeagueCount = visibleLeagues.length;
-  const selectedLeagueCountLabel = `${selectedLeagueCount} league${selectedLeagueCount === 1 ? '' : 's'} selected`;
+  const selectedLeagueCountLabel = `${selectedLeagueCount} league${selectedLeagueCount === 1 ? '' : 's'}`;
   const canToggleLeagueList = Boolean(selectedLeague);
-  const leagueListToggleLabel = shouldShowAllLeagues ? 'Hide list' : 'Show list';
+  const leagueListToggleLabel = shouldShowAllLeagues ? 'Hide all' : 'Show all';
 
   return (
     <>
@@ -245,7 +263,7 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
                       setIsLeagueChooserOpen(false);
                     }}
                   >
-                    <span className="tt-league-tile-tag">{selectedLeagueId === league.id ? 'Selected League' : 'League'}</span>
+                    <span className={selectedLeagueId === league.id ? 'tt-league-tile-tag tt-league-tile-tag-active' : 'tt-league-tile-tag'}>{selectedLeagueId === league.id ? 'Active' : 'League'}</span>
                     <strong className="tt-league-tile-title">{league.name}</strong>
                     <span className="tt-league-tile-meta">
                       {league.divisions.length} division{league.divisions.length === 1 ? '' : 's'}
@@ -259,8 +277,8 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
           <AppCard className="mt-2">
             <AppCardContent className="mb-2">
               <div className="mb-2">
-                <p className="mb-n1 color-highlight font-600">League Snapshot</p>
-                <h4 className="mb-0">{selectedLeague?.name ?? 'Selected League'}</h4>
+                <p className="mb-n1 color-highlight font-600 font-12" style={{ letterSpacing: '0.06em' }}>LEAGUE SNAPSHOT</p>
+                <h4 className="mb-0 font-16">{selectedLeague?.name ?? 'Selected League'}</h4>
               </div>
 
               {isLeagueSnapshotLoading ? (
@@ -273,20 +291,20 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
                 <>
                   <div className="tt-league-summary-grid">
                     <div className="tt-league-kpi text-center">
-                      <h5 className="mb-0">{leagueSnapshot.totals.divisions}</h5>
-                      <p className="font-10 mb-0">Divisions</p>
+                      <strong className="tt-league-kpi-value">{leagueSnapshot.totals.divisions}</strong>
+                      <p className="font-12 mb-0">Divisions</p>
                     </div>
                     <div className="tt-league-kpi text-center">
-                      <h5 className="mb-0">{leagueSnapshot.totals.teams}</h5>
-                      <p className="font-10 mb-0">Teams</p>
+                      <strong className="tt-league-kpi-value">{leagueSnapshot.totals.teams}</strong>
+                      <p className="font-12 mb-0">Teams</p>
                     </div>
                     <div className="tt-league-kpi text-center">
-                      <h5 className="mb-0">{leagueSnapshot.totals.players}</h5>
-                      <p className="font-10 mb-0">Players</p>
+                      <strong className="tt-league-kpi-value">{leagueSnapshot.totals.players}</strong>
+                      <p className="font-12 mb-0">Players</p>
                     </div>
                     <div className="tt-league-kpi text-center">
-                      <h5 className="mb-0">{leagueSnapshot.totals.matches}</h5>
-                      <p className="font-10 mb-0">Matches</p>
+                      <strong className="tt-league-kpi-value">{leagueSnapshot.totals.matches}</strong>
+                      <p className="font-12 mb-0">Matches</p>
                     </div>
                   </div>
 
@@ -303,7 +321,7 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
                           <div className="d-flex align-items-start gap-2">
                             <div className="flex-grow-1">
                               <p className="mb-1 font-12 font-700">{division.divisionName}</p>
-                              <p className="mb-0 font-11 opacity-70">
+                              <p className="mb-0 font-12 opacity-70">
                                 {division.players} players · {division.teams} teams · {division.matches} matches played
                               </p>
                             </div>
@@ -324,8 +342,8 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
             <AppCardContent className="mb-2">
               <div className="d-flex mb-2">
                 <div className="align-self-center">
-                  <p className="mb-n1 color-highlight font-600">Standings</p>
-                  <h4 className="mb-0">League Table{selectedDivisionName ? ` · ${selectedDivisionName}` : ''}</h4>
+                  <p className="mb-n1 color-highlight font-600 font-12" style={{ letterSpacing: '0.06em' }}>STANDINGS</p>
+                  <h4 className="mb-0 font-16">League Table{selectedDivisionName ? ` · ${selectedDivisionName}` : ''}</h4>
                 </div>
                 {standingsSourceUrl ? (
                   <div className="ms-auto align-self-center">
@@ -361,8 +379,21 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
                       </tr>
                     </thead>
                     <tbody>
-                      {standingsRows.map((row: any) => (
-                        <tr key={row.team_id} className="align-middle">
+                      {standingsRows.map((row: StandingsRow) => (
+                        <tr
+                          key={row.team_id}
+                          className="tt-standings-row"
+                          tabIndex={0}
+                          role="button"
+                          aria-label={`View ${row.team_name}`}
+                          onClick={() => navigateInTab('leagues', `team/${row.team_id}`)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              navigateInTab('leagues', `team/${row.team_id}`);
+                            }
+                          }}
+                        >
                           <td className="text-center font-12 opacity-60">{row.position}</td>
                           <td className="text-start font-13 font-600 color-theme">{row.team_name}</td>
                           <td className="text-center font-12">{row.won}</td>

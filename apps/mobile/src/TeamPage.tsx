@@ -107,13 +107,13 @@ export function TeamPage() {
                     <div className="col mb-3">
                       <div className="tt-player-chip">
                         <h5 className="mb-0">{form.position ?? '-'}</h5>
-                        <p className="font-10 mb-0">Position</p>
+                        <p className="font-12 mb-0">Position</p>
                       </div>
                     </div>
                     <div className="col mb-3">
                       <div className="tt-player-chip">
                         <h5 className="mb-0">{form.points ?? '-'}</h5>
-                        <p className="font-10 mb-0">Points</p>
+                        <p className="font-12 mb-0">Points</p>
                       </div>
                     </div>
                   </div>

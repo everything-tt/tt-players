@@ -155,7 +155,7 @@ export function PlayerPage() {
                   <p className="mb-2 mt-3 me-3">
                     Profile summary for quick access to insights, match history and season affiliations.
                   </p>
-                  <p className="font-10 mb-0">
+                  <p className="font-12 mb-0">
                     <strong className="color-theme pe-1">{winRate}%</strong>Win Rate
                     <strong className="color-theme ps-3 pe-1">{stats.total}</strong>Matches
                   </p>
@@ -197,19 +197,19 @@ export function PlayerPage() {
                   <div className="col mb-3">
                     <div className="tt-player-chip">
                       <h5 className="mb-0">{stats.wins}</h5>
-                      <p className="font-10 mb-0">Wins</p>
+                      <p className="font-12 mb-0">Wins</p>
                     </div>
                   </div>
                   <div className="col mb-3">
                     <div className="tt-player-chip">
                       <h5 className="mb-0">{stats.losses}</h5>
-                      <p className="font-10 mb-0">Losses</p>
+                      <p className="font-12 mb-0">Losses</p>
                     </div>
                   </div>
                   <div className="col mb-3">
                     <div className="tt-player-chip">
                       <h5 className="mb-0">{stats.streak || '-'}</h5>
-                      <p className="font-10 mb-0">Streak</p>
+                      <p className="font-12 mb-0">Streak</p>
                     </div>
                   </div>
                 </div>
@@ -287,19 +287,19 @@ export function PlayerPage() {
                     <div className="col mb-3">
                       <div className="tt-player-chip">
                         <h5 className="mb-0">{insights.form.rolling_10_win_rate}%</h5>
-                        <p className="font-10 mb-0">Rolling 10</p>
+                        <p className="font-12 mb-0">Rolling 10</p>
                       </div>
                     </div>
                     <div className="col mb-3">
                       <div className="tt-player-chip">
                         <h5 className="mb-0">{insights.form.rolling_20_win_rate}%</h5>
-                        <p className="font-10 mb-0">Rolling 20</p>
+                        <p className="font-12 mb-0">Rolling 20</p>
                       </div>
                     </div>
                     <div className="col mb-3">
                       <div className="tt-player-chip">
                         <h5 className="mb-0 text-capitalize">{insights.form.momentum}</h5>
-                        <p className="font-10 mb-0">Momentum</p>
+                        <p className="font-12 mb-0">Momentum</p>
                       </div>
                     </div>
                   </div>
