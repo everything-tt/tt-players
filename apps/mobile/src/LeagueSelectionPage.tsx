@@ -183,9 +183,9 @@ export function LeagueSelectionPage({
 
             {activeTab === 'leagues' ? (
               isLoading ? (
-                <p className="tt-picker-empty">Loading leagues...</p>
+                <p className="tt-picker-empty tt-picker-loading">Loading leagues...</p>
               ) : leaguesError ? (
-                <p className="tt-picker-empty" style={{ color: '#C44339' }}>Failed to load leagues</p>
+                <p className="tt-picker-empty tt-picker-error">Failed to load leagues</p>
               ) : !isSearching ? (
                 <p className="tt-picker-empty">Search to find leagues by name.</p>
               ) : searchResults.length === 0 ? (

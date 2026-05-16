@@ -504,7 +504,8 @@ body.theme-dark .tt-league-picker-row.selected {
   40% { opacity: 1; }
 }
 
-.tt-home-leaders-loading::after {
+.tt-home-leaders-loading::after,
+.tt-picker-loading::after {
   animation: tt-loading-pulse 1.4s ease-in-out infinite;
   content: '...';
   display: inline-block;
@@ -512,6 +513,14 @@ body.theme-dark .tt-league-picker-row.selected {
   overflow: hidden;
   text-indent: 0;
   vertical-align: bottom;
+}
+
+.tt-picker-error {
+  color: #C44339;
+}
+
+body.theme-dark .tt-picker-error {
+  color: #ff6b5a;
 }
 
 .tt-home-leaders-error {
