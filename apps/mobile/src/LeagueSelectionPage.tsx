@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { LeagueWithDivisions } from './player-shared';
 
 type RegionBucket = {
@@ -77,6 +77,15 @@ export function LeagueSelectionPage({
 }: LeagueSelectionPageProps) {
   const [activeTab, setActiveTab] = useState<PickerTab>('selected');
   const [query, setQuery] = useState('');
+  const [addedRegion, setAddedRegion] = useState<string | null>(null);
+  const feedbackTimer = useRef<number | null>(null);
+
+  const handleSelectRegion = (regionId: string, leagueIds: string[]) => {
+    onSelectRegion(leagueIds);
+    setAddedRegion(regionId);
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    feedbackTimer.current = window.setTimeout(() => setAddedRegion(null), 1200);
+  };
 
   const orderedLeagues = useMemo(
     () => [...allLeagues].sort((a, b) => a.name.localeCompare(b.name)),
@@ -231,22 +240,33 @@ export function LeagueSelectionPage({
           ) : null}
 
           {activeTab === 'areas' ? (
-            <div className="mt-3">
+            <div className="mt-2">
               {regionBuckets.length === 0 ? (
                 <p className="text-center py-4 opacity-50 font-13">No regions available.</p>
               ) : (
-                <div className="tt-region-chip-grid">
-                  {(isSearching ? regionBuckets.filter(r => r.label.toLowerCase().includes(normalizedQuery)) : regionBuckets).map((region) => (
-                    <button
-                      key={region.id}
-                      type="button"
-                      className="tt-region-chip"
-                      onClick={() => onSelectRegion(region.leagueIds)}
-                    >
-                      <span className="tt-region-chip-name">{region.label}</span>
-                      <span className="tt-region-chip-meta">{region.leagueIds.length} leagues</span>
-                    </button>
-                  ))}
+                <div className="tt-league-picker-results" style={{ maxHeight: 'calc(72vh - 220px)', overflowY: 'auto' }}>
+                  {(isSearching ? regionBuckets.filter(r => r.label.toLowerCase().includes(normalizedQuery)) : regionBuckets).map((region) => {
+                    const justAdded = addedRegion === region.id;
+                    return (
+                      <button
+                        key={region.id}
+                        type="button"
+                        className={`tt-league-picker-row ${justAdded ? 'tt-region-added' : ''}`}
+                        onClick={() => handleSelectRegion(region.id, region.leagueIds)}
+                      >
+                        <span className={`tt-league-picker-check ${justAdded ? 'checked' : ''}`}>
+                          {justAdded ? '✓' : ''}
+                        </span>
+                        <div className="tt-league-picker-row-content">
+                          <span className="tt-league-picker-row-name">{region.label}</span>
+                          <span className="tt-league-picker-row-meta">{region.leagueIds.length} leagues</span>
+                        </div>
+                        <span className="tt-region-add-label">
+                          {justAdded ? 'Added' : 'Add all'}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>

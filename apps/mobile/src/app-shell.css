@@ -316,6 +316,22 @@ body.theme-dark .tt-picker-tab.active {
   line-height: 1.3;
 }
 
+.tt-region-add-label {
+  color: var(--accent);
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tt-league-picker-row.tt-region-added {
+  background-color: var(--accent-subtle);
+}
+
+.tt-league-picker-row.tt-region-added .tt-region-add-label {
+  color: #2F8D4D;
+}
+
 body.theme-dark .tt-league-picker-check {
   border-color: rgba(255, 255, 255, 0.3);
 }
