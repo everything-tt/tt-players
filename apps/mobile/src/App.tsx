@@ -577,23 +577,7 @@ function App() {
             </>
           ) : null}
 
-        <main className={`page-content ${isLeagueSelectorOpen ? '' : 'mt-n1'} app-shell-content`} style={wrapperStyle}>
-          {isLeagueSelectorOpen ? (
-            <LeagueSelectionPage
-              allLeagues={allLeagues}
-              isAllLeagueScope={isAllLeagueScope}
-              isLeagueSelectionReady={isLeagueSelectionReady}
-              isLeaguesLoading={isLeaguesLoading}
-              leaguesError={leaguesError}
-              selectedLeagueIds={selectedLeagueIds}
-              onAddLeague={addLeagueToSelection}
-              onRemoveLeague={removeLeagueFromSelection}
-              onSelectRegion={selectRegionLeagues}
-              onClose={closeLeagueSelector}
-              maxSelectedLeagues={MAX_SELECTED_LEAGUES}
-            />
-          ) : (
-            <>
+        <main className="page-content mt-n1 app-shell-content" style={wrapperStyle}>
           {activeTab === 'home' ? (
             <HomeTabContent
               allLeagues={allLeagues}
@@ -724,8 +708,6 @@ function App() {
                   </div>
                 </div>
               ) : null}
-            </>
-          ) : null}
 
           {activeTab === 'leagues' ? (
             <LeaguesTabContent
@@ -743,6 +725,22 @@ function App() {
             </>
           )}
         </main>
+
+        {isLeagueSelectorOpen ? (
+          <LeagueSelectionPage
+            allLeagues={allLeagues}
+            isAllLeagueScope={isAllLeagueScope}
+            isLeagueSelectionReady={isLeagueSelectionReady}
+            isLeaguesLoading={isLeaguesLoading}
+            leaguesError={leaguesError}
+            selectedLeagueIds={selectedLeagueIds}
+            onAddLeague={addLeagueToSelection}
+            onRemoveLeague={removeLeagueFromSelection}
+            onSelectRegion={selectRegionLeagues}
+            onClose={closeLeagueSelector}
+            maxSelectedLeagues={MAX_SELECTED_LEAGUES}
+          />
+        ) : null}
 
         <div
           id="menu-main"

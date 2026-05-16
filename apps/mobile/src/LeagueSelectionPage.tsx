@@ -82,12 +82,14 @@ export function LeagueSelectionPage({
 
   const allLeagueIdSet = useMemo(() => new Set(orderedLeagues.map((league) => league.id)), [orderedLeagues]);
   const normalizedQuery = query.trim().toLowerCase();
+  const isSearching = normalizedQuery.length > 0;
+
   const regionBuckets = useMemo(() => buildRegionBuckets(orderedLeagues), [orderedLeagues]);
+
   const selectedLeagueIdSet = useMemo(() => {
     if (isAllLeagueScope) {
       return new Set(orderedLeagues.map((league) => league.id));
     }
-
     return new Set(selectedLeagueIds.filter((leagueId) => allLeagueIdSet.has(leagueId)));
   }, [allLeagueIdSet, isAllLeagueScope, orderedLeagues, selectedLeagueIds]);
 
@@ -101,162 +103,135 @@ export function LeagueSelectionPage({
     [orderedLeagues],
   );
 
-  const filteredRegions = useMemo(() => {
-    if (!normalizedQuery) return regionBuckets;
-
-    return regionBuckets.filter((region) => {
-      if (region.label.toLowerCase().includes(normalizedQuery)) return true;
-
-      return region.leagueIds.some((leagueId) => {
-        const league = leaguesById.get(leagueId);
-        return Boolean(league?.name.toLowerCase().includes(normalizedQuery));
-      });
-    });
-  }, [leaguesById, normalizedQuery, regionBuckets]);
-
-  const filteredLeagues = useMemo(() => {
-    if (!normalizedQuery) return orderedLeagues;
-
+  const searchResults = useMemo(() => {
+    if (!isSearching) return [];
     return orderedLeagues.filter((league) => {
-      const matchesLeague = league.name.toLowerCase().includes(normalizedQuery);
-      if (matchesLeague) return true;
-
-      return leagueRegionLabels(league)
-        .some((label) => label.toLowerCase().includes(normalizedQuery));
+      if (league.name.toLowerCase().includes(normalizedQuery)) return true;
+      return leagueRegionLabels(league).some((label) => label.toLowerCase().includes(normalizedQuery));
     });
-  }, [normalizedQuery, orderedLeagues]);
+  }, [isSearching, normalizedQuery, orderedLeagues]);
 
   const isLoading = !isLeagueSelectionReady || isLeaguesLoading;
-  const hasNoSearchMatches = normalizedQuery.length > 0
-    && filteredRegions.length === 0
-    && filteredLeagues.length === 0;
   const isAtSelectionLimit = selectedLeagueIdSet.size >= maxSelectedLeagues;
+  const selectedCount = selectedLeagueIdSet.size;
 
   return (
-    <section className="tt-league-selector-page">
-      <div className="content mt-2 mb-2">
-        <div className="tt-league-selector-topbar">
-          <button
-            type="button"
-            className="tt-league-selector-close"
-            onClick={onClose}
-            aria-label="Close league selector"
-          >
-            <i className="fa fa-times" />
-          </button>
-        </div>
-
-        <div className="tt-league-selector-toolbar mb-2">
-          <p className="font-11 opacity-70 mb-0">
-            {selectedLeagueIdSet.size} of {orderedLeagues.length} selected
-          </p>
-        </div>
-        {isAtSelectionLimit ? (
-          <p className="tt-league-selector-limit-note mb-2">Maximum {maxSelectedLeagues} leagues can be selected.</p>
-        ) : null}
-
-        {selectedLeagues.length > 0 && selectedLeagueIdSet.size < orderedLeagues.length ? (
-          <div className="mb-3">
-            <p className="tt-league-selector-section-title mb-2">Selected leagues</p>
-            <div className="tt-selected-league-pills">
-              {selectedLeagues.map((league) => (
-                <button
-                  key={league.id}
-                  type="button"
-                  className="tt-selected-league-pill"
-                  onClick={() => onRemoveLeague(league.id)}
-                >
-                  <span>{league.name}</span>
-                  <i className="fa fa-times" aria-hidden="true" />
-                </button>
-              ))}
+    <>
+      <div className="menu-hider menu-active" onClick={onClose} style={{ zIndex: 998 }} />
+      <div
+        className="menu menu-box-bottom rounded-m menu-active"
+        style={{ height: '72%', zIndex: 999 }}
+      >
+        <div className="content mb-0">
+          <div className="d-flex mb-1">
+            <div className="align-self-center">
+              <h4 className="mb-0 font-16">Leagues</h4>
+              <p className="font-12 opacity-60 mb-0">
+                {selectedCount} of {orderedLeagues.length} selected
+              </p>
+            </div>
+            <div className="ms-auto align-self-center">
+              <a href="#" onClick={(e) => { e.preventDefault(); onClose(); }} className="color-theme">
+                <i className="fa fa-times-circle font-20" />
+              </a>
             </div>
           </div>
-        ) : selectedLeagueIdSet.size === orderedLeagues.length && orderedLeagues.length > 0 ? (
-          <p className="tt-league-selector-hint mb-3">All leagues are currently selected. Remove leagues below to narrow scope.</p>
-        ) : null}
 
-        <div className="search-box search-dark shadow-xs border-0 bg-theme rounded-sm mb-2">
-          <i className="fa fa-search ms-1" />
-          <input
-            type="text"
-            className="border-0"
-            placeholder="Search leagues or regions..."
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </div>
+          {isAtSelectionLimit ? (
+            <p className="font-12 opacity-60 mb-2">Maximum {maxSelectedLeagues} leagues.</p>
+          ) : null}
 
-        <div className="tt-league-selector-results">
-          {isLoading ? (
-            <p className="mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading leagues...</p>
-          ) : leaguesError ? (
-            <p className="mb-0 color-red-dark">Failed to load leagues: {leaguesError}</p>
-          ) : hasNoSearchMatches ? (
-            <p className="mb-0">No regions or leagues matched your search.</p>
-          ) : (
-            <>
-              {filteredRegions.length > 0 ? (
-                <div className="mb-3">
-                  <p className="tt-league-selector-section-title mb-2">Regions</p>
-                  <div className="tt-region-chip-grid">
-                    {filteredRegions.map((region) => {
-                      const selectedInRegion = region.leagueIds
-                        .filter((leagueId) => selectedLeagueIdSet.has(leagueId)).length;
-                      const allRegionSelected = selectedInRegion === region.leagueIds.length;
+          <div className="search-box search-dark rounded-pill border-0 bg-theme mb-2">
+            <i className="fa fa-search ms-1" />
+            <input
+              type="text"
+              className="border-0"
+              placeholder="Search leagues or regions..."
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              autoFocus
+            />
+          </div>
 
-                      return (
-                        <button
-                          key={region.id}
-                          type="button"
-                          className={`tt-region-chip ${allRegionSelected ? 'active' : ''}`}
-                          onClick={() => onSelectRegion(region.leagueIds)}
-                        >
-                          <span className="tt-region-chip-name">{region.label}</span>
-                          <span className="tt-region-chip-meta">{selectedInRegion}/{region.leagueIds.length}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
+          {!isSearching && regionBuckets.length > 0 ? (
+            <div className="tt-region-chip-grid mb-3">
+              {regionBuckets.map((region) => {
+                const selectedInRegion = region.leagueIds
+                  .filter((leagueId) => selectedLeagueIdSet.has(leagueId)).length;
+                const allRegionSelected = selectedInRegion === region.leagueIds.length;
 
-              {filteredLeagues.length > 0 ? (
-                <div className="mb-2">
-                  <p className="tt-league-selector-section-title mb-2">Leagues</p>
-                  <div className="list-group list-custom-small tt-league-selector-list">
-                    {filteredLeagues.map((league) => {
-                      const isSelected = selectedLeagueIdSet.has(league.id);
-                      const regionLabels = leagueRegionLabels(league);
+                return (
+                  <button
+                    key={region.id}
+                    type="button"
+                    className={`tt-region-chip ${allRegionSelected ? 'active' : ''}`}
+                    onClick={() => onSelectRegion(region.leagueIds)}
+                  >
+                    <span className="tt-region-chip-name">{region.label}</span>
+                    <span className="tt-region-chip-meta">{selectedInRegion}/{region.leagueIds.length}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
 
-                      return (
-                        <button
-                          key={league.id}
-                          type="button"
-                          className={`tt-league-selector-row ${isSelected ? 'is-selected' : ''}`}
-                          onClick={() => (isSelected ? onRemoveLeague(league.id) : onAddLeague(league.id))}
-                        >
-                          <div className="tt-league-selector-row-content">
-                            <span className="tt-league-selector-row-title">{league.name}</span>
-                            <span className="tt-league-selector-row-meta">
-                              {regionLabels.length > 0 ? `${regionLabels.join(' • ')} • ` : ''}
-                              {league.divisions.length} Div
-                            </span>
-                          </div>
-                          <span className={`tt-league-selector-row-action ${isSelected ? 'is-remove' : 'is-add'}`}>
-                            <i className={`fa ${isSelected ? 'fa-minus-circle' : 'fa-plus-circle'}`} />
-                            {isSelected ? 'Remove' : 'Add'}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
-            </>
-          )}
+          {selectedLeagues.length > 0 && !isSearching ? (
+            <div className="mb-3">
+              <p className="font-12 font-600 text-uppercase opacity-50 mb-2" style={{ letterSpacing: '0.06em' }}>Selected</p>
+              <div className="tt-selected-league-pills">
+                {selectedLeagues.map((league) => (
+                  <button
+                    key={league.id}
+                    type="button"
+                    className="tt-selected-league-pill"
+                    onClick={() => onRemoveLeague(league.id)}
+                  >
+                    <span>{league.name}</span>
+                    <i className="fa fa-times" aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {isSearching ? (
+            isLoading ? (
+              <p className="text-center py-4 opacity-60 font-13">Loading...</p>
+            ) : leaguesError ? (
+              <p className="text-center py-4 color-red-dark font-13">Failed to load leagues</p>
+            ) : searchResults.length === 0 ? (
+              <p className="text-center py-4 opacity-50 font-13">No leagues match "{query}"</p>
+            ) : (
+              <div className="tt-league-picker-results" style={{ maxHeight: 'calc(72vh - 260px)', overflowY: 'auto' }}>
+                {searchResults.map((league) => {
+                  const isSelected = selectedLeagueIdSet.has(league.id);
+                  const regionLabels = leagueRegionLabels(league);
+
+                  return (
+                    <button
+                      key={league.id}
+                      type="button"
+                      className={`tt-league-picker-row ${isSelected ? 'selected' : ''}`}
+                      onClick={() => (isSelected ? onRemoveLeague(league.id) : onAddLeague(league.id))}
+                    >
+                      <span className={`tt-league-picker-check ${isSelected ? 'checked' : ''}`}>
+                        {isSelected ? '✓' : ''}
+                      </span>
+                      <div className="tt-league-picker-row-content">
+                        <span className="tt-league-picker-row-name">{league.name}</span>
+                        <span className="tt-league-picker-row-meta">
+                          {regionLabels.length > 0 ? `${regionLabels.join(' · ')} · ` : ''}
+                          {league.divisions.length} divisions
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )
+          ) : null}
         </div>
       </div>
-    </section>
+    </>
   );
 }
