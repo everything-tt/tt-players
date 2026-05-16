@@ -35,8 +35,12 @@ export function HomeTabContent({
   const leadersError = leadersQuery.error instanceof Error ? leadersQuery.error.message : null;
 
   const countQuery = usePlayerCountQuery();
+  const isCountLoading = countQuery.isLoading;
   const playerCount = countQuery.data?.players ?? null;
+  const matchCount = countQuery.data?.matches ?? null;
   const leagueCount = allLeagues.length;
+
+  const fmt = (v: number | null) => isCountLoading ? '...' : v !== null ? v.toLocaleString() : '–';
 
   const scopeLabel = isAllLeagueScope
     ? `${leagueCount} leagues`
@@ -104,6 +108,25 @@ export function HomeTabContent({
             ))}
           </div>
         )}
+      </div>
+
+      <div className="tt-home-stats">
+        <div className="tt-home-stat">
+          <span className="tt-home-stat-value">{fmt(playerCount)}</span>
+          <span className="tt-home-stat-label">Players</span>
+        </div>
+        <div className="tt-home-stat">
+          <span className="tt-home-stat-value">{leagueCount}</span>
+          <span className="tt-home-stat-label">Leagues</span>
+        </div>
+        <div className="tt-home-stat">
+          <span className="tt-home-stat-value">{allLeagues.reduce((s, l) => s + l.divisions.length, 0)}</span>
+          <span className="tt-home-stat-label">Divisions</span>
+        </div>
+        <div className="tt-home-stat">
+          <span className="tt-home-stat-value">{fmt(matchCount)}</span>
+          <span className="tt-home-stat-label">Matches</span>
+        </div>
       </div>
 
       <div className="tt-home-nav">

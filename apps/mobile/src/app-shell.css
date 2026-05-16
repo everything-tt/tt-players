@@ -434,6 +434,40 @@ body.theme-dark .list-custom-large a {
   text-align: right;
 }
 
+/* ── Home: Stats strip ──────────────────────────────────────────────── */
+
+.tt-home-stats {
+  display: flex;
+  border-top: 1px solid var(--border-hairline);
+  border-bottom: 1px solid var(--border-hairline);
+  margin: 0 16px;
+  padding: 14px 0;
+}
+
+.tt-home-stat {
+  flex: 1;
+  text-align: center;
+}
+
+.tt-home-stat-value {
+  color: var(--ink);
+  display: block;
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.tt-home-stat-label {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 /* ── Home: Navigation rows ──────────────────────────────────────────── */
 
 .tt-home-nav {
