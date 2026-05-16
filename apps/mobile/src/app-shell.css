@@ -197,6 +197,10 @@ body.theme-dark .list-custom-large a {
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
+.tt-picker-tab:hover:not(.active) {
+  background: rgba(0, 0, 0, 0.03);
+}
+
 .tt-picker-tab.active {
   background: #fff;
   color: var(--ink);
@@ -224,7 +228,7 @@ body.theme-dark .tt-picker-tabs {
 
 body.theme-dark .tt-picker-tab.active {
   background: rgba(255, 255, 255, 0.12);
-  box-shadow: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   color: #fff;
 }
 
@@ -609,6 +613,15 @@ body.theme-dark .tt-home-toggle {
   font-size: 18px;
   height: 40px;
   justify-content: center;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.tt-home-nav-row:hover .tt-home-nav-icon {
+  background: var(--accent-soft);
+}
+
+.tt-home-nav-row:active .tt-home-nav-icon {
+  transform: scale(0.92);
 }
 
 .tt-home-nav-copy {
