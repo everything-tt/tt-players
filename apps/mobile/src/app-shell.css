@@ -157,7 +157,6 @@ body.theme-dark .list-custom-large a {
 
 .tt-picker-tab.active {
   background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   color: var(--ink);
 }
 
@@ -329,33 +328,6 @@ body.theme-dark .tt-league-picker-row.selected {
   background-color: rgba(0, 102, 204, 0.15);
 }
 
-.tt-selected-league-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.tt-selected-league-pill {
-  align-items: center;
-  background: var(--accent-soft);
-  border: 1px solid rgba(0, 102, 204, 0.34);
-  border-radius: 999px;
-  color: inherit;
-  display: inline-flex;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1;
-  max-width: 100%;
-  padding: 8px 10px;
-}
-
-.tt-selected-league-pill span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .tt-region-chip-grid {
   display: flex;
   flex-wrap: wrap;
@@ -364,29 +336,32 @@ body.theme-dark .tt-league-picker-row.selected {
 
 .tt-region-chip {
   align-items: center;
-  background: rgba(15, 23, 42, 0.04);
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border-hairline);
   border-radius: 999px;
   color: inherit;
+  cursor: pointer;
   display: inline-flex;
+  font-family: inherit;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 8px 14px;
+  transition: background-color 0.15s ease;
 }
 
-.tt-region-chip.active {
-  background: var(--accent-soft);
-  border-color: rgba(0, 102, 204, 0.36);
+.tt-region-chip:hover {
+  background: rgba(0, 0, 0, 0.08);
 }
 
 .tt-region-chip-name {
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .tt-region-chip-meta {
-  color: rgba(15, 23, 42, 0.66);
-  font-size: 11px;
-  font-weight: 600;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .app-skeleton-row {
@@ -926,24 +901,21 @@ body.theme-dark .tt-search-scope strong {
   color: rgba(255, 255, 255, 0.88);
 }
 
-body.theme-dark .tt-selected-league-pill {
-  background: rgba(0, 102, 204, 0.22);
-  border-color: rgba(0, 102, 204, 0.5);
+body.theme-dark .tt-region-chip {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+body.theme-dark .tt-region-chip:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+body.theme-dark .tt-region-chip-name {
   color: rgba(255, 255, 255, 0.9);
 }
 
-body.theme-dark .tt-region-chip {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.18);
-}
-
-body.theme-dark .tt-region-chip.active {
-  background: rgba(0, 102, 204, 0.24);
-  border-color: rgba(0, 102, 204, 0.52);
-}
-
 body.theme-dark .tt-region-chip-meta {
-  color: rgba(233, 239, 248, 0.72);
+  color: rgba(255, 255, 255, 0.56);
 }
 
 body.theme-dark .tt-league-summary-row-button {

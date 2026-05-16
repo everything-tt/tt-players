@@ -137,13 +137,24 @@ export function LeagueSelectionPage({
             </div>
           </div>
 
+          <div className="search-box search-dark rounded-pill border-0 bg-theme mb-2">
+            <i className="fa fa-search ms-1" />
+            <input
+              type="text"
+              className="border-0"
+              placeholder={`Search ${activeTab}...`}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+
           <div className="tt-picker-tabs">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 className={`tt-picker-tab ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => { setActiveTab(tab.id); setQuery(''); }}
               >
                 {tab.label}
                 {tab.badge !== undefined ? (
@@ -155,11 +166,11 @@ export function LeagueSelectionPage({
 
           {activeTab === 'selected' ? (
             <div className="mt-3">
-              {selectedLeagues.length === 0 ? (
+              {(isSearching ? selectedLeagues.filter(l => l.name.toLowerCase().includes(normalizedQuery)) : selectedLeagues).length === 0 ? (
                 <p className="text-center py-4 opacity-50 font-13">No leagues selected.</p>
               ) : (
                 <div className="tt-selected-league-list">
-                  {selectedLeagues.map((league) => (
+                  {(isSearching ? selectedLeagues.filter(l => l.name.toLowerCase().includes(normalizedQuery)) : selectedLeagues).map((league) => (
                     <button
                       key={league.id}
                       type="button"
@@ -182,18 +193,6 @@ export function LeagueSelectionPage({
 
           {activeTab === 'leagues' ? (
             <div className="mt-2">
-              <div className="search-box search-dark rounded-pill border-0 bg-theme mb-2">
-                <i className="fa fa-search ms-1" />
-                <input
-                  type="text"
-                  className="border-0"
-                  placeholder="Search leagues..."
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  autoFocus
-                />
-              </div>
-
               {isAtSelectionLimit && !isSearching ? (
                 <p className="font-12 opacity-60 mt-2 mb-0">Maximum {maxSelectedLeagues} leagues selected.</p>
               ) : isLoading ? (
@@ -237,23 +236,17 @@ export function LeagueSelectionPage({
                 <p className="text-center py-4 opacity-50 font-13">No regions available.</p>
               ) : (
                 <div className="tt-region-chip-grid">
-                  {regionBuckets.map((region) => {
-                    const selectedInRegion = region.leagueIds
-                      .filter((leagueId) => selectedLeagueIdSet.has(leagueId)).length;
-                    const allRegionSelected = selectedInRegion === region.leagueIds.length;
-
-                    return (
-                      <button
-                        key={region.id}
-                        type="button"
-                        className={`tt-region-chip ${allRegionSelected ? 'active' : ''}`}
-                        onClick={() => onSelectRegion(region.leagueIds)}
-                      >
-                        <span className="tt-region-chip-name">{region.label}</span>
-                        <span className="tt-region-chip-meta">{selectedInRegion}/{region.leagueIds.length}</span>
-                      </button>
-                    );
-                  })}
+                  {(isSearching ? regionBuckets.filter(r => r.label.toLowerCase().includes(normalizedQuery)) : regionBuckets).map((region) => (
+                    <button
+                      key={region.id}
+                      type="button"
+                      className="tt-region-chip"
+                      onClick={() => onSelectRegion(region.leagueIds)}
+                    >
+                      <span className="tt-region-chip-name">{region.label}</span>
+                      <span className="tt-region-chip-meta">{region.leagueIds.length} leagues</span>
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
