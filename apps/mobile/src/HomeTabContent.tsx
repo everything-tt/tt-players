@@ -65,26 +65,21 @@ export function HomeTabContent({
   const isListLoading = listMode === 'top' ? isLeadersLoading : isTrendingLoading;
   const listError = listMode === 'top' ? leadersError : null;
 
-  const navItems: Array<{
-    tabId: DashboardTabId;
-    title: string;
-    description: string;
-    iconClassName: string;
-  }> = [
+  const navItems = [
     {
-      tabId: 'players',
+      tabId: 'players' as DashboardTabId,
       title: 'Players',
       description: `Search across ${fmt(playerCount)} players`,
       iconClassName: 'fa fa-search',
     },
     {
-      tabId: 'leagues',
+      tabId: 'leagues' as DashboardTabId,
       title: 'Leagues',
       description: `${leagueCount} leagues, ${divisionCount} divisions`,
       iconClassName: 'fa fa-table-tennis',
     },
     {
-      tabId: 'h2h',
+      tabId: 'h2h' as DashboardTabId,
       title: 'Head to Head',
       description: 'Compare any two players',
       iconClassName: 'fa fa-code-compare',
@@ -93,27 +88,27 @@ export function HomeTabContent({
 
   return (
     <>
-      <div className="tt-home-header">
-        <h1 className="tt-home-heading">TT Players</h1>
-        <p className="tt-home-subtitle">{scopeLabel}</p>
-      </div>
+      <div className="tt-home-hero">
+        <h1 className="tt-home-hero-title">TT Players</h1>
+        <p className="tt-home-hero-sub">{scopeLabel}</p>
 
-      <div className="tt-home-stats">
-        <div className="tt-home-stat">
-          <span className="tt-home-stat-value">{fmt(playerCount)}</span>
-          <span className="tt-home-stat-label">Players</span>
-        </div>
-        <div className="tt-home-stat">
-          <span className="tt-home-stat-value">{leagueCount}</span>
-          <span className="tt-home-stat-label">Leagues</span>
-        </div>
-        <div className="tt-home-stat">
-          <span className="tt-home-stat-value">{divisionCount}</span>
-          <span className="tt-home-stat-label">Divisions</span>
-        </div>
-        <div className="tt-home-stat">
-          <span className="tt-home-stat-value">{fmt(matchCount)}</span>
-          <span className="tt-home-stat-label">Matches</span>
+        <div className="tt-home-hero-stats">
+          <div className="tt-home-hero-stat">
+            <span className="tt-home-hero-stat-value">{fmt(playerCount)}</span>
+            <span className="tt-home-hero-stat-label">Players</span>
+          </div>
+          <div className="tt-home-hero-stat">
+            <span className="tt-home-hero-stat-value">{leagueCount}</span>
+            <span className="tt-home-hero-stat-label">Leagues</span>
+          </div>
+          <div className="tt-home-hero-stat">
+            <span className="tt-home-hero-stat-value">{divisionCount}</span>
+            <span className="tt-home-hero-stat-label">Divisions</span>
+          </div>
+          <div className="tt-home-hero-stat">
+            <span className="tt-home-hero-stat-value">{fmt(matchCount)}</span>
+            <span className="tt-home-hero-stat-label">Matches</span>
+          </div>
         </div>
       </div>
 
@@ -135,11 +130,9 @@ export function HomeTabContent({
               Trending
             </button>
           </div>
-          {listMode === 'top' ? (
-            <span className="tt-home-leaders-desc">Best win rate weighted by match volume</span>
-          ) : (
-            <span className="tt-home-leaders-desc">Most active in recent weeks</span>
-          )}
+          <span className="tt-home-leaders-desc">
+            {listMode === 'top' ? 'Best win rate weighted by match volume' : 'Most active in recent weeks'}
+          </span>
         </div>
 
         {isListLoading ? (

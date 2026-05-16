@@ -341,44 +341,41 @@ body.theme-dark .list-custom-large a {
   cursor: pointer;
 }
 
-/* ── Home: Page header ───────────────────────────────────────────────── */
+/* ── Home: Hero ──────────────────────────────────────────────────────── */
 
-.tt-home-header {
-  padding: 28px 16px 0;
+.tt-home-hero {
+  background: var(--accent);
+  padding: 32px 16px 24px;
 }
 
-.tt-home-heading {
-  color: var(--ink);
-  font-size: 28px;
+.tt-home-hero-title {
+  color: #fff;
+  font-size: 32px;
   font-weight: 600;
   letter-spacing: -0.02em;
-  line-height: 1.14;
+  line-height: 1.1;
   margin: 0 0 4px;
 }
 
-.tt-home-subtitle {
-  color: var(--ink-muted);
-  font-size: 14px;
+.tt-home-hero-sub {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 15px;
   font-weight: 400;
   line-height: 1.4;
-  margin: 0;
+  margin: 0 0 24px;
 }
 
-/* ── Home: Stats strip ──────────────────────────────────────────────── */
-
-.tt-home-stats {
+.tt-home-hero-stats {
   display: flex;
-  margin: 20px 16px 0;
-  padding: 16px 0;
 }
 
-.tt-home-stat {
+.tt-home-hero-stat {
   flex: 1;
   text-align: center;
 }
 
-.tt-home-stat-value {
-  color: var(--ink);
+.tt-home-hero-stat-value {
+  color: #fff;
   display: block;
   font-size: 22px;
   font-weight: 600;
@@ -388,8 +385,8 @@ body.theme-dark .list-custom-large a {
   margin-bottom: 4px;
 }
 
-.tt-home-stat-label {
-  color: var(--ink-muted);
+.tt-home-hero-stat-label {
+  color: rgba(255, 255, 255, 0.7);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -400,9 +397,7 @@ body.theme-dark .list-custom-large a {
 
 .tt-home-leaders {
   background: var(--canvas-parchment);
-  border-top: 1px solid var(--border-hairline);
   border-bottom: 1px solid var(--border-hairline);
-  margin-top: 24px;
   padding: 20px 16px 16px;
 }
 
