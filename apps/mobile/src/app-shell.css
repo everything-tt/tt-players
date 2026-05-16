@@ -452,7 +452,7 @@ body.theme-dark .tt-league-picker-row.selected {
   align-items: center;
   display: flex;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .tt-home-leaders-desc {
@@ -675,8 +675,8 @@ body.theme-dark .tt-home-toggle {
   color: var(--ink-muted);
   display: block;
   font-size: 13px;
-  line-height: 1.4;
-  margin-top: 1px;
+  line-height: 1.35;
+  margin-top: 2px;
 }
 
 .tt-home-nav-chevron {
