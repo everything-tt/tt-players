@@ -273,6 +273,11 @@ body.theme-dark .tt-picker-tab.active {
   background-color: var(--accent-subtle);
 }
 
+.tt-picker-row-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .tt-league-picker-check {
   align-items: center;
   border: 2px solid rgba(0, 0, 0, 0.2);

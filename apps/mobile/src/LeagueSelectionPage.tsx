@@ -176,7 +176,7 @@ export function LeagueSelectionPage({
           {activeTab === 'selected' ? (
             <div className="mt-3">
               {(isSearching ? selectedLeagues.filter(l => l.name.toLowerCase().includes(normalizedQuery)) : selectedLeagues).length === 0 ? (
-                <p className="text-center py-4 opacity-50 font-13">No leagues selected.</p>
+                <p className="text-center py-4 opacity-40 font-13">No leagues selected. Switch to Leagues tab to find and add leagues.</p>
               ) : (
                 <div className="tt-selected-league-list">
                   {(isSearching ? selectedLeagues.filter(l => l.name.toLowerCase().includes(normalizedQuery)) : selectedLeagues).map((league) => (
@@ -202,25 +202,29 @@ export function LeagueSelectionPage({
 
           {activeTab === 'leagues' ? (
             <div className="mt-2">
-              {isAtSelectionLimit && !isSearching ? (
-                <p className="font-12 opacity-60 mt-2 mb-0">Maximum {maxSelectedLeagues} leagues selected.</p>
-              ) : isLoading ? (
-                <p className="text-center py-4 opacity-60 font-13">Loading...</p>
+              {isLoading ? (
+                <p className="text-center py-4 opacity-60 font-13">Loading leagues...</p>
               ) : leaguesError ? (
                 <p className="text-center py-4 color-red-dark font-13">Failed to load leagues</p>
-              ) : isSearching && searchResults.length === 0 ? (
+              ) : !isSearching ? (
+                <p className="text-center py-4 opacity-40 font-13">Search to find leagues</p>
+              ) : searchResults.length === 0 ? (
                 <p className="text-center py-4 opacity-50 font-13">No leagues match "{query}"</p>
               ) : (
                 <div className="tt-league-picker-results" style={{ maxHeight: 'calc(72vh - 220px)', overflowY: 'auto' }}>
                   {searchResults.map((league) => {
                     const isSelected = selectedLeagueIdSet.has(league.id);
+                    const blocked = !isSelected && isAtSelectionLimit;
 
                     return (
                       <button
                         key={league.id}
                         type="button"
-                        className={`tt-league-picker-row ${isSelected ? 'selected' : ''}`}
-                        onClick={() => (isSelected ? onRemoveLeague(league.id) : onAddLeague(league.id))}
+                        className={`tt-league-picker-row ${isSelected ? 'selected' : ''} ${blocked ? 'tt-picker-row-disabled' : ''}`}
+                        onClick={() => {
+                          if (blocked) return;
+                          isSelected ? onRemoveLeague(league.id) : onAddLeague(league.id);
+                        }}
                       >
                         <span className={`tt-league-picker-check ${isSelected ? 'checked' : ''}`}>
                           {isSelected ? '✓' : ''}
@@ -231,6 +235,9 @@ export function LeagueSelectionPage({
                             {league.divisions.length} divisions
                           </span>
                         </div>
+                        {blocked ? (
+                          <span className="font-12 opacity-40">Limit reached</span>
+                        ) : null}
                       </button>
                     );
                   })}
