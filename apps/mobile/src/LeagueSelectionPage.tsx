@@ -164,10 +164,9 @@ export function LeagueSelectionPage({
                   <button
                     key={league.id}
                     type="button"
-                    className="tt-league-picker-row selected"
+                    className="tt-league-picker-row"
                     onClick={() => onRemoveLeague(league.id)}
                   >
-                    <span className="tt-league-picker-check checked">✓</span>
                     <div className="tt-league-picker-row-content">
                       <span className="tt-league-picker-row-name">{league.name}</span>
                       <span className="tt-league-picker-row-meta">
@@ -176,7 +175,6 @@ export function LeagueSelectionPage({
                         {league.divisions.length} divisions
                       </span>
                     </div>
-                    <span className="tt-picker-remove">Remove</span>
                   </button>
                 ))
               )
@@ -209,7 +207,6 @@ export function LeagueSelectionPage({
                         <span className="tt-league-picker-row-name">{league.name}</span>
                         <span className="tt-league-picker-row-meta">{league.divisions.length} divisions</span>
                       </div>
-                      {blocked ? <span className="tt-picker-limit-label">Limit</span> : null}
                     </button>
                   );
                 })
@@ -238,9 +235,6 @@ export function LeagueSelectionPage({
                         <span className="tt-league-picker-row-name">{region.label}</span>
                         <span className="tt-league-picker-row-meta">{region.leagueIds.length} leagues</span>
                       </div>
-                      <span className="tt-region-add-label">
-                        {justAdded ? 'Added' : 'Add all'}
-                      </span>
                     </button>
                   );
                 })
