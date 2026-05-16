@@ -550,20 +550,21 @@ function App() {
         {!isLeagueSelectorOpen ? <TabFooterBar reselectBehavior="root" /> : null}
 
         {activeTab !== 'home' ? (
-          <div ref={pageTitleRef} className="page-title page-title-fixed">
-            <h1>{tabTitles[activeTab]}</h1>
+          <>
+            <div ref={pageTitleRef} className="page-title page-title-fixed">
+              <h1>{tabTitles[activeTab]}</h1>
               <a href="#" className="page-title-icon bg-theme color-theme" data-menu="menu-share" onClick={onMenuTrigger('menu-share')}>
                 <i className="fa fa-share-alt" />
               </a>
-                <a
-                  href="#"
-                  className="page-title-icon bg-theme color-theme tt-page-league-filter"
-                  onClick={onOpenLeagueSelector}
-                  aria-label="Select leagues"
-                >
-                  <i className="fa fa-filter" />
-                  <span className="tt-page-league-count">{selectedLeagueBadgeLabel}</span>
-                </a>
+              <a
+                href="#"
+                className="page-title-icon bg-theme color-theme tt-page-league-filter"
+                onClick={onOpenLeagueSelector}
+                aria-label="Select leagues"
+              >
+                <i className="fa fa-filter" />
+                <span className="tt-page-league-count">{selectedLeagueBadgeLabel}</span>
+              </a>
               <a href="#" className="page-title-icon bg-theme color-theme show-on-theme-light" data-toggle-theme onClick={toggleTheme}>
                 <i className="fa fa-moon" />
               </a>
@@ -574,9 +575,10 @@ function App() {
                 <i className="fa fa-bars" />
               </a>
             </div>
-        <div className="page-title-clear" />
-            </>
-          ) : null}
+            <div className="page-title-clear" />
+          </>
+        ) : null}
+          </>
         ) : null}
 
         <main className="page-content mt-n1 app-shell-content" style={wrapperStyle}>
