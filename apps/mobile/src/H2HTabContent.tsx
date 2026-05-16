@@ -303,7 +303,7 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
                     {leagueEncounterSummary.slice(0, 5).map((summary, index) => (
                       <AppListItem
                         key={`${summary.league}-${index}`}
-                        iconClassName="fa fa-repeat rounded-xl shadow-xl bg-blue-dark color-white"
+                        iconClassName="fa fa-repeat rounded-xl bg-blue-dark color-white"
                         title={`${index + 1}. ${summary.league}`}
                         subtitle={`${summary.played} matches · ${summary.playerAWins}-${summary.playerBWins} · Latest ${formatMatchDate(summary.latestDate)}`}
                         onClick={preventDefault}
@@ -327,7 +327,7 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
                   {h2h.encounters.map((encounter, index) => (
                     <AppListItem
                       key={encounter.id}
-                      iconClassName={`fa ${encounter.isWin ? 'fa-check' : 'fa-times'} rounded-xl shadow-xl ${encounter.isWin ? 'bg-green-dark' : 'bg-red-dark'} color-white`}
+                      iconClassName={`fa ${encounter.isWin ? 'fa-check' : 'fa-times'} rounded-xl ${encounter.isWin ? 'bg-green-dark' : 'bg-red-dark'} color-white`}
                       title={encounter.league}
                       subtitle={`${formatMatchDate(encounter.date)} · ${encounter.result}`}
                       onClick={preventDefault}

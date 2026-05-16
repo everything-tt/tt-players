@@ -114,17 +114,17 @@ export function PlayerInsightsPage() {
                 <h4>Trends</h4>
                 <AppListGroup size="small">
                   <AppListItem
-                    iconClassName="fa fa-bolt rounded-xl shadow-xl bg-red-dark color-white"
+                    iconClassName="fa fa-bolt rounded-xl bg-red-dark color-white"
                     title={`Toughest: ${insights.rivals.toughest ? `${insights.rivals.toughest.opponent_name} (${insights.rivals.toughest.win_rate}% WR)` : 'N/A'}`}
                     onClick={preventDefaultLink}
                   />
                   <AppListItem
-                    iconClassName="fa fa-smile rounded-xl shadow-xl bg-green-dark color-white"
+                    iconClassName="fa fa-smile rounded-xl bg-green-dark color-white"
                     title={`Easiest: ${insights.rivals.easiest ? `${insights.rivals.easiest.opponent_name} (${insights.rivals.easiest.win_rate}% WR)` : 'N/A'}`}
                     onClick={preventDefaultLink}
                   />
                   <AppListItem
-                    iconClassName="fa fa-arrow-up rounded-xl shadow-xl bg-blue-dark color-white"
+                    iconClassName="fa fa-arrow-up rounded-xl bg-blue-dark color-white"
                     title={`Improving vs: ${insights.rivals.improving_vs ? `${insights.rivals.improving_vs.opponent_name} (+${insights.rivals.improving_vs.delta_points})` : 'N/A'}`}
                     onClick={preventDefaultLink}
                     borderless
@@ -144,7 +144,7 @@ export function PlayerInsightsPage() {
                     {insights.career_by_year.map((year: any, index: number) => (
                       <AppListItem
                         key={year.year}
-                        iconClassName="fa fa-calendar-alt rounded-xl shadow-xl bg-green-dark color-white"
+                        iconClassName="fa fa-calendar-alt rounded-xl bg-green-dark color-white"
                         title={`${year.year} · ${year.played} played · ${year.win_rate}% WR`}
                         onClick={preventDefaultLink}
                         borderless={index === insights.career_by_year.length - 1}

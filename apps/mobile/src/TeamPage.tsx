@@ -187,7 +187,7 @@ export function TeamPage() {
                     {fixtures.map((fixture: any, index: number) => (
                       <AppListItem
                         key={fixture.id}
-                        iconClassName="fa fa-table-tennis rounded-xl shadow-xl bg-blue-dark color-white"
+                        iconClassName="fa fa-table-tennis rounded-xl bg-blue-dark color-white"
                         title={`${fixture.home_team_name} v ${fixture.away_team_name}`}
                         subtitle={`${formatMatchDate(fixture.date_played)} · ${fixture.round_name ?? fixture.status}`}
                         onClick={() => openFixture(fixture.id)}

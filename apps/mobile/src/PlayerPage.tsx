@@ -256,7 +256,7 @@ export function PlayerPage() {
                     {affiliations.map((affiliation: any, index: number) => (
                       <AppListItem
                         key={`${affiliation.team_id}-${affiliation.competition_name}-${affiliation.season_id}`}
-                        iconClassName="fa fa-table-tennis rounded-xl shadow-xl bg-blue-dark color-white"
+                        iconClassName="fa fa-table-tennis rounded-xl bg-blue-dark color-white"
                         title={affiliation.team_name}
                         subtitle={`${affiliation.league_name} · ${affiliation.competition_name} · ${affiliation.season_name}`}
                         onClick={openInLeaguesTab(`team/${affiliation.team_id}`)}
@@ -329,7 +329,7 @@ export function PlayerPage() {
                       {recentMatches.map((match: any, index: number) => (
                         <AppListItem
                           key={match.id}
-                          iconClassName={`fa ${match.isWin ? 'fa-check' : 'fa-times'} rounded-xl shadow-xl ${match.isWin ? 'bg-green-dark' : 'bg-red-dark'} color-white`}
+                          iconClassName={`fa ${match.isWin ? 'fa-check' : 'fa-times'} rounded-xl ${match.isWin ? 'bg-green-dark' : 'bg-red-dark'} color-white`}
                           title={`${match.opponent} · ${match.result}`}
                           subtitle={`${formatMatchDate(match.date)} · ${match.league}`}
                           onClick={openInLeaguesTab(`fixture/${match.fixture_id}`)}

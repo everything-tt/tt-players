@@ -170,7 +170,7 @@ export function PlayerMatchesPage() {
                   {matches.map((match, index) => (
                     <AppListItem
                       key={match.id}
-                      iconClassName={`fa ${match.isWin ? 'fa-check' : 'fa-times'} rounded-xl shadow-xl ${match.isWin ? 'bg-green-dark' : 'bg-red-dark'} color-white`}
+                      iconClassName={`fa ${match.isWin ? 'fa-check' : 'fa-times'} rounded-xl ${match.isWin ? 'bg-green-dark' : 'bg-red-dark'} color-white`}
                       title={`${match.opponent} · ${match.result}`}
                       subtitle={`${formatMatchDate(match.date)} · ${match.league}`}
                       onClick={openFixtureInLeaguesTab(match.fixture_id)}

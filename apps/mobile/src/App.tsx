@@ -565,25 +565,25 @@ function App() {
 
         <div ref={pageTitleRef} className="page-title page-title-fixed">
           <h1>{tabTitles[activeTab]}</h1>
-          <a href="#" className="page-title-icon shadow-xl bg-theme color-theme" data-menu="menu-share" onClick={onMenuTrigger('menu-share')}>
+          <a href="#" className="page-title-icon bg-theme color-theme" data-menu="menu-share" onClick={onMenuTrigger('menu-share')}>
             <i className="fa fa-share-alt" />
           </a>
             <a
               href="#"
-              className="page-title-icon shadow-xl bg-theme color-theme tt-page-league-filter"
+              className="page-title-icon bg-theme color-theme tt-page-league-filter"
               onClick={onOpenLeagueSelector}
               aria-label="Select leagues"
             >
               <i className="fa fa-filter" />
               <span className="tt-page-league-count">{selectedLeagueBadgeLabel}</span>
             </a>
-          <a href="#" className="page-title-icon shadow-xl bg-theme color-theme show-on-theme-light" data-toggle-theme onClick={toggleTheme}>
+          <a href="#" className="page-title-icon bg-theme color-theme show-on-theme-light" data-toggle-theme onClick={toggleTheme}>
             <i className="fa fa-moon" />
           </a>
-          <a href="#" className="page-title-icon shadow-xl bg-theme color-theme show-on-theme-dark" data-toggle-theme onClick={toggleTheme}>
+          <a href="#" className="page-title-icon bg-theme color-theme show-on-theme-dark" data-toggle-theme onClick={toggleTheme}>
             <i className="fa fa-lightbulb color-yellow-dark" />
           </a>
-          <a href="#" className="page-title-icon shadow-xl bg-theme color-theme" data-menu="menu-main" onClick={onMenuTrigger('menu-main')}>
+          <a href="#" className="page-title-icon bg-theme color-theme" data-menu="menu-main" onClick={onMenuTrigger('menu-main')}>
             <i className="fa fa-bars" />
           </a>
         </div>
@@ -619,7 +619,7 @@ function App() {
             <>
               <div className="content mt-n4 mb-3">
                 <div className="tt-search-toolbar mt-4">
-                  <div className="search-box search-dark shadow-sm border-0 bg-theme rounded-sm bottom-0 mb-0">
+                  <div className="search-box search-dark border-0 bg-theme rounded-sm bottom-0 mb-0">
                     <i className="fa fa-search ms-1" />
                     <input
                       type="text"
@@ -951,27 +951,27 @@ function App() {
           <div className="content mt-0">
             <div className="list-group list-custom-small list-icon-0">
               <a className="external-link" href={shareLinks.facebook} target="_blank" rel="noreferrer" onClick={onCloseMenuClick}>
-                <i className="fab fa-facebook-f font-12 bg-facebook color-white shadow-l rounded-s" />
+                <i className="fab fa-facebook-f font-12 bg-facebook color-whiterounded-s" />
                 <span>Facebook</span>
                 <i className="fa fa-angle-right pr-1" />
               </a>
               <a className="external-link" href={shareLinks.twitter} target="_blank" rel="noreferrer" onClick={onCloseMenuClick}>
-                <i className="fab fa-twitter font-12 bg-twitter color-white shadow-l rounded-s" />
+                <i className="fab fa-twitter font-12 bg-twitter color-whiterounded-s" />
                 <span>Twitter</span>
                 <i className="fa fa-angle-right pr-1" />
               </a>
               <a className="external-link" href={shareLinks.linkedin} target="_blank" rel="noreferrer" onClick={onCloseMenuClick}>
-                <i className="fab fa-linkedin-in font-12 bg-linkedin color-white shadow-l rounded-s" />
+                <i className="fab fa-linkedin-in font-12 bg-linkedin color-whiterounded-s" />
                 <span>LinkedIn</span>
                 <i className="fa fa-angle-right pr-1" />
               </a>
               <a className="external-link" href={shareLinks.whatsapp} target="_blank" rel="noreferrer" onClick={onCloseMenuClick}>
-                <i className="fab fa-whatsapp font-12 bg-whatsapp color-white shadow-l rounded-s" />
+                <i className="fab fa-whatsapp font-12 bg-whatsapp color-whiterounded-s" />
                 <span>WhatsApp</span>
                 <i className="fa fa-angle-right pr-1" />
               </a>
               <a className="external-link border-0" href={shareLinks.mail} onClick={onCloseMenuClick}>
-                <i className="fa fa-envelope font-12 bg-mail color-white shadow-l rounded-s" />
+                <i className="fa fa-envelope font-12 bg-mail color-whiterounded-s" />
                 <span>Email</span>
                 <i className="fa fa-angle-right pr-1" />
               </a>
