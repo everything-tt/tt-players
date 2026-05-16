@@ -549,10 +549,8 @@ function App() {
 
         {!isLeagueSelectorOpen ? <TabFooterBar reselectBehavior="root" /> : null}
 
-        {activeTab !== 'home' ? (
-          <>
-            <div ref={pageTitleRef} className="page-title page-title-fixed">
-              <h1>{tabTitles[activeTab]}</h1>
+        <div ref={pageTitleRef} className="page-title page-title-fixed">
+          <h1>{activeTab === 'home' ? '' : tabTitles[activeTab]}</h1>
               <a href="#" className="page-title-icon bg-theme color-theme" data-menu="menu-share" onClick={onMenuTrigger('menu-share')}>
                 <i className="fa fa-share-alt" />
               </a>
@@ -575,9 +573,7 @@ function App() {
                 <i className="fa fa-bars" />
               </a>
             </div>
-            <div className="page-title-clear" />
-          </>
-        ) : null}
+        <div className="page-title-clear" />
             </>
           ) : null}
 
