@@ -549,31 +549,35 @@ function App() {
 
         {!isLeagueSelectorOpen ? <TabFooterBar reselectBehavior="root" /> : null}
 
-        <div ref={pageTitleRef} className="page-title page-title-fixed">
-          <h1>{tabTitles[activeTab]}</h1>
-          <a href="#" className="page-title-icon bg-theme color-theme" data-menu="menu-share" onClick={onMenuTrigger('menu-share')}>
-            <i className="fa fa-share-alt" />
-          </a>
-            <a
-              href="#"
-              className="page-title-icon bg-theme color-theme tt-page-league-filter"
-              onClick={onOpenLeagueSelector}
-              aria-label="Select leagues"
-            >
-              <i className="fa fa-filter" />
-              <span className="tt-page-league-count">{selectedLeagueBadgeLabel}</span>
-            </a>
-          <a href="#" className="page-title-icon bg-theme color-theme show-on-theme-light" data-toggle-theme onClick={toggleTheme}>
-            <i className="fa fa-moon" />
-          </a>
-          <a href="#" className="page-title-icon bg-theme color-theme show-on-theme-dark" data-toggle-theme onClick={toggleTheme}>
-            <i className="fa fa-lightbulb color-yellow-dark" />
-          </a>
-          <a href="#" className="page-title-icon bg-theme color-theme" data-menu="menu-main" onClick={onMenuTrigger('menu-main')}>
-            <i className="fa fa-bars" />
-          </a>
-        </div>
-        <div className="page-title-clear" />
+        {activeTab !== 'home' ? (
+          <>
+            <div ref={pageTitleRef} className="page-title page-title-fixed">
+              <h1>{tabTitles[activeTab]}</h1>
+              <a href="#" className="page-title-icon bg-theme color-theme" data-menu="menu-share" onClick={onMenuTrigger('menu-share')}>
+                <i className="fa fa-share-alt" />
+              </a>
+                <a
+                  href="#"
+                  className="page-title-icon bg-theme color-theme tt-page-league-filter"
+                  onClick={onOpenLeagueSelector}
+                  aria-label="Select leagues"
+                >
+                  <i className="fa fa-filter" />
+                  <span className="tt-page-league-count">{selectedLeagueBadgeLabel}</span>
+                </a>
+              <a href="#" className="page-title-icon bg-theme color-theme show-on-theme-light" data-toggle-theme onClick={toggleTheme}>
+                <i className="fa fa-moon" />
+              </a>
+              <a href="#" className="page-title-icon bg-theme color-theme show-on-theme-dark" data-toggle-theme onClick={toggleTheme}>
+                <i className="fa fa-lightbulb color-yellow-dark" />
+              </a>
+              <a href="#" className="page-title-icon bg-theme color-theme" data-menu="menu-main" onClick={onMenuTrigger('menu-main')}>
+                <i className="fa fa-bars" />
+              </a>
+            </div>
+            <div className="page-title-clear" />
+          </>
+        ) : null}
             </>
           ) : null}
 
