@@ -722,8 +722,6 @@ function App() {
               onOpenPlayer={(playerId) => navigateInActiveTab(`player/${playerId}`)}
             />
           ) : null}
-            </>
-          )}
         </main>
 
         {isLeagueSelectorOpen ? (

@@ -1,0 +1,371 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-15T00:00:00.000Z",
+  "title": "Design System: TT Players",
+  "extensions": {
+    "colorMeta": {
+      "match-red": {
+        "role": "primary",
+        "displayName": "Match Red",
+        "canonical": "#DA4453",
+        "tonalRamp": [
+          "#3D0E12",
+          "#6B1921",
+          "#99242F",
+          "#C02E3C",
+          "#DA4453",
+          "#E56974",
+          "#EE8F97",
+          "#F5BFC3"
+        ]
+      },
+      "match-red-deep": {
+        "role": "primary",
+        "displayName": "Match Red Deep",
+        "canonical": "#C0392B",
+        "tonalRamp": [
+          "#2D0D09",
+          "#5C1912",
+          "#8A261B",
+          "#A83022",
+          "#C0392B",
+          "#D05E53",
+          "#DF837B",
+          "#EFB1AC"
+        ]
+      },
+      "win-green": {
+        "role": "semantic",
+        "displayName": "Win Green",
+        "canonical": "#2F8D4D",
+        "tonalRamp": [
+          "#0D2415",
+          "#174726",
+          "#216A38",
+          "#298045",
+          "#2F8D4D",
+          "#52A86E",
+          "#7DC294",
+          "#B0DBBD"
+        ]
+      },
+      "loss-red": {
+        "role": "semantic",
+        "displayName": "Loss Red",
+        "canonical": "#C44339",
+        "tonalRamp": [
+          "#33100E",
+          "#661F1B",
+          "#992E28",
+          "#B33A32",
+          "#C44339",
+          "#D26D65",
+          "#E09791",
+          "#EFC2BF"
+        ]
+      },
+      "avatar-blue": {
+        "role": "component",
+        "displayName": "Avatar Blue",
+        "canonical": "#2F75DD",
+        "tonalRamp": [
+          "#0C1E3A",
+          "#163668",
+          "#204E96",
+          "#2965BC",
+          "#2F75DD",
+          "#5590E5",
+          "#82ADED",
+          "#B5CFF4"
+        ]
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "Text Primary",
+        "canonical": "#10233B",
+        "tonalRamp": [
+          "#04080D",
+          "#09121F",
+          "#0D1B2F",
+          "#10233B",
+          "#334A63",
+          "#5C728C",
+          "#8C9EB3",
+          "#C2CCD8"
+        ]
+      },
+      "text-muted": {
+        "role": "neutral",
+        "displayName": "Text Muted",
+        "canonical": "#5C697E",
+        "tonalRamp": [
+          "#14181E",
+          "#2C3340",
+          "#434D62",
+          "#515C73",
+          "#5C697E",
+          "#7A879B",
+          "#9BA5B5",
+          "#C1C8D2"
+        ]
+      },
+      "surface-light": {
+        "role": "neutral",
+        "displayName": "Surface Light",
+        "canonical": "#F7F6F4",
+        "tonalRamp": [
+          "#3A3A38",
+          "#5E5D5A",
+          "#82817C",
+          "#A5A39C",
+          "#C9C6BD",
+          "#D7D5CE",
+          "#E5E3DF",
+          "#F7F6F4"
+        ]
+      },
+      "surface-card": {
+        "role": "neutral",
+        "displayName": "Surface Card",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "#3D3D3D",
+          "#616161",
+          "#858585",
+          "#A8A8A8",
+          "#CCCCCC",
+          "#D9D9D9",
+          "#E6E6E6",
+          "#F2F2F2"
+        ]
+      },
+      "border-subtle": {
+        "role": "neutral",
+        "displayName": "Border Subtle",
+        "canonical": "#EBEDF0",
+        "tonalRamp": [
+          "#313234",
+          "#5A5C5F",
+          "#82858A",
+          "#A7AAB0",
+          "#C7C9CE",
+          "#D4D6DA",
+          "#E1E3E5",
+          "#EBEDF0"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "KPI values on stat cards and scoreboards. Short numbers only (1-4 digits). Never wraps."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Hero title and page title overlays. Used once per surface."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card section headings at 16px; list item primary text at 14px. The workhorse heading."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Prose descriptions, search hints, empty-state messages. Capped at 65ch."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Stat labels, chip text, tag text. Uppercase, tight tracking. Never sentence case."
+      }
+    },
+    "shadows": [
+      {
+        "name": "ambient-low",
+        "value": "0 8px 22px rgba(15, 23, 42, 0.08)",
+        "purpose": "League tiles and context toggles on hover. Light diffuse lift."
+      },
+      {
+        "name": "ambient-mid",
+        "value": "0 20px 42px rgba(15, 23, 42, 0.08)",
+        "purpose": "Hero card and home stat cards. Deeper but still soft."
+      },
+      {
+        "name": "accent-glow",
+        "value": "0 8px 24px rgba(31, 90, 184, 0.28)",
+        "purpose": "Player avatar component only. Tinted shadow."
+      },
+      {
+        "name": "elevated",
+        "value": "0 12px 32px rgba(0, 0, 0, 0.12)",
+        "purpose": "H2H selected player cards. The highest elevation; signals a picked state."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Default easing for state transitions (hover, focus, active). 200ms duration."
+      },
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Exit animations and card dismissals. 150ms duration."
+      },
+      {
+        "name": "duration-fast",
+        "value": "150ms",
+        "purpose": "Micro-interactions: hover on/off, focus ring, chip toggle."
+      },
+      {
+        "name": "duration-standard",
+        "value": "200ms",
+        "purpose": "Card hover lift, tab switches, menu transitions."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile-max",
+        "value": "620px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single most important action on a screen. Match Red background, white text, pill-soft corners.",
+      "html": "<button class=\"ds-btn-primary\">VIEW INSIGHTS</button>",
+      "css": ".ds-btn-primary { background-color: #DA4453; color: #FFFFFF; border: none; border-radius: 8px; padding: 8px 16px; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 13px; font-weight: 700; line-height: 1; cursor: pointer; transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1); } .ds-btn-primary:hover { background-color: #C0392B; } .ds-btn-primary:focus-visible { outline: 2px solid rgba(218, 68, 83, 0.24); outline-offset: 2px; } .ds-btn-primary:active { background-color: #99242F; } .ds-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary action alongside a primary. Transparent with Match Red stroke and text.",
+      "html": "<button class=\"ds-btn-outline\">INSIGHTS</button>",
+      "css": ".ds-btn-outline { background-color: transparent; color: #DA4453; border: 1px solid #DA4453; border-radius: 8px; padding: 8px 16px; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 13px; font-weight: 700; line-height: 1; cursor: pointer; transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1); } .ds-btn-outline:hover { background-color: rgba(218, 68, 83, 0.08); } .ds-btn-outline:focus-visible { outline: 2px solid rgba(218, 68, 83, 0.24); outline-offset: 2px; } .ds-btn-outline:active { background-color: rgba(218, 68, 83, 0.14); } .ds-btn-outline:disabled { opacity: 0.4; cursor: not-allowed; }"
+    },
+    {
+      "name": "Filter Chip",
+      "kind": "chip",
+      "refersTo": "chip-default",
+      "description": "Region and league filter toggles. Pill-shaped, subtle background, selected state uses Match Red.",
+      "html": "<button class=\"ds-chip-filter ds-chip-filter--selected\">Brentwood</button>",
+      "css": ".ds-chip-filter { background-color: rgba(15, 23, 42, 0.04); border: 1px solid rgba(15, 23, 42, 0.12); border-radius: 999px; color: inherit; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 12px; font-weight: 700; line-height: 1; padding: 8px 10px; cursor: pointer; transition: background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1); } .ds-chip-filter:hover { background-color: rgba(15, 23, 42, 0.08); } .ds-chip-filter:focus-visible { outline: 2px solid rgba(218, 68, 83, 0.24); outline-offset: 2px; } .ds-chip-filter--selected { background-color: rgba(218, 68, 83, 0.14); border-color: rgba(218, 68, 83, 0.36); } .ds-chip-filter--selected:hover { background-color: rgba(218, 68, 83, 0.22); }"
+    },
+    {
+      "name": "Selected League Pill",
+      "kind": "chip",
+      "refersTo": "chip-selected",
+      "description": "Shows a currently-selected league. Match Red tint, removable.",
+      "html": "<span class=\"ds-pill-league\"><span>Brentwood League</span><button class=\"ds-pill-league-remove\" aria-label=\"Remove\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\"><path d=\"M3 3L9 9M9 3L3 9\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"/></svg></button></span>",
+      "css": ".ds-pill-league { align-items: center; background-color: rgba(218, 68, 83, 0.12); border: 1px solid rgba(218, 68, 83, 0.34); border-radius: 999px; color: inherit; display: inline-flex; gap: 8px; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 12px; font-weight: 600; line-height: 1; padding: 8px 10px; max-width: 100%; } .ds-pill-league span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-pill-league-remove { background: none; border: none; color: inherit; cursor: pointer; opacity: 0.6; padding: 0; display: inline-flex; align-items: center; } .ds-pill-league-remove:hover { opacity: 1; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Primary content container. White background, subtle border, flat at rest, lifts on hover.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-content\"><h1 class=\"ds-card-title\">Section Title</h1><p class=\"ds-card-body\">Content goes here.</p></div></div>",
+      "css": ".ds-card { background-color: #FFFFFF; border: 1px solid #EBEDF0; border-radius: 14px; overflow: hidden; transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1); } .ds-card:hover { box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08); } .ds-card-content { padding: 12px; } .ds-card-content + .ds-card-content { border-top: 1px solid #EBEDF0; } .ds-card-title { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 16px; font-weight: 700; line-height: 1.25; color: #10233B; margin: 0 0 8px; } .ds-card-body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 1rem; font-weight: 400; line-height: 1.5; color: #5C697E; margin: 0; }"
+    },
+    {
+      "name": "Result Pill (Win)",
+      "kind": "custom",
+      "refersTo": "result-pill-win",
+      "description": "Indicates a match win in form history. Green background with 'W' label — never color alone.",
+      "html": "<span class=\"ds-result-pill ds-result-pill--win\">W</span>",
+      "css": ".ds-result-pill { border-radius: 999px; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 800; line-height: 1; min-width: 24px; padding: 6px 8px; text-align: center; display: inline-block; } .ds-result-pill--win { background-color: rgba(47, 141, 77, 0.18); color: #2F8D4D; } .ds-result-pill--loss { background-color: rgba(196, 67, 57, 0.18); color: #C44339; }"
+    },
+    {
+      "name": "List Item",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Full-width row with leading icon circle, title+subtitle stack, and trailing chevron. Used for players, matches, affiliations.",
+      "html": "<a href=\"#\" class=\"ds-list-item\"><div class=\"ds-list-item-icon\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\"><circle cx=\"8\" cy=\"8\" r=\"7\" stroke=\"white\" stroke-width=\"3\"/><path d=\"M5 8l2 2 4-4\" stroke=\"white\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></div><div class=\"ds-list-item-body\"><span class=\"ds-list-item-title\">Player Name</span><span class=\"ds-list-item-subtitle\">72% WR · 48 matches</span></div><svg class=\"ds-list-item-chevron\" width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\"><path d=\"M4 2L8 6L4 10\" stroke=\"#5C697E\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></a>",
+      "css": ".ds-list-item { align-items: center; border-bottom: 1px solid #EBEDF0; color: inherit; display: flex; gap: 12px; min-height: 72px; padding: 12px 0; text-decoration: none; transition: background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1); } .ds-list-item:last-child { border-bottom: none; } .ds-list-item:hover { background-color: rgba(15, 23, 42, 0.02); } .ds-list-item:focus-visible { outline: 2px solid rgba(218, 68, 83, 0.24); outline-offset: -2px; border-radius: 4px; } .ds-list-item-icon { align-items: center; background: linear-gradient(135deg, #2F75DD, #1F5AB8); border-radius: 999px; box-shadow: 0 8px 24px rgba(31, 90, 184, 0.28); color: #FFFFFF; display: flex; flex-shrink: 0; height: 38px; justify-content: center; width: 38px; } .ds-list-item-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; } .ds-list-item-title { color: #10233B; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 14px; font-weight: 700; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-list-item-subtitle { color: #5C697E; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 12px; font-weight: 600; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-list-item-chevron { flex-shrink: 0; }"
+    },
+    {
+      "name": "Footer Tab",
+      "kind": "nav",
+      "refersTo": null,
+      "description": "Bottom navigation bar tab. Icon + label. Active state uses Match Red for the icon.",
+      "html": "<nav class=\"ds-footer-bar\"><a href=\"#\" class=\"ds-footer-tab ds-footer-tab--active\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" fill=\"none\"><path d=\"M3 8l7-5 7 5v9a1 1 0 01-1 1H4a1 1 0 01-1-1V8z\" stroke=\"#DA4453\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg><span>Home</span></a><a href=\"#\" class=\"ds-footer-tab\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" fill=\"none\"><circle cx=\"8\" cy=\"6\" r=\"3\" stroke=\"#5C697E\" stroke-width=\"1.5\"/><path d=\"M2 18v-2a4 4 0 014-4h4a4 4 0 014 4v2\" stroke=\"#5C697E\" stroke-width=\"1.5\" stroke-linecap=\"round\"/></svg><span>Players</span></a></nav>",
+      "css": ".ds-footer-bar { display: flex; justify-content: space-around; align-items: center; padding: 8px 0 calc(8px + env(safe-area-inset-bottom)); background-color: #FFFFFF; border-top: 1px solid #EBEDF0; position: fixed; bottom: 0; left: 0; right: 0; z-index: 10; } .ds-footer-tab { align-items: center; color: #5C697E; display: flex; flex-direction: column; gap: 4px; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 10px; font-weight: 600; text-decoration: none; padding: 4px 12px; transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1); } .ds-footer-tab--active { color: #DA4453; } .ds-footer-tab--active svg { color: #DA4453; } .ds-footer-tab:hover { color: #10233B; } .ds-footer-tab--active:hover { color: #DA4453; }"
+    },
+    {
+      "name": "Stat Chip",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Compact KPI cell used in 2-3 column grids on player profiles. Number + label.",
+      "html": "<div class=\"ds-stat-chip\"><strong class=\"ds-stat-chip-value\">72%</strong><span class=\"ds-stat-chip-label\">Win Rate</span></div>",
+      "css": ".ds-stat-chip { background-color: rgba(15, 23, 42, 0.04); border-radius: 8px; padding: 10px 6px; text-align: center; } .ds-stat-chip-value { color: #10233B; display: block; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 24px; font-weight: 700; line-height: 1; } .ds-stat-chip-label { color: #5C697E; display: block; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 10px; font-weight: 700; line-height: 1; margin-top: 4px; }"
+    },
+    {
+      "name": "Page Header",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Fixed top header with centered title and up to 4 icon action slots. Transparent when scrolled to top, gains background on scroll.",
+      "html": "<header class=\"ds-header\"><a href=\"#\" class=\"ds-header-back\" aria-label=\"Back\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\"><path d=\"M10 3L5 8l5 5\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></a><span class=\"ds-header-title\">Player Name</span><a href=\"#\" class=\"ds-header-action\" aria-label=\"Home\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 18 18\" fill=\"none\"><path d=\"M2 7l7-5 7 5v8a1 1 0 01-1 1H3a1 1 0 01-1-1V7z\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></a></header>",
+      "css": ".ds-header { align-items: center; background-color: transparent; display: flex; height: 56px; left: 0; padding: 0 12px; position: fixed; right: 0; top: 0; z-index: 20; transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1); } .ds-header.header-active { background-color: rgba(255, 255, 255, 0.92); backdrop-filter: blur(12px); } .ds-header-back, .ds-header-action { align-items: center; color: #10233B; display: flex; height: 40px; justify-content: center; text-decoration: none; width: 40px; border-radius: 999px; transition: background-color 0.15s; } .ds-header-back:hover, .ds-header-action:hover { background-color: rgba(15, 23, 42, 0.06); } .ds-header-title { color: #10233B; flex: 1; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 17px; font-weight: 700; line-height: 1.2; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Match Card",
+    "overview": "Like the pre-printed match card a player fills in before stepping to the table: structured, compact, and honest. Every inch of the surface earns its place. Numbers sit in tidy grids. Labels are short, weighty, and unambiguous. There is no decoration — only data arranged so you find what you need before the next serve. The system serves players between matches, league enthusiasts scrolling standings, and tournament organizers cross-referencing records. All on mobile, often in sports halls under mixed fluorescent light. The design answers this with high contrast, a single warm red accent, and typography that stays readable from 12px up.",
+    "keyCharacteristics": [
+      "One accent, used sparingly on primary actions and selection states",
+      "System sans-serif throughout — native feel, no display type",
+      "Subtle warm tint to every neutral, even in dark mode",
+      "Flat surfaces at rest; shadows appear only on hover or selection",
+      "Pill-shaped everything: buttons, chips, result indicators, league filters",
+      "Dense-but-readable information layouts: 2-column grids, compact stat chips, form pills"
+    ],
+    "rules": [
+      {
+        "name": "The One Accent Rule",
+        "body": "Match Red appears on at most 10% of any screen's surface area. The rest is structural gray. If a second saturated color appears, something is wrong.",
+        "section": "colors"
+      },
+      {
+        "name": "The Win/Loss Rule",
+        "body": "Never convey match outcome through color alone. Win pills include 'W' text and green background; loss pills include 'L' text and red background. A color-blind viewer always has the letter.",
+        "section": "colors"
+      },
+      {
+        "name": "The Scale Ratio Rule",
+        "body": "Adjacent hierarchy steps differ by at least 1.25× in size or two weight grades. A 12px label next to a 13px body is a flat scale; fix it.",
+        "section": "typography"
+      },
+      {
+        "name": "The System Stack Rule",
+        "body": "The system font stack is the only stack. No web fonts, no display/body pairing, no Google Fonts import.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-At-Rest Rule",
+        "body": "A surface has no box-shadow in its default state. Shadows appear only as a response to interaction (hover, focus-visible) or selection (.active).",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use Match Red on at most 10% of any screen. The restraint is the point.",
+      "Do use the system font stack for every element. No web fonts, no display pairings.",
+      "Do pair every color-coded indicator with a text label, letter, or icon so color-blind users never lose meaning.",
+      "Do keep surfaces flat at rest. Add shadow only on hover, focus, or selection.",
+      "Do use pill shapes (999px radius) for chips, filter toggles, result indicators, and count badges.",
+      "Do respect prefers-reduced-motion: disable all transitions and shadow changes when the user requests it.",
+      "Do provide skeleton loading states for data sections, not centered spinners in empty space."
+    ],
+    "donts": [
+      "Don't use a generic SaaS dashboard aesthetic — no blue sidebars, no hero-metric templates.",
+      "Don't use sports-betting neon accents, flashing elements, or overstimulating data feeds.",
+      "Don't use enterprise data-warehouse density: gray-on-gray chrome, massive tables, information overload.",
+      "Don't use flashy mobile game tropes: over-animated transitions, gamification badges, reward popups.",
+      "Don't use a border-left or border-right greater than 1px as a colored accent stripe.",
+      "Don't use gradient text (background-clip: text).",
+      "Don't wrap everything in nested cards. A card inside a card is always wrong.",
+      "Don't use modal dialogs as a first resort. Inline expansion handles most cases on mobile."
+    ]
+  }
+}

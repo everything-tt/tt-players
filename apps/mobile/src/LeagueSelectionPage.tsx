@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { LeagueWithDivisions } from './player-shared';
 
 type RegionBucket = {
@@ -87,6 +87,12 @@ export function LeagueSelectionPage({
     feedbackTimer.current = window.setTimeout(() => setAddedRegion(null), 1200);
   };
 
+  useEffect(() => {
+    return () => {
+      if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    };
+  }, []);
+
   const orderedLeagues = useMemo(
     () => [...allLeagues].sort((a, b) => a.name.localeCompare(b.name)),
     [allLeagues],
@@ -151,7 +157,7 @@ export function LeagueSelectionPage({
             <input
               type="text"
               className="border-0"
-              placeholder={`Search ${activeTab}...`}
+              placeholder={activeTab === 'selected' ? 'Filter selected...' : activeTab === 'leagues' ? 'Search leagues...' : 'Search areas...'}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
