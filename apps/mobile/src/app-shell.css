@@ -146,6 +146,12 @@ body.theme-dark .list-custom-large a {
   text-decoration: none;
 }
 
+.tt-picker-remove-icon {
+  color: var(--ink-muted);
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
 .tt-picker-body {
   flex: 1;
   overflow-y: auto;
@@ -157,7 +163,7 @@ body.theme-dark .list-custom-large a {
   color: var(--ink-muted);
   font-size: 13px;
   margin: 0;
-  opacity: 0.5;
+  opacity: 0.6;
   padding: 24px 0;
   text-align: center;
 }
@@ -479,6 +485,14 @@ body.theme-dark .tt-league-picker-row.selected {
   padding: 4px 0;
 }
 
+.tt-home-leaders-error {
+  color: #C44339;
+}
+
+body.theme-dark .tt-home-leaders-error {
+  color: #ff6b5a;
+}
+
 .tt-home-leaders-list {
   display: flex;
   flex-direction: column;
@@ -493,6 +507,10 @@ body.theme-dark .tt-league-picker-row.selected {
   padding: 12px 0;
   text-decoration: none;
   transition: background-color 0.15s ease;
+}
+
+.tt-home-leaders-row:active {
+  background-color: var(--accent-soft);
 }
 
 .tt-home-leaders-row:first-child {

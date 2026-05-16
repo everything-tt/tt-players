@@ -137,7 +137,7 @@ export function HomeTabContent({
         {isListLoading ? (
           <p className="tt-home-leaders-loading">Loading...</p>
         ) : listError ? (
-          <p className="tt-home-leaders-loading" style={{ color: '#C44339' }}>Unable to load</p>
+          <p className="tt-home-leaders-loading tt-home-leaders-error">Unable to load</p>
         ) : currentList.length === 0 ? (
           <p className="tt-home-leaders-loading">No data available for the selected leagues.</p>
         ) : (
