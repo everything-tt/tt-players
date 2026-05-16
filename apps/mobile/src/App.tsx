@@ -7,7 +7,7 @@ import { LeaguesTabContent } from './LeaguesTabContent';
 import { TabFooterBar } from './TabFooterBar';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { useTabNavigation, type AppTabId } from './navigation/tab-navigation';
-import { useLeadersQuery, useLeaguesQuery, usePlayerSearchQuery } from './queries';
+import { useLeaguesQuery, usePlayerSearchQuery } from './queries';
 import { usePWAInstallContext } from './PWAInstallContext';
 
 type MenuId = 'menu-main' | 'menu-share';
@@ -43,8 +43,6 @@ const menuConfigs: Record<MenuId, MenuConfig> = {
 
 const HEADER_SWITCH_SCROLL = 40;
 const SEARCH_DEBOUNCE_MS = 250;
-const TOP_PLAYERS_LIMIT = 12;
-const TOP_PLAYERS_MIN_PLAYED = 3;
 const MAX_SELECTED_LEAGUES = 10;
 
 const THEME_STORAGE_KEY = 'TTPlayers-Theme';
@@ -131,7 +129,6 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isLeagueSelectorOpen, setIsLeagueSelectorOpen] = useState(false);
   const [isLeagueSelectionReady, setIsLeagueSelectionReady] = useState(false);
-  const [playersListTab, setPlayersListTab] = useState<'top' | 'trending'>('top');
   const [query, setQuery] = useState('');
   const [selectedLeagueIds, setSelectedLeagueIds] = useState<string[]>([]);
 
@@ -174,21 +171,10 @@ function App() {
     enabled: shouldFetchPlayers,
     allLeaguesCount: allLeagues.length,
   });
-  const topPlayersQuery = useLeadersQuery({
-    mode: 'combined',
-    leagueIds: isAllLeagueScope ? [] : selectedLeagueIds,
-    limit: TOP_PLAYERS_LIMIT,
-    minPlayed: TOP_PLAYERS_MIN_PLAYED,
-    enabled: activeTab === 'players' && isLeagueSelectionReady,
-  });
   const searchResults = playersSearchQuery.data?.data ?? [];
-  const topPlayers = topPlayersQuery.data?.data ?? [];
-  const topPlayersFormula = topPlayersQuery.data?.formula ?? null;
   const isSearchLoading = shouldFetchPlayers
     && (playersSearchQuery.isLoading || (playersSearchQuery.isFetching && !playersSearchQuery.data));
-  const isTopPlayersLoading = topPlayersQuery.isLoading || (topPlayersQuery.isFetching && !topPlayersQuery.data);
   const searchError = playersSearchQuery.error instanceof Error ? playersSearchQuery.error.message : null;
-  const topPlayersError = topPlayersQuery.error instanceof Error ? topPlayersQuery.error.message : null;
   const activeMenuConfig = activeMenuId ? menuConfigs[activeMenuId] : null;
 
   const wrapperTransform = useMemo(() => {
@@ -737,118 +723,7 @@ function App() {
                     )}
                   </div>
                 </div>
-              ) : (
-                <div className="card card-style mt-2">
-                  <div className="content mb-0">
-                    <div className="tab-controls tabs-small tabs-rounded" data-highlight="bg-highlight">
-                      <a
-                        href="#"
-                        className={playersListTab === 'top' ? 'bg-highlight color-white' : ''}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          setPlayersListTab('top');
-                        }}
-                      >
-                        Top Players
-                      </a>
-                      <a
-                        href="#"
-                        className={playersListTab === 'trending' ? 'bg-highlight color-white' : ''}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          setPlayersListTab('trending');
-                        }}
-                      >
-                        Trending Players
-                      </a>
-                    </div>
-                    <div className="clearfix mb-3" />
-
-                    {playersListTab === 'top' ? (
-                      <>
-                        {topPlayersFormula ? (
-                          <p className="mt-n1 mb-2 font-11 opacity-60">{topPlayersFormula}</p>
-                        ) : (
-                          <p className="mt-n1 mb-2 font-11 opacity-60">Best win rate weighted by match volume.</p>
-                        )}
-                        {!isLeagueSelectionReady || isLeaguesLoading ? (
-                          <p className="mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading leagues...</p>
-                        ) : isTopPlayersLoading ? (
-                          <p className="mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading top players...</p>
-                        ) : topPlayersError ? (
-                          <p className="mb-0 color-red-dark">Failed to load top players: {topPlayersError}</p>
-                        ) : topPlayers.length === 0 ? (
-                          <p className="mb-0">No top players available for the selected league scope.</p>
-                        ) : (
-                          <div className="list-group list-custom-large tt-player-large-list tt-top-players-list">
-                            {topPlayers.map((player: { player_id: string; rank: number; player_name: string; wins: number; losses: number; played: number; win_rate: number }) => (
-                              <a
-                                key={player.player_id}
-                                href="#"
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  navigateInActiveTab(`player/${player.player_id}`);
-                                }}
-                              >
-                                <i className="tt-player-avatar bg-highlight color-white">{player.rank}</i>
-                                <span>{player.player_name}</span>
-                                <strong>{player.wins}W-{player.losses}L • {player.played} played • {Math.round(player.win_rate)}% WR</strong>
-                                <i className="fa fa-angle-right" />
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <p className="mt-n1 mb-2 font-11 opacity-60">Most played in the last 100 days.</p>
-                        {!isLeagueSelectionReady || isLeaguesLoading ? (
-                          <p className="mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading leagues...</p>
-                        ) : leaguesError ? (
-                          <p className="mb-0 color-red-dark">Failed to load leagues: {leaguesError}</p>
-                        ) : isSearchLoading ? (
-                          <p className="mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading players...</p>
-                        ) : searchError ? (
-                          <p className="mb-0 color-red-dark">Failed to load players: {searchError}</p>
-                        ) : listItems.length === 0 ? (
-                          <p className="mb-0">No trending players available yet.</p>
-                        ) : (
-                          <div className="list-group list-custom-large tt-player-large-list tt-player-search-list">
-                            {listItems.map((player: PlayerSearchItem) => {
-                              const isFavourite = isFavouritePlayer(player.id);
-                              return (
-                                <a
-                                  key={player.id}
-                                  href="#"
-                                  data-filter-item
-                                  onClick={(event) => {
-                                    event.preventDefault();
-                                    navigateInActiveTab(`player/${player.id}`);
-                                  }}
-                                >
-                                  <i className="tt-player-avatar bg-highlight color-white">{getInitials(player.name)}</i>
-                                  <span>{player.name}</span>
-                                  <strong>{getWinRate(player)}% WR • {player.played} matches</strong>
-                                  <i
-                                    className={`fa fa-heart tt-player-favourite-icon ${isFavourite ? 'color-red-dark' : 'color-theme opacity-40'}`}
-                                    aria-label={isFavourite ? 'Remove favourite' : 'Add favourite'}
-                                    onClick={(event) => {
-                                      event.preventDefault();
-                                      event.stopPropagation();
-                                      toggleFavouritePlayer(player);
-                                    }}
-                                  />
-                                  <i className="fa fa-angle-right" />
-                                </a>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
+              ) : null}
             </>
           ) : null}
 
