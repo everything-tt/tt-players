@@ -128,6 +128,58 @@ body.theme-dark .list-custom-large a {
 
 /* ── League Picker (bottom sheet) ───────────────────────────────────── */
 
+.tt-picker-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0 16px;
+}
+
+.tt-picker-top {
+  flex-shrink: 0;
+  padding-top: 20px;
+}
+
+.tt-picker-close {
+  color: var(--ink-muted);
+  margin-left: auto;
+  text-decoration: none;
+}
+
+.tt-picker-body {
+  flex: 1;
+  overflow-y: auto;
+  margin: 0 -16px;
+  padding: 4px 16px 24px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tt-picker-empty {
+  color: var(--ink-muted);
+  font-size: 13px;
+  margin: 0;
+  opacity: 0.5;
+  padding: 24px 0;
+  text-align: center;
+}
+
+.tt-picker-remove {
+  color: var(--ink-muted);
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tt-picker-limit-label {
+  color: var(--ink-muted);
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.5;
+}
+
+/* Tabs */
+
 .tt-picker-tabs {
   display: flex;
   gap: 4px;
