@@ -1,138 +1,133 @@
 import type { AppTabId } from './navigation/tab-navigation';
 import { type LeagueWithDivisions } from './player-shared';
-import { usePlayerCountQuery } from './queries';
-import { AppCard, AppCardContent } from './ui/appkit';
+import { useLeadersQuery, usePlayerCountQuery } from './queries';
+import { useTabNavigation } from './navigation/tab-navigation';
 
 type DashboardTabId = Exclude<AppTabId, 'home'>;
 
 interface HomeTabContentProps {
   allLeagues: LeagueWithDivisions[];
+  selectedLeagueIds: string[];
   onOpenTab: (tabId: DashboardTabId) => void;
 }
 
+const LEADERS_LIMIT = 5;
+const LEADERS_MIN_PLAYED = 3;
+
 export function HomeTabContent({
   allLeagues,
+  selectedLeagueIds,
   onOpenTab,
 }: HomeTabContentProps) {
-  const totalLeagueCount = allLeagues.length;
-  const totalDivisionCount = allLeagues.reduce((sum, league) => sum + league.divisions.length, 0);
+  const { navigateInTab } = useTabNavigation();
+  const isAllLeagueScope = selectedLeagueIds.length === 0
+    || (allLeagues.length > 0 && selectedLeagueIds.length === allLeagues.length);
+
+  const leadersQuery = useLeadersQuery({
+    mode: 'combined',
+    leagueIds: isAllLeagueScope ? [] : selectedLeagueIds,
+    limit: LEADERS_LIMIT,
+    minPlayed: LEADERS_MIN_PLAYED,
+    enabled: true,
+  });
+  const leaders = leadersQuery.data?.data ?? [];
+  const isLeadersLoading = leadersQuery.isLoading;
+  const leadersError = leadersQuery.error instanceof Error ? leadersQuery.error.message : null;
 
   const countQuery = usePlayerCountQuery();
-  const isCountLoading = countQuery.isLoading;
   const playerCount = countQuery.data?.players ?? null;
-  const matchCount = countQuery.data?.matches ?? null;
+  const leagueCount = allLeagues.length;
 
-  const fmt = (v: number | null) => isCountLoading ? '...' : v !== null ? v.toLocaleString() : '–';
+  const scopeLabel = isAllLeagueScope
+    ? `${leagueCount} leagues`
+    : `${selectedLeagueIds.length} of ${leagueCount} leagues`;
 
-  const statCards = [
-    {
-      label: 'Players',
-      value: fmt(playerCount),
-      iconClassName: 'fa fa-user-friends',
-      accentClass: 'tt-home-stat-accent-blue',
-    },
-    {
-      label: 'Leagues',
-      value: String(totalLeagueCount),
-      iconClassName: 'fa fa-trophy',
-      accentClass: 'tt-home-stat-accent-green',
-    },
-    {
-      label: 'Divisions',
-      value: String(totalDivisionCount),
-      iconClassName: 'fa fa-layer-group',
-      accentClass: 'tt-home-stat-accent-amber',
-    },
-    {
-      label: 'Matches',
-      value: fmt(matchCount),
-      iconClassName: 'fa fa-table-tennis',
-      accentClass: 'tt-home-stat-accent-red',
-    },
-  ];
-
-  const shortcutCards: Array<{
+  const navItems: Array<{
     tabId: DashboardTabId;
     title: string;
     description: string;
-    meta: string;
-    thumbnail: string;
+    iconClassName: string;
   }> = [
-      {
-        tabId: 'players',
-        title: 'Search Players',
-        description: 'Browse the full player directory, follow their form, and dive into per-match stats and insights.',
-        meta: `Extensive player database includes ${playerCount} players.`,
-        thumbnail: '/images/thumb-players.png',
-      },
-      {
-        tabId: 'leagues',
-        title: 'Leagues & Standings',
-        description: 'Explore live league tables, team hubs, fixture lists, and division standings all in one place.',
-        meta: `${totalDivisionCount} divisions across ${totalLeagueCount} leagues`,
-        thumbnail: '/images/thumb-leagues.png',
-      },
-      {
-        tabId: 'h2h',
-        title: 'H2H',
-        description: 'Pick any two players and see exactly how they compare — win rate, form, and past encounters.',
-        meta: `Against your friend and enemy`,
-        thumbnail: '/images/thumb-h2h.png',
-      }
-    ];
+    {
+      tabId: 'players',
+      title: 'Search Players',
+      description: playerCount ? `Full directory, form trends, and per-match insights across ${playerCount.toLocaleString()} players` : 'Full directory, form trends, and per-match insights',
+      iconClassName: 'fa fa-search',
+    },
+    {
+      tabId: 'leagues',
+      title: 'Leagues & Standings',
+      description: `Live league tables, team hubs, fixtures, and division standings across ${leagueCount} leagues`,
+      iconClassName: 'fa fa-table-tennis',
+    },
+    {
+      tabId: 'h2h',
+      title: 'Head to Head',
+      description: 'Pick any two players and compare their win rates, form, and past encounters',
+      iconClassName: 'fa fa-code-compare',
+    },
+  ];
 
   return (
     <>
-      <div className="tt-home-hero">
-        <img src="/images/hero-tt.png" alt="Table tennis action" />
-        <div className="tt-home-hero-overlay">
-          <h1 className="tt-home-hero-title">Track, Compare & Explore.</h1>
-          <p className="tt-home-hero-subtitle">
-            Dive into leaderboards, head-to-head matchups, and match history across all your favourite leagues.
-          </p>
+      <div className="tt-home-leaders">
+        <div className="tt-home-leaders-header">
+          <h1 className="tt-home-leaders-heading">Top Players</h1>
+          <span className="tt-home-leaders-scope">{scopeLabel}</span>
         </div>
-      </div>
 
-      <div className="content mt-3 mb-2">
-        <div className="row mb-0">
-          {statCards.map((card) => (
-            <div key={card.label} className="col-6 mb-3">
-              <div className={`tt-home-stat-card ${card.accentClass}`}>
-                <div className="tt-home-stat-icon">
-                  <i className={card.iconClassName} />
-                </div>
-                <h3 className="tt-home-stat-value mb-1">{card.value}</h3>
-                <p className="tt-home-stat-label mb-0">{card.label}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <AppCard>
-        <AppCardContent className="mb-2">
-          <div className="tt-home-trending">
-            {shortcutCards.map((card) => (
+        {isLeadersLoading ? (
+          <p className="tt-home-leaders-loading">Loading leaders...</p>
+        ) : leadersError ? (
+          <p className="tt-home-leaders-loading" style={{ color: '#C44339' }}>Unable to load leaders</p>
+        ) : leaders.length === 0 ? (
+          <p className="tt-home-leaders-loading">No leader data available for the selected leagues.</p>
+        ) : (
+          <div className="tt-home-leaders-list">
+            {leaders.map((player: any, index: number) => (
               <a
-                key={card.tabId}
+                key={player.player_id}
                 href="#"
-                className="tt-home-trending-row"
-                onClick={(event) => {
-                  event.preventDefault();
-                  onOpenTab(card.tabId);
+                className="tt-home-leaders-row"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigateInTab('players', `player/${player.player_id}`);
                 }}
               >
-                <div className="tt-home-trending-copy">
-                  <h4 className="tt-home-trending-title">{card.title}</h4>
-                  <p className="tt-home-trending-desc">{card.description}</p>
-                  <span className="tt-home-trending-meta">{card.meta}</span>
-                </div>
-                <img className="tt-home-trending-thumb" src={card.thumbnail} alt="" />
+                <span className="tt-home-leaders-rank">{index + 1}</span>
+                <span className="tt-home-leaders-name">{player.player_name}</span>
+                <span className="tt-home-leaders-stat">
+                  {player.wins}W &middot; {player.losses}L
+                </span>
+                <span className="tt-home-leaders-rate">{Math.round(player.win_rate)}%</span>
               </a>
             ))}
           </div>
-        </AppCardContent>
-      </AppCard>
+        )}
+      </div>
+
+      <div className="tt-home-nav">
+        {navItems.map((item) => (
+          <a
+            key={item.tabId}
+            href="#"
+            className="tt-home-nav-row"
+            onClick={(e) => {
+              e.preventDefault();
+              onOpenTab(item.tabId);
+            }}
+          >
+            <div className="tt-home-nav-icon">
+              <i className={item.iconClassName} />
+            </div>
+            <div className="tt-home-nav-copy">
+              <span className="tt-home-nav-title">{item.title}</span>
+              <span className="tt-home-nav-desc">{item.description}</span>
+            </div>
+            <i className="fa fa-angle-right tt-home-nav-chevron" />
+          </a>
+        ))}
+      </div>
     </>
   );
 }

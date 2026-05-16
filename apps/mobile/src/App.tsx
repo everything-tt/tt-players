@@ -611,6 +611,7 @@ function App() {
           {activeTab === 'home' ? (
             <HomeTabContent
               allLeagues={allLeagues}
+              selectedLeagueIds={selectedLeagueIds}
               onOpenTab={(tabId) => switchTab(tabId, 'root')}
             />
           ) : null}

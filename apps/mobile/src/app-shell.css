@@ -341,192 +341,160 @@ body.theme-dark .list-custom-large a {
   cursor: pointer;
 }
 
-/* ── Hero section ────────────────────────────────────────────────────── */
+/* ── Home: Top Players ───────────────────────────────────────────────── */
 
-.tt-home-hero {
-  overflow: hidden;
-  position: relative;
+.tt-home-leaders {
+  padding: 24px 16px 20px;
 }
 
-.tt-home-hero img {
-  display: block;
-  height: 360px;
-  object-fit: cover;
-  object-position: center 30%;
-  width: 100%;
+.tt-home-leaders-header {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
-.tt-home-hero-overlay {
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.45) 50%, transparent 100%);
-  bottom: 0;
-  left: 0;
-  padding: 24px 18px 18px;
-  position: absolute;
-  right: 0;
-}
-
-.tt-home-hero-title {
-  color: #fff;
+.tt-home-leaders-heading {
+  color: var(--ink);
   font-size: 21px;
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.2;
-  margin: 0 0 6px;
-}
-
-.tt-home-hero-subtitle {
-  color: rgba(255, 255, 255, 0.75);
-  font-size: 13px;
-  line-height: 1.5;
   margin: 0;
 }
 
-.tt-home-stat-card {
-  background: var(--tt-home-surface);
-  border-radius: 18px;
-  height: 100%;
-  padding: 16px 12px 14px;
+.tt-home-leaders-scope {
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tt-home-leaders-loading {
+  color: var(--ink-muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+.tt-home-leaders-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.tt-home-leaders-row {
+  align-items: center;
+  border-bottom: 1px solid var(--border-hairline);
+  color: inherit;
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  text-decoration: none;
+  transition: background-color 0.15s ease;
+}
+
+.tt-home-leaders-row:first-child {
+  border-top: 1px solid var(--border-hairline);
+}
+
+.tt-home-leaders-row:hover {
+  background-color: var(--accent-subtle);
+}
+
+.tt-home-leaders-rank {
+  color: var(--accent);
+  flex: 0 0 20px;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
   text-align: center;
 }
 
-.tt-home-stat-icon {
+.tt-home-leaders-name {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tt-home-leaders-stat {
+  color: var(--ink-muted);
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tt-home-leaders-rate {
+  color: var(--ink);
+  flex: 0 0 48px;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ── Home: Navigation rows ──────────────────────────────────────────── */
+
+.tt-home-nav {
+  padding: 0 16px 8px;
+}
+
+.tt-home-nav-row {
   align-items: center;
-  border-radius: 14px;
-  display: inline-flex;
-  font-size: 16px;
-  height: 36px;
-  justify-content: center;
-  margin-bottom: 10px;
-  width: 36px;
-}
-
-.tt-home-stat-accent-blue .tt-home-stat-icon,
-.tt-home-stat-accent-green .tt-home-stat-icon,
-.tt-home-stat-accent-amber .tt-home-stat-icon {
-  background: var(--accent-subtle);
-  color: var(--accent);
-}
-
-.tt-home-stat-label {
-  color: var(--tt-home-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.tt-home-stat-value {
-  color: var(--tt-home-text);
-  font-size: 24px;
-  line-height: 1;
-}
-
-.tt-home-stat-accent-red .tt-home-stat-icon {
-  background: var(--accent-subtle);
-  color: var(--accent);
-}
-
-/* ── Trending-style shortcut rows ─────────────────────────────────────── */
-
-.tt-home-trending {
-  display: grid;
-  gap: 0;
-}
-
-.tt-home-trending-row {
-  align-items: center;
-  border-bottom: 1px solid var(--tt-home-border);
-  color: inherit !important;
+  border-bottom: 1px solid var(--border-hairline);
+  color: inherit;
   display: flex;
   gap: 14px;
-  padding: 14px 0;
+  padding: 16px 0;
   text-decoration: none;
+  transition: background-color 0.15s ease;
 }
 
-.tt-home-trending-row:last-child {
+.tt-home-nav-row:last-child {
   border-bottom: none;
-  padding-bottom: 0;
 }
 
-.tt-home-trending-copy {
-  flex: 1 1 auto;
+.tt-home-nav-row:hover {
+  background-color: var(--accent-subtle);
+}
+
+.tt-home-nav-icon {
+  align-items: center;
+  background: var(--accent-subtle);
+  border-radius: 8px;
+  color: var(--accent);
+  display: flex;
+  flex: 0 0 40px;
+  font-size: 18px;
+  height: 40px;
+  justify-content: center;
+}
+
+.tt-home-nav-copy {
+  flex: 1;
   min-width: 0;
 }
 
-.tt-home-trending-title {
-  color: var(--tt-home-text);
-  font-size: 14px;
-  font-weight: 700;
+.tt-home-nav-title {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-bottom: 2px;
+}
+
+.tt-home-nav-desc {
+  color: var(--ink-muted);
+  display: block;
+  font-size: 13px;
   line-height: 1.4;
-  margin: 0 0 4px;
 }
 
-.tt-home-trending-desc {
-  color: var(--tt-home-muted);
-  font-size: 12.5px;
-  line-height: 1.5;
-  margin: 0 0 5px;
-}
-
-.tt-home-trending-meta {
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.tt-home-trending-thumb {
-  border-radius: 14px;
-  flex: 0 0 33%;
-  height: auto;
-  max-height: 110px;
-  object-fit: cover;
-  width: 33%;
-}
-
-.tt-home-leaders-list a {
-  min-height: 76px;
-}
-
-.tt-home-rank-badge {
-  align-items: center;
-  background: var(--accent);
-  border-radius: 999px;
-  color: #fff !important;
-  display: inline-flex;
-  font-size: 12px;
-  font-style: normal;
-  font-weight: 800;
-  height: 38px;
-  justify-content: center;
-  min-width: 38px;
-}
-
-.tt-home-league-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.tt-home-league-pill {
-  background: var(--tt-home-surface);
-  border: 1px solid var(--tt-home-border);
-  border-radius: 999px;
-  color: var(--tt-home-text);
-  display: inline-flex;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 8px 12px;
-}
-
-.tt-home-league-pill-muted {
-  color: var(--tt-home-muted);
-}
-
-.tt-home-scope-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+.tt-home-nav-chevron {
+  color: var(--ink-muted);
+  flex: 0 0 auto;
+  font-size: 14px;
 }
 
 .tt-player-summary-avatar {
