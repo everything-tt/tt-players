@@ -131,7 +131,7 @@ export function HomeTabContent({
             </button>
           </div>
           <span className="tt-home-leaders-desc">
-            {listMode === 'top' ? 'Best win rate weighted by match volume' : 'Most active in recent weeks'}
+            {listMode === 'top' ? 'By win rate' : 'By activity'}
           </span>
         </div>
 
