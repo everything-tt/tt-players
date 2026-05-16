@@ -175,6 +175,7 @@ export function LeagueSelectionPage({
                         {league.divisions.length} divisions
                       </span>
                     </div>
+                    <i className="fa fa-xmark" style={{ color: 'var(--ink-muted)', fontSize: 14, flexShrink: 0 }} />
                   </button>
                 ))
               )
