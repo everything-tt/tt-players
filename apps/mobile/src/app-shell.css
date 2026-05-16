@@ -344,15 +344,13 @@ body.theme-dark .list-custom-large a {
 /* ── Hero section ────────────────────────────────────────────────────── */
 
 .tt-home-hero {
-  border-radius: 20px;
-  margin: 0 16px;
   overflow: hidden;
   position: relative;
 }
 
 .tt-home-hero img {
   display: block;
-  height: 320px;
+  height: 360px;
   object-fit: cover;
   object-position: center 30%;
   width: 100%;
@@ -385,7 +383,6 @@ body.theme-dark .list-custom-large a {
 
 .tt-home-stat-card {
   background: var(--tt-home-surface);
-  border: 1px solid var(--tt-home-border);
   border-radius: 18px;
   height: 100%;
   padding: 16px 12px 14px;
