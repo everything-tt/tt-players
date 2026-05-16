@@ -708,6 +708,8 @@ function App() {
                   </div>
                 </div>
               ) : null}
+            </>
+          ) : null}
 
           {activeTab === 'leagues' ? (
             <LeaguesTabContent
