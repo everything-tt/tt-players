@@ -341,41 +341,42 @@ body.theme-dark .list-custom-large a {
   cursor: pointer;
 }
 
-/* ── Home: Hero ──────────────────────────────────────────────────────── */
+/* ── Home: Summary card ──────────────────────────────────────────────── */
 
-.tt-home-hero {
+.tt-home-summary {
+  margin: 16px 16px 0;
+  padding: 24px 16px 20px;
   background: var(--accent);
-  padding: 16px 16px 28px;
-  margin-top: 56px;
+  border-radius: 18px;
 }
 
-.tt-home-hero-title {
+.tt-home-summary-title {
   color: #fff;
-  font-size: 32px;
+  font-size: 26px;
   font-weight: 600;
   letter-spacing: -0.02em;
-  line-height: 1.1;
-  margin: 0 0 4px;
+  line-height: 1.15;
+  margin: 0 0 2px;
 }
 
-.tt-home-hero-sub {
+.tt-home-summary-sub {
   color: rgba(255, 255, 255, 0.75);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 400;
   line-height: 1.4;
-  margin: 0 0 24px;
+  margin: 0 0 20px;
 }
 
-.tt-home-hero-stats {
+.tt-home-summary-stats {
   display: flex;
 }
 
-.tt-home-hero-stat {
+.tt-home-summary-stat {
   flex: 1;
   text-align: center;
 }
 
-.tt-home-hero-stat-value {
+.tt-home-summary-stat-value {
   color: #fff;
   display: block;
   font-size: 22px;
@@ -386,7 +387,7 @@ body.theme-dark .list-custom-large a {
   margin-bottom: 4px;
 }
 
-.tt-home-hero-stat-label {
+.tt-home-summary-stat-label {
   color: rgba(255, 255, 255, 0.85);
   font-size: 12px;
   font-weight: 600;
@@ -398,8 +399,8 @@ body.theme-dark .list-custom-large a {
 
 .tt-home-leaders {
   background: var(--canvas-parchment);
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
   border-bottom: 1px solid var(--border-hairline);
+  margin-top: 16px;
   padding: 20px 16px 16px;
 }
 

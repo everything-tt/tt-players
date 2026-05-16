@@ -88,26 +88,26 @@ export function HomeTabContent({
 
   return (
     <>
-      <div className="tt-home-hero">
-        <h1 className="tt-home-hero-title">TT Players</h1>
-        <p className="tt-home-hero-sub">{scopeLabel}</p>
+      <div className="tt-home-summary">
+        <h1 className="tt-home-summary-title">TT Players</h1>
+        <p className="tt-home-summary-sub">{scopeLabel}</p>
 
-        <div className="tt-home-hero-stats">
-          <div className="tt-home-hero-stat">
-            <span className="tt-home-hero-stat-value">{fmt(playerCount)}</span>
-            <span className="tt-home-hero-stat-label">Players</span>
+        <div className="tt-home-summary-stats">
+          <div className="tt-home-summary-stat">
+            <span className="tt-home-summary-stat-value">{fmt(playerCount)}</span>
+            <span className="tt-home-summary-stat-label">Players</span>
           </div>
-          <div className="tt-home-hero-stat">
-            <span className="tt-home-hero-stat-value">{leagueCount}</span>
-            <span className="tt-home-hero-stat-label">Leagues</span>
+          <div className="tt-home-summary-stat">
+            <span className="tt-home-summary-stat-value">{leagueCount}</span>
+            <span className="tt-home-summary-stat-label">Leagues</span>
           </div>
-          <div className="tt-home-hero-stat">
-            <span className="tt-home-hero-stat-value">{divisionCount}</span>
-            <span className="tt-home-hero-stat-label">Divisions</span>
+          <div className="tt-home-summary-stat">
+            <span className="tt-home-summary-stat-value">{divisionCount}</span>
+            <span className="tt-home-summary-stat-label">Divisions</span>
           </div>
-          <div className="tt-home-hero-stat">
-            <span className="tt-home-hero-stat-value">{fmt(matchCount)}</span>
-            <span className="tt-home-hero-stat-label">Matches</span>
+          <div className="tt-home-summary-stat">
+            <span className="tt-home-summary-stat-value">{fmt(matchCount)}</span>
+            <span className="tt-home-summary-stat-label">Matches</span>
           </div>
         </div>
       </div>
