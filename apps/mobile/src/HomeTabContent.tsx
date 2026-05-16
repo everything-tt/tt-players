@@ -89,7 +89,6 @@ export function HomeTabContent({
   return (
     <>
       <div className="tt-home-summary">
-        <h1 className="tt-home-summary-title">TT Players</h1>
         <p className="tt-home-summary-sub">{scopeLabel}</p>
 
         <div className="tt-home-summary-stats">
