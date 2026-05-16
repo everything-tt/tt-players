@@ -42,6 +42,11 @@ body.theme-dark {
 .border-highlight { border-color: var(--accent) !important; }
 .gradient-highlight { background: var(--accent) !important; color: #fff !important; }
 
+.btn:active {
+  transform: scale(0.95);
+  transition: transform 0.1s ease;
+}
+
 .app-shell-page {
   min-height: 100dvh;
   background: var(--canvas-parchment);

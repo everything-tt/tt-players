@@ -1,17 +1,14 @@
 import type { AnchorHTMLAttributes, ReactNode } from 'react';
 import { cx } from './cx';
 
-type AppButtonTone = 'highlight' | 'outline-highlight' | 'gray' | 'danger' | 'light';
+type AppButtonTone = 'highlight' | 'outline-highlight';
 type AppButtonSize = 's' | 'sm' | 'm' | 'l';
-type AppButtonRounded = 's' | 'm';
+type AppButtonRounded = 'full' | 'm';
 type AppButtonFontWeight = 'regular' | 'semibold' | 'bold';
 
 const toneClassName: Record<AppButtonTone, string> = {
   highlight: 'bg-highlight color-white border-0',
   'outline-highlight': 'color-highlight border-highlight bg-transparent',
-  gray: 'bg-gray-dark color-white border-0',
-  danger: 'bg-red-dark color-white border-0',
-  light: 'bg-white color-black border-0',
 };
 
 const sizeClassName: Record<AppButtonSize, string> = {
@@ -22,7 +19,7 @@ const sizeClassName: Record<AppButtonSize, string> = {
 };
 
 const roundedClassName: Record<AppButtonRounded, string> = {
-  s: 'rounded-s',
+  full: 'rounded-pill',
   m: 'rounded-m',
 };
 
@@ -46,8 +43,8 @@ export function AppButtonLink({
   className,
   tone = 'highlight',
   size = 's',
-  rounded = 's',
-  fontWeight = 'semibold',
+  rounded = 'full',
+  fontWeight = 'regular',
   full = false,
   href = '#',
   ...props

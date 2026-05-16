@@ -191,7 +191,7 @@ export function PlayerMatchesPage() {
                 full
                 size="sm"
                 className="font-13 mt-3"
-                tone={matchesLoadingMore ? 'gray' : 'highlight'}
+                tone={matchesLoadingMore ? 'outline-highlight' : 'highlight'}
                 onClick={onLoadMore}
               >
                 {matchesLoadingMore ? 'Loading...' : 'Load More Matches'}

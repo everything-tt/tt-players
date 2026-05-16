@@ -21,7 +21,7 @@ interface AppLoadingCardProps {
 interface AppMessageCardAction {
   label: string;
   onClick: MouseEventHandler<HTMLAnchorElement>;
-  tone?: 'highlight' | 'outline-highlight' | 'gray' | 'danger';
+  tone?: 'highlight' | 'outline-highlight';
 }
 
 interface AppMessageCardProps {

@@ -95,7 +95,7 @@ export function PlayerInsightsPage() {
         ) : error || !stats || !insights ? (
           <AppMessageCard
             message="Failed to load insights."
-            tone="danger"
+            tone="outline-highlight"
             action={{ label: 'Back', onClick: goBack }}
           />
         ) : (

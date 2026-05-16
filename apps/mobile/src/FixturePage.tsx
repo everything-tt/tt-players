@@ -62,7 +62,7 @@ export function FixturePage() {
           <AppMessageCard
             title="Missing fixture"
             message="Fixture id is missing from the route."
-            tone="danger"
+            tone="outline-highlight"
             action={{ label: 'Back Home', onClick: goHome }}
           />
         ) : rubbersQuery.isLoading && !fixtureMeta ? (
@@ -71,7 +71,7 @@ export function FixturePage() {
           <AppMessageCard
             title="Fixture unavailable"
             message={pageError ?? 'Failed to load this fixture.'}
-            tone="danger"
+            tone="outline-highlight"
             action={{ label: 'Back Home', onClick: goHome }}
           />
         ) : (
