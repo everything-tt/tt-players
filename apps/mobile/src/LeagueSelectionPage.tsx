@@ -184,21 +184,24 @@ export function LeagueSelectionPage({
               {(isSearching ? selectedLeagues.filter(l => l.name.toLowerCase().includes(normalizedQuery)) : selectedLeagues).length === 0 ? (
                 <p className="text-center py-4 opacity-40 font-13">No leagues selected. Switch to Leagues tab to find and add leagues.</p>
               ) : (
-                <div className="tt-selected-league-list">
+                <div className="tt-league-picker-results">
                   {(isSearching ? selectedLeagues.filter(l => l.name.toLowerCase().includes(normalizedQuery)) : selectedLeagues).map((league) => (
                     <button
                       key={league.id}
                       type="button"
-                      className="tt-selected-league-row"
+                      className="tt-league-picker-row selected"
                       onClick={() => onRemoveLeague(league.id)}
                     >
-                      <span className="tt-selected-league-row-name">{league.name}</span>
-                      <span className="tt-selected-league-row-meta">
-                        {leagueRegionLabels(league).join(' · ')}
-                        {leagueRegionLabels(league).length > 0 ? ' · ' : ''}
-                        {league.divisions.length} divisions
-                      </span>
-                      <i className="fa fa-times-circle color-theme" />
+                      <span className="tt-league-picker-check checked">✓</span>
+                      <div className="tt-league-picker-row-content">
+                        <span className="tt-league-picker-row-name">{league.name}</span>
+                        <span className="tt-league-picker-row-meta">
+                          {leagueRegionLabels(league).join(' · ')}
+                          {leagueRegionLabels(league).length > 0 ? ' · ' : ''}
+                          {league.divisions.length} divisions
+                        </span>
+                      </div>
+                      <i className="fa fa-times-circle" style={{ color: 'var(--ink-muted)', fontSize: 16 }} />
                     </button>
                   ))}
                 </div>
