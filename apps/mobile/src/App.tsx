@@ -10,21 +10,9 @@ import { useTabNavigation, type AppTabId } from './navigation/tab-navigation';
 import { useLeadersQuery, useLeaguesQuery, usePlayerSearchQuery } from './queries';
 import { usePWAInstallContext } from './PWAInstallContext';
 
-type MenuId = 'menu-main' | 'menu-share' | 'menu-colors';
+type MenuId = 'menu-main' | 'menu-share';
 type MenuPlacement = 'left' | 'right' | 'top' | 'bottom';
 type MenuEffect = 'none' | 'menu-push' | 'menu-parallax';
-type HighlightName =
-  | 'blue'
-  | 'red'
-  | 'orange'
-  | 'green'
-  | 'yellow'
-  | 'dark'
-  | 'gray'
-  | 'teal'
-  | 'magenta'
-  | 'brown';
-type GradientName = 'default' | 'ocean' | 'sunset' | 'forest' | 'midnight';
 
 type MenuConfig = {
   effect: MenuEffect;
@@ -49,31 +37,9 @@ const tabTitles: Record<AppTabId, string> = {
 };
 
 const menuConfigs: Record<MenuId, MenuConfig> = {
-  'menu-colors': { id: 'menu-colors', placement: 'bottom', height: 520, effect: 'none' },
   'menu-main': { id: 'menu-main', placement: 'left', width: 280, effect: 'none' },
   'menu-share': { id: 'menu-share', placement: 'bottom', height: 370, effect: 'none' },
 };
-
-const highlightOptions: { label: string; value: HighlightName }[] = [
-  { label: 'Blue', value: 'blue' },
-  { label: 'Red', value: 'red' },
-  { label: 'Orange', value: 'orange' },
-  { label: 'Green', value: 'green' },
-  { label: 'Yellow', value: 'yellow' },
-  { label: 'Dark', value: 'dark' },
-  { label: 'Gray', value: 'gray' },
-  { label: 'Teal', value: 'teal' },
-  { label: 'Plum', value: 'magenta' },
-  { label: 'Brown', value: 'brown' },
-];
-
-const gradientOptions: { label: string; value: GradientName; iconClass: string }[] = [
-  { label: 'Default', value: 'default', iconClass: 'gradient-gray' },
-  { label: 'Ocean', value: 'ocean', iconClass: 'gradient-blue' },
-  { label: 'Sunset', value: 'sunset', iconClass: 'gradient-orange' },
-  { label: 'Forest', value: 'forest', iconClass: 'gradient-green' },
-  { label: 'Midnight', value: 'midnight', iconClass: 'gradient-dark' },
-];
 
 const HEADER_SWITCH_SCROLL = 40;
 const SEARCH_DEBOUNCE_MS = 250;
@@ -82,8 +48,6 @@ const TOP_PLAYERS_MIN_PLAYED = 3;
 const MAX_SELECTED_LEAGUES = 10;
 
 const THEME_STORAGE_KEY = 'TTPlayers-Theme';
-const HIGHLIGHT_STORAGE_KEY = 'TTPlayers-Highlight';
-const GRADIENT_STORAGE_KEY = 'TTPlayers-Gradient';
 const FAVOURITES_STORAGE_KEY = 'tt_players_favourite_players';
 const FAVOURITES_UPDATED_EVENT = 'tt_players_favourite_players_updated';
 const LEAGUES_STORAGE_KEY = 'tt_players_selected_league_ids';
@@ -152,7 +116,7 @@ function InstallAppMenuItem({ onClose }: { onClose: (e: MouseEvent<HTMLAnchorEle
 
   return (
     <a href="#" onClick={handleClick}>
-      <i className="fa fa-download gradient-blue color-white" />
+      <i className="fa fa-download color-white" />
       <span>Install App</span>
       <i className="fa fa-angle-right" />
     </a>
@@ -161,8 +125,6 @@ function InstallAppMenuItem({ onClose }: { onClose: (e: MouseEvent<HTMLAnchorEle
 
 function App() {
   const { activeTab, handleSystemBack, navigateInActiveTab, switchTab } = useTabNavigation();
-  const [activeGradient, setActiveGradient] = useState<GradientName>('default');
-  const [activeHighlight, setActiveHighlight] = useState<HighlightName>('red');
   const [activeMenuId, setActiveMenuId] = useState<MenuId | null>(null);
   const [favouritePlayers, setFavouritePlayers] = useState<PlayerSearchItem[]>(() => parseStoredFavouritePlayers());
   const [isBooting, setIsBooting] = useState(true);
@@ -324,28 +286,6 @@ function App() {
     setIsDarkMode(false);
   };
 
-  const applyHighlight = (highlight: HighlightName) => {
-    const currentHighlightLinks = document.querySelectorAll('link.page-highlight');
-    currentHighlightLinks.forEach((link) => link.remove());
-
-    const highlightStylesheet = document.createElement('link');
-    highlightStylesheet.rel = 'stylesheet';
-    highlightStylesheet.className = 'page-highlight';
-    highlightStylesheet.type = 'text/css';
-    highlightStylesheet.href = `/appkit/styles/highlights/highlight_${highlight}.css`;
-    document.head.appendChild(highlightStylesheet);
-
-    document.body.setAttribute('data-highlight', `highlight-${highlight}`);
-    localStorage.setItem(HIGHLIGHT_STORAGE_KEY, highlight);
-    setActiveHighlight(highlight);
-  };
-
-  const applyGradient = (gradient: GradientName) => {
-    document.body.setAttribute('data-gradient', `body-${gradient}`);
-    localStorage.setItem(GRADIENT_STORAGE_KEY, gradient);
-    setActiveGradient(gradient);
-  };
-
   const toggleTheme = (event: MouseEvent<HTMLAnchorElement | HTMLInputElement>): void => {
     event.preventDefault();
     if (document.body.classList.contains('theme-dark')) {
@@ -354,20 +294,6 @@ function App() {
     }
     activateDarkMode();
   };
-
-  const onSelectHighlight =
-    (highlight: HighlightName) =>
-    (event: MouseEvent<HTMLAnchorElement>): void => {
-      event.preventDefault();
-      applyHighlight(highlight);
-    };
-
-  const onSelectGradient =
-    (gradient: GradientName) =>
-    (event: MouseEvent<HTMLAnchorElement>): void => {
-      event.preventDefault();
-      applyGradient(gradient);
-    };
 
   const isFavouritePlayer = (playerId: string) => (
     favouritePlayers.some((player) => player.id === playerId)
@@ -441,20 +367,6 @@ function App() {
     } else {
       activateLightMode();
     }
-
-    const rememberedHighlight = localStorage.getItem(HIGHLIGHT_STORAGE_KEY) as HighlightName | null;
-    const validRememberedHighlight: HighlightName =
-      rememberedHighlight && highlightOptions.some((option) => option.value === rememberedHighlight)
-        ? rememberedHighlight
-        : 'red';
-    applyHighlight(validRememberedHighlight);
-
-    const rememberedGradient = localStorage.getItem(GRADIENT_STORAGE_KEY) as GradientName | null;
-    const validRememberedGradient: GradientName =
-      rememberedGradient && gradientOptions.some((option) => option.value === rememberedGradient)
-        ? rememberedGradient
-        : 'default';
-    applyGradient(validRememberedGradient);
   }, []);
 
   useEffect(() => {
@@ -973,29 +885,28 @@ function App() {
               <h1 className="color-white ps-3 mb-n1 font-28">TT Players</h1>
               <p className="mb-2 ps-3 font-12 color-white opacity-50">League Hub</p>
             </div>
-            <div className="card-overlay bg-gradient" />
           </div>
 
           <div className="mt-4" />
           <h6 className="menu-divider">Library</h6>
           <div className="list-group list-custom-small list-menu">
             <a href="#" onClick={onMenuTabClick('home')}>
-              <i className="fa fa-home gradient-blue color-white" />
+              <i className="fa fa-home color-white" />
               <span>Home</span>
               <i className="fa fa-angle-right" />
             </a>
             <a href="#" onClick={onMenuTabClick('players')}>
-              <i className="fa fa-user-friends gradient-magenta color-white" />
+              <i className="fa fa-user-friends color-white" />
               <span>Players</span>
               <i className="fa fa-angle-right" />
             </a>
             <a href="#" onClick={onMenuTabClick('leagues')}>
-              <i className="fa fa-table-tennis gradient-green color-white" />
+              <i className="fa fa-table-tennis color-white" />
               <span>Leagues</span>
               <i className="fa fa-angle-right" />
             </a>
             <a href="#" onClick={onMenuTabClick('h2h')}>
-              <i className="fa fa-code-compare gradient-red color-white" />
+              <i className="fa fa-code-compare color-white" />
               <span>Head to Head</span>
               <i className="fa fa-angle-right" />
             </a>
@@ -1003,13 +914,8 @@ function App() {
 
           <h6 className="menu-divider mt-4">Settings</h6>
           <div className="list-group list-custom-small list-menu">
-            <a href="#" data-menu="menu-colors" onClick={onMenuTrigger('menu-colors')}>
-              <i className="fa fa-brush gradient-highlight color-white" />
-              <span>Highlights</span>
-              <i className="fa fa-angle-right" />
-            </a>
             <a href="#" data-toggle-theme onClick={toggleTheme}>
-              <i className="fa fa-moon gradient-dark color-white" />
+              <i className="fa fa-moon color-white" />
               <span>Dark Mode</span>
               <div className="custom-control small-switch ios-switch">
                 <input data-toggle-theme type="checkbox" className="ios-input" id="toggle-dark-menu" checked={isDarkMode} readOnly />
@@ -1022,7 +928,7 @@ function App() {
           <h6 className="menu-divider mt-4">Links</h6>
           <div className="list-group list-custom-small list-menu">
             <a href="https://www.tournapilot.com/app" target="_blank" rel="noreferrer" onClick={onCloseMenuClick}>
-              <i className="fa fa-external-link-alt gradient-orange color-white" />
+              <i className="fa fa-external-link-alt color-white" />
               <span>TournaPilot</span>
               <i className="fa fa-angle-right" />
             </a>
@@ -1073,81 +979,6 @@ function App() {
           </div>
         </div>
 
-        <div
-          id="menu-colors"
-          className={`menu menu-box-bottom rounded-m ${activeMenuId === 'menu-colors' ? 'menu-active' : ''}`}
-          data-menu-height={menuConfigs['menu-colors'].height}
-          style={{ height: menuConfigs['menu-colors'].height }}
-          aria-hidden={activeMenuId === 'menu-colors' ? undefined : true}
-        >
-          <div className="menu-title">
-            <p className="color-highlight font-600">Choose your Favorite</p>
-            <h1>Highlight</h1>
-            <a href="#" className="close-menu" onClick={onCloseMenuClick}><i className="fa fa-times-circle" /></a>
-          </div>
-
-          <div className="divider divider-margins mt-3 mb-2" />
-          <div className="content mt-0 ms-0 me-0">
-            <div className="row mb-0">
-              <div className="col-6">
-                <div className="list-group list-custom-small list-menu">
-                  {highlightOptions.slice(0, 5).map((option) => (
-                    <a
-                      key={option.value}
-                      href="#"
-                      data-change-highlight={option.value}
-                      onClick={onSelectHighlight(option.value)}
-                      className={activeHighlight === option.value ? 'highlight-active' : undefined}
-                    >
-                      <i className={`gradient-${option.value} color-white`} />
-                      <span>{option.label}</span>
-                    </a>
-                  ))}
-                </div>
-              </div>
-              <div className="col-6">
-                <div className="list-group list-custom-small list-menu">
-                  {highlightOptions.slice(5).map((option) => (
-                    <a
-                      key={option.value}
-                      href="#"
-                      data-change-highlight={option.value}
-                      onClick={onSelectHighlight(option.value)}
-                      className={activeHighlight === option.value ? 'highlight-active' : undefined}
-                    >
-                      <i className={`gradient-${option.value} color-white`} />
-                      <span>{option.label}</span>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="divider divider-margins mt-2 mb-2" />
-          <div className="content mt-0 ms-0 me-0">
-            <h6 className="menu-divider mb-2">Background</h6>
-            <div className="list-group list-custom-small list-menu">
-              {gradientOptions.map((option) => (
-                <a
-                  key={option.value}
-                  href="#"
-                  data-change-background={option.value}
-                  onClick={onSelectGradient(option.value)}
-                  className={activeGradient === option.value ? 'highlight-active' : undefined}
-                >
-                  <i className={`${option.iconClass} color-white`} />
-                  <span>{option.label}</span>
-                  <i className="fa fa-angle-right" />
-                </a>
-              ))}
-            </div>
-          </div>
-
-          <a href="#" className="close-menu btn btn-margins btn-m font-13 rounded-s shadow-xl btn-full gradient-highlight border-0 font-700 text-uppercase" onClick={onCloseMenuClick}>
-            Awesome
-          </a>
-        </div>
       </div>
     </>
   );

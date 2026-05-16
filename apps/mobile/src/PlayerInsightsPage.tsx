@@ -106,7 +106,6 @@ export function PlayerInsightsPage() {
                 <h1 className="font-28 line-height-l color-white mb-1">{stats.player_name}</h1>
                 <p className="color-white opacity-80 mb-0 text-capitalize">Momentum: {momentum}</p>
               </div>
-              <div className="card-overlay bg-gradient" />
             </AppCard>
 
             <AppCard>

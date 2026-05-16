@@ -86,7 +86,6 @@ export function FixturePage() {
                   <p className="color-white opacity-90 mb-0">Match score: {homeScore} - {awayScore}</p>
                 ) : null}
               </div>
-              <div className="card-overlay bg-gradient" />
             </AppCard>
 
             {fixtureMeta.source_url ? (

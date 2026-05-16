@@ -157,8 +157,6 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
             </>
           )}
         </div>
-        <div className="card-overlay bg-gradient opacity-80" />
-        <div className="card-overlay bg-gradient" />
       </AppCard>
 
       <div className="mt-2">
