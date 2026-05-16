@@ -549,7 +549,6 @@ function App() {
 
         {!isLeagueSelectorOpen ? <TabFooterBar reselectBehavior="root" /> : null}
 
-        {activeTab !== 'home' ? (
           <>
             <div ref={pageTitleRef} className="page-title page-title-fixed">
               <h1>{tabTitles[activeTab]}</h1>
@@ -577,7 +576,6 @@ function App() {
             </div>
             <div className="page-title-clear" />
           </>
-        ) : null}
           </>
         ) : null}
 
