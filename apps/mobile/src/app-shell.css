@@ -128,6 +128,119 @@ body.theme-dark .list-custom-large a {
 
 /* ── League Picker (bottom sheet) ───────────────────────────────────── */
 
+.tt-picker-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.tt-picker-tab {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--ink-muted);
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 6px;
+  justify-content: center;
+  line-height: 1;
+  padding: 7px 0;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.tt-picker-tab.active {
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  color: var(--ink);
+}
+
+.tt-picker-tab-badge {
+  align-items: center;
+  background: var(--accent);
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 700;
+  height: 18px;
+  justify-content: center;
+  min-width: 18px;
+  padding: 0 5px;
+  line-height: 1;
+}
+
+body.theme-dark .tt-picker-tabs {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+body.theme-dark .tt-picker-tab.active {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+  color: #fff;
+}
+
+/* Selected leagues list */
+
+.tt-selected-league-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.tt-selected-league-row {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border-hairline);
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  min-height: 58px;
+  padding: 10px 0;
+  text-align: left;
+  transition: background-color 0.15s ease;
+  width: 100%;
+}
+
+.tt-selected-league-row:last-child {
+  border-bottom: 0;
+}
+
+.tt-selected-league-row:hover {
+  background-color: var(--accent-subtle);
+}
+
+.tt-selected-league-row-name {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.tt-selected-league-row-meta {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  flex: 0 0 auto;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
 .tt-league-picker-results {
   display: flex;
   flex-direction: column;
