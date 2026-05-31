@@ -19,8 +19,6 @@ import {
 import { TabShellPage } from './TabShellPage';
 import {
   AppButtonLink,
-  AppCard,
-  AppCardContent,
   AppHeader,
   AppHeaderSpacer,
   AppListGroup,
@@ -148,207 +146,174 @@ export function PlayerPage() {
           />
         ) : (
           <>
-            <AppCard>
-              <AppCardContent className="d-flex mb-1">
-                <div className="flex-grow-1">
-                  <h2>{stats.player_name}<i className="fa fa-check-circle color-blue-dark font-16 ms-2" /></h2>
-                  <p className="mb-2 mt-3 me-3">
-                    Profile summary for quick access to insights, match history and season affiliations.
-                  </p>
-                  <p className="font-12 mb-0">
-                    <strong className="color-theme pe-1">{winRate}%</strong>Win Rate
-                    <strong className="color-theme ps-3 pe-1">{stats.total}</strong>Matches
+            <section className="tt-player-hero" aria-labelledby="tt-player-title">
+              <div className="tt-player-hero-top">
+                <div className="tt-player-hero-copy">
+                  <p className="tt-player-eyebrow">Player profile</p>
+                  <h1 id="tt-player-title" className="tt-player-title">{stats.player_name}</h1>
+                  <p className="tt-player-summary-line">
+                    {stats.total} matches, {stats.wins} wins, {winRate}% win rate
                   </p>
                 </div>
-                <div className="tt-player-summary-avatar align-self-center">
+                <div className="tt-player-summary-avatar" aria-hidden="true">
                   <span className="tt-player-summary-initials">{getInitials(stats.player_name)}</span>
                 </div>
-              </AppCardContent>
-              <AppCardContent className="mb-0">
-                <div className="row mb-0">
-                  <div className="col-3">
-                    <AppButtonLink
-                      full
-                      size="sm"
-                      className="tt-favourite-action-button"
-                      tone={isFavourite ? 'highlight' : 'outline-highlight'}
-                      aria-label={isFavourite ? 'Remove favourite' : 'Save favourite'}
-                      onClick={onToggleFavourite}
-                    >
-                      <i className={`fa fa-heart ${isFavourite ? 'color-white' : 'color-highlight'}`} />
-                    </AppButtonLink>
-                  </div>
-                  <div className="col-9">
-                    <AppButtonLink
-                      full
-                      size="sm"
-                      className="font-13"
-                      tone="outline-highlight"
-                      onClick={openSection(`player/${playerId}/insights`)}
-                    >
-                      Insights
-                    </AppButtonLink>
-                  </div>
-                </div>
-              </AppCardContent>
-              <div className="tt-player-summary-divider" />
-              <AppCardContent className="mb-2">
-                <div className="row text-center row-cols-3 mb-n1">
-                  <div className="col mb-3">
-                    <div className="tt-player-chip">
-                      <h5 className="mb-0">{stats.wins}</h5>
-                      <p className="font-12 mb-0">Wins</p>
-                    </div>
-                  </div>
-                  <div className="col mb-3">
-                    <div className="tt-player-chip">
-                      <h5 className="mb-0">{stats.losses}</h5>
-                      <p className="font-12 mb-0">Losses</p>
-                    </div>
-                  </div>
-                  <div className="col mb-3">
-                    <div className="tt-player-chip">
-                      <h5 className="mb-0">{stats.streak || '-'}</h5>
-                      <p className="font-12 mb-0">Streak</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="tt-form-recent mt-1">
-                  <span className="tt-form-recent-label">Recent</span>
-                  {insightsLoading ? (
-                    <span className="tt-form-recent-empty">Loading...</span>
-                  ) : recentResults.length === 0 ? (
-                    <span className="tt-form-recent-empty">-</span>
-                  ) : (
-                    <div className="tt-form-recent-list">
-                      {recentResults.map((result: any, index: number) => (
-                        <span
-                          key={`${result}-${index}`}
-                          className={`tt-form-result-pill ${result === 'W' ? 'tt-form-result-win' : 'tt-form-result-loss'}`}
-                        >
-                          {result}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </AppCardContent>
-            </AppCard>
+              </div>
 
-            <AppCard>
-              <AppCardContent className="mb-2">
-                <div className="d-flex mb-2">
-                  <div className="align-self-center">
-                    <h1 className="mb-0 font-16">Current Season</h1>
+              <div className="tt-player-spotlight" aria-label="Player summary">
+                <div className="tt-player-winrate">
+                  <span className="tt-player-winrate-value">{winRate}%</span>
+                  <span className="tt-player-winrate-label">Win Rate</span>
+                </div>
+                <div className="tt-player-hero-stats">
+                  <div className="tt-player-hero-stat">
+                    <span className="tt-player-hero-stat-value">{stats.wins}</span>
+                    <span className="tt-player-hero-stat-label">Wins</span>
                   </div>
-                  <div className="ms-auto align-self-center">
-                    <span className="font-11 opacity-60">{affiliations.length} teams</span>
+                  <div className="tt-player-hero-stat">
+                    <span className="tt-player-hero-stat-value">{stats.losses}</span>
+                    <span className="tt-player-hero-stat-label">Losses</span>
+                  </div>
+                  <div className="tt-player-hero-stat">
+                    <span className="tt-player-hero-stat-value">{stats.streak || '-'}</span>
+                    <span className="tt-player-hero-stat-label">Streak</span>
                   </div>
                 </div>
-                {affiliationsLoading ? (
-                  <p className="mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading current season clubs...</p>
-                ) : affiliationsError ? (
-                  <p className="mb-0 color-red-dark">Unable to load current season clubs.</p>
-                ) : affiliations.length === 0 ? (
-                  <p className="mb-0">No active-season clubs found.</p>
+              </div>
+
+              <div className="tt-player-actions">
+                <AppButtonLink
+                  size="sm"
+                  className="tt-player-action-pill tt-favourite-action-button"
+                  tone={isFavourite ? 'highlight' : 'outline-highlight'}
+                  aria-label={isFavourite ? 'Remove favourite' : 'Save favourite'}
+                  onClick={onToggleFavourite}
+                >
+                  <i className={`fa fa-heart ${isFavourite ? 'color-white' : 'color-highlight'}`} />
+                  <span>{isFavourite ? 'Saved' : 'Save'}</span>
+                </AppButtonLink>
+                <AppButtonLink
+                  size="sm"
+                  className="tt-player-action-pill"
+                  tone="outline-highlight"
+                  onClick={openSection(`player/${playerId}/insights`)}
+                >
+                  Insights
+                </AppButtonLink>
+              </div>
+
+              <div className="tt-form-recent">
+                <span className="tt-form-recent-label">Recent</span>
+                {insightsLoading ? (
+                  <span className="tt-form-recent-empty">Loading...</span>
+                ) : recentResults.length === 0 ? (
+                  <span className="tt-form-recent-empty">No form yet</span>
                 ) : (
-                  <AppListGroup size="large" className="tt-season-list">
-                    {affiliations.map((affiliation: any, index: number) => (
+                  <div className="tt-form-recent-list" aria-label="Recent results">
+                    {recentResults.map((result: any, index: number) => (
+                      <span
+                        key={`${result}-${index}`}
+                        className={`tt-form-result-pill ${result === 'W' ? 'tt-form-result-win' : 'tt-form-result-loss'}`}
+                        aria-label={result === 'W' ? 'Win' : 'Loss'}
+                      >
+                        {result}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="tt-player-section" aria-labelledby="tt-player-season-title">
+              <div className="tt-player-section-header">
+                <h2 id="tt-player-season-title" className="tt-player-section-title">Current Season</h2>
+                <span className="tt-player-section-note">{affiliations.length} teams</span>
+              </div>
+              {affiliationsLoading ? (
+                <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading current season clubs...</p>
+              ) : affiliationsError ? (
+                <p className="tt-player-section-state tt-player-section-error">Unable to load current season clubs.</p>
+              ) : affiliations.length === 0 ? (
+                <p className="tt-player-section-state">No active-season clubs found.</p>
+              ) : (
+                <AppListGroup size="large" className="tt-season-list tt-player-list">
+                  {affiliations.map((affiliation: any, index: number) => (
+                    <AppListItem
+                      key={`${affiliation.team_id}-${affiliation.competition_name}-${affiliation.season_id}`}
+                      iconClassName="fa fa-table-tennis rounded-xl bg-highlight color-white"
+                      title={affiliation.team_name}
+                      subtitle={`${affiliation.league_name} · ${affiliation.competition_name} · ${affiliation.season_name}`}
+                      onClick={openInLeaguesTab(`team/${affiliation.team_id}`)}
+                      borderless={index === affiliations.length - 1}
+                    />
+                  ))}
+                </AppListGroup>
+              )}
+            </section>
+
+            <section className="tt-player-section" aria-labelledby="tt-player-form-title">
+              <div className="tt-player-section-header">
+                <h2 id="tt-player-form-title" className="tt-player-section-title">Form</h2>
+                <span className="tt-player-section-note">Rolling performance</span>
+              </div>
+              {insightsLoading ? (
+                <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading form insights...</p>
+              ) : insightsError || !insights ? (
+                <p className="tt-player-section-state tt-player-section-error">Unable to load form insights.</p>
+              ) : (
+                <div className="tt-player-metric-grid">
+                  <div className="tt-player-metric">
+                    <span className="tt-player-metric-value">{insights.form.rolling_10_win_rate}%</span>
+                    <span className="tt-player-metric-label">Rolling 10</span>
+                  </div>
+                  <div className="tt-player-metric">
+                    <span className="tt-player-metric-value">{insights.form.rolling_20_win_rate}%</span>
+                    <span className="tt-player-metric-label">Rolling 20</span>
+                  </div>
+                  <div className="tt-player-metric">
+                    <span className="tt-player-metric-value text-capitalize">{insights.form.momentum}</span>
+                    <span className="tt-player-metric-label">Momentum</span>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            <section className="tt-player-section" aria-labelledby="tt-player-matches-title">
+              <div className="tt-player-section-header">
+                <h2 id="tt-player-matches-title" className="tt-player-section-title">Last 10 Matches</h2>
+                <span className="tt-player-section-note">{recentMatches.length} matches</span>
+              </div>
+              {recentMatchesLoading ? (
+                <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading recent matches...</p>
+              ) : recentMatchesError ? (
+                <p className="tt-player-section-state tt-player-section-error">Unable to load recent matches.</p>
+              ) : recentMatches.length === 0 ? (
+                <p className="tt-player-section-state">No recent matches found.</p>
+              ) : (
+                <>
+                  <AppListGroup size="large" className="tt-match-history-list tt-player-list">
+                    {recentMatches.map((match: any, index: number) => (
                       <AppListItem
-                        key={`${affiliation.team_id}-${affiliation.competition_name}-${affiliation.season_id}`}
-                        iconClassName="fa fa-table-tennis rounded-xl bg-blue-dark color-white"
-                        title={affiliation.team_name}
-                        subtitle={`${affiliation.league_name} · ${affiliation.competition_name} · ${affiliation.season_name}`}
-                        onClick={openInLeaguesTab(`team/${affiliation.team_id}`)}
-                        borderless={index === affiliations.length - 1}
+                        key={match.id}
+                        iconClassName={`fa ${match.isWin ? 'fa-check' : 'fa-times'} rounded-xl tt-match-result-icon ${match.isWin ? 'tt-match-result-win' : 'tt-match-result-loss'}`}
+                        title={`${match.isWin ? 'Win' : 'Loss'} vs ${match.opponent} · ${match.result}`}
+                        subtitle={`${formatMatchDate(match.date)} · ${match.league}`}
+                        onClick={openInLeaguesTab(`fixture/${match.fixture_id}`)}
+                        borderless={index === recentMatches.length - 1}
                       />
                     ))}
                   </AppListGroup>
-                )}
-              </AppCardContent>
-            </AppCard>
-
-            <AppCard>
-              <AppCardContent className="mb-2">
-                <div className="d-flex mb-2">
-                  <div className="align-self-center">
-                    <h1 className="mb-0 font-16">Form</h1>
-                  </div>
-                  <div className="ms-auto align-self-center">
-                    <span className="font-11 opacity-60">Rolling performance</span>
-                  </div>
-                </div>
-                {insightsLoading ? (
-                  <p className="mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading form insights...</p>
-                ) : insightsError || !insights ? (
-                  <p className="mb-0 color-red-dark">Unable to load form insights.</p>
-                ) : (
-                  <div className="row text-center row-cols-3 mb-0">
-                    <div className="col mb-3">
-                      <div className="tt-player-chip">
-                        <h5 className="mb-0">{insights.form.rolling_10_win_rate}%</h5>
-                        <p className="font-12 mb-0">Rolling 10</p>
-                      </div>
-                    </div>
-                    <div className="col mb-3">
-                      <div className="tt-player-chip">
-                        <h5 className="mb-0">{insights.form.rolling_20_win_rate}%</h5>
-                        <p className="font-12 mb-0">Rolling 20</p>
-                      </div>
-                    </div>
-                    <div className="col mb-3">
-                      <div className="tt-player-chip">
-                        <h5 className="mb-0 text-capitalize">{insights.form.momentum}</h5>
-                        <p className="font-12 mb-0">Momentum</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </AppCardContent>
-            </AppCard>
-
-            <AppCard>
-              <AppCardContent className="mb-2">
-                <div className="d-flex mb-2">
-                  <div className="align-self-center">
-                    <h1 className="mb-0 font-16">Last 10 Matches</h1>
-                  </div>
-                  <div className="ms-auto align-self-center">
-                    <span className="font-11 opacity-60">{recentMatches.length} matches</span>
-                  </div>
-                </div>
-                {recentMatchesLoading ? (
-                  <p className="mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading recent matches...</p>
-                ) : recentMatchesError ? (
-                  <p className="mb-0 color-red-dark">Unable to load recent matches.</p>
-                ) : recentMatches.length === 0 ? (
-                  <p className="mb-3">No recent matches found.</p>
-                ) : (
-                  <>
-                    <AppListGroup size="large" className="tt-match-history-list">
-                      {recentMatches.map((match: any, index: number) => (
-                        <AppListItem
-                          key={match.id}
-                          iconClassName={`fa ${match.isWin ? 'fa-check' : 'fa-times'} rounded-xl ${match.isWin ? 'bg-green-dark' : 'bg-red-dark'} color-white`}
-                          title={`${match.opponent} · ${match.result}`}
-                          subtitle={`${formatMatchDate(match.date)} · ${match.league}`}
-                          onClick={openInLeaguesTab(`fixture/${match.fixture_id}`)}
-                          borderless={index === recentMatches.length - 1}
-                        />
-                      ))}
-                    </AppListGroup>
-                    <AppButtonLink
-                      full
-                      size="sm"
-                      className="font-13 mt-3"
-                      onClick={openSection(`player/${playerId}/matches`)}
-                    >
-                      View Full Match List
-                    </AppButtonLink>
-                  </>
-                )}
-              </AppCardContent>
-            </AppCard>
+                  <AppButtonLink
+                    full
+                    size="sm"
+                    className="tt-player-full-list-button"
+                    onClick={openSection(`player/${playerId}/matches`)}
+                  >
+                    View Full Match List
+                  </AppButtonLink>
+                </>
+              )}
+            </section>
           </>
         )}
       </AppPageContent>
