@@ -115,11 +115,14 @@ export function LeagueSelectionPage({
   return (
     <>
       <div className="menu-hider menu-active" onClick={onClose} style={{ zIndex: 998 }} />
-      <div className="menu menu-box-bottom rounded-m menu-active" style={{ height: '72%', zIndex: 999 }}>
+      <div className="menu menu-box-bottom rounded-m menu-active tt-picker-menu" style={{ height: '72%', zIndex: 999 }}>
         <div className="tt-picker-shell">
           <div className="tt-picker-top">
-            <div className="d-flex mb-3">
-              <h4 className="mb-0 font-16">Leagues</h4>
+            <div className="tt-picker-title-row">
+              <div>
+                <p className="tt-picker-eyebrow">League Scope</p>
+                <h4 className="tt-picker-title">Leagues</h4>
+              </div>
               <a href="#" onClick={(e) => { e.preventDefault(); onClose(); }} className="tt-picker-close">
                 <i className="fa fa-times-circle font-20" />
               </a>

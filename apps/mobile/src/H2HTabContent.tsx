@@ -6,7 +6,7 @@ import {
   type H2HResponse,
   type PlayerSearchItem,
 } from './player-shared';
-import { AppCard, AppCardContent, AppListGroup, AppListItem } from './ui/appkit';
+import { AppListGroup, AppListItem } from './ui/appkit';
 import { PlayerSearchSheet } from './PlayerSearchSheet';
 import { usePageNavigation } from './hooks/usePageNavigation';
 
@@ -250,19 +250,15 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
 
 
       {isH2HLoading ? (
-        <AppCard className="mt-2">
-          <AppCardContent>
-            <p className="mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading head-to-head...</p>
-          </AppCardContent>
-        </AppCard>
+        <section className="tt-player-section" aria-label="Loading head to head">
+          <p className="tt-player-section-state mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading head-to-head...</p>
+        </section>
       ) : null}
 
       {h2hError ? (
-        <AppCard className="mt-2">
-          <AppCardContent>
-            <p className="mb-0 color-red-dark">Failed to load H2H: {h2hError}</p>
-          </AppCardContent>
-        </AppCard>
+        <section className="tt-player-section" aria-label="Head to head error">
+          <p className="tt-player-section-state tt-player-section-error mb-0">Failed to load H2H: {h2hError}</p>
+        </section>
       ) : null}
 
       {h2h && playerA && playerB ? (
@@ -312,7 +308,7 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
                   {leagueEncounterSummary.slice(0, 5).map((summary, index) => (
                     <AppListItem
                       key={`${summary.league}-${index}`}
-                      iconClassName="fa fa-repeat rounded-xl bg-blue-dark color-white"
+                      iconClassName="fa fa-repeat rounded-xl tt-icon-repeat"
                       title={`${index + 1}. ${summary.league}`}
                       subtitle={`${summary.played} matches · ${summary.playerAWins}-${summary.playerBWins} · Latest ${formatMatchDate(summary.latestDate)}`}
                       onClick={preventDefault}
@@ -338,7 +334,7 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
                 {h2h.encounters.map((encounter, index) => (
                   <AppListItem
                     key={encounter.id}
-                    iconClassName={`fa ${encounter.isWin ? 'fa-check' : 'fa-times'} rounded-xl ${encounter.isWin ? 'bg-green-dark' : 'bg-red-dark'} color-white`}
+                    iconClassName={`fa ${encounter.isWin ? 'fa-check' : 'fa-times'} rounded-xl ${encounter.isWin ? 'tt-icon-win' : 'tt-icon-loss'}`}
                     title={encounter.result}
                     subtitle={`${formatMatchDate(encounter.date)} · ${encounter.league}`}
                     onClick={openFixture(encounter.fixture_id)}

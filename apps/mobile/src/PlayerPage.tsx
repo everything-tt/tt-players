@@ -240,7 +240,7 @@ export function PlayerPage() {
                   {affiliations.map((affiliation: any, index: number) => (
                     <AppListItem
                       key={`${affiliation.team_id}-${affiliation.competition_name}-${affiliation.season_id}`}
-                      iconClassName="fa fa-table-tennis rounded-xl bg-highlight color-white"
+                      iconClassName="fa fa-table-tennis rounded-xl tt-icon-team"
                       title={affiliation.team_name}
                       subtitle={`${affiliation.league_name} · ${affiliation.competition_name} · ${affiliation.season_name}`}
                       onClick={openInLeaguesTab(`team/${affiliation.team_id}`)}

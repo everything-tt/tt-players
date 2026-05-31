@@ -92,69 +92,66 @@ export function PlayerSearchSheet({
     <>
       <div className="menu-hider menu-active" onClick={onClose} style={{ zIndex: 998 }} />
       <div
-        className="menu menu-box-bottom rounded-m menu-active"
+        className="menu menu-box-bottom rounded-m menu-active tt-picker-menu"
         style={{ height: '70%', zIndex: 999 }}
       >
-        <div className="content mb-0">
-          <div className="d-flex mb-3">
-            <div className="align-self-center">
-              <h4 className="mb-0">{title}</h4>
-            </div>
-            <div className="ms-auto align-self-center">
-              <a href="#" onClick={(e) => { e.preventDefault(); onClose(); }} className="color-red-dark">
+        <div className="tt-picker-shell">
+          <div className="tt-picker-top">
+            <div className="tt-picker-title-row">
+              <div>
+                <p className="tt-picker-eyebrow">Head to Head</p>
+                <h4 className="tt-picker-title">{title}</h4>
+              </div>
+              <a href="#" onClick={(e) => { e.preventDefault(); onClose(); }} className="tt-picker-close" aria-label="Close player search">
                 <i className="fa fa-times-circle font-20" />
               </a>
             </div>
+
+            <div className="search-box search-dark rounded-pill border-0 bg-theme mb-3">
+              <i className="fa fa-search ms-1" />
+              <input
+                type="text"
+                className="border-0"
+                placeholder="Start typing player name..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                autoFocus
+              />
+            </div>
           </div>
 
-          <div className="search-box search-dark shadow-xs border-0 bg-theme rounded-m mb-3">
-            <i className="fa fa-search ms-1" />
-            <input
-              type="text"
-              className="border-0"
-              placeholder="Start typing player name..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              autoFocus
-            />
-          </div>
+          <div className="tt-picker-body">
+            {normalizedQuery.length > 0 && normalizedQuery.length <= 2 ? (
+              <p className="tt-picker-empty">Type at least 3 characters.</p>
+            ) : null}
 
-          {normalizedQuery.length > 0 && normalizedQuery.length <= 2 ? (
-            <p className="font-12 opacity-70 mb-3 text-center">Type at least 3 characters.</p>
-          ) : null}
+            {isLoading && (
+              <p className="tt-picker-empty tt-picker-loading">Searching players...</p>
+            )}
 
-          {isLoading && (
-            <div className="text-center py-4">
-              <i className="fa fa-spinner fa-spin font-24 color-highlight mb-2" />
-              <p className="font-12 mb-0">Searching players...</p>
+            {error && <p className="tt-picker-empty tt-picker-error">{error}</p>}
+
+            {!isLoading && normalizedQuery.length > 2 && results.length === 0 && (
+              <p className="tt-picker-empty">No players found matching "{normalizedQuery}"</p>
+            )}
+
+            <div className="list-group list-custom-small tt-h2h-result-list">
+              {results.map((player) => (
+                <a
+                  key={player.id}
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onSelect(player);
+                  }}
+                >
+                  <i className="tt-h2h-search-avatar bg-highlight color-white">{getInitials(player.name)}</i>
+                  <span>{player.name}</span>
+                  <strong>{player.wins}W · {player.played} played</strong>
+                  <i className="fa fa-angle-right" />
+                </a>
+              ))}
             </div>
-          )}
-
-          {error && <p className="font-12 color-red-dark text-center py-3">{error}</p>}
-
-          {!isLoading && normalizedQuery.length > 2 && results.length === 0 && (
-            <div className="text-center py-4">
-              <i className="fa fa-user-slash font-24 opacity-30 mb-2" />
-              <p className="font-12 opacity-50 mb-0">No players found matching "{normalizedQuery}"</p>
-            </div>
-          )}
-
-          <div className="list-group list-custom-small tt-h2h-result-list" style={{ maxHeight: 'calc(70vh - 180px)' }}>
-            {results.map((player) => (
-              <a
-                key={player.id}
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  onSelect(player);
-                }}
-              >
-                <i className="tt-h2h-search-avatar bg-highlight color-white">{getInitials(player.name)}</i>
-                <span>{player.name}</span>
-                <strong>{player.wins}W · {player.played} played</strong>
-                <i className="fa fa-angle-right" />
-              </a>
-            ))}
           </div>
         </div>
       </div>

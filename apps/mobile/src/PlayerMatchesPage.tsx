@@ -6,8 +6,6 @@ import { apiFetch, formatMatchDate, type ExtendedPlayerStats, type RubberItem, t
 import { TabShellPage } from './TabShellPage';
 import {
   AppButtonLink,
-  AppCard,
-  AppCardContent,
   AppHeader,
   AppHeaderSpacer,
   AppListGroup,
@@ -151,26 +149,27 @@ export function PlayerMatchesPage() {
       <AppHeaderSpacer />
 
       <AppPageContent>
-        <AppCard>
-          <AppCardContent className="mb-2">
-            <p className="mb-n1 color-highlight font-600">Player Matches</p>
-            <h4>Full Match List</h4>
+        <section className="tt-player-section" aria-labelledby="tt-player-matches-full-title">
+          <div className="tt-player-section-header">
+            <h2 id="tt-player-matches-full-title" className="tt-player-section-title">Player Matches</h2>
+            <span className="tt-player-section-note">Full Match List</span>
+          </div>
             {matchesLoading && matches.length === 0 ? (
-              <p className="mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading matches...</p>
+              <p className="tt-player-section-state mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading matches...</p>
             ) : matchesError && matches.length === 0 ? (
               <div>
-                <p className="mb-3 color-red-dark">Failed to load match history.</p>
+                <p className="tt-player-section-state tt-player-section-error mb-3">Failed to load match history.</p>
                 <AppButtonLink onClick={goBack}>Back to Player</AppButtonLink>
               </div>
             ) : matches.length === 0 ? (
-              <p className="mb-0">No matches available for this player.</p>
+              <p className="tt-player-section-state mb-0">No matches available for this player.</p>
             ) : (
               <>
                 <AppListGroup size="large" className="tt-match-history-list">
                   {matches.map((match, index) => (
                     <AppListItem
                       key={match.id}
-                      iconClassName={`fa ${match.isWin ? 'fa-check' : 'fa-times'} rounded-xl ${match.isWin ? 'bg-green-dark' : 'bg-red-dark'} color-white`}
+                      iconClassName={`fa ${match.isWin ? 'fa-check' : 'fa-times'} rounded-xl ${match.isWin ? 'tt-icon-win' : 'tt-icon-loss'}`}
                       title={`${match.opponent} · ${match.result}`}
                       subtitle={`${formatMatchDate(match.date)} · ${match.league}`}
                       onClick={openFixtureInLeaguesTab(match.fixture_id)}
@@ -178,12 +177,12 @@ export function PlayerMatchesPage() {
                     />
                   ))}
                 </AppListGroup>
-                <p className="font-11 opacity-70 mt-3 mb-0">Showing {matches.length} of {total} matches</p>
+                <p className="tt-player-section-state font-11 mt-3 mb-0">Showing {matches.length} of {total} matches</p>
               </>
             )}
 
             {matchesError && matches.length > 0 ? (
-              <p className="mt-3 mb-0 color-red-dark font-12">Could not load more matches. Try again.</p>
+              <p className="tt-player-section-state tt-player-section-error mt-3 mb-0 font-12">Could not load more matches. Try again.</p>
             ) : null}
 
             {hasMore && matches.length > 0 ? (
@@ -197,8 +196,7 @@ export function PlayerMatchesPage() {
                 {matchesLoadingMore ? 'Loading...' : 'Load More Matches'}
               </AppButtonLink>
             ) : null}
-          </AppCardContent>
-        </AppCard>
+        </section>
       </AppPageContent>
     </TabShellPage>
   );

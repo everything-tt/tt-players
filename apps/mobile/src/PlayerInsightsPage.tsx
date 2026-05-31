@@ -2,7 +2,7 @@ import { useEffect, useState, type MouseEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import './app-shell.css';
 import { useTabNavigation } from './navigation/tab-navigation';
-import { apiFetch, calcWinRate, type ExtendedPlayerStats, type PlayerInsights } from './player-shared';
+import { apiFetch, calcWinRate, getInitials, type ExtendedPlayerStats, type PlayerInsights } from './player-shared';
 import { TabShellPage } from './TabShellPage';
 import {
   AppHeader,
@@ -106,7 +106,7 @@ export function PlayerInsightsPage() {
                   <p className="tt-player-summary-line text-capitalize">Momentum: {momentum}</p>
                 </div>
                 <div className="tt-player-summary-avatar" aria-hidden="true">
-                  <span className="tt-player-summary-initials">{momentum.slice(0, 2).toUpperCase()}</span>
+                  <span className="tt-player-summary-initials">{getInitials(stats.player_name)}</span>
                 </div>
               </div>
 
@@ -139,17 +139,17 @@ export function PlayerInsightsPage() {
               </div>
                 <AppListGroup size="small">
                   <AppListItem
-                    iconClassName="fa fa-bolt rounded-xl bg-red-dark color-white"
+                    iconClassName="fa fa-bolt rounded-xl tt-icon-danger"
                     title={`Toughest: ${insights.rivals.toughest ? `${insights.rivals.toughest.opponent_name} (${insights.rivals.toughest.win_rate}% WR)` : 'N/A'}`}
                     onClick={preventDefaultLink}
                   />
                   <AppListItem
-                    iconClassName="fa fa-smile rounded-xl bg-green-dark color-white"
+                    iconClassName="fa fa-smile rounded-xl tt-icon-success"
                     title={`Easiest: ${insights.rivals.easiest ? `${insights.rivals.easiest.opponent_name} (${insights.rivals.easiest.win_rate}% WR)` : 'N/A'}`}
                     onClick={preventDefaultLink}
                   />
                   <AppListItem
-                    iconClassName="fa fa-arrow-up rounded-xl bg-blue-dark color-white"
+                    iconClassName="fa fa-arrow-up rounded-xl tt-icon-trend"
                     title={`Improving vs: ${insights.rivals.improving_vs ? `${insights.rivals.improving_vs.opponent_name} (+${insights.rivals.improving_vs.delta_points})` : 'N/A'}`}
                     onClick={preventDefaultLink}
                     borderless
@@ -169,7 +169,7 @@ export function PlayerInsightsPage() {
                     {insights.career_by_year.map((year: any, index: number) => (
                       <AppListItem
                         key={year.year}
-                        iconClassName="fa fa-calendar-alt rounded-xl bg-green-dark color-white"
+                        iconClassName="fa fa-calendar-alt rounded-xl tt-icon-calendar"
                         title={`${year.year} · ${year.played} played · ${year.win_rate}% WR`}
                         onClick={preventDefaultLink}
                         borderless={index === insights.career_by_year.length - 1}

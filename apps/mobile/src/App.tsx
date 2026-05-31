@@ -774,20 +774,20 @@ function App() {
 
         <div
           id="menu-main"
-          className={`menu menu-box-left rounded-0 ${activeMenuId === 'menu-main' ? 'menu-active' : ''}`}
+          className={`menu menu-box-left rounded-0 tt-main-menu ${activeMenuId === 'menu-main' ? 'menu-active' : ''}`}
           data-menu-width={menuConfigs['menu-main'].width}
           style={{ width: menuConfigs['menu-main'].width }}
           aria-hidden={activeMenuId === 'menu-main' ? undefined : true}
         >
-          <div className="card rounded-0 bg-highlight" data-card-height="140">
-            <div className="card-top">
-              <a href="#" className="close-menu float-end me-2 text-center mt-3 icon-40 notch-clear" onClick={onCloseMenuClick}>
-                <i className="fa fa-times color-white" />
+          <div className="tt-main-menu-hero">
+            <div className="tt-main-menu-hero-top">
+              <a href="#" className="tt-main-menu-close" onClick={onCloseMenuClick} aria-label="Close menu">
+                <i className="fa fa-times" />
               </a>
             </div>
-            <div className="card-bottom">
-              <h1 className="color-white ps-3 mb-n1 font-28">TT Players</h1>
-              <p className="mb-2 ps-3 font-12 color-white opacity-50">League Hub</p>
+            <div>
+              <p className="tt-picker-eyebrow">League Hub</p>
+              <h1 className="tt-main-menu-title">TT Players</h1>
             </div>
           </div>
 
