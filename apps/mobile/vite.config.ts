@@ -12,8 +12,8 @@ export default defineConfig({
         name: 'TT Players',
         short_name: 'TTPlayers',
         description: 'Table Tennis League Results and Insights',
-        theme_color: '#000000',
-        background_color: '#000000',
+        theme_color: '#17382f',
+        background_color: '#f1f8f2',
         display: 'fullscreen',
         orientation: 'portrait',
         icons: [

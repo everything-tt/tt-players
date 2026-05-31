@@ -146,29 +146,28 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
   return (
     <>
 
-      <AppCard className="tt-h2h-hero-card bg-6 mt-2" cardHeight={220}>
-        <div className="card-top px-3 pt-3">
-          <span className="badge bg-white color-black font-11">H2H Arena</span>
+      <section className="tt-h2h-panel" aria-label="Head to head matchup setup">
+        <div className="tt-h2h-panel-top">
+          <div className="tt-h2h-panel-copy">
+            <p className="tt-player-eyebrow">Head to Head</p>
+            {playerA && playerB ? (
+              <>
+                <h1 className="tt-player-title">{playerA.name} vs {playerB.name}</h1>
+                <p className="tt-player-summary-line">{encounterCount} recorded encounters</p>
+              </>
+            ) : (
+              <>
+                <h1 className="tt-player-title">Build a Matchup</h1>
+                <p className="tt-player-summary-line">Pick two players to unlock head-to-head analysis.</p>
+              </>
+            )}
+          </div>
+          <span className="tt-h2h-scope-pill">{leagueScopeLabel}</span>
         </div>
-        <div className="card-bottom px-3 pb-3">
-          <p className="color-white opacity-70 mb-1">League scope: {leagueScopeLabel}</p>
-          {playerA && playerB ? (
-            <>
-              <h1 className="font-24 line-height-l color-white mb-1">{playerA.name} vs {playerB.name}</h1>
-              <p className="color-white opacity-85 mb-0">{encounterCount} recorded encounters</p>
-            </>
-          ) : (
-            <>
-              <h1 className="font-24 line-height-l color-white mb-1">Build a Matchup</h1>
-              <p className="color-white opacity-85 mb-0">Pick two players to unlock head-to-head analysis.</p>
-            </>
-          )}
-        </div>
-      </AppCard>
 
-      <div className="mt-2">
-        <div className="mb-1">
-          <div className="tt-h2h-picker-grid">
+        <div className="tt-h2h-panel-divider" />
+
+        <div className="tt-h2h-picker-grid">
             <div className="tt-h2h-picker-vs">VS</div>
 
             {/* Player A Picker */}
@@ -226,18 +225,17 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
                 </div>
               )}
             </div>
-          </div>
         </div>
-      </div>
+      </section>
 
       {!playerA || !playerB ? (
-        <AppCard className="mt-2 text-center" cardHeight={140}>
-          <AppCardContent className="d-flex flex-column justify-content-center h-100">
-            <i className="fa fa-bolt font-30 color-yellow-dark mb-2" />
-            <h5 className="mb-1">Ready for the Duel?</h5>
-            <p className="mb-0 px-4 font-12 opacity-70">Complete the matchup setup above to unlock deep H2H analytics.</p>
-          </AppCardContent>
-        </AppCard>
+        <section className="tt-player-section tt-h2h-empty-state" aria-label="Head to head empty state">
+          <div className="tt-player-section-header">
+            <h2 className="tt-player-section-title">Ready for the Duel?</h2>
+            <span className="tt-player-section-note">2 players required</span>
+          </div>
+          <p className="tt-player-section-state mb-0">Complete the matchup setup above to unlock H2H analytics.</p>
+        </section>
       ) : null}
 
       <PlayerSearchSheet

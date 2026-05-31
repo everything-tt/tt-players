@@ -2,11 +2,9 @@ import { useEffect, useState, type MouseEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import './app-shell.css';
 import { useTabNavigation } from './navigation/tab-navigation';
-import { apiFetch, type ExtendedPlayerStats, type PlayerInsights } from './player-shared';
+import { apiFetch, calcWinRate, type ExtendedPlayerStats, type PlayerInsights } from './player-shared';
 import { TabShellPage } from './TabShellPage';
 import {
-  AppCard,
-  AppCardContent,
   AppHeader,
   AppHeaderSpacer,
   AppListGroup,
@@ -26,6 +24,7 @@ export function PlayerInsightsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const momentum = insights?.form.momentum ?? 'new';
+  const winRate = stats ? calcWinRate(stats.wins, stats.total) : 0;
 
   const goBack = (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
@@ -99,18 +98,45 @@ export function PlayerInsightsPage() {
           />
         ) : (
           <>
-            <AppCard className="bg-6" cardHeight={230}>
-              <div className="card-bottom ms-3 me-3 mb-3">
-                <p className="color-white opacity-60 mb-1">Insights Overview</p>
-                <h1 className="font-28 line-height-l color-white mb-1">{stats.player_name}</h1>
-                <p className="color-white opacity-80 mb-0 text-capitalize">Momentum: {momentum}</p>
+            <section className="tt-insights-hero" aria-label="Insights overview">
+              <div className="tt-player-hero-top">
+                <div className="tt-player-hero-copy">
+                  <p className="tt-player-eyebrow">Insights Overview</p>
+                  <h1 className="tt-player-title">{stats.player_name}</h1>
+                  <p className="tt-player-summary-line text-capitalize">Momentum: {momentum}</p>
+                </div>
+                <div className="tt-player-summary-avatar" aria-hidden="true">
+                  <span className="tt-player-summary-initials">{momentum.slice(0, 2).toUpperCase()}</span>
+                </div>
               </div>
-            </AppCard>
 
-            <AppCard>
-              <AppCardContent className="mb-2">
-                <p className="mb-n1 color-highlight font-600">Rival Intelligence</p>
-                <h4>Trends</h4>
+              <div className="tt-player-spotlight">
+                <div className="tt-player-winrate">
+                  <span className="tt-player-winrate-value">{winRate}%</span>
+                  <span className="tt-player-winrate-label">Win Rate</span>
+                </div>
+                <div className="tt-player-hero-stats">
+                  <div className="tt-player-hero-stat">
+                    <span className="tt-player-hero-stat-value">{stats.total}</span>
+                    <span className="tt-player-hero-stat-label">Played</span>
+                  </div>
+                  <div className="tt-player-hero-stat">
+                    <span className="tt-player-hero-stat-value">{stats.wins}</span>
+                    <span className="tt-player-hero-stat-label">Wins</span>
+                  </div>
+                  <div className="tt-player-hero-stat">
+                    <span className="tt-player-hero-stat-value">{stats.losses}</span>
+                    <span className="tt-player-hero-stat-label">Losses</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="tt-player-section" aria-labelledby="tt-insights-rivals-title">
+              <div className="tt-player-section-header">
+                <h2 id="tt-insights-rivals-title" className="tt-player-section-title">Rival Intelligence</h2>
+                <span className="tt-player-section-note">Trends</span>
+              </div>
                 <AppListGroup size="small">
                   <AppListItem
                     iconClassName="fa fa-bolt rounded-xl bg-red-dark color-white"
@@ -129,15 +155,15 @@ export function PlayerInsightsPage() {
                     borderless
                   />
                 </AppListGroup>
-              </AppCardContent>
-            </AppCard>
+            </section>
 
-            <AppCard>
-              <AppCardContent className="mb-2">
-                <p className="mb-n1 color-highlight font-600">Career</p>
-                <h4>Timeline</h4>
+            <section className="tt-player-section" aria-labelledby="tt-insights-career-title">
+              <div className="tt-player-section-header">
+                <h2 id="tt-insights-career-title" className="tt-player-section-title">Career</h2>
+                <span className="tt-player-section-note">Timeline</span>
+              </div>
                 {insights.career_by_year.length === 0 ? (
-                  <p className="mb-0">Not enough history yet.</p>
+                  <p className="tt-player-section-state mb-0">Not enough history yet.</p>
                 ) : (
                   <AppListGroup size="small">
                     {insights.career_by_year.map((year: any, index: number) => (
@@ -151,8 +177,7 @@ export function PlayerInsightsPage() {
                     ))}
                   </AppListGroup>
                 )}
-              </AppCardContent>
-            </AppCard>
+            </section>
           </>
         )}
       </AppPageContent>
