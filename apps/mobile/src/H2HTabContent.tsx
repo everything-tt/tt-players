@@ -8,6 +8,7 @@ import {
 } from './player-shared';
 import { AppCard, AppCardContent, AppListGroup, AppListItem } from './ui/appkit';
 import { PlayerSearchSheet } from './PlayerSearchSheet';
+import { usePageNavigation } from './hooks/usePageNavigation';
 
 
 interface H2HTabContentProps {
@@ -37,7 +38,13 @@ function buildH2HPath(playerId: string, opponentId: string, leagueIds: string[])
 }
 
 export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlayer }: H2HTabContentProps) {
+  const { navigateInTab } = usePageNavigation();
   const [playerA, setPlayerA] = useState<PlayerSearchItem | null>(null);
+
+  const openFixture = (fixtureId: string) => (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    navigateInTab('leagues', `fixture/${fixtureId}`);
+  };
   const [playerB, setPlayerB] = useState<PlayerSearchItem | null>(null);
 
   const [h2h, setH2h] = useState<H2HResponse | null>(null);
@@ -262,82 +269,87 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
 
       {h2h && playerA && playerB ? (
         <>
-          <AppCard className="mt-2">
-            <AppCardContent className="mb-2">
-              <p className="mb-n1 color-highlight font-600">Matchup Score</p>
-              <h4 className="mb-2">{encounterCount} Total Encounters</h4>
+          {/* Matchup Score Section */}
+          <section className="tt-player-section mt-2" aria-labelledby="tt-h2h-matchup-score-title">
+            <div className="tt-player-section-header">
+              <h2 id="tt-h2h-matchup-score-title" className="tt-player-section-title">Matchup Score</h2>
+              <span className="tt-player-section-note">{encounterCount} total encounters</span>
+            </div>
 
-              <div className="tt-h2h-duel-grid">
-                <div className="tt-h2h-duel-side">
-                  <span className="tt-h2h-duel-name">{playerA.name}</span>
-                  <strong className="tt-h2h-duel-score">{h2h.player1_wins}</strong>
-                  <span className="tt-h2h-duel-rate">{playerAWinPct}% wins</span>
-                </div>
-                <div className="tt-h2h-duel-vs">VS</div>
-                <div className="tt-h2h-duel-side">
-                  <span className="tt-h2h-duel-name">{playerB.name}</span>
-                  <strong className="tt-h2h-duel-score">{h2h.player2_wins}</strong>
-                  <span className="tt-h2h-duel-rate">{playerBWinPct}% wins</span>
-                </div>
+            <div className="tt-h2h-duel-grid mt-2">
+              <div className="tt-h2h-duel-side">
+                <span className="tt-h2h-duel-name">{playerA.name}</span>
+                <strong className="tt-h2h-duel-score">{h2h.player1_wins}</strong>
+                <span className="tt-h2h-duel-rate">{playerAWinPct}% wins</span>
               </div>
-
-              <div className="tt-h2h-bar mt-2" role="img" aria-label="Win split">
-                <div className="tt-h2h-bar-a" style={{ width: `${playerAWinPct}%` }} />
-                <div className="tt-h2h-bar-b" style={{ width: `${playerBWinPct}%` }} />
+              <div className="tt-h2h-duel-vs">VS</div>
+              <div className="tt-h2h-duel-side">
+                <span className="tt-h2h-duel-name">{playerB.name}</span>
+                <strong className="tt-h2h-duel-score">{h2h.player2_wins}</strong>
+                <span className="tt-h2h-duel-rate">{playerBWinPct}% wins</span>
               </div>
-            </AppCardContent>
-          </AppCard>
+            </div>
 
-          <AppCard className="mt-2">
-            <AppCardContent className="mb-2">
-              <p className="mb-n1 color-highlight font-600">Most Repeated Encounters</p>
-              <h4 className="mb-2">{playerA.name} vs {playerB.name}</h4>
-              {encounterCount === 0 ? (
-                <p className="mb-0">No repeated encounters found in the selected league scope.</p>
-              ) : (
-                <>
-                  <p className="font-12 opacity-70 mb-2">
-                    This matchup has been played <strong>{encounterCount}</strong> times.
-                  </p>
-                  <AppListGroup size="small" className="tt-h2h-repeated-list">
-                    {leagueEncounterSummary.slice(0, 5).map((summary, index) => (
-                      <AppListItem
-                        key={`${summary.league}-${index}`}
-                        iconClassName="fa fa-repeat rounded-xl bg-blue-dark color-white"
-                        title={`${index + 1}. ${summary.league}`}
-                        subtitle={`${summary.played} matches · ${summary.playerAWins}-${summary.playerBWins} · Latest ${formatMatchDate(summary.latestDate)}`}
-                        onClick={preventDefault}
-                        borderless={index === Math.min(leagueEncounterSummary.length, 5) - 1}
-                      />
-                    ))}
-                  </AppListGroup>
-                </>
-              )}
-            </AppCardContent>
-          </AppCard>
+            <div className="tt-h2h-bar mt-3" role="img" aria-label="Win split">
+              <div className="tt-h2h-bar-a" style={{ width: `${playerAWinPct}%` }} />
+              <div className="tt-h2h-bar-b" style={{ width: `${playerBWinPct}%` }} />
+            </div>
+          </section>
 
-          <AppCard className="mt-2">
-            <AppCardContent className="mb-2">
-              <p className="mb-n1 color-highlight font-600">Encounter History</p>
-              <h4 className="mb-2">Past Matches</h4>
-              {h2h.encounters.length === 0 ? (
-                <p className="mb-0">No past encounters found.</p>
-              ) : (
-                <AppListGroup size="small">
-                  {h2h.encounters.map((encounter, index) => (
+          {/* Most Repeated Encounters Section */}
+          <section className="tt-player-section mt-2" aria-labelledby="tt-h2h-repeated-title">
+            <div className="tt-player-section-header">
+              <h2 id="tt-h2h-repeated-title" className="tt-player-section-title">Repeated Encounters</h2>
+              <span className="tt-player-section-note">{playerA.name} vs {playerB.name}</span>
+            </div>
+
+            {encounterCount === 0 ? (
+              <p className="tt-player-section-state mb-0">No repeated encounters found in the selected league scope.</p>
+            ) : (
+              <>
+                <p className="font-12 opacity-75 mb-3">
+                  This matchup has been played <strong>{encounterCount}</strong> times.
+                </p>
+                <AppListGroup size="small" className="tt-h2h-repeated-list">
+                  {leagueEncounterSummary.slice(0, 5).map((summary, index) => (
                     <AppListItem
-                      key={encounter.id}
-                      iconClassName={`fa ${encounter.isWin ? 'fa-check' : 'fa-times'} rounded-xl ${encounter.isWin ? 'bg-green-dark' : 'bg-red-dark'} color-white`}
-                      title={encounter.league}
-                      subtitle={`${formatMatchDate(encounter.date)} · ${encounter.result}`}
+                      key={`${summary.league}-${index}`}
+                      iconClassName="fa fa-repeat rounded-xl bg-blue-dark color-white"
+                      title={`${index + 1}. ${summary.league}`}
+                      subtitle={`${summary.played} matches · ${summary.playerAWins}-${summary.playerBWins} · Latest ${formatMatchDate(summary.latestDate)}`}
                       onClick={preventDefault}
-                      borderless={index === h2h.encounters.length - 1}
+                      borderless={index === Math.min(leagueEncounterSummary.length, 5) - 1}
                     />
                   ))}
                 </AppListGroup>
-              )}
-            </AppCardContent>
-          </AppCard>
+              </>
+            )}
+          </section>
+
+          {/* Encounter History Section */}
+          <section className="tt-player-section mt-2" aria-labelledby="tt-h2h-history-title">
+            <div className="tt-player-section-header">
+              <h2 id="tt-h2h-history-title" className="tt-player-section-title">Encounter History</h2>
+              <span className="tt-player-section-note">Past Matches</span>
+            </div>
+
+            {h2h.encounters.length === 0 ? (
+              <p className="tt-player-section-state mb-0">No past encounters found.</p>
+            ) : (
+              <AppListGroup size="small" className="tt-match-history-list tt-player-list">
+                {h2h.encounters.map((encounter, index) => (
+                  <AppListItem
+                    key={encounter.id}
+                    iconClassName={`fa ${encounter.isWin ? 'fa-check' : 'fa-times'} rounded-xl ${encounter.isWin ? 'bg-green-dark' : 'bg-red-dark'} color-white`}
+                    title={encounter.result}
+                    subtitle={`${formatMatchDate(encounter.date)} · ${encounter.league}`}
+                    onClick={openFixture(encounter.fixture_id)}
+                    borderless={index === h2h.encounters.length - 1}
+                  />
+                ))}
+              </AppListGroup>
+            )}
+          </section>
         </>
       ) : null}
     </>

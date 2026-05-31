@@ -12,11 +12,6 @@ import {
   AppPageContent,
 } from './ui/appkit';
 
-function shortName(name: string | null): string {
-  if (!name) return 'Player';
-  return name.split(' ')[0] ?? name;
-}
-
 export function FixturePage() {
   const { goBack, goHome, navigate } = usePageNavigation();
   const { fixtureId = '' } = useParams<{ fixtureId: string }>();
@@ -47,7 +42,7 @@ export function FixturePage() {
   return (
     <TabShellPage>
       <AppHeader
-        title={fixtureMeta ? title : 'Fixture'}
+        title="Fixture Details"
         onTitleClick={goHome}
         leftAction={{ iconClassName: 'fas fa-chevron-left', onClick: goBack, position: 1, ariaLabel: 'Back' }}
         rightAction={{ iconClassName: 'fas fa-home', onClick: goHome, position: 4, ariaLabel: 'Home' }}
@@ -136,36 +131,54 @@ export function FixturePage() {
 
                       return (
                         <div key={rubber.id} className="tt-rubber-item">
-                          <div className="tt-rubber-item-header">
-                            <p>{rubber.is_doubles ? 'Doubles' : 'Singles'}</p>
-                            <span>
-                              {rubber.home_games_won}-{rubber.away_games_won}
-                            </span>
+                          <div className="tt-rubber-type-badge">
+                            {rubber.is_doubles ? 'Doubles' : 'Singles'}
                           </div>
-                          <p className="tt-rubber-matchup">
-                            {(homePlayers.map((player: any) => player.name).join(' & ') || 'Unknown')} vs {(awayPlayers.map((player: any) => player.name).join(' & ') || 'Unknown')}
-                          </p>
-                          <div className="tt-rubber-player-links">
-                            {homePlayers.map((player: any) => (
-                              <a
-                                key={`home-${player.id ?? player.name}`}
-                                href="#"
-                                className="tt-rubber-player-link"
-                                onClick={openPlayer(player.id)}
-                              >
-                                {shortName(player.name)}
-                              </a>
-                            ))}
-                            {awayPlayers.map((player: any) => (
-                              <a
-                                key={`away-${player.id ?? player.name}`}
-                                href="#"
-                                className="tt-rubber-player-link"
-                                onClick={openPlayer(player.id)}
-                              >
-                                {shortName(player.name)}
-                              </a>
-                            ))}
+                          
+                          <div className="tt-rubber-scorecard">
+                            <div className="tt-rubber-side home">
+                              {homePlayers.map((player: any, idx: number) => (
+                                <span key={player.id ?? player.name}>
+                                  {idx > 0 && <span className="tt-player-separator"> & </span>}
+                                  {player.id ? (
+                                    <a
+                                      href="#"
+                                      className="tt-rubber-player-link-text"
+                                      onClick={openPlayer(player.id)}
+                                    >
+                                      {player.name}
+                                    </a>
+                                  ) : (
+                                    <span className="tt-rubber-player-name">{player.name}</span>
+                                  )}
+                                </span>
+                              ))}
+                            </div>
+
+                            <div className="tt-rubber-score-pill">
+                              <span className="home-score">{rubber.home_games_won}</span>
+                              <span className="score-divider">:</span>
+                              <span className="away-score">{rubber.away_games_won}</span>
+                            </div>
+
+                            <div className="tt-rubber-side away">
+                              {awayPlayers.map((player: any, idx: number) => (
+                                <span key={player.id ?? player.name}>
+                                  {idx > 0 && <span className="tt-player-separator"> & </span>}
+                                  {player.id ? (
+                                    <a
+                                      href="#"
+                                      className="tt-rubber-player-link-text"
+                                      onClick={openPlayer(player.id)}
+                                    >
+                                      {player.name}
+                                    </a>
+                                  ) : (
+                                    <span className="tt-rubber-player-name">{player.name}</span>
+                                  )}
+                                </span>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       );
