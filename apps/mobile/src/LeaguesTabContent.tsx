@@ -7,7 +7,6 @@ import {
 } from './player-shared';
 import { useLeaguesQuery, useStandingsQuery } from './queries';
 import { useTabNavigation } from './navigation/tab-navigation';
-import { AppButtonLink, AppCard, AppCardContent } from './ui/appkit';
 
 interface StandingsRow {
   team_id: string;
@@ -218,97 +217,124 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
 
   return (
     <>
-      <div className="content mt-2 mb-2">
+      <section className="tt-leagues-panel" aria-label="League selection">
+        <div className="tt-leagues-panel-top">
+          <div>
+            <p className="tt-player-eyebrow">Leagues</p>
+            <h1 className="tt-leagues-panel-title">
+              {selectedLeague?.name ?? 'Choose a league'}
+            </h1>
+          </div>
+          {visibleLeagues.length > 0 ? (
+            <button
+              type="button"
+              className="tt-leagues-toggle-button"
+              aria-expanded={shouldShowAllLeagues}
+              disabled={!canToggleLeagueList}
+              onClick={() => {
+                if (!canToggleLeagueList) return;
+                setIsLeagueChooserOpen((current) => !current);
+              }}
+            >
+              <span>{selectedLeagueCountLabel}</span>
+              <i className={shouldShowAllLeagues ? 'fa fa-chevron-up' : 'fa fa-chevron-down'} />
+            </button>
+          ) : null}
+        </div>
+
+        {selectedDivisionName ? (
+          <p className="tt-leagues-panel-subtitle">{selectedDivisionName}</p>
+        ) : (
+          <p className="tt-leagues-panel-subtitle">Select a league to view divisions and standings.</p>
+        )}
+
+        <div className="tt-leagues-panel-divider" />
+
         {visibleLeagues.length > 0 ? (
-          <button
-            type="button"
-            className="tt-league-context-toggle"
-            aria-expanded={shouldShowAllLeagues}
-            disabled={!canToggleLeagueList}
-            onClick={() => {
-              if (!canToggleLeagueList) return;
-              setIsLeagueChooserOpen((current) => !current);
-            }}
-          >
-            <span className="tt-league-context-count">{selectedLeagueCountLabel}</span>
-            <span className="tt-league-context-state">
-              {leagueListToggleLabel}
-              <i className={shouldShowAllLeagues ? 'fa fa-chevron-up ms-1' : 'fa fa-chevron-down ms-1'} />
-            </span>
-          </button>
+          <p className="tt-leagues-panel-state">
+            {shouldShowAllLeagues ? 'Select from the active league set.' : `${leagueListToggleLabel} to change league.`}
+          </p>
         ) : null}
 
-        {leaguesError ? <p className="mb-0 mt-2 color-red-dark">Failed to load leagues: {leaguesError}</p> : null}
+        {leaguesError ? <p className="tt-player-section-state tt-player-section-error">Failed to load leagues: {leaguesError}</p> : null}
         {isLeaguesLoading ? (
-          <p className="mb-0 mt-2"><i className="fa fa-spinner fa-spin me-2" />Loading leagues...</p>
+          <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading leagues...</p>
         ) : null}
         {!isLeaguesLoading && visibleLeagues.length === 0 ? (
-          <p className="mb-0 mt-2">No leagues are available for the active season.</p>
+          <p className="tt-player-section-state">No leagues are available for the active season.</p>
         ) : null}
-      </div>
+      </section>
 
       {visibleLeagues.length > 0 ? (
         <>
           {shouldShowAllLeagues ? (
-            <div className="content pt-0">
-              <div className="tt-league-grid">
+            <section className="tt-player-section" aria-labelledby="tt-league-list-title">
+              <div className="tt-player-section-header">
+                <h2 id="tt-league-list-title" className="tt-player-section-title">Active Leagues</h2>
+                <span className="tt-player-section-note">{selectedLeagueCountLabel}</span>
+              </div>
+              <div className="tt-league-list">
                 {visibleLeagues.map((league) => (
                   <button
                     key={league.id}
                     type="button"
-                    className={selectedLeagueId === league.id ? 'tt-league-tile card card-style rounded-m p-3 active' : 'tt-league-tile card card-style rounded-m p-3'}
+                    className={selectedLeagueId === league.id ? 'tt-league-list-row active' : 'tt-league-list-row'}
                     onClick={() => {
                       setSelectedLeagueId(league.id);
                       setSelectedDivisionId(league.divisions[0]?.id ?? '');
                       setIsLeagueChooserOpen(false);
                     }}
                   >
-                    <span className={selectedLeagueId === league.id ? 'tt-league-tile-tag tt-league-tile-tag-active' : 'tt-league-tile-tag'}>{selectedLeagueId === league.id ? 'Active' : 'League'}</span>
-                    <strong className="tt-league-tile-title">{league.name}</strong>
-                    <span className="tt-league-tile-meta">
-                      {league.divisions.length} division{league.divisions.length === 1 ? '' : 's'}
+                    <span className="tt-league-list-icon">
+                      <i className="fa fa-table-tennis" />
+                    </span>
+                    <span className="tt-league-list-copy">
+                      <strong>{league.name}</strong>
+                      <span>{league.divisions.length} division{league.divisions.length === 1 ? '' : 's'}</span>
+                    </span>
+                    <span className={selectedLeagueId === league.id ? 'tt-league-list-status active' : 'tt-league-list-status'}>
+                      {selectedLeagueId === league.id ? 'Selected' : 'View'}
                     </span>
                   </button>
                 ))}
               </div>
-            </div>
+            </section>
           ) : null}
 
-          <AppCard className="mt-2">
-            <AppCardContent className="mb-2">
-              <div className="mb-2">
-                <p className="mb-n1 color-highlight font-600 font-12" style={{ letterSpacing: '0.06em' }}>LEAGUE SNAPSHOT</p>
-                <h4 className="mb-0 font-16">{selectedLeague?.name ?? 'Selected League'}</h4>
+          <section className="tt-player-section" aria-labelledby="tt-league-snapshot-title">
+              <div className="tt-player-section-header">
+                <h2 id="tt-league-snapshot-title" className="tt-player-section-title">League Snapshot</h2>
+                <span className="tt-player-section-note">{selectedLeague?.name ?? 'Selected League'}</span>
               </div>
 
               {isLeagueSnapshotLoading ? (
-                <p className="mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading league snapshot...</p>
+                <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading league snapshot...</p>
               ) : leagueSnapshotError ? (
-                <p className="mb-0 color-red-dark">Failed to load league snapshot: {leagueSnapshotError}</p>
+                <p className="tt-player-section-state tt-player-section-error">Failed to load league snapshot: {leagueSnapshotError}</p>
               ) : !leagueSnapshot ? (
-                <p className="mb-0">Snapshot is not available for this league yet.</p>
+                <p className="tt-player-section-state">Snapshot is not available for this league yet.</p>
               ) : (
                 <>
                   <div className="tt-league-summary-grid">
-                    <div className="tt-league-kpi text-center">
+                    <div className="tt-league-kpi">
                       <strong className="tt-league-kpi-value">{leagueSnapshot.totals.divisions}</strong>
-                      <p className="font-12 mb-0">Divisions</p>
+                      <span>Divisions</span>
                     </div>
-                    <div className="tt-league-kpi text-center">
+                    <div className="tt-league-kpi">
                       <strong className="tt-league-kpi-value">{leagueSnapshot.totals.teams}</strong>
-                      <p className="font-12 mb-0">Teams</p>
+                      <span>Teams</span>
                     </div>
-                    <div className="tt-league-kpi text-center">
+                    <div className="tt-league-kpi">
                       <strong className="tt-league-kpi-value">{leagueSnapshot.totals.players}</strong>
-                      <p className="font-12 mb-0">Players</p>
+                      <span>Players</span>
                     </div>
-                    <div className="tt-league-kpi text-center">
+                    <div className="tt-league-kpi">
                       <strong className="tt-league-kpi-value">{leagueSnapshot.totals.matches}</strong>
-                      <p className="font-12 mb-0">Matches</p>
+                      <span>Matches</span>
                     </div>
                   </div>
 
-                  <div className="tt-league-summary-list mt-3">
+                  <div className="tt-league-summary-list">
                     {leagueSnapshot.divisions.map((division) => {
                       const isActiveDivision = selectedDivisionId === division.divisionId;
                       return (
@@ -318,64 +344,54 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
                           className={isActiveDivision ? 'tt-league-summary-row-button tt-league-division-option active' : 'tt-league-summary-row-button tt-league-division-option'}
                           onClick={() => setSelectedDivisionId(division.divisionId)}
                         >
-                          <div className="d-flex align-items-start gap-2">
-                            <div className="flex-grow-1">
-                              <p className="mb-1 font-12 font-700">{division.divisionName}</p>
-                              <p className="mb-0 font-12 opacity-70">
-                                {division.players} players · {division.teams} teams · {division.matches} matches played
-                              </p>
-                            </div>
-                            <span className={isActiveDivision ? 'tt-league-division-status active ms-auto' : 'tt-league-division-status ms-auto'}>
+                          <span className="tt-league-division-copy">
+                            <strong>{division.divisionName}</strong>
+                            <span>{division.players} players · {division.teams} teams · {division.matches} matches played</span>
+                          </span>
+                          <span className={isActiveDivision ? 'tt-league-division-status active' : 'tt-league-division-status'}>
                               {isActiveDivision ? 'Selected' : 'View'}
-                            </span>
-                          </div>
+                          </span>
                         </button>
                       );
                     })}
                   </div>
                 </>
               )}
-            </AppCardContent>
-          </AppCard>
+          </section>
 
-          <AppCard className="mt-2">
-            <AppCardContent className="mb-2">
-              <div className="d-flex mb-2">
-                <div className="align-self-center">
-                  <p className="mb-n1 color-highlight font-600 font-12" style={{ letterSpacing: '0.06em' }}>STANDINGS</p>
-                  <h4 className="mb-0 font-16">League Table{selectedDivisionName ? ` · ${selectedDivisionName}` : ''}</h4>
-                </div>
+          <section className="tt-player-section" aria-labelledby="tt-league-standings-title">
+              <div className="tt-player-section-header">
+                <h2 id="tt-league-standings-title" className="tt-player-section-title">Standings</h2>
+                <span className="tt-player-section-note">{selectedDivisionName ?? 'League Table'}</span>
                 {standingsSourceUrl ? (
-                  <div className="ms-auto align-self-center">
-                    <AppButtonLink
+                  <a
+                      className="tt-league-source-link"
                       href={standingsSourceUrl}
                       target="_blank"
                       rel="noreferrer"
-                      size="s"
-                      tone="outline-highlight"
+                      aria-label="Open source standings"
                     >
                       <i className="fa fa-globe" />
-                    </AppButtonLink>
-                  </div>
+                  </a>
                 ) : null}
               </div>
 
               {isStandingsLoading ? (
-                <p className="mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading standings...</p>
+                <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading standings...</p>
               ) : standingsError ? (
-                <p className="mb-0 color-red-dark">Failed to load standings: {standingsError}</p>
+                <p className="tt-player-section-state tt-player-section-error">Failed to load standings: {standingsError}</p>
               ) : standingsRows.length === 0 ? (
-                <p className="mb-0">No standings available yet.</p>
+                <p className="tt-player-section-state">No standings available yet.</p>
               ) : (
                 <div className="tt-table-wrap">
                   <table className="table table-borderless tt-standings-table mb-0" aria-label="League standings">
                     <thead>
-                      <tr className="bg-highlight">
-                        <th scope="col" className="color-white py-3 font-13 text-center" style={{ width: '40px' }}>#</th>
-                        <th scope="col" className="color-white py-3 font-13 text-start">Team</th>
-                        <th scope="col" className="color-white py-3 font-13 text-center" style={{ width: '40px' }}>W</th>
-                        <th scope="col" className="color-white py-3 font-13 text-center" style={{ width: '40px' }}>L</th>
-                        <th scope="col" className="color-white py-3 font-13 text-center" style={{ width: '50px' }}>Pts</th>
+                      <tr>
+                        <th scope="col" className="tt-standings-rank">#</th>
+                        <th scope="col" className="tt-standings-team">Team</th>
+                        <th scope="col">W</th>
+                        <th scope="col">L</th>
+                        <th scope="col">Pts</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -394,19 +410,18 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
                             }
                           }}
                         >
-                          <td className="text-center font-12 opacity-60">{row.position}</td>
-                          <td className="text-start font-13 font-600 color-theme">{row.team_name}</td>
-                          <td className="text-center font-12">{row.won}</td>
-                          <td className="text-center font-12">{row.lost}</td>
-                          <td className="text-center"><strong className="color-highlight font-14">{row.points}</strong></td>
+                          <td className="tt-standings-rank">{row.position}</td>
+                          <td className="tt-standings-team">{row.team_name}</td>
+                          <td>{row.won}</td>
+                          <td>{row.lost}</td>
+                          <td><strong>{row.points}</strong></td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               )}
-            </AppCardContent>
-          </AppCard>
+          </section>
         </>
       ) : null}
     </>

@@ -590,125 +590,153 @@ function App() {
 
           {activeTab === 'players' ? (
             <>
-              <div className="content mt-n4 mb-3">
-                <div className="tt-search-toolbar mt-4">
-                  <div className="search-box search-dark border-0 bg-theme rounded-sm bottom-0 mb-0">
-                    <i className="fa fa-search ms-1" />
-                    <input
-                      type="text"
-                      className="border-0"
-                      placeholder="Search players..."
-                      value={query}
-                      onChange={(event) => setQuery(event.target.value)}
-                    />
+              <section className="tt-players-search-panel" aria-label="Player search">
+                <div className="tt-players-search-top">
+                  <div>
+                    <p className="tt-player-eyebrow">Players</p>
+                    <h1 className="tt-players-search-title">Find a player</h1>
                   </div>
-                  <p className="tt-search-scope mb-0">
-                    Search scope: <strong>{searchScopeLabel}</strong>
-                  </p>
+                  <button
+                    type="button"
+                    className="tt-players-filter-button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      openLeagueSelector();
+                    }}
+                    aria-label="Select leagues"
+                  >
+                    <i className="fa fa-filter" />
+                    <span>{selectedLeagueBadgeLabel}</span>
+                  </button>
                 </div>
-              </div>
+
+                <label className="tt-players-search-input">
+                  <i className="fa fa-search" aria-hidden="true" />
+                  <input
+                    type="text"
+                    placeholder="Search players..."
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                  />
+                </label>
+
+                <p className="tt-players-search-scope">
+                  Search scope: <strong>{searchScopeLabel}</strong>
+                </p>
+              </section>
 
               {favouritePlayers.length > 0 ? (
-            <div className="card card-style mt-2">
-              <div className="content mb-0">
-                <div className="d-flex mb-2">
-                  <div className="align-self-center">
-                    <h1 className="mb-0 font-16">Favourite Players</h1>
+                <section className="tt-player-section" aria-labelledby="tt-favourite-players-title">
+                  <div className="tt-player-section-header">
+                    <h2 id="tt-favourite-players-title" className="tt-player-section-title">Favourite Players</h2>
+                    <span className="tt-player-section-note">{favouritePlayers.length} saved</span>
                   </div>
-                  <div className="ms-auto align-self-center">
-                    <span className="font-11 opacity-60">{favouritePlayers.length} saved</span>
-                  </div>
-                </div>
-                <div className="favourites-scroll">
-                  <div className="list-group list-custom-large tt-player-large-list">
+                  <div className="favourites-scroll">
+                    <div className="list-group list-custom-large tt-player-large-list tt-players-list">
                     {favouritePlayers.map((player) => (
-                      <a
+                      <div
                         key={player.id}
-                        href="#"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          navigateInActiveTab(`player/${player.id}`);
-                        }}
+                        className="tt-players-row"
                       >
-                        <i className="tt-player-avatar bg-highlight color-white">{getInitials(player.name)}</i>
-                        <span>{player.name}</span>
-                        <strong>{getWinRate(player)}% WR • {player.played} matches</strong>
-                        <span
-                          className="badge bg-red-dark color-white tt-player-remove-badge"
+                        <a
+                          href="#"
+                          className="tt-players-row-main"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            navigateInActiveTab(`player/${player.id}`);
+                          }}
+                        >
+                          <span className="tt-player-avatar bg-highlight color-white">{getInitials(player.name)}</span>
+                          <span>{player.name}</span>
+                          <strong>{getWinRate(player)}% WR • {player.played} matches</strong>
+                        </a>
+                        <button
+                          type="button"
+                          className="tt-player-remove-badge"
+                          aria-label={`Remove ${player.name} from favourites`}
                           onClick={(event) => {
                             event.preventDefault();
                             event.stopPropagation();
                             toggleFavouritePlayer(player);
                           }}
                         >
-                          REMOVE
-                        </span>
-                        <i className="fa fa-angle-right" />
-                      </a>
+                          Remove
+                        </button>
+                      </div>
                     ))}
+                    </div>
                   </div>
-                </div>
-              </div>
-            </div>
+                </section>
+              ) : null}
+
+              {favouritePlayers.length === 0 && !isSearchMode && !isShortSearchQuery ? (
+                <section className="tt-player-section tt-players-empty-section" aria-labelledby="tt-players-empty-title">
+                  <div className="tt-player-section-header">
+                    <h2 id="tt-players-empty-title" className="tt-player-section-title">Search by name</h2>
+                    <span className="tt-player-section-note">3+ characters</span>
+                  </div>
+                  <p className="tt-player-section-state">
+                    Search within the selected leagues, then save players here for quicker access.
+                  </p>
+                </section>
               ) : null}
 
               {isSearchMode || isShortSearchQuery ? (
-                <div className="card card-style mt-2">
-                  <div className="content mb-0">
-                    <div className="d-flex mb-2">
-                      <div className="align-self-center">
-                        <h1 className="mb-0 font-16">Search Results</h1>
-                      </div>
-                      <div className="ms-auto align-self-center">
-                        <span className="font-11 opacity-60">{listItems.length} players</span>
-                      </div>
-                    </div>
+                <section className="tt-player-section" aria-labelledby="tt-search-results-title">
+                  <div className="tt-player-section-header">
+                    <h2 id="tt-search-results-title" className="tt-player-section-title">Search Results</h2>
+                    <span className="tt-player-section-note">{listItems.length} players</span>
+                  </div>
                     {!isLeagueSelectionReady || isLeaguesLoading ? (
-                      <p className="mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading leagues...</p>
+                      <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading leagues...</p>
                     ) : leaguesError ? (
-                      <p className="mb-0 color-red-dark">Failed to load leagues: {leaguesError}</p>
+                      <p className="tt-player-section-state tt-player-section-error">Failed to load leagues: {leaguesError}</p>
                     ) : normalizedQuery.length > 0 && normalizedQuery.length <= 2 ? (
-                      <p className="mb-0">Type at least 3 characters to search players.</p>
+                      <p className="tt-player-section-state">Type at least 3 characters to search players.</p>
                     ) : isSearchLoading ? (
-                      <p className="mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading players...</p>
+                      <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading players...</p>
                     ) : searchError ? (
-                      <p className="mb-0 color-red-dark">Failed to load players: {searchError}</p>
+                      <p className="tt-player-section-state tt-player-section-error">Failed to load players: {searchError}</p>
                     ) : listItems.length === 0 ? (
-                      <p className="mb-0">No players found matching "{normalizedQuery}"</p>
+                      <p className="tt-player-section-state">No players found matching "{normalizedQuery}"</p>
                     ) : (
-                      <div className="list-group list-custom-large tt-player-large-list tt-player-search-list">
+                      <div className="list-group list-custom-large tt-player-large-list tt-player-search-list tt-players-list">
                         {listItems.map((player: PlayerSearchItem) => {
                           const isFavourite = isFavouritePlayer(player.id);
                           return (
-                            <a
+                            <div
                               key={player.id}
-                              href="#"
                               data-filter-item
-                              onClick={(event) => {
-                                event.preventDefault();
-                                navigateInActiveTab(`player/${player.id}`);
-                              }}
+                              className="tt-players-row"
                             >
-                              <i className="tt-player-avatar bg-highlight color-white">{getInitials(player.name)}</i>
-                              <span>{player.name}</span>
-                              <strong>{getWinRate(player)}% WR • {player.played} matches</strong>
-                              <i
-                                className={`fa fa-heart tt-player-favourite-icon ${isFavourite ? 'color-red-dark' : 'color-theme opacity-40'}`}
-                                aria-label={isFavourite ? 'Remove favourite' : 'Add favourite'}
+                              <a
+                                href="#"
+                                className="tt-players-row-main"
                                 onClick={(event) => {
                                   event.preventDefault();
-                                  event.stopPropagation();
+                                  navigateInActiveTab(`player/${player.id}`);
+                                }}
+                              >
+                                <span className="tt-player-avatar bg-highlight color-white">{getInitials(player.name)}</span>
+                                <span>{player.name}</span>
+                                <strong>{getWinRate(player)}% WR • {player.played} matches</strong>
+                              </a>
+                              <button
+                                type="button"
+                                className={isFavourite ? 'tt-player-favourite-icon active' : 'tt-player-favourite-icon'}
+                                aria-label={isFavourite ? 'Remove favourite' : 'Add favourite'}
+                                onClick={() => {
                                   toggleFavouritePlayer(player);
                                 }}
-                              />
-                              <i className="fa fa-angle-right" />
-                            </a>
+                              >
+                                <i className="fa fa-heart" />
+                              </button>
+                            </div>
                           );
                         })}
                       </div>
                     )}
-                  </div>
-                </div>
+                </section>
               ) : null}
             </>
           ) : null}

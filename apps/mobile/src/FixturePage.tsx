@@ -5,9 +5,6 @@ import { formatDate } from './player-shared';
 import { useFixtureRubbersQuery } from './queries';
 import { TabShellPage } from './TabShellPage';
 import {
-  AppButtonLink,
-  AppCard,
-  AppCardContent,
   AppHeader,
   AppHeaderSpacer,
   AppLoadingCard,
@@ -62,7 +59,6 @@ export function FixturePage() {
           <AppMessageCard
             title="Missing fixture"
             message="Fixture id is missing from the route."
-            tone="outline-highlight"
             action={{ label: 'Back Home', onClick: goHome }}
           />
         ) : rubbersQuery.isLoading && !fixtureMeta ? (
@@ -71,50 +67,60 @@ export function FixturePage() {
           <AppMessageCard
             title="Fixture unavailable"
             message={pageError ?? 'Failed to load this fixture.'}
-            tone="outline-highlight"
             action={{ label: 'Back Home', onClick: goHome }}
           />
         ) : (
           <>
-            <AppCard className="bg-6" cardHeight={230}>
-              <div className="card-bottom ms-3 me-3 mb-3">
-                <p className="color-white opacity-70 mb-1">Fixture Results</p>
-                <h1 className="font-24 line-height-l color-white mb-1">{title}</h1>
-                <p className="color-white opacity-80 mb-1">{fixtureMeta.league_name} · {fixtureMeta.division_name}</p>
-                <p className="color-white opacity-60 mb-2">{formatDate(fixtureMeta.played_at ?? '', { includeTime: true })}</p>
-                {rubbers.length > 0 ? (
-                  <p className="color-white opacity-90 mb-0">Match score: {homeScore} - {awayScore}</p>
+            <section className="tt-fixture-hero" aria-labelledby="tt-fixture-title">
+              <div className="tt-fixture-hero-top">
+                <div className="tt-fixture-hero-copy">
+                  <p className="tt-player-eyebrow">Fixture results</p>
+                  <h1 id="tt-fixture-title" className="tt-fixture-title">{title}</h1>
+                  <p className="tt-fixture-summary-line">
+                    {fixtureMeta.league_name} · {fixtureMeta.division_name}
+                  </p>
+                  <p className="tt-fixture-date">{formatDate(fixtureMeta.played_at ?? '', { includeTime: true })}</p>
+                </div>
+                {fixtureMeta.source_url ? (
+                  <a
+                    href={fixtureMeta.source_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="tt-league-source-link"
+                    aria-label="Open source fixture"
+                  >
+                    <i className="fa fa-globe" />
+                  </a>
                 ) : null}
               </div>
-            </AppCard>
 
-            {fixtureMeta.source_url ? (
-              <AppCard>
-                <AppCardContent className="mb-2">
-                  <AppButtonLink href={fixtureMeta.source_url} target="_blank" rel="noreferrer" tone="outline-highlight">
-                    <i className="fa fa-globe me-2" /> Source
-                  </AppButtonLink>
-                </AppCardContent>
-              </AppCard>
-            ) : null}
+              {rubbers.length > 0 ? (
+                <div className="tt-fixture-score" aria-label="Match score">
+                  <div>
+                    <span className="tt-fixture-score-value">{homeScore}</span>
+                    <span className="tt-fixture-score-label">{fixtureMeta.home_team_name}</span>
+                  </div>
+                  <span className="tt-fixture-score-separator">-</span>
+                  <div>
+                    <span className="tt-fixture-score-value">{awayScore}</span>
+                    <span className="tt-fixture-score-label">{fixtureMeta.away_team_name}</span>
+                  </div>
+                </div>
+              ) : null}
+            </section>
 
-            <AppCard>
-              <AppCardContent className="mb-2">
-                <div className="d-flex mb-2">
-                  <div className="align-self-center">
-                    <h1 className="mb-0 font-16">Match Breakdown</h1>
-                  </div>
-                  <div className="ms-auto align-self-center">
-                    <span className="font-11 opacity-60">{rubbers.length} rubbers</span>
-                  </div>
+            <section className="tt-player-section" aria-labelledby="tt-fixture-breakdown-title">
+                <div className="tt-player-section-header">
+                  <h2 id="tt-fixture-breakdown-title" className="tt-player-section-title">Match Breakdown</h2>
+                  <span className="tt-player-section-note">{rubbers.length} rubbers</span>
                 </div>
 
                 {rubbersQuery.isLoading ? (
-                  <p className="mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading rubbers...</p>
+                  <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading rubbers...</p>
                 ) : rubbersQuery.error ? (
-                  <p className="mb-0 color-red-dark">Failed to load fixture details.</p>
+                  <p className="tt-player-section-state tt-player-section-error">Failed to load fixture details.</p>
                 ) : rubbers.length === 0 ? (
-                  <p className="mb-0">No matches found for this fixture.</p>
+                  <p className="tt-player-section-state">No matches found for this fixture.</p>
                 ) : (
                   <div className="tt-rubber-list">
                     {rubbers.map((rubber: any) => {
@@ -128,39 +134,37 @@ export function FixturePage() {
                         ...(rubber.is_doubles ? [{ id: rubber.away_player_2_id, name: rubber.away_player_2_name }] : []),
                       ].filter((player) => Boolean(player.name));
 
-                      const isHomeWin = rubber.home_games_won > rubber.away_games_won;
-
                       return (
                         <div key={rubber.id} className="tt-rubber-item">
-                          <div className="d-flex mb-1">
-                            <p className="font-12 mb-0 opacity-70">{rubber.is_doubles ? 'Doubles' : 'Singles'}</p>
-                            <span className={`badge ms-auto ${isHomeWin ? 'bg-green-dark' : 'bg-red-dark'} color-white`}>
+                          <div className="tt-rubber-item-header">
+                            <p>{rubber.is_doubles ? 'Doubles' : 'Singles'}</p>
+                            <span>
                               {rubber.home_games_won}-{rubber.away_games_won}
                             </span>
                           </div>
-                          <p className="mb-2">
+                          <p className="tt-rubber-matchup">
                             {(homePlayers.map((player: any) => player.name).join(' & ') || 'Unknown')} vs {(awayPlayers.map((player: any) => player.name).join(' & ') || 'Unknown')}
                           </p>
                           <div className="tt-rubber-player-links">
                             {homePlayers.map((player: any) => (
-                              <AppButtonLink
+                              <a
                                 key={`home-${player.id ?? player.name}`}
-                                size="s"
-                                tone="outline-highlight"
+                                href="#"
+                                className="tt-rubber-player-link"
                                 onClick={openPlayer(player.id)}
                               >
                                 {shortName(player.name)}
-                              </AppButtonLink>
+                              </a>
                             ))}
                             {awayPlayers.map((player: any) => (
-                              <AppButtonLink
+                              <a
                                 key={`away-${player.id ?? player.name}`}
-                                size="s"
-                                tone="gray"
+                                href="#"
+                                className="tt-rubber-player-link"
                                 onClick={openPlayer(player.id)}
                               >
                                 {shortName(player.name)}
-                              </AppButtonLink>
+                              </a>
                             ))}
                           </div>
                         </div>
@@ -168,8 +172,7 @@ export function FixturePage() {
                     })}
                   </div>
                 )}
-              </AppCardContent>
-            </AppCard>
+            </section>
           </>
         )}
       </AppPageContent>
