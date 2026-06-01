@@ -20,6 +20,7 @@ export const db = new Kysely<Database>({
     dialect: new PostgresDialect({
         pool: new Pool({
             connectionString: DATABASE_URL,
+            ssl: DATABASE_URL.includes('sslmode=require') ? { rejectUnauthorized: false } : undefined,
             max: 10,
         }),
     }),
@@ -30,6 +31,7 @@ export function createDb(connectionString: string): Kysely<Database> {
         dialect: new PostgresDialect({
             pool: new Pool({
                 connectionString,
+                ssl: connectionString.includes('sslmode=require') ? { rejectUnauthorized: false } : undefined,
                 max: 10,
             }),
         }),
