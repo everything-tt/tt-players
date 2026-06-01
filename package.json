@@ -1,6 +1,7 @@
 {
   "name": "tt-players",
   "private": true,
+  "packageManager": "pnpm@10.24.0",
   "scripts": {
     "build": "pnpm --filter @tt-players/mobile build",
     "dev": "pnpm -r --parallel --filter @tt-players/api --filter @tt-players/mobile dev",
