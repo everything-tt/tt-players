@@ -78,6 +78,24 @@ export type LeaguesResponse = {
   data: LeagueWithDivisions[];
 };
 
+export type DivisionSnapshot = {
+  divisionId: string;
+  divisionName: string;
+  teams: number;
+  players: number;
+  matches: number;
+};
+
+export type LeagueSnapshot = {
+  divisions: DivisionSnapshot[];
+  totals: {
+    divisions: number;
+    teams: number;
+    players: number;
+    matches: number;
+  };
+};
+
 export type LeagueSeason = {
   id: string;
   name: string;

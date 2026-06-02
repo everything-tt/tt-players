@@ -1,24 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
-  apiFetch,
   getInitials,
   type PlayerSearchItem,
-  type PlayerSearchResponse,
 } from './player-shared';
+import { usePlayerSearchQuery } from './queries';
 
 const SEARCH_DEBOUNCE_MS = 250;
-
-function buildPlayerSearchPath(query: string, leagueIds: string[]): string {
-  const params = new URLSearchParams();
-  const normalized = query.trim();
-  if (normalized.length > 0) {
-    params.set('q', normalized);
-  }
-  if (leagueIds.length > 0) {
-    params.set('league_ids', leagueIds.join(','));
-  }
-  return params.size > 0 ? `/players/search?${params.toString()}` : '/players/search';
-}
 
 interface PlayerSearchSheetProps {
   isOpen: boolean;
@@ -38,15 +25,12 @@ export function PlayerSearchSheet({
   title = 'Search Player',
 }: PlayerSearchSheetProps) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<PlayerSearchItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [debouncedQuery, setDebouncedQuery] = useState('');
 
   useEffect(() => {
     if (!isOpen) {
       setQuery('');
-      setResults([]);
-      setError(null);
+      setDebouncedQuery('');
       return;
     }
   }, [isOpen]);
@@ -54,37 +38,21 @@ export function PlayerSearchSheet({
   const normalizedQuery = query.trim();
 
   useEffect(() => {
-    if (!isOpen || normalizedQuery.length <= 2) {
-      setResults([]);
-      setError(null);
-      setIsLoading(false);
-      return;
-    }
-
-    const abortController = new AbortController();
-    const timerId = window.setTimeout(async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const payload = await apiFetch<PlayerSearchResponse>(
-          buildPlayerSearchPath(normalizedQuery, selectedLeagueIds),
-          abortController.signal,
-        );
-        setResults((payload.data ?? []).filter((item) => item.id !== excludePlayerId));
-      } catch (error) {
-        if ((error as Error).name === 'AbortError') return;
-        setResults([]);
-        setError((error as Error).message || 'Failed to search players');
-      } finally {
-        setIsLoading(false);
-      }
+    const timerId = window.setTimeout(() => {
+      setDebouncedQuery(isOpen && normalizedQuery.length > 2 ? normalizedQuery : '');
     }, SEARCH_DEBOUNCE_MS);
 
     return () => {
-      abortController.abort();
       window.clearTimeout(timerId);
     };
-  }, [normalizedQuery, isOpen, selectedLeagueIds, excludePlayerId]);
+  }, [normalizedQuery, isOpen]);
+
+  const searchQuery = usePlayerSearchQuery(debouncedQuery, selectedLeagueIds, {
+    enabled: isOpen && debouncedQuery.length > 2,
+  });
+  const isLoading = searchQuery.isLoading;
+  const error = searchQuery.error instanceof Error ? searchQuery.error.message : null;
+  const results = (searchQuery.data?.data ?? []).filter((item) => item.id !== excludePlayerId);
 
   if (!isOpen) return null;
 

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import './app-shell.css';
 import { useTabNavigation } from './navigation/tab-navigation';
-import { apiFetch, formatMatchDate, type ExtendedPlayerStats, type RubberItem, type RubbersResponse } from './player-shared';
+import { formatMatchDate, type RubberItem } from './player-shared';
+import { usePlayerExtendedStatsQuery, usePlayerRubbersQuery } from './queries';
 import { TabShellPage } from './TabShellPage';
 import {
   AppButtonLink,
@@ -19,15 +20,17 @@ export function PlayerMatchesPage() {
   const { goBackInActiveTab, navigateInTab, switchTab } = useTabNavigation();
   const { playerId = '' } = useParams<{ playerId: string }>();
 
-  const [stats, setStats] = useState<ExtendedPlayerStats | null>(null);
-  const [statsLoading, setStatsLoading] = useState(true);
   const [matches, setMatches] = useState<RubberItem[]>([]);
-  const [matchesLoading, setMatchesLoading] = useState(true);
-  const [matchesLoadingMore, setMatchesLoadingMore] = useState(false);
   const [matchesError, setMatchesError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [total, setTotal] = useState(0);
 
+  const statsQuery = usePlayerExtendedStatsQuery(playerId, Boolean(playerId));
+  const matchesQuery = usePlayerRubbersQuery(playerId, PAGE_SIZE, offset, Boolean(playerId));
+  const stats = statsQuery.data ?? null;
+  const statsLoading = statsQuery.isLoading;
+  const matchesLoading = matchesQuery.isLoading && offset === 0;
+  const matchesLoadingMore = matchesQuery.isLoading && offset > 0;
   const hasMore = useMemo(() => matches.length < total, [matches.length, total]);
 
   const goBack = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -53,83 +56,31 @@ export function PlayerMatchesPage() {
 
   useEffect(() => {
     if (!playerId) {
-      setStats(null);
-      setStatsLoading(false);
-      return;
-    }
-
-    const abortController = new AbortController();
-
-    const loadStats = async () => {
-      try {
-        setStatsLoading(true);
-        const payload = await apiFetch<ExtendedPlayerStats>(`/players/${playerId}/stats/extended`, abortController.signal);
-        setStats(payload);
-      } catch {
-        setStats(null);
-      } finally {
-        setStatsLoading(false);
-      }
-    };
-
-    loadStats();
-
-    return () => {
-      abortController.abort();
-    };
-  }, [playerId]);
-
-  useEffect(() => {
-    if (!playerId) {
       setMatches([]);
       setTotal(0);
       setMatchesError('Missing player id');
-      setMatchesLoading(false);
-      setMatchesLoadingMore(false);
       return;
     }
 
-    const abortController = new AbortController();
-
-    const loadMatches = async () => {
-      try {
-        if (offset === 0) {
-          setMatchesLoading(true);
-        } else {
-          setMatchesLoadingMore(true);
-        }
-        setMatchesError(null);
-
-        const payload = await apiFetch<RubbersResponse>(
-          `/players/${playerId}/rubbers?limit=${PAGE_SIZE}&offset=${offset}`,
-          abortController.signal,
-        );
-
-        setTotal(payload.total);
-        setMatches((previous) => {
-          if (offset === 0) return payload.data;
-          const existingIds = new Set(previous.map((item) => item.id));
-          return [...previous, ...payload.data.filter((item) => !existingIds.has(item.id))];
-        });
-      } catch (error) {
-        if ((error as Error).name === 'AbortError') return;
-        if (offset === 0) {
-          setMatches([]);
-          setTotal(0);
-        }
-        setMatchesError((error as Error).message || 'Failed to load matches');
-      } finally {
-        setMatchesLoading(false);
-        setMatchesLoadingMore(false);
+    if (matchesQuery.error instanceof Error) {
+      if (offset === 0) {
+        setMatches([]);
+        setTotal(0);
       }
-    };
+      setMatchesError(matchesQuery.error.message || 'Failed to load matches');
+      return;
+    }
 
-    loadMatches();
+    if (!matchesQuery.data) return;
 
-    return () => {
-      abortController.abort();
-    };
-  }, [offset, playerId]);
+    setMatchesError(null);
+    setTotal(matchesQuery.data.total);
+    setMatches((previous) => {
+      if (offset === 0) return matchesQuery.data.data;
+      const existingIds = new Set(previous.map((item) => item.id));
+      return [...previous, ...matchesQuery.data.data.filter((item) => !existingIds.has(item.id))];
+    });
+  }, [matchesQuery.data, matchesQuery.error, offset, playerId]);
 
   useEffect(() => {
     setOffset(0);

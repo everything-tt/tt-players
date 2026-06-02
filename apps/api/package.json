@@ -5,7 +5,7 @@
     "type": "module",
     "scripts": {
         "build": "tsc -p tsconfig.json --noEmit",
-        "start": "tsx src/server.ts",
+        "start": "pnpm --filter @tt-players/db run db:migrate && tsx src/server.ts",
         "dev": "tsx src/server.ts",
         "test": "vitest run",
         "test:watch": "vitest"

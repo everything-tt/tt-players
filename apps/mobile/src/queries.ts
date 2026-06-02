@@ -6,6 +6,7 @@ import {
   type FixturesResponse,
   type H2HResponse,
   type LeadersResponse,
+  type LeagueSnapshot,
   type LeagueSeasonsResponse,
   type LeaguesResponse,
   type PlayerCountResponse,
@@ -167,6 +168,33 @@ export function usePlayerH2HQuery(playerId1: string, playerId2: string, enabled 
     queryKey: ['players', 'h2h', playerId1, playerId2],
     queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<H2HResponse>(`/players/${playerId1}/h2h/${playerId2}`, signal),
     enabled: enabled && Boolean(playerId1) && Boolean(playerId2),
+  });
+}
+
+export function usePlayerScopedH2HQuery(playerId1: string, playerId2: string, leagueIds: string[], enabled = true) {
+  const sortedLeagueIds = [...leagueIds].sort();
+  return useQuery({
+    queryKey: ['players', 'h2h', playerId1, playerId2, sortedLeagueIds.join(',')],
+    queryFn: ({ signal }: { signal: AbortSignal }) => {
+      const params = new URLSearchParams();
+      if (sortedLeagueIds.length > 0) {
+        params.set('league_ids', sortedLeagueIds.join(','));
+      }
+      const queryString = params.toString();
+      const path = queryString.length > 0
+        ? `/players/${playerId1}/h2h/${playerId2}?${queryString}`
+        : `/players/${playerId1}/h2h/${playerId2}`;
+      return apiFetch<H2HResponse>(path, signal);
+    },
+    enabled: enabled && Boolean(playerId1) && Boolean(playerId2),
+  });
+}
+
+export function useLeagueSnapshotQuery(leagueId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['leagues', leagueId, 'snapshot'],
+    queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<LeagueSnapshot>(`/leagues/${leagueId}/snapshot`, signal),
+    enabled: enabled && Boolean(leagueId),
   });
 }
 

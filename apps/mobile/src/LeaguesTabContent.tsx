@@ -1,11 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import {
-  apiFetch,
   type LeagueWithDivisions,
-  type StandingsResponse,
 } from './player-shared';
-import { useLeaguesQuery, useStandingsQuery } from './queries';
+import { useLeagueSnapshotQuery, useLeaguesQuery, useStandingsQuery } from './queries';
 import { useTabNavigation } from './navigation/tab-navigation';
 
 interface StandingsRow {
@@ -26,28 +23,6 @@ interface DivisionData {
 
 const CURRENT_LEAGUE_ID_KEY = 'tt_players_current_league_id';
 const CURRENT_DIVISION_ID_KEY = 'tt_players_current_division_id';
-
-type TeamRosterResponse = {
-  data: Array<{ id: string }>;
-};
-
-type DivisionSnapshot = {
-  divisionId: string;
-  divisionName: string;
-  teams: number;
-  players: number;
-  matches: number;
-};
-
-type LeagueSnapshot = {
-  divisions: DivisionSnapshot[];
-  totals: {
-    divisions: number;
-    teams: number;
-    players: number;
-    matches: number;
-  };
-};
 
 interface LeaguesTabContentProps {
   selectedLeagueIds: string[];
@@ -140,64 +115,7 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
   const isStandingsLoading = standingsQuery.isLoading;
   const standingsError = standingsQuery.error instanceof Error ? standingsQuery.error.message : null;
 
-  const leagueSnapshotQuery = useQuery({
-    queryKey: ['league-snapshot', selectedLeague?.id],
-    queryFn: async ({ signal }: { signal: AbortSignal }) => {
-      if (!selectedLeague || selectedLeague.divisions.length === 0) return null;
-
-      const leaguePlayerIds = new Set<string>();
-      const divisionSnapshots = await Promise.all(
-        selectedLeague.divisions.map(async (division) => {
-          const standingsPayload = await apiFetch<StandingsResponse>(
-            `/competitions/${division.id}/standings`,
-            signal,
-          );
-
-          const teamIds = standingsPayload.data.map((row) => row.team_id);
-          const rosterPayloads = await Promise.all(
-            teamIds.map(async (teamId) => {
-              try {
-                return await apiFetch<TeamRosterResponse>(`/teams/${teamId}/roster`, signal);
-              } catch {
-                return { data: [] } satisfies TeamRosterResponse;
-              }
-            }),
-          );
-
-          const divisionPlayerIds = new Set<string>();
-          for (const rosterPayload of rosterPayloads) {
-            for (const player of rosterPayload.data) {
-              if (!player.id) continue;
-              divisionPlayerIds.add(player.id);
-              leaguePlayerIds.add(player.id);
-            }
-          }
-
-          const playedSum = standingsPayload.data.reduce((sum, row) => sum + row.played, 0);
-          const estimatedMatches = Math.round(playedSum / 2);
-
-          return {
-            divisionId: division.id,
-            divisionName: division.name,
-            teams: standingsPayload.data.length,
-            players: divisionPlayerIds.size,
-            matches: estimatedMatches,
-          } satisfies DivisionSnapshot;
-        }),
-      );
-
-      return {
-        divisions: divisionSnapshots,
-        totals: {
-          divisions: divisionSnapshots.length,
-          teams: divisionSnapshots.reduce((sum, division) => sum + division.teams, 0),
-          players: leaguePlayerIds.size,
-          matches: divisionSnapshots.reduce((sum, division) => sum + division.matches, 0),
-        },
-      } satisfies LeagueSnapshot;
-    },
-    enabled: Boolean(selectedLeague) && selectedLeague!.divisions.length > 0,
-  });
+  const leagueSnapshotQuery = useLeagueSnapshotQuery(selectedLeague?.id ?? '', Boolean(selectedLeague));
 
   const leagueSnapshot = leagueSnapshotQuery.data ?? null;
   const isLeagueSnapshotLoading = leagueSnapshotQuery.isLoading;

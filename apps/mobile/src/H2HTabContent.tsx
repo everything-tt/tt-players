@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { useMemo, useState, type MouseEvent } from 'react';
 import {
-  apiFetch,
   formatMatchDate,
   getInitials,
-  type H2HResponse,
   type PlayerSearchItem,
 } from './player-shared';
 import { AppListGroup, AppListItem } from './ui/appkit';
 import { PlayerSearchSheet } from './PlayerSearchSheet';
 import { usePageNavigation } from './hooks/usePageNavigation';
+import { usePlayerScopedH2HQuery } from './queries';
 
 
 interface H2HTabContentProps {
@@ -26,17 +25,6 @@ interface LeagueEncounterSummary {
 }
 
 
-function buildH2HPath(playerId: string, opponentId: string, leagueIds: string[]): string {
-  const params = new URLSearchParams();
-  if (leagueIds.length > 0) {
-    params.set('league_ids', leagueIds.join(','));
-  }
-  const queryString = params.toString();
-  return queryString.length > 0
-    ? `/players/${playerId}/h2h/${opponentId}?${queryString}`
-    : `/players/${playerId}/h2h/${opponentId}`;
-}
-
 export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlayer }: H2HTabContentProps) {
   const { navigateInTab } = usePageNavigation();
   const [playerA, setPlayerA] = useState<PlayerSearchItem | null>(null);
@@ -47,12 +35,16 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
   };
   const [playerB, setPlayerB] = useState<PlayerSearchItem | null>(null);
 
-  const [h2h, setH2h] = useState<H2HResponse | null>(null);
-  const [isH2HLoading, setIsH2HLoading] = useState(false);
-  const [h2hError, setH2hError] = useState<string | null>(null);
-
   const sortedLeagueIds = useMemo(() => [...selectedLeagueIds].sort(), [selectedLeagueIds]);
-  const selectedLeagueIdsKey = sortedLeagueIds.join(',');
+  const h2hQuery = usePlayerScopedH2HQuery(
+    playerA?.id ?? '',
+    playerB?.id ?? '',
+    sortedLeagueIds,
+    Boolean(playerA && playerB),
+  );
+  const h2h = h2hQuery.data ?? null;
+  const isH2HLoading = h2hQuery.isLoading;
+  const h2hError = h2hQuery.error instanceof Error ? h2hQuery.error.message : null;
 
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [activePicker, setActivePicker] = useState<'A' | 'B' | null>(null);
@@ -71,39 +63,6 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
     setIsSheetOpen(false);
     setActivePicker(null);
   };
-
-
-  useEffect(() => {
-    if (!playerA || !playerB) {
-      setH2h(null);
-      setH2hError(null);
-      setIsH2HLoading(false);
-      return;
-    }
-
-    const abortController = new AbortController();
-
-    const loadH2H = async () => {
-      try {
-        setIsH2HLoading(true);
-        setH2hError(null);
-        const h2hPayload = await apiFetch<H2HResponse>(
-          buildH2HPath(playerA.id, playerB.id, sortedLeagueIds),
-          abortController.signal,
-        );
-        setH2h(h2hPayload);
-      } catch (error) {
-        if ((error as Error).name === 'AbortError') return;
-        setH2h(null);
-        setH2hError((error as Error).message || 'Failed to load H2H data');
-      } finally {
-        setIsH2HLoading(false);
-      }
-    };
-
-    loadH2H();
-    return () => abortController.abort();
-  }, [playerA, playerB, selectedLeagueIdsKey, sortedLeagueIds]);
 
   const encounterCount = h2h?.encounters.length ?? 0;
   const playerAWinPct = encounterCount > 0 && h2h ? Math.round((h2h.player1_wins / encounterCount) * 100) : 0;

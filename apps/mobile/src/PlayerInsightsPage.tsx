@@ -1,8 +1,9 @@
-import { useEffect, useState, type MouseEvent } from 'react';
+import { type MouseEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import './app-shell.css';
 import { useTabNavigation } from './navigation/tab-navigation';
-import { apiFetch, calcWinRate, getInitials, type ExtendedPlayerStats, type PlayerInsights } from './player-shared';
+import { calcWinRate, getInitials } from './player-shared';
+import { usePlayerExtendedStatsQuery, usePlayerInsightsQuery } from './queries';
 import { TabShellPage } from './TabShellPage';
 import {
   AppHeader,
@@ -18,10 +19,15 @@ export function PlayerInsightsPage() {
   const { goBackInActiveTab, switchTab } = useTabNavigation();
   const { playerId = '' } = useParams<{ playerId: string }>();
 
-  const [stats, setStats] = useState<ExtendedPlayerStats | null>(null);
-  const [insights, setInsights] = useState<PlayerInsights | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const statsQuery = usePlayerExtendedStatsQuery(playerId, Boolean(playerId));
+  const insightsQuery = usePlayerInsightsQuery(playerId, Boolean(playerId));
+  const stats = statsQuery.data ?? null;
+  const insights = insightsQuery.data ?? null;
+  const isLoading = statsQuery.isLoading || insightsQuery.isLoading;
+  const error = playerId
+    ? (statsQuery.error instanceof Error ? statsQuery.error.message : null)
+      || (insightsQuery.error instanceof Error ? insightsQuery.error.message : null)
+    : 'Missing player id';
 
   const momentum = insights?.form.momentum ?? 'new';
   const winRate = stats ? calcWinRate(stats.wins, stats.total) : 0;
@@ -39,44 +45,6 @@ export function PlayerInsightsPage() {
   const preventDefaultLink = (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
   };
-
-  useEffect(() => {
-    if (!playerId) {
-      setError('Missing player id');
-      setIsLoading(false);
-      return;
-    }
-
-    const abortController = new AbortController();
-
-    const load = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        const [statsPayload, insightsPayload] = await Promise.all([
-          apiFetch<ExtendedPlayerStats>(`/players/${playerId}/stats/extended`, abortController.signal),
-          apiFetch<PlayerInsights>(`/players/${playerId}/insights`, abortController.signal),
-        ]);
-
-        setStats(statsPayload);
-        setInsights(insightsPayload);
-      } catch (fetchError) {
-        if ((fetchError as Error).name === 'AbortError') return;
-        setStats(null);
-        setInsights(null);
-        setError((fetchError as Error).message || 'Failed to load insights');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    load();
-
-    return () => {
-      abortController.abort();
-    };
-  }, [playerId]);
 
   return (
     <TabShellPage>

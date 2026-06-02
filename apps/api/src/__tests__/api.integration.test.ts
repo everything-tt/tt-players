@@ -44,6 +44,46 @@ describe('GET /api/health', () => {
     });
 });
 
+// ─── /leagues/:id/snapshot ──────────────────────────────────────────────────
+
+describe('GET /leagues/:id/snapshot', () => {
+    it('returns an aggregated active-season league snapshot', async () => {
+        const res = await request
+            .get(`/api/leagues/${ids.leagueId}/snapshot`)
+            .expect(200);
+
+        expect(res.body).toMatchObject({
+            divisions: [
+                {
+                    divisionId: ids.competitionId,
+                    divisionName: 'Division 1',
+                    teams: 1,
+                    players: 2,
+                    matches: 3,
+                },
+            ],
+            totals: {
+                divisions: 1,
+                teams: 1,
+                players: 2,
+                matches: 3,
+            },
+        });
+    });
+
+    it('returns 404 for an unknown league snapshot', async () => {
+        const fakeId = '00000000-0000-0000-0000-000000000003';
+        const res = await request
+            .get(`/api/leagues/${fakeId}/snapshot`)
+            .expect(404);
+
+        expect(res.body).toMatchObject({
+            error: expect.any(String),
+            statusCode: 404,
+        });
+    });
+});
+
 // ─── /competitions/:id/standings ──────────────────────────────────────────────
 
 describe('GET /competitions/:id/standings', () => {
