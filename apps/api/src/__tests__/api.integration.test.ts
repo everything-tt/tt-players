@@ -31,6 +31,19 @@ afterAll(async () => {
     await dropTestDatabase(db);
 }, 15_000);
 
+describe('GET /api/health', () => {
+    it('returns a lightweight health response', async () => {
+        const res = await request
+            .get('/api/health')
+            .expect(200);
+
+        expect(res.body).toEqual({
+            status: 'ok',
+            service: 'tt-players-api',
+        });
+    });
+});
+
 // ─── /competitions/:id/standings ──────────────────────────────────────────────
 
 describe('GET /competitions/:id/standings', () => {

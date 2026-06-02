@@ -41,6 +41,11 @@ export async function buildApp(db: Kysely<Database>) {
     });
 
     // ── Routes ────────────────────────────────────────────────────────────────
+    app.get('/api/health', async () => ({
+        status: 'ok',
+        service: 'tt-players-api',
+    }));
+
     await app.register(leaguesRoutes(db), { prefix: '/api/leagues' });
     await app.register(competitionsRoutes(db), { prefix: '/api/competitions' });
     await app.register(teamsRoutes(db), { prefix: '/api/teams' });

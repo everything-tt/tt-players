@@ -27,6 +27,8 @@ The main selection criteria were:
 - Simple custom-domain setup.
 - A same-origin frontend API path, `/api`, so browser code does not need to call
   the API service hostname directly.
+- External keep-awake pings for the free Render backend, which can spin down
+  after inactivity.
 - CLI or API access for every hosted service so the deployment can be recreated
   and checked without relying only on dashboards.
 
@@ -80,6 +82,15 @@ VITE_API_URL=/api
 The frontend must use the relative API base URL `/api`. This keeps browser
 requests on the same public domain as the UI.
 
+Frontend health endpoint:
+
+```text
+https://tt-players.graceliu.uk/health.json
+```
+
+This is a static file at `apps/mobile/public/health.json`, copied into the Vite
+build and served directly by Render.
+
 ### Render API Service
 
 - Service name: `tt-players-api`
@@ -128,6 +139,16 @@ enabling TLS for Postgres connection strings that contain `sslmode=require`.
 certificate validation against Aiven from Render. The preferred long-term
 hardening is to install and configure Aiven's CA certificate instead of disabling
 certificate verification globally.
+
+Backend health endpoint:
+
+```text
+https://tt-players.graceliu.uk/api/health
+```
+
+This endpoint is intentionally lightweight and does not query PostgreSQL. It is
+safe to use for frequent uptime pings whose purpose is keeping the free Render
+API service warm.
 
 ### Render Static Rewrite
 
@@ -392,6 +413,7 @@ Deploy and verify:
 
 ```bash
 curl -fsS https://tt-players-api.onrender.com/api/leagues
+curl -fsS https://tt-players-api.onrender.com/api/health
 ```
 
 ### 4. Create The Render Static Site
@@ -425,6 +447,7 @@ Deploy and verify:
 
 ```bash
 curl -fsS https://tt-players.onrender.com/api/leagues
+curl -fsS https://tt-players.onrender.com/health.json
 ```
 
 ### 5. Register The Custom Domain
@@ -440,8 +463,45 @@ Verify:
 ```bash
 dig tt-players.graceliu.uk
 curl -fsS https://tt-players.graceliu.uk
+curl -fsS https://tt-players.graceliu.uk/health.json
+curl -fsS https://tt-players.graceliu.uk/api/health
 curl -fsS https://tt-players.graceliu.uk/api/leagues
 ```
+
+### 6. Configure Keep-Awake Pings
+
+Render free web services can spin down after a period of inactivity. The next
+request wakes the service again, but that cold start is user-visible. To keep the
+API warm, configure an external cron ping.
+
+Use cron-job.org:
+
+```text
+Dashboard: https://console.cron-job.org/dashboard
+Job name: tt-players-api-health
+URL: https://tt-players.graceliu.uk/api/health
+Method: GET
+Schedule: every 10 minutes
+Expected HTTP status: 200
+```
+
+The API health URL is the important keep-awake target because it reaches the
+Render web service. The frontend health URL can also be monitored, but it is a
+static site and does not need a keep-awake ping.
+
+Optional frontend monitor:
+
+```text
+Job name: tt-players-frontend-health
+URL: https://tt-players.graceliu.uk/health.json
+Method: GET
+Schedule: every 10 minutes
+Expected HTTP status: 200
+```
+
+Keep the interval below Render's idle timeout. Ten minutes was chosen because it
+is comfortably below the observed 15 minute spin-down window without creating
+meaningful load.
 
 ## Post-Deploy Verification
 
@@ -449,6 +509,10 @@ Run these checks after every deployment:
 
 ```bash
 for url in \
+  https://tt-players.graceliu.uk/health.json \
+  https://tt-players-api.onrender.com/api/health \
+  https://tt-players.onrender.com/api/health \
+  https://tt-players.graceliu.uk/api/health \
   https://tt-players-api.onrender.com/api/leagues \
   https://tt-players.onrender.com/api/leagues \
   https://tt-players.graceliu.uk/api/leagues
@@ -456,7 +520,7 @@ do
   printf "%s " "$url"
   tmp=$(mktemp)
   curl -sS -o "$tmp" -w "%{http_code} %{content_type}" --max-time 45 "$url"
-  node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); console.log(' items=' + x.data.length)" "$tmp"
+  node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); console.log(Array.isArray(x.data) ? ' items=' + x.data.length : ' status=' + x.status)" "$tmp"
   rm -f "$tmp"
 done
 ```
@@ -464,7 +528,8 @@ done
 Expected result:
 
 ```text
-200 application/json; charset=utf-8 items=192
+health URLs: 200
+league URLs: 200 application/json; charset=utf-8 items=192
 ```
 
 Check that the frontend bundle does not hardcode the API service hostname:
