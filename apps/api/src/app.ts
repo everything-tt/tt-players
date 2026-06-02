@@ -22,9 +22,12 @@ export async function buildApp(db: Kysely<Database>) {
     app.setValidatorCompiler(validatorCompiler);
 
     // ── CORS ─────────────────────────────────────────────────────────────────
-    const allowedOrigin = process.env['ALLOWED_ORIGIN'] || 'http://localhost:7373';
+    const allowedOrigins = (process.env['ALLOWED_ORIGIN'] || 'http://localhost:7373')
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean);
     await app.register(cors, {
-        origin: allowedOrigin,
+        origin: allowedOrigins,
         methods: ['GET', 'OPTIONS'],
     });
 
