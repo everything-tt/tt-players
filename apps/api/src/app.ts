@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import compress from '@fastify/compress';
 import {
     serializerCompiler,
     validatorCompiler,
@@ -30,6 +31,9 @@ export async function buildApp(db: Kysely<Database>) {
         origin: allowedOrigins,
         methods: ['GET', 'OPTIONS'],
     });
+
+    // ── Compression (gzip/deflate) ───────────────────────────────────────────
+    await app.register(compress, { global: true, threshold: 1024 });
 
     // ── Global error handler ──────────────────────────────────────────────────
     app.setErrorHandler((error: any, _request, reply) => {

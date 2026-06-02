@@ -220,16 +220,82 @@ const LeaderItemSchema = z.object({
 });
 
 const PLAYER_INSIGHTS_CACHE_TTL_MS = Number(
-    process.env['PLAYER_INSIGHTS_CACHE_TTL_MS'] ?? `${30 * 60 * 1000}`,
+    process.env['PLAYER_INSIGHTS_CACHE_TTL_MS'] ?? `${24 * 60 * 60 * 1000}`,
+);
+
+const DEFAULT_CACHE_TTL_MS = Number(
+    process.env['DEFAULT_CACHE_TTL_MS'] ?? `${24 * 60 * 60 * 1000}`,
 );
 
 const PLAYER_INSIGHTS_CACHE_TYPE = 'player-insights';
+const PLAYER_LEADERS_CACHE_TYPE = 'player-leaders';
+const PLAYER_COUNT_CACHE_TYPE = 'player-count';
 
 function toEpochMs(value: Date | string | null | undefined): number {
     if (!value) return 0;
     const date = value instanceof Date ? value : new Date(String(value));
     const time = date.getTime();
     return Number.isNaN(time) ? 0 : time;
+}
+
+async function readCache<T>(
+    db: Kysely<Database>,
+    type: string,
+    cacheKey: string,
+    dataVersion: string,
+): Promise<T | null> {
+    const cached = await db
+        .selectFrom('cache_entries')
+        .select(['content', 'source_version', 'expires_at'])
+        .where('type', '=', type)
+        .where('cache_key', '=', cacheKey)
+        .executeTakeFirst();
+
+    if (
+        cached
+        && toEpochMs(cached.expires_at) > Date.now()
+        && cached.source_version === dataVersion
+    ) {
+        return cached.content as T;
+    }
+    return null;
+}
+
+async function writeCache(
+    db: Kysely<Database>,
+    type: string,
+    cacheKey: string,
+    payload: unknown,
+    dataVersion: string,
+    ttlMs: number = DEFAULT_CACHE_TTL_MS,
+): Promise<void> {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + ttlMs);
+    await db
+        .insertInto('cache_entries')
+        .values({
+            type,
+            cache_key: cacheKey,
+            content: payload,
+            source_version: dataVersion,
+            expires_at: expiresAt,
+            updated_at: now,
+        })
+        .onConflict((oc) =>
+            oc.columns(['type', 'cache_key']).doUpdateSet({
+                content: payload,
+                source_version: dataVersion,
+                expires_at: expiresAt,
+                updated_at: now,
+            }),
+        )
+        .execute();
+
+    // Purge expired entries to prevent unbounded growth
+    await db
+        .deleteFrom('cache_entries')
+        .where('expires_at', '<', now)
+        .execute();
 }
 
 export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
@@ -250,6 +316,13 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 },
             },
             async (_request, reply) => {
+                const cachedCount = await readCache<{ players: number; matches: number }>(
+                    db, PLAYER_COUNT_CACHE_TYPE, 'global', 'v1',
+                );
+                if (cachedCount) {
+                    return reply.send(cachedCount);
+                }
+
                 const [playerResult, matchResult] = await Promise.all([
                     db
                         .selectFrom('external_players')
@@ -263,10 +336,12 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         .executeTakeFirstOrThrow(),
                 ]);
 
-                return reply.send({
+                const payload = {
                     players: Number(playerResult.count),
                     matches: Number(matchResult.count),
-                });
+                };
+                await writeCache(db, PLAYER_COUNT_CACHE_TYPE, 'global', payload, 'v1');
+                return reply.send(payload);
             },
         );
 
@@ -294,6 +369,29 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     .map((id) => id.trim())
                     .filter((id) => id.length > 0)
                     .join(',');
+
+                // Compute data version for leaders cache
+                const versionRes = await sql<{ data_version: Date | null }>`
+                    SELECT MAX(COALESCE(r.updated_at, r.created_at)) AS data_version
+                    FROM rubbers r
+                    JOIN fixtures f ON f.id = r.fixture_id
+                    JOIN competitions c ON c.id = f.competition_id
+                    JOIN seasons s ON s.id = c.season_id
+                    WHERE r.deleted_at IS NULL
+                      AND r.outcome_type != 'walkover'
+                      AND ((${seasonId ?? null}::uuid IS NULL AND s.is_active = true)
+                           OR s.id = ${seasonId ?? null}::uuid)
+                `.execute(db);
+                const versionRaw = versionRes.rows[0]?.data_version ?? null;
+                const dataVersion = versionRaw instanceof Date
+                    ? versionRaw.toISOString()
+                    : versionRaw ? new Date(String(versionRaw)).toISOString() : 'none';
+
+                const cacheKey = `${mode}:${leagueCsv}:${seasonId ?? 'active'}:${limit}:${minPlayed}`;
+                const cachedLeaders = await readCache<any>(db, PLAYER_LEADERS_CACHE_TYPE, cacheKey, dataVersion);
+                if (cachedLeaders) {
+                    return reply.send(cachedLeaders);
+                }
 
                 const aggregateRes = await sql<{
                     player_id: string;
@@ -409,12 +507,14 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     ...row,
                 }));
 
-                return reply.send({
+                const payload = {
                     mode,
                     formula,
                     min_played: minPlayed,
                     data,
-                });
+                };
+                await writeCache(db, PLAYER_LEADERS_CACHE_TYPE, cacheKey, payload, dataVersion);
+                return reply.send(payload);
             },
         );
 
@@ -591,123 +691,156 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     return reply.status(404).send({ error: `Player ${id} not found`, statusCode: 404 });
                 }
 
-                const { wins, losses, total } = await db
-                    .selectFrom('rubbers')
-                    .select([
-                        sql<number>`COUNT(*) FILTER (WHERE (home_player_1_id = ${id} AND home_games_won > away_games_won) OR (away_player_1_id = ${id} AND away_games_won > home_games_won))`.as('wins'),
-                        sql<number>`COUNT(*) FILTER (WHERE (home_player_1_id = ${id} AND home_games_won < away_games_won) OR (away_player_1_id = ${id} AND away_games_won < home_games_won))`.as('losses'),
-                        sql<number>`COUNT(*)`.as('total'),
-                    ])
-                    .where((eb) => eb.or([eb('home_player_1_id', '=', id), eb('away_player_1_id', '=', id)]))
-                    .where('outcome_type', '!=', 'walkover')
-                    .where('deleted_at', 'is', null)
-                    .executeTakeFirstOrThrow();
-
-                // 1. Nemesis query
-                const nemesisRes = await sql<{
-                    opponent_id: string;
-                    opponent_name: string;
-                    losses: number;
-                    wins: number;
-                }>`
-                    WITH opponents AS (
-                        SELECT 
-                            CASE WHEN home_player_1_id = ${id} THEN away_player_1_id ELSE home_player_1_id END as opp_id,
-                            CASE WHEN (home_player_1_id = ${id} AND home_games_won < away_games_won) OR (away_player_1_id = ${id} AND away_games_won < home_games_won) THEN 1 ELSE 0 END as is_loss,
-                            CASE WHEN (home_player_1_id = ${id} AND home_games_won > away_games_won) OR (away_player_1_id = ${id} AND away_games_won > home_games_won) THEN 1 ELSE 0 END as is_win
-                        FROM rubbers
-                        WHERE (home_player_1_id = ${id} OR away_player_1_id = ${id}) AND is_doubles = false AND deleted_at IS NULL AND outcome_type != 'walkover'
-                    )
-                    SELECT ep.id as opponent_id, ep.name as opponent_name, SUM(is_loss) as losses, SUM(is_win) as wins
-                    FROM opponents o
-                    JOIN external_players ep ON ep.id = o.opp_id
-                    GROUP BY o.opp_id, ep.id, ep.name
-                    HAVING SUM(is_loss) > 0
-                    ORDER BY SUM(is_loss) DESC, SUM(is_win) ASC
-                    LIMIT 1
+                // Compute data version for extended stats cache
+                const extVersionRes = await sql<{ data_version: Date | null }>`
+                    SELECT MAX(COALESCE(r.updated_at, r.created_at, f.updated_at, f.created_at)) AS data_version
+                    FROM rubbers r
+                    JOIN fixtures f ON f.id = r.fixture_id
+                    WHERE (r.home_player_1_id = ${id} OR r.away_player_1_id = ${id}
+                           OR r.home_player_2_id = ${id} OR r.away_player_2_id = ${id})
+                      AND r.deleted_at IS NULL
+                      AND r.outcome_type != 'walkover'
+                      AND f.deleted_at IS NULL
                 `.execute(db);
+                const extVersionRaw = extVersionRes.rows[0]?.data_version ?? null;
+                const extDataVersion = extVersionRaw instanceof Date
+                    ? extVersionRaw.toISOString()
+                    : extVersionRaw ? new Date(String(extVersionRaw)).toISOString() : 'none';
 
-                // 2. Duo query
-                const duoRes = await sql<{ partner_name: string, wins: number, total: number }>`
-                    WITH partners AS (
-                        SELECT 
-                            CASE 
-                                WHEN home_player_1_id = ${id} THEN home_player_2_id 
-                                WHEN home_player_2_id = ${id} THEN home_player_1_id
-                                WHEN away_player_1_id = ${id} THEN away_player_2_id
-                                ELSE away_player_1_id
-                            END as partner_id,
-                            CASE WHEN (home_player_1_id = ${id} OR home_player_2_id = ${id}) AND home_games_won > away_games_won THEN 1
-                                 WHEN (away_player_1_id = ${id} OR away_player_2_id = ${id}) AND away_games_won > home_games_won THEN 1 ELSE 0 END as is_win
-                        FROM rubbers
-                        WHERE (home_player_1_id = ${id} OR home_player_2_id = ${id} OR away_player_1_id = ${id} OR away_player_2_id = ${id})
-                          AND is_doubles = true AND deleted_at IS NULL AND outcome_type != 'walkover'
-                    )
-                    SELECT ep.name as partner_name, SUM(is_win) as wins, COUNT(*) as total
-                    FROM partners p
-                    JOIN external_players ep ON ep.id = p.partner_id
-                    WHERE p.partner_id IS NOT NULL
-                    GROUP BY p.partner_id, ep.name
-                    HAVING SUM(is_win) > 0
-                    ORDER BY SUM(is_win) DESC
-                    LIMIT 1
-                `.execute(db);
+                const PLAYER_EXTENDED_CACHE_TYPE = 'player-extended';
+                const cachedExtended = await readCache<any>(db, PLAYER_EXTENDED_CACHE_TYPE, id, extDataVersion);
+                if (cachedExtended) {
+                    return reply.send(cachedExtended);
+                }
 
-                // 3. Streak
-                const streakRes = await sql<{ result: string }>`
-                    SELECT 
-                        CASE 
-                            WHEN (home_player_1_id = ${id} AND home_games_won > away_games_won) OR (away_player_1_id = ${id} AND away_games_won > home_games_won) THEN 'W'
-                            ELSE 'L'
-                        END as result
-                    FROM rubbers
-                    JOIN fixtures ON fixtures.id = rubbers.fixture_id
-                    WHERE (home_player_1_id = ${id} OR away_player_1_id = ${id})
-                      AND is_doubles = false AND rubbers.deleted_at IS NULL AND outcome_type != 'walkover'
-                    ORDER BY fixtures.date_played DESC
-                    LIMIT 10
-                `.execute(db);
+                // All 5 queries are independent — run in parallel
+                const [
+                    { wins, losses, total },
+                    nemesisRes,
+                    duoRes,
+                    streakRes,
+                    mostPlayedOpponentsRes,
+                ] = await Promise.all([
+                    // 0. Win/loss totals
+                    db
+                        .selectFrom('rubbers')
+                        .select([
+                            sql<number>`COUNT(*) FILTER (WHERE (home_player_1_id = ${id} AND home_games_won > away_games_won) OR (away_player_1_id = ${id} AND away_games_won > home_games_won))`.as('wins'),
+                            sql<number>`COUNT(*) FILTER (WHERE (home_player_1_id = ${id} AND home_games_won < away_games_won) OR (away_player_1_id = ${id} AND away_games_won < home_games_won))`.as('losses'),
+                            sql<number>`COUNT(*)`.as('total'),
+                        ])
+                        .where((eb) => eb.or([eb('home_player_1_id', '=', id), eb('away_player_1_id', '=', id)]))
+                        .where('outcome_type', '!=', 'walkover')
+                        .where('deleted_at', 'is', null)
+                        .executeTakeFirstOrThrow(),
 
-                const mostPlayedOpponentsRes = await sql<{
-                    opponent_id: string;
-                    opponent_name: string;
-                    played: number;
-                    wins: number;
-                    losses: number;
-                }>`
-                    WITH opponents AS (
+                    // 1. Nemesis query
+                    sql<{
+                        opponent_id: string;
+                        opponent_name: string;
+                        losses: number;
+                        wins: number;
+                    }>`
+                        WITH opponents AS (
+                            SELECT
+                                CASE WHEN home_player_1_id = ${id} THEN away_player_1_id ELSE home_player_1_id END as opp_id,
+                                CASE WHEN (home_player_1_id = ${id} AND home_games_won < away_games_won) OR (away_player_1_id = ${id} AND away_games_won < home_games_won) THEN 1 ELSE 0 END as is_loss,
+                                CASE WHEN (home_player_1_id = ${id} AND home_games_won > away_games_won) OR (away_player_1_id = ${id} AND away_games_won > home_games_won) THEN 1 ELSE 0 END as is_win
+                            FROM rubbers
+                            WHERE (home_player_1_id = ${id} OR away_player_1_id = ${id}) AND is_doubles = false AND deleted_at IS NULL AND outcome_type != 'walkover'
+                        )
+                        SELECT ep.id as opponent_id, ep.name as opponent_name, SUM(is_loss) as losses, SUM(is_win) as wins
+                        FROM opponents o
+                        JOIN external_players ep ON ep.id = o.opp_id
+                        GROUP BY o.opp_id, ep.id, ep.name
+                        HAVING SUM(is_loss) > 0
+                        ORDER BY SUM(is_loss) DESC, SUM(is_win) ASC
+                        LIMIT 1
+                    `.execute(db),
+
+                    // 2. Duo query
+                    sql<{ partner_name: string, wins: number, total: number }>`
+                        WITH partners AS (
+                            SELECT
+                                CASE
+                                    WHEN home_player_1_id = ${id} THEN home_player_2_id
+                                    WHEN home_player_2_id = ${id} THEN home_player_1_id
+                                    WHEN away_player_1_id = ${id} THEN away_player_2_id
+                                    ELSE away_player_1_id
+                                END as partner_id,
+                                CASE WHEN (home_player_1_id = ${id} OR home_player_2_id = ${id}) AND home_games_won > away_games_won THEN 1
+                                     WHEN (away_player_1_id = ${id} OR away_player_2_id = ${id}) AND away_games_won > home_games_won THEN 1 ELSE 0 END as is_win
+                            FROM rubbers
+                            WHERE (home_player_1_id = ${id} OR home_player_2_id = ${id} OR away_player_1_id = ${id} OR away_player_2_id = ${id})
+                              AND is_doubles = true AND deleted_at IS NULL AND outcome_type != 'walkover'
+                        )
+                        SELECT ep.name as partner_name, SUM(is_win) as wins, COUNT(*) as total
+                        FROM partners p
+                        JOIN external_players ep ON ep.id = p.partner_id
+                        WHERE p.partner_id IS NOT NULL
+                        GROUP BY p.partner_id, ep.name
+                        HAVING SUM(is_win) > 0
+                        ORDER BY SUM(is_win) DESC
+                        LIMIT 1
+                    `.execute(db),
+
+                    // 3. Streak
+                    sql<{ result: string }>`
                         SELECT
-                            CASE WHEN home_player_1_id = ${id} THEN away_player_1_id ELSE home_player_1_id END as opp_id,
                             CASE
-                                WHEN (home_player_1_id = ${id} AND home_games_won > away_games_won)
-                                  OR (away_player_1_id = ${id} AND away_games_won > home_games_won) THEN 1
-                                ELSE 0
-                            END as is_win,
-                            CASE
-                                WHEN (home_player_1_id = ${id} AND home_games_won < away_games_won)
-                                  OR (away_player_1_id = ${id} AND away_games_won < home_games_won) THEN 1
-                                ELSE 0
-                            END as is_loss
+                                WHEN (home_player_1_id = ${id} AND home_games_won > away_games_won) OR (away_player_1_id = ${id} AND away_games_won > home_games_won) THEN 'W'
+                                ELSE 'L'
+                            END as result
                         FROM rubbers
+                        JOIN fixtures ON fixtures.id = rubbers.fixture_id
                         WHERE (home_player_1_id = ${id} OR away_player_1_id = ${id})
-                          AND is_doubles = false
-                          AND deleted_at IS NULL
-                          AND outcome_type != 'walkover'
-                    )
-                    SELECT
-                        ep.id as opponent_id,
-                        ep.name as opponent_name,
-                        COUNT(*)::int as played,
-                        SUM(o.is_win)::int as wins,
-                        SUM(o.is_loss)::int as losses
-                    FROM opponents o
-                    JOIN external_players ep ON ep.id = o.opp_id
-                    WHERE o.opp_id IS NOT NULL
-                      AND ep.deleted_at IS NULL
-                    GROUP BY ep.id, ep.name
-                    ORDER BY COUNT(*) DESC, SUM(o.is_win) DESC, ep.name ASC
-                    LIMIT 6
-                `.execute(db);
+                          AND is_doubles = false AND rubbers.deleted_at IS NULL AND outcome_type != 'walkover'
+                        ORDER BY fixtures.date_played DESC
+                        LIMIT 10
+                    `.execute(db),
+
+                    // 4. Most played opponents
+                    sql<{
+                        opponent_id: string;
+                        opponent_name: string;
+                        played: number;
+                        wins: number;
+                        losses: number;
+                    }>`
+                        WITH opponents AS (
+                            SELECT
+                                CASE WHEN home_player_1_id = ${id} THEN away_player_1_id ELSE home_player_1_id END as opp_id,
+                                CASE
+                                    WHEN (home_player_1_id = ${id} AND home_games_won > away_games_won)
+                                      OR (away_player_1_id = ${id} AND away_games_won > home_games_won) THEN 1
+                                    ELSE 0
+                                END as is_win,
+                                CASE
+                                    WHEN (home_player_1_id = ${id} AND home_games_won < away_games_won)
+                                      OR (away_player_1_id = ${id} AND away_games_won < home_games_won) THEN 1
+                                    ELSE 0
+                                END as is_loss
+                            FROM rubbers
+                            WHERE (home_player_1_id = ${id} OR away_player_1_id = ${id})
+                              AND is_doubles = false
+                              AND deleted_at IS NULL
+                              AND outcome_type != 'walkover'
+                        )
+                        SELECT
+                            ep.id as opponent_id,
+                            ep.name as opponent_name,
+                            COUNT(*)::int as played,
+                            SUM(o.is_win)::int as wins,
+                            SUM(o.is_loss)::int as losses
+                        FROM opponents o
+                        JOIN external_players ep ON ep.id = o.opp_id
+                        WHERE o.opp_id IS NOT NULL
+                          AND ep.deleted_at IS NULL
+                        GROUP BY ep.id, ep.name
+                        ORDER BY COUNT(*) DESC, SUM(o.is_win) DESC, ep.name ASC
+                        LIMIT 6
+                    `.execute(db),
+                ]);
 
                 // calculate streak string
                 let streakStr = 'None';
@@ -747,7 +880,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         : 0,
                 }));
 
-                return reply.send({
+                const payload = {
                     player_id: player.id,
                     player_name: player.name,
                     wins: Number(wins),
@@ -758,7 +891,9 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     duo: duoStr,
                     streak: streakStr,
                     most_played_opponents: mostPlayedOpponents,
-                });
+                };
+                await writeCache(db, PLAYER_EXTENDED_CACHE_TYPE, id, payload, extDataVersion);
+                return reply.send(payload);
             }
         );
 
@@ -813,19 +948,9 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         ? new Date(String(versionRaw)).toISOString()
                         : 'none';
 
-                const cached = await db
-                    .selectFrom('cache_entries')
-                    .select(['content', 'source_version', 'expires_at'])
-                    .where('type', '=', PLAYER_INSIGHTS_CACHE_TYPE)
-                    .where('cache_key', '=', id)
-                    .executeTakeFirst();
-
-                if (
-                    cached
-                    && toEpochMs(cached.expires_at) > Date.now()
-                    && cached.source_version === dataVersion
-                ) {
-                    return reply.send(cached.content as any);
+                const cachedInsights = await readCache<any>(db, PLAYER_INSIGHTS_CACHE_TYPE, id, dataVersion);
+                if (cachedInsights) {
+                    return reply.send(cachedInsights);
                 }
 
                 const singlesRes = await sql<{
@@ -1236,28 +1361,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     },
                 };
 
-                const now = new Date();
-                const expiresAt = new Date(now.getTime() + PLAYER_INSIGHTS_CACHE_TTL_MS);
-
-                await db
-                    .insertInto('cache_entries')
-                    .values({
-                        type: PLAYER_INSIGHTS_CACHE_TYPE,
-                        cache_key: id,
-                        content: payload,
-                        source_version: dataVersion,
-                        expires_at: expiresAt,
-                        updated_at: now,
-                    })
-                    .onConflict((oc) =>
-                        oc.columns(['type', 'cache_key']).doUpdateSet({
-                            content: payload,
-                            source_version: dataVersion,
-                            expires_at: expiresAt,
-                            updated_at: now,
-                        }),
-                    )
-                    .execute();
+                await writeCache(db, PLAYER_INSIGHTS_CACHE_TYPE, id, payload, dataVersion, PLAYER_INSIGHTS_CACHE_TTL_MS);
 
                 return reply.send(payload);
             },
@@ -1388,33 +1492,25 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 const { id } = request.params;
                 const { limit, offset } = request.query;
 
-                const totalRes = await sql<{ count: number }>`
-                    SELECT COUNT(*)::int as count
-                    FROM rubbers r
-                    WHERE (r.home_player_1_id = ${id} OR r.away_player_1_id = ${id})
-                      AND r.is_doubles = false
-                      AND r.deleted_at IS NULL
-                `.execute(db);
-                const count = totalRes.rows[0]?.count ?? 0;
-
                 const matches = await sql<any>`
-                    SELECT 
+                    SELECT
+                        COUNT(*) OVER() AS total_count,
                         r.id,
                         r.fixture_id,
                         f.date_played as date,
                         CONCAT(l.name, ' · ', c.name) as league,
                         CASE WHEN r.home_player_1_id = ${id} THEN r.away_player_1_id ELSE r.home_player_1_id END as opponent_id,
                         CASE WHEN r.home_player_1_id = ${id} THEN ep_away.name ELSE ep_home.name END as opponent,
-                        CASE 
-                            WHEN (r.home_player_1_id = ${id} AND r.home_games_won > r.away_games_won) 
+                        CASE
+                            WHEN (r.home_player_1_id = ${id} AND r.home_games_won > r.away_games_won)
                               OR (r.away_player_1_id = ${id} AND r.away_games_won > r.home_games_won) THEN true
                             ELSE false
                         END as "isWin",
-                        CASE 
+                        CASE
                             WHEN r.home_player_1_id = ${id} THEN CONCAT('Won ', r.home_games_won, '-', r.away_games_won)
                             WHEN r.away_player_1_id = ${id} THEN CONCAT('Won ', r.away_games_won, '-', r.home_games_won)
                         END as result_win,
-                        CASE 
+                        CASE
                             WHEN r.home_player_1_id = ${id} THEN CONCAT('Lost ', r.home_games_won, '-', r.away_games_won)
                             WHEN r.away_player_1_id = ${id} THEN CONCAT('Lost ', r.away_games_won, '-', r.home_games_won)
                         END as result_loss
@@ -1433,10 +1529,26 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     OFFSET ${offset}
                 `.execute(db);
 
+                // Use COUNT(*) OVER() from the data query when rows exist;
+                // fall back to a lightweight COUNT only when page is empty (offset exceeds total)
+                let total: number;
+                if (matches.rows.length > 0) {
+                    total = Number(matches.rows[0].total_count);
+                } else {
+                    const countRes = await sql<{ count: number }>`
+                        SELECT COUNT(*)::int as count
+                        FROM rubbers r
+                        WHERE (r.home_player_1_id = ${id} OR r.away_player_1_id = ${id})
+                          AND r.is_doubles = false
+                          AND r.deleted_at IS NULL
+                    `.execute(db);
+                    total = countRes.rows[0]?.count ?? 0;
+                }
+
                 const data = matches.rows.map((m: any) => ({
                     id: m.id,
                     fixture_id: m.fixture_id,
-                    date: new Date(m.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+                    date: String(m.date),
                     league: m.league,
                     opponent: m.opponent ?? 'Unknown',
                     opponent_id: m.opponent_id,
@@ -1445,7 +1557,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 }));
 
                 return reply.send({
-                    total: Number(count),
+                    total,
                     limit,
                     offset,
                     data,
@@ -1527,7 +1639,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     return {
                         id: m.id,
                         fixture_id: m.fixture_id,
-                        date: new Date(m.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+                        date: String(m.date),
                         league: m.league,
                         opponent: m.opponent ?? 'Unknown',
                         opponent_id: m.opponent_id,

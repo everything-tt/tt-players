@@ -565,3 +565,78 @@ describe('GET /players/:id/insights', () => {
         });
     });
 });
+
+// ─── /players/:id/rubbers (paginated) ───────────────────────────────────────────
+
+describe('GET /players/:id/rubbers', () => {
+    it('returns paginated rubbers with correct shape', async () => {
+        const res = await request
+            .get(`/api/players/${ids.homePlayerId}/rubbers?limit=10&offset=0`)
+            .expect(200);
+
+        expect(res.body).toMatchObject({
+            total: expect.any(Number),
+            limit: 10,
+            offset: 0,
+            data: expect.any(Array),
+        });
+        expect(res.body.total).toBeGreaterThanOrEqual(1);
+        expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('returns correct total even when offset exceeds data', async () => {
+        const res = await request
+            .get(`/api/players/${ids.homePlayerId}/rubbers?limit=10&offset=999`)
+            .expect(200);
+
+        expect(res.body.data).toHaveLength(0);
+        expect(res.body.total).toBeGreaterThanOrEqual(1);
+    });
+
+    it('returns correct rubber item shape', async () => {
+        const res = await request
+            .get(`/api/players/${ids.homePlayerId}/rubbers?limit=1&offset=0`)
+            .expect(200);
+
+        const item = res.body.data[0];
+        expect(item).toMatchObject({
+            id: expect.any(String),
+            fixture_id: expect.any(String),
+            date: expect.any(String),
+            league: expect.any(String),
+            opponent: expect.any(String),
+            isWin: expect.any(Boolean),
+        });
+    });
+});
+
+// ─── /players/count (cached) ────────────────────────────────────────────────────
+
+describe('GET /players/count', () => {
+    it('returns player and match counts', async () => {
+        const res = await request
+            .get('/api/players/count')
+            .expect(200);
+
+        expect(res.body).toMatchObject({
+            players: expect.any(Number),
+            matches: expect.any(Number),
+        });
+        expect(res.body.players).toBeGreaterThan(0);
+    });
+
+    it('caches count and returns same data on second call', async () => {
+        await db.deleteFrom('cache_entries').where('type', '=', 'player-count').execute();
+
+        const first = await request.get('/api/players/count').expect(200);
+        const second = await request.get('/api/players/count').expect(200);
+        expect(second.body).toEqual(first.body);
+
+        const cached = await db
+            .selectFrom('cache_entries')
+            .select(['type'])
+            .where('type', '=', 'player-count')
+            .executeTakeFirst();
+        expect(cached).toBeDefined();
+    });
+});

@@ -145,4 +145,26 @@ describe('GET /api/players/:id/stats/extended and /api/players/:id/h2h/:opponent
         expect(filteredRes.body.encounters.length).toBeLessThan(allRes.body.encounters.length);
         expect(filteredRes.body.encounters.every((encounter: { league: string }) => encounter.league === 'Test League · Division 1')).toBe(true);
     });
+
+    it('caches extended stats and returns same data on second call', async () => {
+        await db.deleteFrom('cache_entries').where('type', '=', 'player-extended').execute();
+
+        const first = await request
+            .get(`/api/players/${ids.homePlayerId}/stats/extended`)
+            .expect(200);
+
+        const second = await request
+            .get(`/api/players/${ids.homePlayerId}/stats/extended`)
+            .expect(200);
+
+        expect(second.body).toEqual(first.body);
+
+        const cached = await db
+            .selectFrom('cache_entries')
+            .select(['type', 'cache_key'])
+            .where('type', '=', 'player-extended')
+            .where('cache_key', '=', ids.homePlayerId)
+            .executeTakeFirst();
+        expect(cached).toBeDefined();
+    });
 });

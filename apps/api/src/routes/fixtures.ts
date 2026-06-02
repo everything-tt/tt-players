@@ -119,6 +119,7 @@ export function fixturesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     .where('rubbers.fixture_id', '=', id)
                     .where('rubbers.deleted_at', 'is', null)
                     .orderBy('rubbers.created_at', 'asc')
+                    .orderBy('rubbers.external_id', 'asc')
                     .execute();
 
                 const sourceUrl = await resolveFixtureSourceUrl(

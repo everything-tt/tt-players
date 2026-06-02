@@ -148,4 +148,25 @@ describe('GET /api/players/leaders', () => {
         const names = res.body.data.map((row: { player_name: string }) => row.player_name);
         expect(names).not.toContain('History Hero');
     });
+
+    it('caches leaders response and returns same data on second call', async () => {
+        await db.deleteFrom('cache_entries').where('type', '=', 'player-leaders').execute();
+
+        const first = await request
+            .get('/api/players/leaders?mode=combined&limit=5&min_played=1')
+            .expect(200);
+
+        const second = await request
+            .get('/api/players/leaders?mode=combined&limit=5&min_played=1')
+            .expect(200);
+
+        expect(second.body).toEqual(first.body);
+
+        const cached = await db
+            .selectFrom('cache_entries')
+            .select(['type', 'cache_key'])
+            .where('type', '=', 'player-leaders')
+            .executeTakeFirst();
+        expect(cached).toBeDefined();
+    });
 });

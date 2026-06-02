@@ -301,21 +301,61 @@ export function teamsRoutes(db: Kysely<Database>): FastifyPluginAsync {
             async (request, reply) => {
                 const { id } = request.params;
 
+                // Split into 4 focused subqueries that can each use a single index,
+                // then UNION ALL and aggregate by player.
                 const roster = await sql<any>`
-                    SELECT 
-                        ep.id, ep.name,
-                        COUNT(DISTINCT r.id) as played,
-                        SUM(CASE WHEN 
-                            ((f.home_team_id = ${id} AND r.home_games_won > r.away_games_won) OR (f.away_team_id = ${id} AND r.away_games_won > r.home_games_won)) THEN 1 ELSE 0 END) as wins
-                    FROM fixtures f
-                    JOIN rubbers r ON r.fixture_id = f.id
-                    JOIN external_players ep ON (
-                        (f.home_team_id = ${id} AND (r.home_player_1_id = ep.id OR r.home_player_2_id = ep.id)) OR
-                        (f.away_team_id = ${id} AND (r.away_player_1_id = ep.id OR r.away_player_2_id = ep.id))
+                    WITH home_p1 AS (
+                        SELECT r.id AS rubber_id, r.home_player_1_id AS player_id,
+                               CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END AS is_win
+                        FROM rubbers r
+                        JOIN fixtures f ON f.id = r.fixture_id
+                        WHERE f.home_team_id = ${id}
+                          AND r.home_player_1_id IS NOT NULL
+                          AND r.deleted_at IS NULL
+                          AND r.outcome_type != 'walkover'
+                    ),
+                    home_p2 AS (
+                        SELECT r.id AS rubber_id, r.home_player_2_id AS player_id,
+                               CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END AS is_win
+                        FROM rubbers r
+                        JOIN fixtures f ON f.id = r.fixture_id
+                        WHERE f.home_team_id = ${id}
+                          AND r.home_player_2_id IS NOT NULL
+                          AND r.deleted_at IS NULL
+                          AND r.outcome_type != 'walkover'
+                    ),
+                    away_p1 AS (
+                        SELECT r.id AS rubber_id, r.away_player_1_id AS player_id,
+                               CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END AS is_win
+                        FROM rubbers r
+                        JOIN fixtures f ON f.id = r.fixture_id
+                        WHERE f.away_team_id = ${id}
+                          AND r.away_player_1_id IS NOT NULL
+                          AND r.deleted_at IS NULL
+                          AND r.outcome_type != 'walkover'
+                    ),
+                    away_p2 AS (
+                        SELECT r.id AS rubber_id, r.away_player_2_id AS player_id,
+                               CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END AS is_win
+                        FROM rubbers r
+                        JOIN fixtures f ON f.id = r.fixture_id
+                        WHERE f.away_team_id = ${id}
+                          AND r.away_player_2_id IS NOT NULL
+                          AND r.deleted_at IS NULL
+                          AND r.outcome_type != 'walkover'
+                    ),
+                    all_players AS (
+                        SELECT * FROM home_p1
+                        UNION ALL SELECT * FROM home_p2
+                        UNION ALL SELECT * FROM away_p1
+                        UNION ALL SELECT * FROM away_p2
                     )
-                    WHERE (f.home_team_id = ${id} OR f.away_team_id = ${id})
-                      AND r.deleted_at IS NULL
-                      AND r.outcome_type != 'walkover'
+                    SELECT
+                        ep.id, ep.name,
+                        COUNT(DISTINCT ap.rubber_id) AS played,
+                        SUM(ap.is_win)::int AS wins
+                    FROM all_players ap
+                    JOIN external_players ep ON ep.id = ap.player_id
                     GROUP BY ep.id, ep.name
                     ORDER BY wins DESC, played DESC
                 `.execute(db);
@@ -356,26 +396,29 @@ export function teamsRoutes(db: Kysely<Database>): FastifyPluginAsync {
             async (request, reply) => {
                 const { id } = request.params;
 
-                const standing = await db.selectFrom('league_standings')
-                    .select(['position', 'points'])
-                    .where('team_id', '=', id)
-                    .orderBy('created_at', 'desc')
-                    .limit(1)
-                    .executeTakeFirst();
+                const [standing, recentsRes] = await Promise.all([
+                    db.selectFrom('league_standings')
+                        .select(['position', 'points'])
+                        .where('team_id', '=', id)
+                        .orderBy('created_at', 'desc')
+                        .limit(1)
+                        .executeTakeFirst(),
+                    sql<any>`
+                        SELECT f.home_team_id, f.away_team_id,
+                            SUM(CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END) as home_score,
+                            SUM(CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END) as away_score
+                        FROM fixtures f
+                        JOIN rubbers r ON r.fixture_id = f.id
+                        WHERE (f.home_team_id = ${id} OR f.away_team_id = ${id})
+                          AND f.status = 'completed'
+                          AND r.deleted_at IS NULL
+                        GROUP BY f.id, f.date_played, f.home_team_id, f.away_team_id
+                        ORDER BY f.date_played DESC
+                        LIMIT 5
+                    `.execute(db),
+                ]);
 
-                const recents = await sql<any>`
-                    SELECT f.home_team_id, f.away_team_id,
-                        SUM(CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END) as home_score,
-                        SUM(CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END) as away_score
-                    FROM fixtures f
-                    JOIN rubbers r ON r.fixture_id = f.id
-                    WHERE (f.home_team_id = ${id} OR f.away_team_id = ${id}) 
-                      AND f.status = 'completed'
-                      AND r.deleted_at IS NULL
-                    GROUP BY f.id, f.date_played, f.home_team_id, f.away_team_id
-                    ORDER BY f.date_played DESC
-                    LIMIT 5
-                `.execute(db);
+                const recents = recentsRes;
 
                 const form = recents.rows.map((r: any) => {
                     const isHome = r.home_team_id === id;

@@ -14,6 +14,7 @@ import * as m006 from '../../../../../packages/db/src/migrations/006_add_canonic
 import * as m007 from '../../../../../packages/db/src/migrations/007_add_performance_indexes.js';
 import * as m008 from '../../../../../packages/db/src/migrations/008_create_cache_entries.js';
 import * as m009 from '../../../../../packages/db/src/migrations/009_create_regions.js';
+import * as m010 from '../../../../../packages/db/src/migrations/010_add_performance_indexes_2.js';
 
 const { Pool } = pg;
 
@@ -33,6 +34,7 @@ class StaticMigrationProvider implements MigrationProvider {
             '007_add_performance_indexes': m007,
             '008_create_cache_entries': m008,
             '009_create_regions': m009,
+            '010_add_performance_indexes_2': m010,
         };
     }
 }
