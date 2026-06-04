@@ -7,12 +7,10 @@ import {
 import { AppListGroup, AppListItem } from './ui/appkit';
 import { PlayerSearchSheet } from './PlayerSearchSheet';
 import { usePageNavigation } from './hooks/usePageNavigation';
-import { usePlayerScopedH2HQuery } from './queries';
+import { usePlayerH2HQuery } from './queries';
 
 
 interface H2HTabContentProps {
-  selectedLeagueIds: string[];
-  leagueScopeLabel: string;
   onOpenPlayer: (playerId: string) => void;
 }
 
@@ -25,7 +23,7 @@ interface LeagueEncounterSummary {
 }
 
 
-export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlayer }: H2HTabContentProps) {
+export function H2HTabContent({ onOpenPlayer }: H2HTabContentProps) {
   const { navigateInTab } = usePageNavigation();
   const [playerA, setPlayerA] = useState<PlayerSearchItem | null>(null);
 
@@ -35,11 +33,9 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
   };
   const [playerB, setPlayerB] = useState<PlayerSearchItem | null>(null);
 
-  const sortedLeagueIds = useMemo(() => [...selectedLeagueIds].sort(), [selectedLeagueIds]);
-  const h2hQuery = usePlayerScopedH2HQuery(
+  const h2hQuery = usePlayerH2HQuery(
     playerA?.id ?? '',
     playerB?.id ?? '',
-    sortedLeagueIds,
     Boolean(playerA && playerB),
   );
   const h2h = h2hQuery.data ?? null;
@@ -121,7 +117,7 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
               </>
             )}
           </div>
-          <span className="tt-h2h-scope-pill">{leagueScopeLabel}</span>
+          <span className="tt-h2h-scope-pill">All leagues</span>
         </div>
 
         <div className="tt-h2h-panel-divider" />
@@ -201,7 +197,6 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
         isOpen={isSheetOpen}
         onClose={() => setIsSheetOpen(false)}
         onSelect={onSelectPlayer}
-        selectedLeagueIds={sortedLeagueIds}
         excludePlayerId={activePicker === 'A' ? playerB?.id : playerA?.id}
         title={activePicker === 'A' ? 'Select Player A' : 'Select Player B'}
       />
@@ -257,7 +252,7 @@ export function H2HTabContent({ selectedLeagueIds, leagueScopeLabel, onOpenPlaye
             </div>
 
             {encounterCount === 0 ? (
-              <p className="tt-player-section-state mb-0">No repeated encounters found in the selected league scope.</p>
+              <p className="tt-player-section-state mb-0">No repeated encounters found across all leagues.</p>
             ) : (
               <>
                 <p className="font-12 opacity-75 mb-3">

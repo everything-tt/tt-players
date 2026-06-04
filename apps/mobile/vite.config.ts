@@ -1,8 +1,24 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { execSync } from 'node:child_process';
+
+function getGitCommit(): string {
+  try {
+    return execSync('git rev-parse --short=12 HEAD', { encoding: 'utf8' }).trim();
+  } catch {
+    return 'unknown';
+  }
+}
+
+const appBuildTime = new Date().toISOString();
+const appCommit = getGitCommit();
 
 export default defineConfig({
+  define: {
+    'import.meta.env.VITE_APP_BUILD_TIME': JSON.stringify(appBuildTime),
+    'import.meta.env.VITE_APP_COMMIT': JSON.stringify(appCommit),
+  },
   plugins: [
     react(),
     VitePWA({

@@ -29,6 +29,8 @@ type PlayerSearchItem = {
   wins: number;
 };
 
+type PlayerSearchScope = 'all' | 'selected';
+
 const tabTitles: Record<AppTabId, string> = {
   home: 'TTLive',
   players: 'Players',
@@ -49,6 +51,15 @@ const THEME_STORAGE_KEY = 'TTPlayers-Theme';
 const FAVOURITES_STORAGE_KEY = 'tt_players_favourite_players';
 const FAVOURITES_UPDATED_EVENT = 'tt_players_favourite_players_updated';
 const LEAGUES_STORAGE_KEY = 'tt_players_selected_league_ids';
+const APP_BUILD_TIME = formatBuildTime(import.meta.env.VITE_APP_BUILD_TIME);
+const APP_COMMIT = import.meta.env.VITE_APP_COMMIT || 'unknown';
+
+function formatBuildTime(value: string): string {
+  const timestamp = new Date(value);
+  if (Number.isNaN(timestamp.getTime())) return 'unknown';
+
+  return `${timestamp.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+}
 
 function getInitials(name: string): string {
   const parts = name.trim().split(' ').filter(Boolean);
@@ -129,6 +140,7 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isLeagueSelectorOpen, setIsLeagueSelectorOpen] = useState(false);
   const [isLeagueSelectionReady, setIsLeagueSelectionReady] = useState(false);
+  const [playerSearchScope, setPlayerSearchScope] = useState<PlayerSearchScope>('all');
   const [query, setQuery] = useState('');
   const [selectedLeagueIds, setSelectedLeagueIds] = useState<string[]>([]);
 
@@ -148,26 +160,13 @@ function App() {
   const leaguesError = leaguesQuery.error instanceof Error ? leaguesQuery.error.message : null;
   const isAllLeagueScope = selectedLeagueIds.length === 0
     || (allLeagues.length > 0 && selectedLeagueIds.length === allLeagues.length);
-  const selectedLeagueNames = useMemo(() => {
-    if (isAllLeagueScope) return allLeagues.map((league) => league.name);
-    const leagueNameById = new Map(allLeagues.map((league: { id: string; name: string }) => [league.id, league.name]));
-    return selectedLeagueIds
-      .map((leagueId) => leagueNameById.get(leagueId))
-      .filter((name): name is string => Boolean(name));
-  }, [allLeagues, isAllLeagueScope, selectedLeagueIds]);
-  const searchScopeLabel = useMemo(() => {
-    if (isAllLeagueScope) return 'All leagues';
-    if (selectedLeagueNames.length === 0) return `${selectedLeagueIds.length} selected`;
-    if (selectedLeagueNames.length <= 2) return selectedLeagueNames.join(', ');
-    return `${selectedLeagueNames.slice(0, 2).join(', ')} +${selectedLeagueNames.length - 2} more`;
-  }, [isAllLeagueScope, selectedLeagueIds.length, selectedLeagueNames]);
   const selectedLeagueBadgeLabel = isAllLeagueScope ? 'All' : selectedLeagueIds.length;
+  const playerSearchLeagueIds = playerSearchScope === 'selected' ? selectedLeagueIds : [];
   const isSearchMode = normalizedQuery.length > 2;
   const isShortSearchQuery = normalizedQuery.length > 0 && normalizedQuery.length <= 2;
   const shouldFetchPlayers = activeTab === 'players'
-    && isLeagueSelectionReady
     && (normalizedDebouncedQuery.length === 0 || normalizedDebouncedQuery.length > 2);
-  const playersSearchQuery = usePlayerSearchQuery(normalizedDebouncedQuery, selectedLeagueIds, {
+  const playersSearchQuery = usePlayerSearchQuery(normalizedDebouncedQuery, playerSearchLeagueIds, {
     enabled: shouldFetchPlayers,
     allLeaguesCount: allLeagues.length,
   });
@@ -596,18 +595,6 @@ function App() {
                     <p className="tt-player-eyebrow">Players</p>
                     <h1 className="tt-players-search-title">Find a player</h1>
                   </div>
-                  <button
-                    type="button"
-                    className="tt-players-filter-button"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      openLeagueSelector();
-                    }}
-                    aria-label="Select leagues"
-                  >
-                    <i className="fa fa-filter" />
-                    <span>{selectedLeagueBadgeLabel}</span>
-                  </button>
                 </div>
 
                 <label className="tt-players-search-input">
@@ -620,12 +607,28 @@ function App() {
                   />
                 </label>
 
-                <p className="tt-players-search-scope">
-                  Search scope: <strong>{searchScopeLabel}</strong>
-                </p>
+                <div className="tt-players-search-scope" aria-label="Player search scope">
+                  <span>Search scope</span>
+                  <div className="tt-players-search-scope-toggle" role="group" aria-label="Choose player search scope">
+                    <button
+                      type="button"
+                      className={playerSearchScope === 'all' ? 'active' : undefined}
+                      onClick={() => setPlayerSearchScope('all')}
+                    >
+                      All leagues
+                    </button>
+                    <button
+                      type="button"
+                      className={playerSearchScope === 'selected' ? 'active' : undefined}
+                      onClick={() => setPlayerSearchScope('selected')}
+                    >
+                      Selected
+                    </button>
+                  </div>
+                </div>
               </section>
 
-              {favouritePlayers.length > 0 ? (
+              {favouritePlayers.length > 0 && !isSearchMode && !isShortSearchQuery ? (
                 <section className="tt-player-section" aria-labelledby="tt-favourite-players-title">
                   <div className="tt-player-section-header">
                     <h2 id="tt-favourite-players-title" className="tt-player-section-title">Favourite Players</h2>
@@ -676,7 +679,7 @@ function App() {
                     <span className="tt-player-section-note">3+ characters</span>
                   </div>
                   <p className="tt-player-section-state">
-                    Search within the selected leagues, then save players here for quicker access.
+                    Search across all leagues, then save players here for quicker access.
                   </p>
                 </section>
               ) : null}
@@ -687,11 +690,7 @@ function App() {
                     <h2 id="tt-search-results-title" className="tt-player-section-title">Search Results</h2>
                     <span className="tt-player-section-note">{listItems.length} players</span>
                   </div>
-                    {!isLeagueSelectionReady || isLeaguesLoading ? (
-                      <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading leagues...</p>
-                    ) : leaguesError ? (
-                      <p className="tt-player-section-state tt-player-section-error">Failed to load leagues: {leaguesError}</p>
-                    ) : normalizedQuery.length > 0 && normalizedQuery.length <= 2 ? (
+                    {normalizedQuery.length > 0 && normalizedQuery.length <= 2 ? (
                       <p className="tt-player-section-state">Type at least 3 characters to search players.</p>
                     ) : isSearchLoading ? (
                       <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading players...</p>
@@ -724,12 +723,15 @@ function App() {
                               <button
                                 type="button"
                                 className={isFavourite ? 'tt-player-favourite-icon active' : 'tt-player-favourite-icon'}
-                                aria-label={isFavourite ? 'Remove favourite' : 'Add favourite'}
-                                onClick={() => {
+                                aria-label={isFavourite ? `Remove ${player.name} from favourites` : `Add ${player.name} to favourites`}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
                                   toggleFavouritePlayer(player);
                                 }}
                               >
                                 <i className="fa fa-heart" />
+                                <span>{isFavourite ? 'Saved' : 'Add'}</span>
                               </button>
                             </div>
                           );
@@ -749,8 +751,6 @@ function App() {
 
           {activeTab === 'h2h' ? (
             <H2HTabContent
-              selectedLeagueIds={selectedLeagueIds}
-              leagueScopeLabel={searchScopeLabel}
               onOpenPlayer={(playerId) => navigateInActiveTab(`player/${playerId}`)}
             />
           ) : null}
@@ -836,6 +836,11 @@ function App() {
               <span>TournaPilot</span>
               <i className="fa fa-angle-right" />
             </a>
+          </div>
+
+          <div className="tt-main-menu-build" aria-label={`Build ${APP_BUILD_TIME}, commit ${APP_COMMIT}`}>
+            <span>Built {APP_BUILD_TIME}</span>
+            <span>Commit {APP_COMMIT}</span>
           </div>
         </div>
 

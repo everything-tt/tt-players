@@ -11,7 +11,6 @@ interface PlayerSearchSheetProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (player: PlayerSearchItem) => void;
-  selectedLeagueIds: string[];
   excludePlayerId?: string;
   title?: string;
 }
@@ -20,7 +19,6 @@ export function PlayerSearchSheet({
   isOpen,
   onClose,
   onSelect,
-  selectedLeagueIds,
   excludePlayerId,
   title = 'Search Player',
 }: PlayerSearchSheetProps) {
@@ -47,7 +45,7 @@ export function PlayerSearchSheet({
     };
   }, [normalizedQuery, isOpen]);
 
-  const searchQuery = usePlayerSearchQuery(debouncedQuery, selectedLeagueIds, {
+  const searchQuery = usePlayerSearchQuery(debouncedQuery, [], {
     enabled: isOpen && debouncedQuery.length > 2,
   });
   const isLoading = searchQuery.isLoading;

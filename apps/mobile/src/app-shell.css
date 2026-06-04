@@ -177,7 +177,7 @@ body.theme-dark .list-custom-large a {
   border-radius: 18px;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.62);
   margin: 16px 16px 0;
-  padding: 16px;
+  padding: 18px 16px 16px;
 }
 
 .tt-players-search-top {
@@ -214,17 +214,22 @@ body.theme-dark .list-custom-large a {
 
 .tt-players-search-input {
   align-items: center;
-  border-top: 1px solid var(--border-hairline);
+  background: var(--surface-strong);
+  border: 1px solid var(--accent-border-strong);
+  border-radius: 16px;
+  box-shadow: 0 10px 28px oklch(21% 0.034 158 / 0.08);
   display: flex;
-  gap: 10px;
+  gap: 12px;
   margin: 16px 0 0;
-  padding-top: 14px;
+  min-height: 58px;
+  padding: 0 15px;
 }
 
 .tt-players-search-input i {
   color: var(--accent);
   flex: 0 0 auto;
-  font-size: 15px;
+  font-size: 17px;
+  line-height: 1;
 }
 
 .tt-players-search-input input {
@@ -233,12 +238,13 @@ body.theme-dark .list-custom-large a {
   color: var(--ink);
   flex: 1;
   font: inherit;
-  font-size: 17px;
+  font-size: 19px;
+  font-weight: 600;
   line-height: 1.35;
-  min-height: 36px;
+  min-height: 54px;
   min-width: 0;
   outline: 0;
-  padding: 0;
+  padding: 1px 0 0;
 }
 
 .tt-players-search-input input::placeholder {
@@ -250,15 +256,48 @@ body.theme-dark .list-custom-large a {
 }
 
 .tt-players-search-scope {
+  align-items: center;
   color: var(--ink-muted);
-  font-size: 13px;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
   line-height: 1.35;
-  margin: 8px 0 0;
+  margin: 14px 0 0;
+  text-transform: uppercase;
 }
 
-.tt-players-search-scope strong {
-  color: var(--ink);
-  font-weight: 600;
+.tt-players-search-input:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-ring), 0 12px 30px oklch(21% 0.034 158 / 0.1);
+}
+
+.tt-players-search-scope-toggle {
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 3px;
+}
+
+.tt-players-search-scope-toggle button {
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  min-height: 28px;
+  padding: 0 11px;
+  text-transform: none;
+}
+
+.tt-players-search-scope-toggle button.active {
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .tt-leagues-panel {
@@ -339,6 +378,11 @@ body.theme-dark .list-custom-large a {
   position: absolute;
   right: -6px;
   top: -4px;
+}
+
+.tt-header-league-filter .tt-page-league-count {
+  right: 0;
+  top: 6px;
 }
 
 .tt-league-trigger {
@@ -628,6 +672,9 @@ body.theme-dark .tt-league-picker-row.selected {
 .tt-main-menu.menu {
   background: var(--surface-strong) !important;
   color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
 }
 
 .tt-main-menu-hero {
@@ -698,6 +745,20 @@ body.theme-dark .tt-league-picker-row.selected {
   color: var(--ink-muted) !important;
 }
 
+.tt-main-menu-build {
+  border-top: 1px solid var(--border-hairline);
+  color: var(--ink-muted);
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  font-weight: 600;
+  gap: 4px;
+  line-height: 1.35;
+  margin: auto 16px 0;
+  padding: 16px 0 calc(16px + env(safe-area-inset-bottom));
+  word-break: break-word;
+}
+
 .app-skeleton-row {
   height: 12px;
   border-radius: 8px;
@@ -749,22 +810,31 @@ body.theme-dark .tt-league-picker-row.selected {
 .tt-player-search-list .tt-player-favourite-icon {
   align-items: center;
   background: var(--accent-subtle);
-  border: 0;
+  border: 1px solid var(--accent-border);
   border-radius: 999px;
   color: var(--accent);
+  column-gap: 5px;
+  cursor: pointer;
   display: inline-flex;
-  flex: 0 0 34px;
-  font-size: 14px;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
   height: 34px;
   justify-content: center;
   line-height: 1 !important;
-  margin-right: 2px;
-  width: 34px;
+  margin-right: 0;
+  min-width: 58px;
+  padding: 0 10px;
 }
 
 .tt-player-search-list .tt-player-favourite-icon.active {
   background: var(--accent);
-  color: #fff;
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.tt-player-search-list .tt-player-favourite-icon i {
+  font-size: 11px;
 }
 
 .tt-players-row {
@@ -772,7 +842,7 @@ body.theme-dark .tt-league-picker-row.selected {
   border-bottom: 1px solid rgba(15, 23, 42, 0.14);
   column-gap: 12px;
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 44px;
+  grid-template-columns: 42px minmax(0, 1fr) minmax(58px, auto);
   grid-template-rows: auto auto;
   min-height: 68px;
   overflow: hidden;
