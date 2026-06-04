@@ -169,4 +169,76 @@ describe('GET /api/players/leaders', () => {
             .executeTakeFirst();
         expect(cached).toBeDefined();
     });
+
+    it('aggregates linked source player rows into one leaderboard row', async () => {
+        await db.deleteFrom('cache_entries').where('type', '=', 'player-leaders').execute();
+
+        const [canonical] = await db
+            .insertInto('external_players')
+            .values({
+                platform_id: ids.platformId,
+                external_id: 'ext-player-leader-canon',
+                name: 'Leader Canon',
+                updated_at: new Date(),
+            })
+            .returning('id')
+            .execute();
+
+        await db
+            .updateTable('external_players')
+            .set({ canonical_player_id: canonical!.id, updated_at: new Date() })
+            .where('id', '=', canonical!.id)
+            .execute();
+
+        const [alias] = await db
+            .insertInto('external_players')
+            .values({
+                platform_id: ids.platformId,
+                external_id: 'ext-player-leader-alias',
+                canonical_player_id: canonical!.id,
+                name: 'Leader Canon',
+                updated_at: new Date(),
+            })
+            .returning('id')
+            .execute();
+
+        await db
+            .insertInto('rubbers')
+            .values([
+                {
+                    fixture_id: ids.fixtureId,
+                    external_id: 'ext-rubber-leader-canon',
+                    home_player_1_id: canonical!.id,
+                    away_player_1_id: ids.awayPlayerId,
+                    home_games_won: 3,
+                    away_games_won: 0,
+                    outcome_type: 'normal',
+                    updated_at: new Date(),
+                },
+                {
+                    fixture_id: ids.fixtureId,
+                    external_id: 'ext-rubber-leader-alias',
+                    home_player_1_id: alias!.id,
+                    away_player_1_id: ids.awayPlayerId,
+                    home_games_won: 3,
+                    away_games_won: 1,
+                    outcome_type: 'normal',
+                    updated_at: new Date(),
+                },
+            ])
+            .execute();
+
+        const res = await request
+            .get('/api/players/leaders?mode=most_played&limit=20&min_played=1')
+            .expect(200);
+
+        const rows = res.body.data.filter((row: { player_name: string }) => row.player_name === 'Leader Canon');
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+            player_id: canonical!.id,
+            played: 2,
+            wins: 2,
+            losses: 0,
+        });
+    });
 });

@@ -18,11 +18,6 @@ interface ExternalPlayerRow {
     name: string;
 }
 
-interface PlayerLink {
-    aliasId: string;
-    canonicalId: string;
-}
-
 function normalizePlayerName(name: string): string {
     return name.replace(/\s+/g, ' ').trim().toLowerCase();
 }
@@ -69,8 +64,8 @@ export async function reconcilePlayersByName(
         byNormalizedName.set(normalized, bucket);
     }
 
-    const links: PlayerLink[] = [];
     let linkedGroups = 0;
+    const now = new Date();
 
     for (const group of byNormalizedName.values()) {
         if (group.length !== 2) continue;
@@ -85,80 +80,51 @@ export async function reconcilePlayersByName(
         if (aliases.length === 0) continue;
 
         linkedGroups++;
-        for (const alias of aliases) {
-            links.push({
-                aliasId: alias.id,
-                canonicalId,
-            });
-        }
 
         // Keep the canonical row self-referential for easier lookups.
         await db
             .updateTable('external_players')
-            .set({ canonical_player_id: canonicalId })
+            .set({
+                canonical_player_id: canonicalId,
+                deleted_at: null,
+                updated_at: now,
+            })
             .where('id', '=', canonicalId)
             .execute();
 
         // Point all members of the linked group to the same canonical ID.
         await db
             .updateTable('external_players')
-            .set({ canonical_player_id: canonicalId })
+            .set({
+                canonical_player_id: canonicalId,
+                deleted_at: null,
+                updated_at: now,
+            })
             .where('id', 'in', group.map((p) => p.id))
             .execute();
     }
 
-    if (links.length === 0) {
-        return {
-            linkedGroups: 0,
-            remappedRubbers: 0,
-        };
-    }
-
-    let remappedRubbers = 0;
-    for (const link of links) {
-        const [home1, home2, away1, away2] = await Promise.all([
-            db
-                .updateTable('rubbers')
-                .set({ home_player_1_id: link.canonicalId })
-                .where('home_player_1_id', '=', link.aliasId)
-                .executeTakeFirst(),
-            db
-                .updateTable('rubbers')
-                .set({ home_player_2_id: link.canonicalId })
-                .where('home_player_2_id', '=', link.aliasId)
-                .executeTakeFirst(),
-            db
-                .updateTable('rubbers')
-                .set({ away_player_1_id: link.canonicalId })
-                .where('away_player_1_id', '=', link.aliasId)
-                .executeTakeFirst(),
-            db
-                .updateTable('rubbers')
-                .set({ away_player_2_id: link.canonicalId })
-                .where('away_player_2_id', '=', link.aliasId)
-                .executeTakeFirst(),
-        ]);
-
-        remappedRubbers += Number(home1.numUpdatedRows)
-            + Number(home2.numUpdatedRows)
-            + Number(away1.numUpdatedRows)
-            + Number(away2.numUpdatedRows);
-    }
-
-    // Hide alias rows so they don't show up as duplicate players in API responses.
-    await db
-        .updateTable('external_players')
-        .set({ deleted_at: new Date() })
-        .where('id', 'in', links.map((l) => l.aliasId))
-        .where('deleted_at', 'is', null)
-        .execute();
-
     logger?.info(
-        `reconcilePlayersByName: linked ${linkedGroups} groups, remapped ${remappedRubbers} rubber player refs`,
+        `reconcilePlayersByName: linked ${linkedGroups} groups, remapped 0 rubber player refs`,
     );
 
     return {
         linkedGroups,
-        remappedRubbers,
+        remappedRubbers: 0,
     };
+}
+
+export async function unmergePlayer(
+    db: Kysely<Database>,
+    aliasPlayerId: string,
+): Promise<void> {
+    await db
+        .updateTable('external_players')
+        .set({
+            canonical_player_id: aliasPlayerId,
+            deleted_at: null,
+            updated_at: new Date(),
+        })
+        .where('id', '=', aliasPlayerId)
+        .execute();
 }

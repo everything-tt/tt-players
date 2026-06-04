@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import type { Kysely } from 'kysely';
+import type { Kysely, RawBuilder } from 'kysely';
 import type { Database } from '@tt-players/db';
 import { sql } from 'kysely';
 
@@ -231,6 +231,56 @@ const PLAYER_INSIGHTS_CACHE_TYPE = 'player-insights';
 const PLAYER_LEADERS_CACHE_TYPE = 'player-leaders';
 const PLAYER_COUNT_CACHE_TYPE = 'player-count';
 
+interface ResolvedPlayerIdentity {
+    canonicalId: string;
+    playerName: string;
+    sourceIds: string[];
+}
+
+function uuidArray(ids: string[]): RawBuilder<string[]> {
+    return sql`ARRAY[${sql.join(ids.map((id) => sql`${id}::uuid`))}]::uuid[]`;
+}
+
+async function resolvePlayerIdentity(
+    db: Kysely<Database>,
+    requestedId: string,
+): Promise<ResolvedPlayerIdentity | null> {
+    const requested = await db
+        .selectFrom('external_players')
+        .select(['id', 'name', 'canonical_player_id'])
+        .where('id', '=', requestedId)
+        .where('deleted_at', 'is', null)
+        .executeTakeFirst();
+
+    if (!requested) return null;
+
+    const canonicalId = requested.canonical_player_id ?? requested.id;
+    const canonical = await db
+        .selectFrom('external_players')
+        .select(['id', 'name'])
+        .where('id', '=', canonicalId)
+        .where('deleted_at', 'is', null)
+        .executeTakeFirst();
+
+    const sources = await sql<{ id: string }>`
+        SELECT id
+        FROM external_players
+        WHERE COALESCE(canonical_player_id, id) = ${canonicalId}::uuid
+          AND deleted_at IS NULL
+    `.execute(db);
+
+    const sourceIds = sources.rows.map((row) => row.id);
+    if (!sourceIds.includes(requested.id)) {
+        sourceIds.push(requested.id);
+    }
+
+    return {
+        canonicalId,
+        playerName: canonical?.name ?? requested.name,
+        sourceIds,
+    };
+}
+
 function toEpochMs(value: Date | string | null | undefined): number {
     if (!value) return 0;
     const date = value instanceof Date ? value : new Date(String(value));
@@ -372,15 +422,24 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
 
                 // Compute data version for leaders cache
                 const versionRes = await sql<{ data_version: Date | null }>`
-                    SELECT MAX(COALESCE(r.updated_at, r.created_at)) AS data_version
-                    FROM rubbers r
-                    JOIN fixtures f ON f.id = r.fixture_id
-                    JOIN competitions c ON c.id = f.competition_id
-                    JOIN seasons s ON s.id = c.season_id
-                    WHERE r.deleted_at IS NULL
-                      AND r.outcome_type != 'walkover'
-                      AND ((${seasonId ?? null}::uuid IS NULL AND s.is_active = true)
-                           OR s.id = ${seasonId ?? null}::uuid)
+                    SELECT GREATEST(
+                        COALESCE((
+                            SELECT MAX(COALESCE(r.updated_at, r.created_at))
+                            FROM rubbers r
+                            JOIN fixtures f ON f.id = r.fixture_id
+                            JOIN competitions c ON c.id = f.competition_id
+                            JOIN seasons s ON s.id = c.season_id
+                            WHERE r.deleted_at IS NULL
+                              AND r.outcome_type != 'walkover'
+                              AND ((${seasonId ?? null}::uuid IS NULL AND s.is_active = true)
+                                   OR s.id = ${seasonId ?? null}::uuid)
+                        ), '-infinity'::timestamp),
+                        COALESCE((
+                            SELECT MAX(updated_at)
+                            FROM external_players
+                            WHERE deleted_at IS NULL
+                        ), '-infinity'::timestamp)
+                    ) AS data_version
                 `.execute(db);
                 const versionRaw = versionRes.rows[0]?.data_version ?? null;
                 const dataVersion = versionRaw instanceof Date
@@ -403,9 +462,10 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 }>`
                     WITH singles AS (
                         SELECT
-                            r.home_player_1_id AS player_id,
+                            COALESCE(ep.canonical_player_id, ep.id) AS player_id,
                             CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END AS is_win
                         FROM rubbers r
+                        JOIN external_players ep ON ep.id = r.home_player_1_id
                         JOIN fixtures f ON f.id = r.fixture_id
                         JOIN competitions c ON c.id = f.competition_id
                         JOIN seasons s ON s.id = c.season_id
@@ -413,6 +473,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                           AND r.deleted_at IS NULL
                           AND r.outcome_type != 'walkover'
                           AND r.home_player_1_id IS NOT NULL
+                          AND ep.deleted_at IS NULL
                           AND (
                               (${seasonId ?? null}::uuid IS NULL AND s.is_active = true)
                               OR s.id = ${seasonId ?? null}::uuid
@@ -422,9 +483,10 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         UNION ALL
 
                         SELECT
-                            r.away_player_1_id AS player_id,
+                            COALESCE(ep.canonical_player_id, ep.id) AS player_id,
                             CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END AS is_win
                         FROM rubbers r
+                        JOIN external_players ep ON ep.id = r.away_player_1_id
                         JOIN fixtures f ON f.id = r.fixture_id
                         JOIN competitions c ON c.id = f.competition_id
                         JOIN seasons s ON s.id = c.season_id
@@ -432,6 +494,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                           AND r.deleted_at IS NULL
                           AND r.outcome_type != 'walkover'
                           AND r.away_player_1_id IS NOT NULL
+                          AND ep.deleted_at IS NULL
                           AND (
                               (${seasonId ?? null}::uuid IS NULL AND s.is_active = true)
                               OR s.id = ${seasonId ?? null}::uuid
@@ -447,15 +510,15 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         GROUP BY player_id
                     )
                     SELECT
-                        ep.id AS player_id,
-                        ep.name AS player_name,
+                        canonical_ep.id AS player_id,
+                        canonical_ep.name AS player_name,
                         a.played,
                         a.wins,
                         (a.played - a.wins)::int AS losses,
                         ROUND((a.wins::numeric / NULLIF(a.played, 0)) * 100, 2)::float8 AS win_rate
                     FROM aggregated a
-                    JOIN external_players ep ON ep.id = a.player_id
-                    WHERE ep.deleted_at IS NULL
+                    JOIN external_players canonical_ep ON canonical_ep.id = a.player_id
+                    WHERE canonical_ep.deleted_at IS NULL
                 `.execute(db);
 
                 const baseRows = aggregateRes.rows.map((row) => ({
@@ -535,54 +598,93 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     .split(',')
                     .map((id) => id.trim())
                     .filter((id) => id.length > 0);
+                const leagueCsv = leagueIds.join(',');
+                const searchPattern = `%${normalizedQuery}%`;
+                const limit = normalizedQuery ? 20 : 10;
+                const orderBy = normalizedQuery
+                    ? sql`name ASC`
+                    : sql`played DESC, wins DESC, name ASC`;
 
-                let query = db
-                    .selectFrom('external_players as ep')
-                    .leftJoin('rubbers as r', (join) =>
-                        join.on((eb) => eb.or([
-                            eb('r.home_player_1_id', '=', eb.ref('ep.id')),
-                            eb('r.away_player_1_id', '=', eb.ref('ep.id'))
-                        ]))
-                            .on('r.deleted_at', 'is', null)
-                            .on('r.is_doubles', '=', false)
-                            .on('r.outcome_type', '!=', 'walkover')
+                const rows = await sql<{
+                    id: string;
+                    name: string;
+                    played: number | string | null;
+                    wins: number | string | null;
+                }>`
+                    WITH active_players AS (
+                        SELECT
+                            ep.id,
+                            ep.name,
+                            COALESCE(ep.canonical_player_id, ep.id) AS canonical_id,
+                            COALESCE(cp.name, ep.name) AS canonical_name
+                        FROM external_players ep
+                        LEFT JOIN external_players cp
+                            ON cp.id = COALESCE(ep.canonical_player_id, ep.id)
+                        WHERE ep.deleted_at IS NULL
+                    ),
+                    matched_canonicals AS (
+                        SELECT DISTINCT canonical_id
+                        FROM active_players
+                        WHERE ${normalizedQuery} = ''
+                           OR name ILIKE ${searchPattern}
+                           OR canonical_name ILIKE ${searchPattern}
+                    ),
+                    canonical_rows AS (
+                        SELECT
+                            ap.canonical_id,
+                            MIN(ap.canonical_name) AS canonical_name
+                        FROM active_players ap
+                        JOIN matched_canonicals mc
+                            ON mc.canonical_id = ap.canonical_id
+                        GROUP BY ap.canonical_id
+                    ),
+                    player_rubbers AS (
+                        SELECT
+                            ap.canonical_id,
+                            r.id AS rubber_id,
+                            MAX(
+                                CASE
+                                    WHEN (r.home_player_1_id = ap.id AND r.home_games_won > r.away_games_won)
+                                      OR (r.away_player_1_id = ap.id AND r.away_games_won > r.home_games_won)
+                                    THEN 1
+                                    ELSE 0
+                                END
+                            ) AS win
+                        FROM active_players ap
+                        JOIN matched_canonicals mc
+                            ON mc.canonical_id = ap.canonical_id
+                        LEFT JOIN rubbers r
+                            ON (r.home_player_1_id = ap.id OR r.away_player_1_id = ap.id)
+                           AND r.deleted_at IS NULL
+                           AND r.is_doubles = false
+                           AND r.outcome_type != 'walkover'
+                        LEFT JOIN fixtures f
+                            ON f.id = r.fixture_id
+                           AND f.deleted_at IS NULL
+                        LEFT JOIN competitions c
+                            ON c.id = f.competition_id
+                           AND c.deleted_at IS NULL
+                        LEFT JOIN seasons s
+                            ON s.id = c.season_id
+                           AND s.deleted_at IS NULL
+                        WHERE (${leagueCsv} = '' OR s.league_id::text = ANY(string_to_array(${leagueCsv}, ',')))
+                          AND (${normalizedQuery} <> '' OR f.date_played >= NOW() - INTERVAL '100 days')
+                          AND r.id IS NOT NULL
+                        GROUP BY ap.canonical_id, r.id
                     )
-                    .leftJoin('fixtures as f', (join) =>
-                        join.onRef('f.id', '=', 'r.fixture_id')
-                            .on('f.deleted_at', 'is', null)
-                    )
-                    .leftJoin('competitions as c', (join) =>
-                        join.onRef('c.id', '=', 'f.competition_id')
-                            .on('c.deleted_at', 'is', null)
-                    )
-                    .leftJoin('seasons as s', (join) =>
-                        join.onRef('s.id', '=', 'c.season_id')
-                            .on('s.deleted_at', 'is', null)
-                    )
-                    .select([
-                        'ep.id',
-                        'ep.name',
-                        sql<number>`COUNT(r.id)`.as('played'),
-                        sql<number>`SUM(CASE WHEN (r.home_player_1_id = ep.id AND r.home_games_won > r.away_games_won) OR (r.away_player_1_id = ep.id AND r.away_games_won > r.home_games_won) THEN 1 ELSE 0 END)`.as('wins')
-                    ])
-                    .where('ep.deleted_at', 'is', null)
-                    .groupBy('ep.id');
-
-                if (leagueIds.length > 0) {
-                    query = query.where('s.league_id', 'in', leagueIds);
-                }
-
-                if (normalizedQuery) {
-                    query = query.where('ep.name', 'ilike', `%${normalizedQuery}%`);
-                    query = query.orderBy('ep.name', 'asc');
-                } else {
-                    query = query.where(sql<boolean>`f.date_played >= NOW() - INTERVAL '100 days'`);
-                    query = query.orderBy('played', 'desc');
-                    query = query.orderBy('wins', 'desc');
-                    query = query.orderBy('ep.name', 'asc');
-                }
-
-                const rows = await query.limit(normalizedQuery ? 20 : 10).execute();
+                    SELECT
+                        cr.canonical_id AS id,
+                        cr.canonical_name AS name,
+                        COUNT(pr.rubber_id)::int AS played,
+                        COALESCE(SUM(pr.win), 0)::int AS wins
+                    FROM canonical_rows cr
+                    LEFT JOIN player_rubbers pr
+                        ON pr.canonical_id = cr.canonical_id
+                    GROUP BY cr.canonical_id, cr.canonical_name
+                    HAVING ${normalizedQuery} <> '' OR COUNT(pr.rubber_id) > 0
+                    ORDER BY ${orderBy}
+                    LIMIT ${limit}
+                `.execute(db).then((result) => result.rows);
 
                 return reply.send({
                     data: rows.map(r => ({
@@ -610,13 +712,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
             async (request, reply) => {
                 const { id } = request.params;
 
-                // Verify player exists
-                const player = await db
-                    .selectFrom('external_players')
-                    .select(['id', 'name'])
-                    .where('id', '=', id)
-                    .where('deleted_at', 'is', null)
-                    .executeTakeFirst();
+                const player = await resolvePlayerIdentity(db, id);
 
                 if (!player) {
                     return reply.status(404).send({
@@ -625,31 +721,33 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     });
                 }
 
+                const sourceIds = uuidArray(player.sourceIds);
+
                 // Aggregate wins/losses, excluding walkovers
                 // A rubber is a win for the player if:
-                //   - player is home (home_player_1_id = id) AND home_games_won > away_games_won
-                //   - player is away (away_player_1_id = id) AND away_games_won > home_games_won
+                //   - player source is home AND home_games_won > away_games_won
+                //   - player source is away AND away_games_won > home_games_won
                 const { wins, losses, total } = await db
                     .selectFrom('rubbers')
                     .select([
                         sql<number>`
                             COUNT(*) FILTER (
-                                WHERE (home_player_1_id = ${id} AND home_games_won > away_games_won)
-                                   OR (away_player_1_id = ${id} AND away_games_won > home_games_won)
+                                WHERE (home_player_1_id = ANY(${sourceIds}) AND home_games_won > away_games_won)
+                                   OR (away_player_1_id = ANY(${sourceIds}) AND away_games_won > home_games_won)
                             )
                         `.as('wins'),
                         sql<number>`
                             COUNT(*) FILTER (
-                                WHERE (home_player_1_id = ${id} AND home_games_won < away_games_won)
-                                   OR (away_player_1_id = ${id} AND away_games_won < home_games_won)
+                                WHERE (home_player_1_id = ANY(${sourceIds}) AND home_games_won < away_games_won)
+                                   OR (away_player_1_id = ANY(${sourceIds}) AND away_games_won < home_games_won)
                             )
                         `.as('losses'),
                         sql<number>`COUNT(*)`.as('total'),
                     ])
                     .where((eb) =>
                         eb.or([
-                            eb('home_player_1_id', '=', id),
-                            eb('away_player_1_id', '=', id),
+                            eb('home_player_1_id', 'in', player.sourceIds),
+                            eb('away_player_1_id', 'in', player.sourceIds),
                         ])
                     )
                     .where('outcome_type', '!=', 'walkover')
@@ -657,8 +755,8 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     .executeTakeFirstOrThrow();
 
                 return reply.send({
-                    player_id: player.id,
-                    player_name: player.name,
+                    player_id: player.canonicalId,
+                    player_name: player.playerName,
                     wins: Number(wins),
                     losses: Number(losses),
                     total: Number(total),
@@ -681,26 +779,34 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
             async (request, reply) => {
                 const { id } = request.params;
 
-                const player = await db.selectFrom('external_players')
-                    .select(['id', 'name'])
-                    .where('id', '=', id)
-                    .where('deleted_at', 'is', null)
-                    .executeTakeFirst();
+                const player = await resolvePlayerIdentity(db, id);
 
                 if (!player) {
                     return reply.status(404).send({ error: `Player ${id} not found`, statusCode: 404 });
                 }
 
+                const sourceIds = uuidArray(player.sourceIds);
+
                 // Compute data version for extended stats cache
                 const extVersionRes = await sql<{ data_version: Date | null }>`
-                    SELECT MAX(COALESCE(r.updated_at, r.created_at, f.updated_at, f.created_at)) AS data_version
-                    FROM rubbers r
-                    JOIN fixtures f ON f.id = r.fixture_id
-                    WHERE (r.home_player_1_id = ${id} OR r.away_player_1_id = ${id}
-                           OR r.home_player_2_id = ${id} OR r.away_player_2_id = ${id})
-                      AND r.deleted_at IS NULL
-                      AND r.outcome_type != 'walkover'
-                      AND f.deleted_at IS NULL
+                    SELECT GREATEST(
+                        COALESCE((
+                            SELECT MAX(COALESCE(r.updated_at, r.created_at, f.updated_at, f.created_at))
+                            FROM rubbers r
+                            JOIN fixtures f ON f.id = r.fixture_id
+                            WHERE (r.home_player_1_id = ANY(${sourceIds}) OR r.away_player_1_id = ANY(${sourceIds})
+                                   OR r.home_player_2_id = ANY(${sourceIds}) OR r.away_player_2_id = ANY(${sourceIds}))
+                              AND r.deleted_at IS NULL
+                              AND r.outcome_type != 'walkover'
+                              AND f.deleted_at IS NULL
+                        ), '-infinity'::timestamp),
+                        COALESCE((
+                            SELECT MAX(updated_at)
+                            FROM external_players
+                            WHERE id = ANY(${sourceIds})
+                               OR COALESCE(canonical_player_id, id) = ${player.canonicalId}::uuid
+                        ), '-infinity'::timestamp)
+                    ) AS data_version
                 `.execute(db);
                 const extVersionRaw = extVersionRes.rows[0]?.data_version ?? null;
                 const extDataVersion = extVersionRaw instanceof Date
@@ -708,7 +814,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     : extVersionRaw ? new Date(String(extVersionRaw)).toISOString() : 'none';
 
                 const PLAYER_EXTENDED_CACHE_TYPE = 'player-extended';
-                const cachedExtended = await readCache<any>(db, PLAYER_EXTENDED_CACHE_TYPE, id, extDataVersion);
+                const cachedExtended = await readCache<any>(db, PLAYER_EXTENDED_CACHE_TYPE, player.canonicalId, extDataVersion);
                 if (cachedExtended) {
                     return reply.send(cachedExtended);
                 }
@@ -725,11 +831,11 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     db
                         .selectFrom('rubbers')
                         .select([
-                            sql<number>`COUNT(*) FILTER (WHERE (home_player_1_id = ${id} AND home_games_won > away_games_won) OR (away_player_1_id = ${id} AND away_games_won > home_games_won))`.as('wins'),
-                            sql<number>`COUNT(*) FILTER (WHERE (home_player_1_id = ${id} AND home_games_won < away_games_won) OR (away_player_1_id = ${id} AND away_games_won < home_games_won))`.as('losses'),
+                            sql<number>`COUNT(*) FILTER (WHERE (home_player_1_id = ANY(${sourceIds}) AND home_games_won > away_games_won) OR (away_player_1_id = ANY(${sourceIds}) AND away_games_won > home_games_won))`.as('wins'),
+                            sql<number>`COUNT(*) FILTER (WHERE (home_player_1_id = ANY(${sourceIds}) AND home_games_won < away_games_won) OR (away_player_1_id = ANY(${sourceIds}) AND away_games_won < home_games_won))`.as('losses'),
                             sql<number>`COUNT(*)`.as('total'),
                         ])
-                        .where((eb) => eb.or([eb('home_player_1_id', '=', id), eb('away_player_1_id', '=', id)]))
+                        .where((eb) => eb.or([eb('home_player_1_id', 'in', player.sourceIds), eb('away_player_1_id', 'in', player.sourceIds)]))
                         .where('outcome_type', '!=', 'walkover')
                         .where('deleted_at', 'is', null)
                         .executeTakeFirstOrThrow(),
@@ -743,16 +849,17 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     }>`
                         WITH opponents AS (
                             SELECT
-                                CASE WHEN home_player_1_id = ${id} THEN away_player_1_id ELSE home_player_1_id END as opp_id,
-                                CASE WHEN (home_player_1_id = ${id} AND home_games_won < away_games_won) OR (away_player_1_id = ${id} AND away_games_won < home_games_won) THEN 1 ELSE 0 END as is_loss,
-                                CASE WHEN (home_player_1_id = ${id} AND home_games_won > away_games_won) OR (away_player_1_id = ${id} AND away_games_won > home_games_won) THEN 1 ELSE 0 END as is_win
+                                CASE WHEN home_player_1_id = ANY(${sourceIds}) THEN away_player_1_id ELSE home_player_1_id END as opp_id,
+                                CASE WHEN (home_player_1_id = ANY(${sourceIds}) AND home_games_won < away_games_won) OR (away_player_1_id = ANY(${sourceIds}) AND away_games_won < home_games_won) THEN 1 ELSE 0 END as is_loss,
+                                CASE WHEN (home_player_1_id = ANY(${sourceIds}) AND home_games_won > away_games_won) OR (away_player_1_id = ANY(${sourceIds}) AND away_games_won > home_games_won) THEN 1 ELSE 0 END as is_win
                             FROM rubbers
-                            WHERE (home_player_1_id = ${id} OR away_player_1_id = ${id}) AND is_doubles = false AND deleted_at IS NULL AND outcome_type != 'walkover'
+                            WHERE (home_player_1_id = ANY(${sourceIds}) OR away_player_1_id = ANY(${sourceIds})) AND is_doubles = false AND deleted_at IS NULL AND outcome_type != 'walkover'
                         )
-                        SELECT ep.id as opponent_id, ep.name as opponent_name, SUM(is_loss) as losses, SUM(is_win) as wins
+                        SELECT COALESCE(ep.canonical_player_id, ep.id) as opponent_id, COALESCE(cp.name, ep.name) as opponent_name, SUM(is_loss) as losses, SUM(is_win) as wins
                         FROM opponents o
                         JOIN external_players ep ON ep.id = o.opp_id
-                        GROUP BY o.opp_id, ep.id, ep.name
+                        LEFT JOIN external_players cp ON cp.id = COALESCE(ep.canonical_player_id, ep.id)
+                        GROUP BY COALESCE(ep.canonical_player_id, ep.id), COALESCE(cp.name, ep.name)
                         HAVING SUM(is_loss) > 0
                         ORDER BY SUM(is_loss) DESC, SUM(is_win) ASC
                         LIMIT 1
@@ -763,22 +870,23 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         WITH partners AS (
                             SELECT
                                 CASE
-                                    WHEN home_player_1_id = ${id} THEN home_player_2_id
-                                    WHEN home_player_2_id = ${id} THEN home_player_1_id
-                                    WHEN away_player_1_id = ${id} THEN away_player_2_id
+                                    WHEN home_player_1_id = ANY(${sourceIds}) THEN home_player_2_id
+                                    WHEN home_player_2_id = ANY(${sourceIds}) THEN home_player_1_id
+                                    WHEN away_player_1_id = ANY(${sourceIds}) THEN away_player_2_id
                                     ELSE away_player_1_id
                                 END as partner_id,
-                                CASE WHEN (home_player_1_id = ${id} OR home_player_2_id = ${id}) AND home_games_won > away_games_won THEN 1
-                                     WHEN (away_player_1_id = ${id} OR away_player_2_id = ${id}) AND away_games_won > home_games_won THEN 1 ELSE 0 END as is_win
+                                CASE WHEN (home_player_1_id = ANY(${sourceIds}) OR home_player_2_id = ANY(${sourceIds})) AND home_games_won > away_games_won THEN 1
+                                     WHEN (away_player_1_id = ANY(${sourceIds}) OR away_player_2_id = ANY(${sourceIds})) AND away_games_won > home_games_won THEN 1 ELSE 0 END as is_win
                             FROM rubbers
-                            WHERE (home_player_1_id = ${id} OR home_player_2_id = ${id} OR away_player_1_id = ${id} OR away_player_2_id = ${id})
+                            WHERE (home_player_1_id = ANY(${sourceIds}) OR home_player_2_id = ANY(${sourceIds}) OR away_player_1_id = ANY(${sourceIds}) OR away_player_2_id = ANY(${sourceIds}))
                               AND is_doubles = true AND deleted_at IS NULL AND outcome_type != 'walkover'
                         )
-                        SELECT ep.name as partner_name, SUM(is_win) as wins, COUNT(*) as total
+                        SELECT COALESCE(cp.name, ep.name) as partner_name, SUM(is_win) as wins, COUNT(*) as total
                         FROM partners p
                         JOIN external_players ep ON ep.id = p.partner_id
+                        LEFT JOIN external_players cp ON cp.id = COALESCE(ep.canonical_player_id, ep.id)
                         WHERE p.partner_id IS NOT NULL
-                        GROUP BY p.partner_id, ep.name
+                        GROUP BY COALESCE(ep.canonical_player_id, ep.id), COALESCE(cp.name, ep.name)
                         HAVING SUM(is_win) > 0
                         ORDER BY SUM(is_win) DESC
                         LIMIT 1
@@ -788,12 +896,12 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     sql<{ result: string }>`
                         SELECT
                             CASE
-                                WHEN (home_player_1_id = ${id} AND home_games_won > away_games_won) OR (away_player_1_id = ${id} AND away_games_won > home_games_won) THEN 'W'
+                                WHEN (home_player_1_id = ANY(${sourceIds}) AND home_games_won > away_games_won) OR (away_player_1_id = ANY(${sourceIds}) AND away_games_won > home_games_won) THEN 'W'
                                 ELSE 'L'
                             END as result
                         FROM rubbers
                         JOIN fixtures ON fixtures.id = rubbers.fixture_id
-                        WHERE (home_player_1_id = ${id} OR away_player_1_id = ${id})
+                        WHERE (home_player_1_id = ANY(${sourceIds}) OR away_player_1_id = ANY(${sourceIds}))
                           AND is_doubles = false AND rubbers.deleted_at IS NULL AND outcome_type != 'walkover'
                         ORDER BY fixtures.date_played DESC
                         LIMIT 10
@@ -809,35 +917,36 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     }>`
                         WITH opponents AS (
                             SELECT
-                                CASE WHEN home_player_1_id = ${id} THEN away_player_1_id ELSE home_player_1_id END as opp_id,
+                                CASE WHEN home_player_1_id = ANY(${sourceIds}) THEN away_player_1_id ELSE home_player_1_id END as opp_id,
                                 CASE
-                                    WHEN (home_player_1_id = ${id} AND home_games_won > away_games_won)
-                                      OR (away_player_1_id = ${id} AND away_games_won > home_games_won) THEN 1
+                                    WHEN (home_player_1_id = ANY(${sourceIds}) AND home_games_won > away_games_won)
+                                      OR (away_player_1_id = ANY(${sourceIds}) AND away_games_won > home_games_won) THEN 1
                                     ELSE 0
                                 END as is_win,
                                 CASE
-                                    WHEN (home_player_1_id = ${id} AND home_games_won < away_games_won)
-                                      OR (away_player_1_id = ${id} AND away_games_won < home_games_won) THEN 1
+                                    WHEN (home_player_1_id = ANY(${sourceIds}) AND home_games_won < away_games_won)
+                                      OR (away_player_1_id = ANY(${sourceIds}) AND away_games_won < home_games_won) THEN 1
                                     ELSE 0
                                 END as is_loss
                             FROM rubbers
-                            WHERE (home_player_1_id = ${id} OR away_player_1_id = ${id})
+                            WHERE (home_player_1_id = ANY(${sourceIds}) OR away_player_1_id = ANY(${sourceIds}))
                               AND is_doubles = false
                               AND deleted_at IS NULL
                               AND outcome_type != 'walkover'
                         )
                         SELECT
-                            ep.id as opponent_id,
-                            ep.name as opponent_name,
+                            COALESCE(ep.canonical_player_id, ep.id) as opponent_id,
+                            COALESCE(cp.name, ep.name) as opponent_name,
                             COUNT(*)::int as played,
                             SUM(o.is_win)::int as wins,
                             SUM(o.is_loss)::int as losses
                         FROM opponents o
                         JOIN external_players ep ON ep.id = o.opp_id
+                        LEFT JOIN external_players cp ON cp.id = COALESCE(ep.canonical_player_id, ep.id)
                         WHERE o.opp_id IS NOT NULL
                           AND ep.deleted_at IS NULL
-                        GROUP BY ep.id, ep.name
-                        ORDER BY COUNT(*) DESC, SUM(o.is_win) DESC, ep.name ASC
+                        GROUP BY COALESCE(ep.canonical_player_id, ep.id), COALESCE(cp.name, ep.name)
+                        ORDER BY COUNT(*) DESC, SUM(o.is_win) DESC, COALESCE(cp.name, ep.name) ASC
                         LIMIT 6
                     `.execute(db),
                 ]);
@@ -881,8 +990,8 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 }));
 
                 const payload = {
-                    player_id: player.id,
-                    player_name: player.name,
+                    player_id: player.canonicalId,
+                    player_name: player.playerName,
                     wins: Number(wins),
                     losses: Number(losses),
                     total: Number(total),
@@ -892,7 +1001,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     streak: streakStr,
                     most_played_opponents: mostPlayedOpponents,
                 };
-                await writeCache(db, PLAYER_EXTENDED_CACHE_TYPE, id, payload, extDataVersion);
+                await writeCache(db, PLAYER_EXTENDED_CACHE_TYPE, player.canonicalId, payload, extDataVersion);
                 return reply.send(payload);
             }
         );
@@ -912,12 +1021,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
             async (request, reply) => {
                 const { id } = request.params;
 
-                const player = await db
-                    .selectFrom('external_players')
-                    .select(['id', 'name'])
-                    .where('id', '=', id)
-                    .where('deleted_at', 'is', null)
-                    .executeTakeFirst();
+                const player = await resolvePlayerIdentity(db, id);
 
                 if (!player) {
                     return reply.status(404).send({
@@ -926,19 +1030,31 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     });
                 }
 
+                const sourceIds = uuidArray(player.sourceIds);
+
                 const dataVersionRes = await sql<{ data_version: Date | null }>`
-                    SELECT MAX(COALESCE(r.updated_at, r.created_at, f.updated_at, f.created_at)) AS data_version
-                    FROM rubbers r
-                    JOIN fixtures f ON f.id = r.fixture_id
-                    WHERE (
-                        r.home_player_1_id = ${id}
-                        OR r.away_player_1_id = ${id}
-                        OR r.home_player_2_id = ${id}
-                        OR r.away_player_2_id = ${id}
-                    )
-                      AND r.deleted_at IS NULL
-                      AND r.outcome_type != 'walkover'
-                      AND f.deleted_at IS NULL
+                    SELECT GREATEST(
+                        COALESCE((
+                            SELECT MAX(COALESCE(r.updated_at, r.created_at, f.updated_at, f.created_at))
+                            FROM rubbers r
+                            JOIN fixtures f ON f.id = r.fixture_id
+                            WHERE (
+                                r.home_player_1_id = ANY(${sourceIds})
+                                OR r.away_player_1_id = ANY(${sourceIds})
+                                OR r.home_player_2_id = ANY(${sourceIds})
+                                OR r.away_player_2_id = ANY(${sourceIds})
+                            )
+                              AND r.deleted_at IS NULL
+                              AND r.outcome_type != 'walkover'
+                              AND f.deleted_at IS NULL
+                        ), '-infinity'::timestamp),
+                        COALESCE((
+                            SELECT MAX(updated_at)
+                            FROM external_players
+                            WHERE id = ANY(${sourceIds})
+                               OR COALESCE(canonical_player_id, id) = ${player.canonicalId}::uuid
+                        ), '-infinity'::timestamp)
+                    ) AS data_version
                 `.execute(db);
 
                 const versionRaw = dataVersionRes.rows[0]?.data_version ?? null;
@@ -948,7 +1064,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         ? new Date(String(versionRaw)).toISOString()
                         : 'none';
 
-                const cachedInsights = await readCache<any>(db, PLAYER_INSIGHTS_CACHE_TYPE, id, dataVersion);
+                const cachedInsights = await readCache<any>(db, PLAYER_INSIGHTS_CACHE_TYPE, player.canonicalId, dataVersion);
                 if (cachedInsights) {
                     return reply.send(cachedInsights);
                 }
@@ -969,25 +1085,29 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         COALESCE(f.date_played::timestamp, f.created_at) AS played_at,
                         l.name AS league_name,
                         c.name AS division_name,
-                        CASE WHEN r.home_player_1_id = ${id} THEN r.away_player_1_id ELSE r.home_player_1_id END AS opponent_id,
-                        CASE WHEN r.home_player_1_id = ${id} THEN ep_away.name ELSE ep_home.name END AS opponent_name,
-                        CASE WHEN r.home_player_1_id = ${id} THEN r.home_games_won ELSE r.away_games_won END AS player_games,
-                        CASE WHEN r.home_player_1_id = ${id} THEN r.away_games_won ELSE r.home_games_won END AS opponent_games,
+                        COALESCE(opp_ep.canonical_player_id, opp_ep.id) AS opponent_id,
+                        COALESCE(opp_cp.name, opp_ep.name) AS opponent_name,
+                        CASE WHEN r.home_player_1_id = ANY(${sourceIds}) THEN r.home_games_won ELSE r.away_games_won END AS player_games,
+                        CASE WHEN r.home_player_1_id = ANY(${sourceIds}) THEN r.away_games_won ELSE r.home_games_won END AS opponent_games,
                         CASE
-                            WHEN (r.home_player_1_id = ${id} AND r.home_games_won > r.away_games_won)
-                              OR (r.away_player_1_id = ${id} AND r.away_games_won > r.home_games_won)
+                            WHEN (r.home_player_1_id = ANY(${sourceIds}) AND r.home_games_won > r.away_games_won)
+                              OR (r.away_player_1_id = ANY(${sourceIds}) AND r.away_games_won > r.home_games_won)
                             THEN 1 ELSE 0
                         END AS is_win,
-                        CASE WHEN r.home_player_1_id = ${id} THEN 1 ELSE 0 END AS is_home,
+                        CASE WHEN r.home_player_1_id = ANY(${sourceIds}) THEN 1 ELSE 0 END AS is_home,
                         s.is_active AS season_is_active
                     FROM rubbers r
                     JOIN fixtures f ON f.id = r.fixture_id
                     JOIN competitions c ON c.id = f.competition_id
                     JOIN seasons s ON s.id = c.season_id
                     JOIN leagues l ON l.id = s.league_id
-                    LEFT JOIN external_players ep_home ON ep_home.id = r.home_player_1_id
-                    LEFT JOIN external_players ep_away ON ep_away.id = r.away_player_1_id
-                    WHERE (r.home_player_1_id = ${id} OR r.away_player_1_id = ${id})
+                    LEFT JOIN external_players opp_ep
+                      ON opp_ep.id = CASE
+                          WHEN r.home_player_1_id = ANY(${sourceIds}) THEN r.away_player_1_id
+                          ELSE r.home_player_1_id
+                      END
+                    LEFT JOIN external_players opp_cp ON opp_cp.id = COALESCE(opp_ep.canonical_player_id, opp_ep.id)
+                    WHERE (r.home_player_1_id = ANY(${sourceIds}) OR r.away_player_1_id = ANY(${sourceIds}))
                       AND r.is_doubles = false
                       AND r.deleted_at IS NULL
                       AND r.outcome_type != 'walkover'
@@ -1004,10 +1124,10 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     SELECT
                         CASE
                             WHEN (
-                                (r.home_player_1_id = ${id} OR r.home_player_2_id = ${id})
+                                (r.home_player_1_id = ANY(${sourceIds}) OR r.home_player_2_id = ANY(${sourceIds}))
                                 AND r.home_games_won > r.away_games_won
                             ) OR (
-                                (r.away_player_1_id = ${id} OR r.away_player_2_id = ${id})
+                                (r.away_player_1_id = ANY(${sourceIds}) OR r.away_player_2_id = ANY(${sourceIds}))
                                 AND r.away_games_won > r.home_games_won
                             )
                             THEN 1 ELSE 0
@@ -1015,10 +1135,10 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     FROM rubbers r
                     JOIN fixtures f ON f.id = r.fixture_id
                     WHERE (
-                        r.home_player_1_id = ${id}
-                        OR r.home_player_2_id = ${id}
-                        OR r.away_player_1_id = ${id}
-                        OR r.away_player_2_id = ${id}
+                        r.home_player_1_id = ANY(${sourceIds})
+                        OR r.home_player_2_id = ANY(${sourceIds})
+                        OR r.away_player_1_id = ANY(${sourceIds})
+                        OR r.away_player_2_id = ANY(${sourceIds})
                     )
                       AND r.is_doubles = true
                       AND r.deleted_at IS NULL
@@ -1267,8 +1387,8 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 })();
 
                 const payload = {
-                    player_id: player.id,
-                    player_name: player.name,
+                    player_id: player.canonicalId,
+                    player_name: player.playerName,
                     years_played: yearsSet.size,
                     first_match_date: firstMatchDate,
                     latest_match_date: latestMatchDate,
@@ -1361,7 +1481,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     },
                 };
 
-                await writeCache(db, PLAYER_INSIGHTS_CACHE_TYPE, id, payload, dataVersion, PLAYER_INSIGHTS_CACHE_TTL_MS);
+                await writeCache(db, PLAYER_INSIGHTS_CACHE_TYPE, player.canonicalId, payload, dataVersion, PLAYER_INSIGHTS_CACHE_TTL_MS);
 
                 return reply.send(payload);
             },
@@ -1382,12 +1502,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
             async (request, reply) => {
                 const { id } = request.params;
 
-                const player = await db
-                    .selectFrom('external_players')
-                    .select(['id'])
-                    .where('id', '=', id)
-                    .where('deleted_at', 'is', null)
-                    .executeTakeFirst();
+                const player = await resolvePlayerIdentity(db, id);
 
                 if (!player) {
                     return reply.status(404).send({
@@ -1395,6 +1510,8 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         statusCode: 404,
                     });
                 }
+
+                const sourceIds = uuidArray(player.sourceIds);
 
                 const rows = await sql<{
                     team_id: string;
@@ -1418,7 +1535,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         JOIN competitions c ON c.id = f.competition_id
                         JOIN seasons s ON s.id = c.season_id
                         JOIN leagues l ON l.id = s.league_id
-                        WHERE (r.home_player_1_id = ${id} OR r.home_player_2_id = ${id})
+                        WHERE (r.home_player_1_id = ANY(${sourceIds}) OR r.home_player_2_id = ANY(${sourceIds}))
                           AND f.home_team_id IS NOT NULL
                           AND s.is_active = true
                           AND r.deleted_at IS NULL
@@ -1441,7 +1558,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         JOIN competitions c ON c.id = f.competition_id
                         JOIN seasons s ON s.id = c.season_id
                         JOIN leagues l ON l.id = s.league_id
-                        WHERE (r.away_player_1_id = ${id} OR r.away_player_2_id = ${id})
+                        WHERE (r.away_player_1_id = ANY(${sourceIds}) OR r.away_player_2_id = ANY(${sourceIds}))
                           AND f.away_team_id IS NOT NULL
                           AND s.is_active = true
                           AND r.deleted_at IS NULL
@@ -1491,6 +1608,16 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
             async (request, reply) => {
                 const { id } = request.params;
                 const { limit, offset } = request.query;
+                const player = await resolvePlayerIdentity(db, id);
+
+                if (!player) {
+                    return reply.status(404).send({
+                        error: `Player ${id} not found`,
+                        statusCode: 404,
+                    });
+                }
+
+                const sourceIds = uuidArray(player.sourceIds);
 
                 const matches = await sql<any>`
                     SELECT
@@ -1499,29 +1626,33 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         r.fixture_id,
                         f.date_played as date,
                         CONCAT(l.name, ' · ', c.name) as league,
-                        CASE WHEN r.home_player_1_id = ${id} THEN r.away_player_1_id ELSE r.home_player_1_id END as opponent_id,
-                        CASE WHEN r.home_player_1_id = ${id} THEN ep_away.name ELSE ep_home.name END as opponent,
+                        COALESCE(opp_ep.canonical_player_id, opp_ep.id) as opponent_id,
+                        COALESCE(opp_cp.name, opp_ep.name) as opponent,
                         CASE
-                            WHEN (r.home_player_1_id = ${id} AND r.home_games_won > r.away_games_won)
-                              OR (r.away_player_1_id = ${id} AND r.away_games_won > r.home_games_won) THEN true
+                            WHEN (r.home_player_1_id = ANY(${sourceIds}) AND r.home_games_won > r.away_games_won)
+                              OR (r.away_player_1_id = ANY(${sourceIds}) AND r.away_games_won > r.home_games_won) THEN true
                             ELSE false
                         END as "isWin",
                         CASE
-                            WHEN r.home_player_1_id = ${id} THEN CONCAT('Won ', r.home_games_won, '-', r.away_games_won)
-                            WHEN r.away_player_1_id = ${id} THEN CONCAT('Won ', r.away_games_won, '-', r.home_games_won)
+                            WHEN r.home_player_1_id = ANY(${sourceIds}) THEN CONCAT('Won ', r.home_games_won, '-', r.away_games_won)
+                            WHEN r.away_player_1_id = ANY(${sourceIds}) THEN CONCAT('Won ', r.away_games_won, '-', r.home_games_won)
                         END as result_win,
                         CASE
-                            WHEN r.home_player_1_id = ${id} THEN CONCAT('Lost ', r.home_games_won, '-', r.away_games_won)
-                            WHEN r.away_player_1_id = ${id} THEN CONCAT('Lost ', r.away_games_won, '-', r.home_games_won)
+                            WHEN r.home_player_1_id = ANY(${sourceIds}) THEN CONCAT('Lost ', r.home_games_won, '-', r.away_games_won)
+                            WHEN r.away_player_1_id = ANY(${sourceIds}) THEN CONCAT('Lost ', r.away_games_won, '-', r.home_games_won)
                         END as result_loss
                     FROM rubbers r
                     JOIN fixtures f ON f.id = r.fixture_id
                     JOIN competitions c ON c.id = f.competition_id
                     JOIN seasons s ON s.id = c.season_id
                     JOIN leagues l ON l.id = s.league_id
-                    LEFT JOIN external_players ep_home ON ep_home.id = r.home_player_1_id
-                    LEFT JOIN external_players ep_away ON ep_away.id = r.away_player_1_id
-                    WHERE (r.home_player_1_id = ${id} OR r.away_player_1_id = ${id})
+                    LEFT JOIN external_players opp_ep
+                      ON opp_ep.id = CASE
+                          WHEN r.home_player_1_id = ANY(${sourceIds}) THEN r.away_player_1_id
+                          ELSE r.home_player_1_id
+                      END
+                    LEFT JOIN external_players opp_cp ON opp_cp.id = COALESCE(opp_ep.canonical_player_id, opp_ep.id)
+                    WHERE (r.home_player_1_id = ANY(${sourceIds}) OR r.away_player_1_id = ANY(${sourceIds}))
                       AND r.is_doubles = false
                       AND r.deleted_at IS NULL
                     ORDER BY f.date_played DESC
@@ -1538,7 +1669,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     const countRes = await sql<{ count: number }>`
                         SELECT COUNT(*)::int as count
                         FROM rubbers r
-                        WHERE (r.home_player_1_id = ${id} OR r.away_player_1_id = ${id})
+                        WHERE (r.home_player_1_id = ANY(${sourceIds}) OR r.away_player_1_id = ANY(${sourceIds}))
                           AND r.is_doubles = false
                           AND r.deleted_at IS NULL
                     `.execute(db);
@@ -1587,6 +1718,27 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
             },
             async (request, reply) => {
                 const { id, opponentId } = request.params;
+                const [player, opponent] = await Promise.all([
+                    resolvePlayerIdentity(db, id),
+                    resolvePlayerIdentity(db, opponentId),
+                ]);
+
+                if (!player) {
+                    return reply.status(404).send({
+                        error: `Player ${id} not found`,
+                        statusCode: 404,
+                    });
+                }
+
+                if (!opponent) {
+                    return reply.status(404).send({
+                        error: `Player ${opponentId} not found`,
+                        statusCode: 404,
+                    });
+                }
+
+                const sourceIds = uuidArray(player.sourceIds);
+                const opponentSourceIds = uuidArray(opponent.sourceIds);
                 const leagueCsv = (request.query.league_ids ?? '')
                     .split(',')
                     .map((leagueId) => leagueId.trim())
@@ -1599,30 +1751,28 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         r.fixture_id,
                         f.date_played as date,
                         CONCAT(l.name, ' · ', c.name) as league,
-                        CASE WHEN r.home_player_1_id = ${id} THEN r.away_player_1_id ELSE r.home_player_1_id END as opponent_id,
-                        CASE WHEN r.home_player_1_id = ${id} THEN ep_away.name ELSE ep_home.name END as opponent,
+                        ${opponent.canonicalId}::uuid as opponent_id,
+                        ${opponent.playerName}::text as opponent,
                         CASE 
-                            WHEN (r.home_player_1_id = ${id} AND r.home_games_won > r.away_games_won) 
-                              OR (r.away_player_1_id = ${id} AND r.away_games_won > r.home_games_won) THEN true
+                            WHEN (r.home_player_1_id = ANY(${sourceIds}) AND r.home_games_won > r.away_games_won)
+                              OR (r.away_player_1_id = ANY(${sourceIds}) AND r.away_games_won > r.home_games_won) THEN true
                             ELSE false
                         END as "isWin",
                         CASE 
-                            WHEN r.home_player_1_id = ${id} THEN CONCAT('Won ', r.home_games_won, '-', r.away_games_won)
-                            WHEN r.away_player_1_id = ${id} THEN CONCAT('Won ', r.away_games_won, '-', r.home_games_won)
+                            WHEN r.home_player_1_id = ANY(${sourceIds}) THEN CONCAT('Won ', r.home_games_won, '-', r.away_games_won)
+                            WHEN r.away_player_1_id = ANY(${sourceIds}) THEN CONCAT('Won ', r.away_games_won, '-', r.home_games_won)
                         END as result_win,
                         CASE 
-                            WHEN r.home_player_1_id = ${id} THEN CONCAT('Lost ', r.home_games_won, '-', r.away_games_won)
-                            WHEN r.away_player_1_id = ${id} THEN CONCAT('Lost ', r.away_games_won, '-', r.home_games_won)
+                            WHEN r.home_player_1_id = ANY(${sourceIds}) THEN CONCAT('Lost ', r.home_games_won, '-', r.away_games_won)
+                            WHEN r.away_player_1_id = ANY(${sourceIds}) THEN CONCAT('Lost ', r.away_games_won, '-', r.home_games_won)
                         END as result_loss
                     FROM rubbers r
                     JOIN fixtures f ON f.id = r.fixture_id
                     JOIN competitions c ON c.id = f.competition_id
                     JOIN seasons s ON s.id = c.season_id
                     JOIN leagues l ON l.id = s.league_id
-                    LEFT JOIN external_players ep_home ON ep_home.id = r.home_player_1_id
-                    LEFT JOIN external_players ep_away ON ep_away.id = r.away_player_1_id
-                    WHERE ((r.home_player_1_id = ${id} AND r.away_player_1_id = ${opponentId}) 
-                       OR (r.home_player_1_id = ${opponentId} AND r.away_player_1_id = ${id}))
+                    WHERE ((r.home_player_1_id = ANY(${sourceIds}) AND r.away_player_1_id = ANY(${opponentSourceIds}))
+                       OR (r.home_player_1_id = ANY(${opponentSourceIds}) AND r.away_player_1_id = ANY(${sourceIds})))
                       AND r.is_doubles = false
                       AND r.deleted_at IS NULL
                       AND (${leagueCsv} = '' OR s.league_id::text = ANY(string_to_array(${leagueCsv}, ',')))

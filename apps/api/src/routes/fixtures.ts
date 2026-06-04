@@ -3,6 +3,7 @@ import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import type { Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
+import { sql } from 'kysely';
 import { resolveFixtureSourceUrl } from './source-url.js';
 
 const ParamsSchema = z.object({
@@ -101,20 +102,24 @@ export function fixturesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     .leftJoin('external_players as hp2', 'hp2.id', 'rubbers.home_player_2_id')
                     .leftJoin('external_players as ap1', 'ap1.id', 'rubbers.away_player_1_id')
                     .leftJoin('external_players as ap2', 'ap2.id', 'rubbers.away_player_2_id')
+                    .leftJoin('external_players as hcp1', 'hcp1.id', (eb) => eb.fn.coalesce('hp1.canonical_player_id', 'hp1.id'))
+                    .leftJoin('external_players as hcp2', 'hcp2.id', (eb) => eb.fn.coalesce('hp2.canonical_player_id', 'hp2.id'))
+                    .leftJoin('external_players as acp1', 'acp1.id', (eb) => eb.fn.coalesce('ap1.canonical_player_id', 'ap1.id'))
+                    .leftJoin('external_players as acp2', 'acp2.id', (eb) => eb.fn.coalesce('ap2.canonical_player_id', 'ap2.id'))
                     .select([
                         'rubbers.id',
                         'rubbers.fixture_id',
                         'rubbers.is_doubles',
-                        'rubbers.home_player_1_id',
-                        'rubbers.home_player_2_id',
-                        'rubbers.away_player_1_id',
-                        'rubbers.away_player_2_id',
+                        sql<string | null>`COALESCE(hp1.canonical_player_id, hp1.id)`.as('home_player_1_id'),
+                        sql<string | null>`COALESCE(hp2.canonical_player_id, hp2.id)`.as('home_player_2_id'),
+                        sql<string | null>`COALESCE(ap1.canonical_player_id, ap1.id)`.as('away_player_1_id'),
+                        sql<string | null>`COALESCE(ap2.canonical_player_id, ap2.id)`.as('away_player_2_id'),
                         'rubbers.home_games_won',
                         'rubbers.away_games_won',
-                        'hp1.name as home_player_1_name',
-                        'hp2.name as home_player_2_name',
-                        'ap1.name as away_player_1_name',
-                        'ap2.name as away_player_2_name',
+                        sql<string | null>`COALESCE(hcp1.name, hp1.name)`.as('home_player_1_name'),
+                        sql<string | null>`COALESCE(hcp2.name, hp2.name)`.as('home_player_2_name'),
+                        sql<string | null>`COALESCE(acp1.name, ap1.name)`.as('away_player_1_name'),
+                        sql<string | null>`COALESCE(acp2.name, ap2.name)`.as('away_player_2_name'),
                     ])
                     .where('rubbers.fixture_id', '=', id)
                     .where('rubbers.deleted_at', 'is', null)

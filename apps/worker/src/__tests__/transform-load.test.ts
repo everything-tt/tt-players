@@ -427,6 +427,71 @@ describe('Wave 3: Transform & Load (TT Leagues)', () => {
             expect(standings).toHaveLength(3);
         });
 
+        it('should keep rubbers pointed at source player rows when a canonical link exists', async () => {
+            const { parseTTLeaguesData } = await import('../parser.js');
+            const { loadTTLeaguesData } = await import('../loader.js');
+
+            const parsed = parseTTLeaguesData({
+                standings: mockData.standings,
+                matches: mockData.matches,
+                sets: { '220789': mockData.sets['220789'] },
+            });
+
+            const targetRubber = parsed.rubbers.find((rubber) => rubber.homePlayers[0] && rubber.awayPlayers[0]);
+            expect(targetRubber).toBeDefined();
+
+            const sourceExternalId = targetRubber!.homePlayers[0]!;
+            const canonicalExternalId = targetRubber!.awayPlayers[0]!;
+
+            const loadArgs = {
+                competitionId: COMPETITION_ID,
+                platformId: PLATFORM_ID,
+                parsedData: parsed,
+                scrapeLogIds: SCRAPE_LOG_IDS,
+            };
+
+            await loadTTLeaguesData(testDb, loadArgs);
+
+            const sourcePlayer = await testDb
+                .selectFrom('external_players')
+                .select(['id'])
+                .where('platform_id', '=', PLATFORM_ID)
+                .where('external_id', '=', sourceExternalId)
+                .executeTakeFirstOrThrow();
+
+            const canonicalPlayer = await testDb
+                .selectFrom('external_players')
+                .select(['id'])
+                .where('platform_id', '=', PLATFORM_ID)
+                .where('external_id', '=', canonicalExternalId)
+                .executeTakeFirstOrThrow();
+
+            await testDb
+                .updateTable('external_players')
+                .set({
+                    canonical_player_id: canonicalPlayer.id,
+                    updated_at: new Date(),
+                })
+                .where('id', '=', sourcePlayer.id)
+                .execute();
+
+            await testDb
+                .updateTable('raw_scrape_logs')
+                .set({ status: 'pending' })
+                .execute();
+
+            await loadTTLeaguesData(testDb, loadArgs);
+
+            const reloadedRubber = await testDb
+                .selectFrom('rubbers')
+                .select(['home_player_1_id'])
+                .where('external_id', '=', targetRubber!.externalId)
+                .executeTakeFirstOrThrow();
+
+            expect(reloadedRubber.home_player_1_id).toBe(sourcePlayer.id);
+            expect(reloadedRubber.home_player_1_id).not.toBe(canonicalPlayer.id);
+        });
+
         it('should update raw_scrape_logs status to "processed" on success', async () => {
             const { parseTTLeaguesData } = await import('../parser.js');
             const { loadTTLeaguesData } = await import('../loader.js');

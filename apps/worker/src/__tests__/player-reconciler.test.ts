@@ -11,7 +11,7 @@ import * as m005 from '@tt-players/db/src/migrations/005_make_rubber_players_nul
 import * as m006 from '@tt-players/db/src/migrations/006_add_canonical_player_id_to_external_players.js';
 
 import type { Database } from '@tt-players/db';
-import { reconcilePlayersByName } from '../player-reconciler.js';
+import { reconcilePlayersByName, unmergePlayer } from '../player-reconciler.js';
 
 const { Pool } = pg;
 
@@ -176,7 +176,7 @@ describe('reconcilePlayersByName', () => {
         await dropTestDatabase();
     }, 15_000);
 
-    it('links unique exact-name pairs and remaps rubbers to canonical IDs', async () => {
+    it('links unique exact-name pairs without remapping rubber player IDs', async () => {
         const tt365Player = await db
             .insertInto('external_players')
             .values({
@@ -213,7 +213,7 @@ describe('reconcilePlayersByName', () => {
 
         const result = await reconcilePlayersByName(db);
         expect(result.linkedGroups).toBe(1);
-        expect(result.remappedRubbers).toBe(1);
+        expect(result.remappedRubbers).toBe(0);
 
         const players = await db
             .selectFrom('external_players')
@@ -227,7 +227,7 @@ describe('reconcilePlayersByName', () => {
 
         const canonicalId = players[0]!.canonical_player_id!;
         const alias = players.find((p) => p.id !== canonicalId);
-        expect(alias?.deleted_at).not.toBeNull();
+        expect(alias?.deleted_at).toBeNull();
 
         const rubber = await db
             .selectFrom('rubbers')
@@ -235,8 +235,28 @@ describe('reconcilePlayersByName', () => {
             .where('external_id', '=', 'r1')
             .executeTakeFirstOrThrow();
 
-        expect(rubber.home_player_1_id).toBe(canonicalId);
-        expect(rubber.away_player_1_id).toBe(canonicalId);
+        expect(rubber.home_player_1_id).toBe(ttlPlayer.id);
+        expect(rubber.away_player_1_id).toBe(tt365Player.id);
+
+        await unmergePlayer(db, alias!.id);
+
+        const unmergedAlias = await db
+            .selectFrom('external_players')
+            .select(['id', 'canonical_player_id', 'deleted_at'])
+            .where('id', '=', alias!.id)
+            .executeTakeFirstOrThrow();
+
+        expect(unmergedAlias.canonical_player_id).toBe(alias!.id);
+        expect(unmergedAlias.deleted_at).toBeNull();
+
+        const rubberAfterUnmerge = await db
+            .selectFrom('rubbers')
+            .select(['home_player_1_id', 'away_player_1_id'])
+            .where('external_id', '=', 'r1')
+            .executeTakeFirstOrThrow();
+
+        expect(rubberAfterUnmerge.home_player_1_id).toBe(ttlPlayer.id);
+        expect(rubberAfterUnmerge.away_player_1_id).toBe(tt365Player.id);
     });
 
     it('does not auto-link ambiguous names', async () => {

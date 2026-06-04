@@ -409,6 +409,133 @@ describe('GET /players/:id/stats', () => {
 
         expect(res.headers['access-control-allow-origin']).toBe('http://localhost:7373');
     });
+
+    it('aggregates stats across linked source player rows without rubber remapping', async () => {
+        const [canonical] = await db
+            .insertInto('external_players')
+            .values({
+                platform_id: ids.platformId,
+                external_id: 'ext-player-canon-stats',
+                name: 'Canonical Stats',
+                updated_at: new Date(),
+            })
+            .returning('id')
+            .execute();
+
+        await db
+            .updateTable('external_players')
+            .set({ canonical_player_id: canonical!.id, updated_at: new Date() })
+            .where('id', '=', canonical!.id)
+            .execute();
+
+        const [alias] = await db
+            .insertInto('external_players')
+            .values({
+                platform_id: ids.platformId,
+                external_id: 'ext-player-alias-stats',
+                canonical_player_id: canonical!.id,
+                name: 'Canonical Stats',
+                updated_at: new Date(),
+            })
+            .returning('id')
+            .execute();
+
+        await db
+            .insertInto('rubbers')
+            .values({
+                fixture_id: ids.fixtureId,
+                external_id: 'ext-rubber-alias-stats',
+                home_player_1_id: alias!.id,
+                away_player_1_id: ids.awayPlayerId,
+                home_games_won: 3,
+                away_games_won: 0,
+                outcome_type: 'normal',
+                updated_at: new Date(),
+            })
+            .execute();
+
+        const rubber = await db
+            .selectFrom('rubbers')
+            .select(['home_player_1_id'])
+            .where('external_id', '=', 'ext-rubber-alias-stats')
+            .executeTakeFirstOrThrow();
+
+        expect(rubber.home_player_1_id).toBe(alias!.id);
+
+        const res = await request
+            .get(`/api/players/${canonical!.id}/stats`)
+            .expect(200);
+
+        expect(res.body).toMatchObject({
+            player_id: canonical!.id,
+            player_name: 'Canonical Stats',
+            wins: 1,
+            losses: 0,
+            total: 1,
+        });
+    });
+});
+
+// ─── /players/search ────────────────────────────────────────────────────────
+
+describe('GET /players/search', () => {
+    it('collapses active canonical aliases into one search result', async () => {
+        const [canonicalPlayer] = await db
+            .insertInto('external_players')
+            .values({
+                platform_id: ids.platformId,
+                external_id: 'ext-player-search-canonical',
+                name: 'Canonical Search',
+                updated_at: new Date(),
+            })
+            .returning('id')
+            .execute();
+
+        await db
+            .updateTable('external_players')
+            .set({ canonical_player_id: canonicalPlayer!.id, updated_at: new Date() })
+            .where('id', '=', canonicalPlayer!.id)
+            .execute();
+
+        const [aliasPlayer] = await db
+            .insertInto('external_players')
+            .values({
+                platform_id: ids.platformId,
+                external_id: 'ext-player-search-alias',
+                canonical_player_id: canonicalPlayer!.id,
+                name: 'Canonical Search',
+                updated_at: new Date(),
+            })
+            .returning('id')
+            .execute();
+
+        await db
+            .insertInto('rubbers')
+            .values({
+                fixture_id: ids.fixtureId,
+                external_id: 'ext-rubber-alias-search',
+                home_player_1_id: aliasPlayer!.id,
+                away_player_1_id: ids.awayPlayerId,
+                home_games_won: 3,
+                away_games_won: 0,
+                outcome_type: 'normal',
+                updated_at: new Date(),
+            })
+            .execute();
+
+        const res = await request
+            .get('/api/players/search?q=Canonical%20Search')
+            .expect(200);
+
+        const rows = res.body.data.filter((row: { name: string }) => row.name === 'Canonical Search');
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+            id: canonicalPlayer!.id,
+            name: 'Canonical Search',
+            played: 1,
+            wins: 1,
+        });
+    });
 });
 
 // ─── /players/:id/insights ───────────────────────────────────────────────────
