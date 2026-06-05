@@ -1247,6 +1247,13 @@ body.theme-dark .tt-home-toggle {
   justify-content: space-between;
 }
 
+.tt-h2h-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .tt-h2h-panel-copy {
   min-width: 0;
 }
@@ -2919,6 +2926,11 @@ body.theme-dark .tt-h2h-duel-vs {
     flex-direction: column;
   }
 
+  .tt-h2h-actions {
+    align-self: flex-start;
+    margin-top: 8px;
+  }
+
   .tt-h2h-scope-pill {
     align-self: flex-start;
     max-width: 100%;
@@ -2930,10 +2942,8 @@ body.theme-dark .tt-h2h-duel-vs {
     gap: 8px;
   }
 
-  .tt-h2h-picker-vs {
-    top: 50%; /* Adjusted for stacked layout - effectively between cards */
-    display: none; /* Hide VS badge on mobile stack to avoid clutter or fix positioning */
-  }
+
+
 
 
   .tt-tab-toolbar {
@@ -2941,3 +2951,114 @@ body.theme-dark .tt-h2h-duel-vs {
     flex-direction: column;
   }
 }
+
+/* Compact player-style lists for H2H tab */
+.tt-h2h-compact-list .tt-players-row {
+  align-items: center;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.14);
+  column-gap: 12px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) minmax(32px, auto);
+  grid-template-rows: auto auto;
+  min-height: 52px;
+  overflow: hidden;
+  padding: 6px 0;
+  row-gap: 2px;
+}
+
+body.theme-dark .tt-h2h-compact-list .tt-players-row {
+  border-bottom-color: rgba(255, 255, 255, 0.18);
+}
+
+.tt-h2h-compact-list .tt-players-row:last-child {
+  border-bottom: 0;
+}
+
+.tt-h2h-compact-list .tt-players-row-main {
+  display: contents;
+}
+
+.tt-h2h-compact-list .tt-player-avatar {
+  align-items: center;
+  border-radius: 999px;
+  display: flex;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  float: none;
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  height: 36px !important;
+  justify-content: center;
+  letter-spacing: 0;
+  line-height: 36px !important;
+  margin: 0;
+  width: 36px !important;
+}
+
+.tt-h2h-compact-list .tt-players-row-main span:not(.tt-player-avatar),
+.tt-h2h-compact-list .tt-players-row-main strong {
+  max-width: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tt-h2h-compact-list .tt-players-row-main span:not(.tt-player-avatar) {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  grid-column: 2;
+  grid-row: 1;
+  line-height: 1.25;
+  margin-top: 0;
+  position: static;
+}
+
+.tt-h2h-compact-list .tt-players-row-main strong {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 400;
+  grid-column: 2;
+  grid-row: 2;
+  line-height: 1.25;
+  margin-top: 0;
+  position: static;
+}
+
+.tt-clear-action-button {
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  color: var(--ink-muted) !important;
+}
+
+.tt-clear-action-button i {
+  color: var(--ink-muted) !important;
+}
+
+.tt-clear-action-button:hover {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+  color: var(--ink) !important;
+}
+
+.tt-clear-action-button:hover i {
+  color: var(--ink) !important;
+}
+
+.theme-dark .tt-clear-action-button {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.theme-dark .tt-clear-action-button i {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.theme-dark .tt-clear-action-button:hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #fff !important;
+}
+
+.theme-dark .tt-clear-action-button:hover i {
+  color: #fff !important;
+}
+
