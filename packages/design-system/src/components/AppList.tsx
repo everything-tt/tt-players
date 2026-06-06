@@ -14,8 +14,8 @@ export interface AppListItemProps {
   title: ReactNode;
   subtitle?: ReactNode;
   className?: string;
-  onClick?: MouseEventHandler<HTMLAnchorElement>;
-  href?: string;
+  onClick?: MouseEventHandler<any>;
+  href?: string | null;
   borderless?: boolean;
   trailingIconClassName?: string;
   trailingElement?: ReactNode;
@@ -49,8 +49,8 @@ export function AppListItem({
   trailingElement,
   children,
 }: AppListItemProps) {
-  return (
-    <a href={href} onClick={onClick} className={cx(borderless && 'border-0', className)}>
+  const content = (
+    <>
       {iconClassName ? <i className={iconClassName} /> : null}
       <span>{title}</span>
       {subtitle ? <strong>{subtitle}</strong> : null}
@@ -60,6 +60,20 @@ export function AppListItem({
       ) : trailingIconClassName ? (
         <i className={trailingIconClassName} />
       ) : null}
+    </>
+  );
+
+  if (href === null) {
+    return (
+      <div onClick={onClick} className={cx('tt-app-list-row', borderless && 'border-0', className)}>
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <a href={href} onClick={onClick} className={cx(borderless && 'border-0', className)}>
+      {content}
     </a>
   );
 }

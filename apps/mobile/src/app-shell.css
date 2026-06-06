@@ -77,6 +77,7 @@ body.theme-dark {
 .gradient-highlight { background: var(--accent) !important; color: var(--on-accent) !important; }
 
 .tt-icon-accent,
+.tt-icon-player,
 .tt-icon-team,
 .tt-icon-repeat,
 .tt-icon-trend {
@@ -1599,7 +1600,8 @@ body.theme-dark .tt-segmented-toggle {
   margin-bottom: 0;
 }
 
-.tt-app-list a {
+.tt-app-list > a,
+.tt-app-list-row {
   align-items: center;
   column-gap: 12px;
   display: grid;
@@ -1611,7 +1613,8 @@ body.theme-dark .tt-segmented-toggle {
   row-gap: 2px;
 }
 
-.tt-app-list a i:first-child {
+.tt-app-list > a i:first-child,
+.tt-app-list-row i:first-child {
   float: none;
   grid-column: 1;
   grid-row: 1 / span 2;
@@ -1619,15 +1622,18 @@ body.theme-dark .tt-segmented-toggle {
   margin-top: 0;
 }
 
-.tt-app-list a span:not(.badge),
-.tt-app-list a strong {
+.tt-app-list > a span:not(.badge),
+.tt-app-list > a strong,
+.tt-app-list-row > span,
+.tt-app-list-row > strong {
   max-width: none;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.tt-app-list a span:not(.badge) {
+.tt-app-list > a span:not(.badge),
+.tt-app-list-row > span {
   font-size: 14px;
   grid-column: 2;
   grid-row: 1;
@@ -1636,7 +1642,8 @@ body.theme-dark .tt-segmented-toggle {
   position: static;
 }
 
-.tt-app-list a strong {
+.tt-app-list > a strong,
+.tt-app-list-row > strong {
   grid-column: 2;
   grid-row: 2;
   line-height: 1.25;
@@ -1644,7 +1651,7 @@ body.theme-dark .tt-segmented-toggle {
   position: static;
 }
 
-.tt-app-list a i:last-child {
+.tt-app-list > a i:last-child {
   align-self: center;
   float: none;
   grid-column: 3;
@@ -1652,7 +1659,7 @@ body.theme-dark .tt-segmented-toggle {
   line-height: 1;
 }
 
-.tt-app-list a .tt-player-remove-badge {
+.tt-app-list > a .tt-player-remove-badge {
   align-self: center;
   grid-column: 3;
   grid-row: 1 / span 2;
@@ -2187,12 +2194,19 @@ body.theme-dark .tt-segmented-toggle {
 
 .tt-tournament-summary {
   margin-top: 16px;
+  padding-bottom: 14px;
+  padding-top: 14px;
+}
+
+.tt-tournament-summary .tt-players-search-title {
+  font-size: 28px;
 }
 
 .tt-tournament-summary-meta {
   border-top: 1px solid var(--border-hairline);
   display: grid;
   gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   margin-top: 12px;
   padding-top: 12px;
 }
@@ -2246,6 +2260,116 @@ body.theme-dark .tt-segmented-toggle {
 .tt-icon-result {
   background: var(--accent-subtle) !important;
   color: var(--accent) !important;
+}
+
+.tt-event-top-player-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tt-event-top-player-card {
+  background: rgba(31, 31, 31, 0.03);
+  border-radius: 8px;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 10px 8px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.tt-event-top-player-card.disabled {
+  pointer-events: none;
+}
+
+.tt-event-top-player-rank {
+  align-self: center;
+  background: var(--accent-subtle);
+  border-radius: 999px;
+  color: var(--accent);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 700;
+  height: 20px;
+  justify-content: center;
+  line-height: 20px;
+  margin-bottom: 6px;
+  width: 20px;
+}
+
+.tt-event-top-player-name {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tt-event-top-player-record {
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  margin-top: 6px;
+}
+
+.tt-event-top-player-meta {
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 5px;
+}
+
+.tt-event-match-row {
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.tt-event-match-row:last-child {
+  border-bottom: 0;
+}
+
+.tt-event-match-players {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tt-event-player-link {
+  display: block;
+  flex: 0 1 auto;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  min-width: 0;
+  overflow: hidden;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tt-event-player-link.winner {
+  color: var(--state-success);
+}
+
+.tt-event-player-link.loser {
+  color: var(--state-warning);
+}
+
+.tt-event-player-link[aria-disabled='true'] {
+  pointer-events: none;
+}
+
+.tt-event-match-vs {
+  color: var(--ink-muted);
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .tt-rubber-item {

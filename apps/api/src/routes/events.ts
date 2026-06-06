@@ -234,8 +234,8 @@ export function eventsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                             'serr.away_player_external_id',
                             'serr.winner_side',
                             'serr.canonical_rubber_id',
-                            'hp.id as home_player_resolved_id',
-                            'ap.id as away_player_resolved_id',
+                            sql<string | null>`COALESCE(hp.canonical_player_id, hp.id)`.as('home_player_resolved_id'),
+                            sql<string | null>`COALESCE(ap.canonical_player_id, ap.id)`.as('away_player_resolved_id'),
                         ])
                         .where('se.canonical_competition_id', '=', id)
                         .orderBy('serr.round_order', 'asc')

@@ -444,15 +444,15 @@ export function H2HTabContent({ onOpenPlayer }: H2HTabContentProps) {
             </div>
           </section>
 
-          {/* Encounters by League Section */}
+          {/* Encounters by Event Section */}
           <section className="tt-player-section mt-2" aria-labelledby="tt-h2h-repeated-title">
             <div className="tt-player-section-header">
-              <h2 id="tt-h2h-repeated-title" className="tt-player-section-title">Encounters by League</h2>
-              <span className="tt-player-section-note">League-level aggregation</span>
+              <h2 id="tt-h2h-repeated-title" className="tt-player-section-title">Encounters by Event</h2>
+              <span className="tt-player-section-note">Event-level aggregation</span>
             </div>
 
             {encounterCount === 0 ? (
-              <p className="tt-player-section-state mb-0">No encounters found across all leagues.</p>
+              <p className="tt-player-section-state mb-0">No encounters found across all events.</p>
             ) : (
               <>
                 <p className="font-12 opacity-75 mb-3">
