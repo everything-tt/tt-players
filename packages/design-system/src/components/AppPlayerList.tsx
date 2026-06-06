@@ -25,12 +25,15 @@ export function AppPlayerList({
   items,
   onSelectItem,
   renderTrailing,
-  listClassName = 'tt-player-large-list',
+  listClassName,
   size = 'large',
   coloredAvatars = false,
   getAvatarColor,
   compact = false,
 }: AppPlayerListProps) {
+  const finalListClassName = listClassName ?? (compact ? 'tt-player-compact-list' : 'tt-player-large-list');
+  const sizeClassName = compact ? 'list-custom-small' : (size === 'large' ? 'list-custom-large' : 'list-custom-small');
+
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -44,10 +47,10 @@ export function AppPlayerList({
     <div
       className={cx(
         'list-group',
-        size === 'large' ? 'list-custom-large' : 'list-custom-small',
+        sizeClassName,
         'tt-players-list',
         compact && 'tt-h2h-compact-list',
-        listClassName
+        finalListClassName
       )}
     >
       {items.map((item) => (
