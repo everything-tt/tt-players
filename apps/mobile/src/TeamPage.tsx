@@ -2,7 +2,7 @@ import { type MouseEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { FormResultPills } from './components/FormResultPills';
 import { usePageNavigation } from './hooks/usePageNavigation';
-import { formatMatchDate, getInitials } from './player-shared';
+import { formatMatchDate } from './player-shared';
 import {
   useTeamFixturesQuery,
   useTeamFormQuery,
@@ -18,6 +18,7 @@ import {
   AppLoadingCard,
   AppMessageCard,
   AppPageContent,
+  AppPlayerList,
 } from './ui/appkit';
 
 export function TeamPage() {
@@ -132,27 +133,15 @@ export function TeamPage() {
                 ) : roster.length === 0 ? (
                   <p className="tt-player-section-state">No players found for this team yet.</p>
                 ) : (
-                  <div className="list-group list-custom-large tt-player-search-list tt-players-list">
-                    {roster.map((player: any) => (
-                      <div key={player.id} className="tt-players-row">
-                        <a
-                          href="#"
-                          className="tt-players-row-main"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            openPlayer(player.id);
-                          }}
-                        >
-                          <span className="tt-player-avatar bg-highlight color-white">{getInitials(player.name)}</span>
-                          <span>{player.name}</span>
-                          <strong>{player.winRate ?? 0}% WR · {player.played} matches</strong>
-                        </a>
-                        <span className="tt-team-row-action" aria-hidden="true">
-                          <i className="fa fa-angle-right" />
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                  <AppPlayerList
+                    items={roster.map((player: any) => ({
+                      id: player.id,
+                      name: player.name,
+                      subtitle: `${player.winRate ?? 0}% WR · ${player.played} matches`,
+                    }))}
+                    onSelectItem={(item) => openPlayer(item.id)}
+                    listClassName="tt-player-search-list"
+                  />
                 )}
             </section>
 

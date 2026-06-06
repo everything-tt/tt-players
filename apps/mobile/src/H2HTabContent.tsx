@@ -4,7 +4,7 @@ import {
   getInitials,
   type PlayerSearchItem,
 } from './player-shared';
-import { AppButtonLink } from './ui/appkit';
+import { AppButtonLink, AppPlayerList } from './ui/appkit';
 import { PlayerSearchSheet } from './PlayerSearchSheet';
 import { usePageNavigation } from './hooks/usePageNavigation';
 import { usePlayerH2HQuery } from './queries';
@@ -156,10 +156,7 @@ export function H2HTabContent({ onOpenPlayer }: H2HTabContentProps) {
     };
   }, []);
 
-  const openFixture = (fixtureId: string) => (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-    navigateInTab('leagues', `fixture/${fixtureId}`);
-  };
+
 
   const h2hQuery = usePlayerH2HQuery(
     playerA?.id ?? '',
@@ -222,9 +219,7 @@ export function H2HTabContent({ onOpenPlayer }: H2HTabContentProps) {
   }, [h2h]);
 
 
-  const preventDefault = (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-  };
+
 
   return (
     <>
@@ -357,53 +352,42 @@ export function H2HTabContent({ onOpenPlayer }: H2HTabContentProps) {
             <span className="tt-player-section-note">{favouriteH2Hs.length} saved</span>
           </div>
           <div className="favourites-scroll">
-            <div className="list-group list-custom-large tt-player-large-list tt-players-list">
-              {favouriteH2Hs.map((item, index) => {
-                const title = `${item.player1.name} vs ${item.player2.name}`;
-                return (
-                  <div
-                    key={`${item.player1.id}-${item.player2.id}-${index}`}
-                    className="tt-players-row"
-                  >
-                    <a
-                      href="#"
-                      className="tt-players-row-main"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        setPlayerA(item.player1);
-                        setPlayerB(item.player2);
-                      }}
-                    >
-                      <span className="tt-player-avatar bg-highlight color-white">VS</span>
-                      <span>{title}</span>
-                      <strong>
-                        {getWinRate(item.player1)}% WR ({item.player1.wins}W) vs {getWinRate(item.player2)}% WR ({item.player2.wins}W)
-                      </strong>
-                    </a>
-                    <button
-                      type="button"
-                      className="tt-player-remove-badge"
-                      aria-label={`Remove ${title} from favourites`}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        setFavouriteH2Hs((previous) => {
-                          const next = previous.filter(
-                            (x) =>
-                              !((x.player1.id === item.player1.id && x.player2.id === item.player2.id) ||
-                                (x.player1.id === item.player2.id && x.player2.id === item.player1.id))
-                          );
-                          persistFavouriteH2H(next);
-                          return next;
-                        });
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+            <AppPlayerList
+              items={favouriteH2Hs.map((item) => ({
+                id: `${item.player1.id}-${item.player2.id}`,
+                name: `${item.player1.name} vs ${item.player2.name}`,
+                avatarText: 'VS',
+                subtitle: `${getWinRate(item.player1)}% WR (${item.player1.wins}W) vs ${getWinRate(item.player2)}% WR (${item.player2.wins}W)`,
+                player1: item.player1,
+                player2: item.player2,
+              }))}
+              onSelectItem={(item) => {
+                setPlayerA(item.player1);
+                setPlayerB(item.player2);
+              }}
+              renderTrailing={(item) => (
+                <button
+                  type="button"
+                  className="tt-player-remove-badge"
+                  aria-label={`Remove ${item.name} from favourites`}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setFavouriteH2Hs((previous) => {
+                      const next = previous.filter(
+                        (x) =>
+                          !((x.player1.id === item.player1.id && x.player2.id === item.player2.id) ||
+                            (x.player1.id === item.player2.id && x.player2.id === item.player1.id))
+                      );
+                      persistFavouriteH2H(next);
+                      return next;
+                    });
+                  }}
+                >
+                  Remove
+                </button>
+              )}
+            />
           </div>
         </section>
       ) : null}
@@ -474,25 +458,15 @@ export function H2HTabContent({ onOpenPlayer }: H2HTabContentProps) {
                 <p className="font-12 opacity-75 mb-3">
                   This matchup has been played <strong>{encounterCount}</strong> times.
                 </p>
-                <div className="list-group list-custom-large tt-players-list tt-h2h-compact-list">
-                  {leagueEncounterSummary.slice(0, 5).map((summary, index) => {
-                    const initials = getInitials(summary.league);
-                    return (
-                      <div key={`${summary.league}-${index}`} className="tt-players-row">
-                        <a
-                          href="#"
-                          className="tt-players-row-main"
-                          onClick={preventDefault}
-                        >
-                          <span className="tt-player-avatar bg-highlight color-white">{initials}</span>
-                          <span>{summary.league}</span>
-                          <strong>{summary.played} matches · {summary.playerAWins}-{summary.playerBWins} · Latest {formatMatchDate(summary.latestDate)}</strong>
-                        </a>
-                        <i className="fa fa-angle-right align-self-center text-end opacity-30 pe-2" style={{ gridColumn: 3, gridRow: '1 / span 2' }} />
-                      </div>
-                    );
-                  })}
-                </div>
+                <AppPlayerList
+                  compact
+                  items={leagueEncounterSummary.slice(0, 5).map((summary) => ({
+                    id: summary.league,
+                    name: summary.league,
+                    avatarText: getInitials(summary.league),
+                    subtitle: `${summary.played} matches · ${summary.playerAWins}-${summary.playerBWins} · Latest ${formatMatchDate(summary.latestDate)}`,
+                  }))}
+                />
               </>
             )}
           </section>
@@ -507,27 +481,18 @@ export function H2HTabContent({ onOpenPlayer }: H2HTabContentProps) {
             {h2h.encounters.length === 0 ? (
               <p className="tt-player-section-state mb-0">No past encounters found.</p>
             ) : (
-              <div className="list-group list-custom-large tt-players-list tt-h2h-compact-list">
-                {h2h.encounters.map((encounter) => {
-                  const isWin = encounter.isWin;
-                  const badgeText = isWin ? 'W' : 'L';
-                  const bgClass = isWin ? 'tt-bg-success' : 'tt-bg-warning';
-                  return (
-                    <div key={encounter.id} className="tt-players-row">
-                      <a
-                        href="#"
-                        className="tt-players-row-main"
-                        onClick={openFixture(encounter.fixture_id)}
-                      >
-                        <span className={`tt-player-avatar ${bgClass} color-white`}>{badgeText}</span>
-                        <span>{encounter.result}</span>
-                        <strong>{formatMatchDate(encounter.date)} · {encounter.league}</strong>
-                      </a>
-                      <i className="fa fa-angle-right align-self-center text-end opacity-30 pe-2" style={{ gridColumn: 3, gridRow: '1 / span 2' }} />
-                    </div>
-                  );
-                })}
-              </div>
+              <AppPlayerList
+                compact
+                items={h2h.encounters.map((encounter) => ({
+                  id: encounter.id,
+                  name: encounter.result,
+                  avatarText: encounter.isWin ? 'W' : 'L',
+                  avatarColor: encounter.isWin ? 'tt-bg-success' : 'tt-bg-warning',
+                  subtitle: `${formatMatchDate(encounter.date)} · ${encounter.league}`,
+                  fixture_id: encounter.fixture_id,
+                }))}
+                onSelectItem={(item) => navigateInTab('leagues', `fixture/${item.fixture_id}`)}
+              />
             )}
           </section>
         </>

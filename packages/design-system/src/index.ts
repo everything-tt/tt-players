@@ -49,6 +49,12 @@ export {
 } from './components/AppList';
 
 export {
+  AppPlayerList,
+  type AppPlayerListProps,
+  type AppPlayerListItem,
+} from './components/AppPlayerList';
+
+export {
   AppSidebar,
   AppSidebarDivider,
   AppSidebarItem,

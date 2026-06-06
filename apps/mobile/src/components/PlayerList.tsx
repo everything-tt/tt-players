@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
-import { calcWinRate, getInitials, type PlayerSearchItem } from '../player-shared';
+import { calcWinRate, type PlayerSearchItem } from '../player-shared';
 import { getPlayerAvatarColor } from '../utils/avatar';
+import { AppPlayerList } from '../ui/appkit';
 
 interface PlayerListProps {
   players: PlayerSearchItem[];
@@ -19,31 +20,20 @@ export function PlayerList({
   size = 'large',
   coloredAvatars = false,
 }: PlayerListProps) {
+  const items = players.map((player) => ({
+    ...player,
+    subtitle: `${calcWinRate(player.wins, player.played)}% WR • ${player.played} matches`,
+  }));
+
   return (
-    <div className={`list-group ${size === 'large' ? 'list-custom-large' : 'list-custom-small'} tt-players-list ${listClassName}`}>
-      {players.map((player) => (
-        <div key={player.id} className="tt-players-row">
-          <a
-            href="#"
-            className="tt-players-row-main"
-            onClick={(event) => {
-              event.preventDefault();
-              onSelectPlayer(player);
-            }}
-          >
-            <span className={`tt-player-avatar ${coloredAvatars ? getPlayerAvatarColor(player.name) : 'bg-highlight'} color-white`}>
-              {getInitials(player.name)}
-            </span>
-            <span>{player.name}</span>
-            <strong>{calcWinRate(player.wins, player.played)}% WR • {player.played} matches</strong>
-          </a>
-          {renderTrailing ? (
-            renderTrailing(player)
-          ) : (
-            <i className="fa fa-angle-right align-self-center text-end opacity-30 pe-2" style={{ gridColumn: 3, gridRow: '1 / span 2' }} />
-          )}
-        </div>
-      ))}
-    </div>
+    <AppPlayerList
+      items={items}
+      onSelectItem={(item) => onSelectPlayer(item as unknown as PlayerSearchItem)}
+      renderTrailing={renderTrailing ? (item) => renderTrailing(item as unknown as PlayerSearchItem) : undefined}
+      listClassName={listClassName}
+      size={size}
+      coloredAvatars={coloredAvatars}
+      getAvatarColor={getPlayerAvatarColor}
+    />
   );
 }
