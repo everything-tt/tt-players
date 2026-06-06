@@ -165,7 +165,7 @@ export function EventDetailPage() {
                       <span>{matches.length} matches</span>
                     </div>
 
-                    <AppListGroup size="large" className="tt-tournament-result-list tt-player-list">
+                    <AppListGroup size="large" className="tt-player-list">
                       {matches.map((match) => {
                         const isHomeWinner = match.winner_side === 'home';
                         const winnerName = isHomeWinner ? match.home_player_name : match.away_player_name;
@@ -180,7 +180,7 @@ export function EventDetailPage() {
                         return (
                           <AppListItem
                             key={match.id}
-                            className="tt-event-result-row"
+                            iconClassName="fa fa-table-tennis rounded-xl tt-icon-result"
                             title={`${match.home_player_name} vs ${match.away_player_name}`}
                             subtitle={timeLabel ? `${timeLabel} · ${outcomeLabel}: ${winnerName}` : `${outcomeLabel}: ${winnerName}`}
                             onClick={(event) => event.preventDefault()}

@@ -28,6 +28,7 @@ export function AppListGroup({ children, size = 'large', className }: AppListGro
       className={cx(
         'list-group',
         size === 'large' ? 'list-custom-large' : 'list-custom-small',
+        'tt-app-list',
         className
       )}
     >

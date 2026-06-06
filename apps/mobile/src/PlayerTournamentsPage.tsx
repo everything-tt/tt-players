@@ -90,7 +90,7 @@ export function PlayerTournamentsPage() {
           ) : tournaments.length === 0 ? (
             <p className="tt-player-section-state mb-0">No tournament appearances found for this player.</p>
           ) : (
-            <AppListGroup size="large" className="tt-tournament-list tt-player-list">
+            <AppListGroup size="large" className="tt-player-list">
               {tournaments.map((event, index) => {
                 const dateStr = event.event_date ? formatDate(event.event_date) : 'Unknown Date';
                 const lossCount = event.played - event.wins;

@@ -1599,6 +1599,70 @@ body.theme-dark .tt-segmented-toggle {
   margin-bottom: 0;
 }
 
+.tt-app-list a {
+  align-items: center;
+  column-gap: 12px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  min-height: 74px;
+  overflow: hidden;
+  padding: 12px 0;
+  row-gap: 2px;
+}
+
+.tt-app-list a i:first-child {
+  float: none;
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  margin-right: 0;
+  margin-top: 0;
+}
+
+.tt-app-list a span:not(.badge),
+.tt-app-list a strong {
+  max-width: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tt-app-list a span:not(.badge) {
+  font-size: 14px;
+  grid-column: 2;
+  grid-row: 1;
+  line-height: 1.25;
+  margin-top: 0;
+  position: static;
+}
+
+.tt-app-list a strong {
+  grid-column: 2;
+  grid-row: 2;
+  line-height: 1.25;
+  margin-top: 0;
+  position: static;
+}
+
+.tt-app-list a i:last-child {
+  align-self: center;
+  float: none;
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  line-height: 1;
+}
+
+.tt-app-list a .tt-player-remove-badge {
+  align-self: center;
+  grid-column: 3;
+  grid-row: 1 / span 2;
+}
+
+.tt-app-list.list-custom-small a {
+  min-height: 54px;
+  padding: 9px 0;
+}
+
 .tt-player-full-list-button {
   font-size: 13px;
   margin-top: 14px;
@@ -1667,33 +1731,6 @@ body.theme-dark .tt-segmented-toggle {
   color: var(--state-danger);
 }
 
-.tt-season-list a strong {
-  max-width: calc(100% - 92px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tt-match-history-list a {
-  align-items: center;
-  column-gap: 12px;
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) 10px;
-  grid-template-rows: auto auto;
-  min-height: 74px;
-  overflow: hidden;
-  padding: 12px 0;
-  row-gap: 2px;
-}
-
-.tt-match-history-list a i:first-child {
-  float: none;
-  grid-column: 1;
-  grid-row: 1 / span 2;
-  margin-right: 0;
-  margin-top: 0;
-}
-
 .tt-match-result-icon {
   color: #fff !important;
 }
@@ -1712,39 +1749,6 @@ body.theme-dark .tt-segmented-toggle {
 
 .tt-bg-warning {
   background-color: var(--state-warning) !important;
-}
-
-.tt-match-history-list a span:not(.badge),
-.tt-match-history-list a strong {
-  max-width: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tt-match-history-list a span:not(.badge) {
-  font-size: 14px;
-  grid-column: 2;
-  grid-row: 1;
-  line-height: 1.25;
-  margin-top: 0;
-  position: static;
-}
-
-.tt-match-history-list a strong {
-  grid-column: 2;
-  grid-row: 2;
-  line-height: 1.25;
-  margin-top: 0;
-  position: static;
-}
-
-.tt-match-history-list a i:last-child {
-  align-self: center;
-  float: none;
-  grid-column: 3;
-  grid-row: 1 / span 2;
-  line-height: 1;
 }
 
 .tt-player-summary-divider {
@@ -2237,18 +2241,6 @@ body.theme-dark .tt-segmented-toggle {
   color: var(--ink-muted);
   font-size: 12px;
   font-weight: 600;
-}
-
-.tt-event-result-row {
-  cursor: default;
-}
-
-.tt-event-result-row span {
-  padding-left: 0 !important;
-}
-
-.tt-event-result-row strong {
-  padding-left: 0 !important;
 }
 
 .tt-icon-result {
@@ -2780,15 +2772,6 @@ body.theme-dark .tt-h2h-picker-vs {
 }
 
 
-.tt-h2h-result-list {
-  max-height: 220px;
-  overflow-y: auto;
-}
-
-.tt-h2h-result-list a strong {
-  margin-left: 8px;
-}
-
 .tt-h2h-search-avatar {
   align-items: center;
   border-radius: 999px;
@@ -2924,10 +2907,6 @@ body.theme-dark .tt-h2h-picker-vs {
 
 .tt-h2h-bar-b {
   background: var(--state-danger);
-}
-
-.tt-h2h-repeated-list a strong {
-  margin-left: 6px;
 }
 
 body.theme-dark .tt-tab-toggle button {

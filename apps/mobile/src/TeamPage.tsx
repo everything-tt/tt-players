@@ -157,7 +157,7 @@ export function TeamPage() {
                 ) : fixtures.length === 0 ? (
                   <p className="tt-player-section-state">No recent matches found.</p>
                 ) : (
-                  <AppListGroup size="large" className="tt-match-history-list tt-player-list">
+                  <AppListGroup size="large" className="tt-player-list">
                     {fixtures.map((fixture: any, index: number) => (
                       <AppListItem
                         key={fixture.id}

@@ -288,7 +288,7 @@ export function PlayerPage() {
                 ) : affiliations.length === 0 ? (
                   <p className="tt-player-section-state">No active-season clubs found.</p>
                 ) : (
-                  <AppListGroup size="large" className="tt-season-list tt-player-list">
+                  <AppListGroup size="large" className="tt-player-list">
                     {affiliations.map((affiliation: any, index: number) => (
                       <AppListItem
                         key={`${affiliation.team_id}-${affiliation.competition_name}-${affiliation.season_id}`}
@@ -309,7 +309,7 @@ export function PlayerPage() {
                 <p className="tt-player-section-state">No tournament appearances found.</p>
               ) : (
                 <>
-                  <AppListGroup size="large" className="tt-tournament-list tt-player-list">
+                  <AppListGroup size="large" className="tt-player-list">
                     {recentTournaments.map((event, index) => {
                     const dateStr = event.event_date ? formatDate(event.event_date) : 'Unknown Date';
                     const lossCount = event.played - event.wins;
@@ -382,7 +382,7 @@ export function PlayerPage() {
                 <p className="tt-player-section-state">No recent league matches found.</p>
               ) : (
                 <>
-                  <AppListGroup size="large" className="tt-match-history-list tt-player-list">
+                  <AppListGroup size="large" className="tt-player-list">
                     {recentMatches.map((match: any, index: number) => (
                       <AppListItem
                         key={match.id}

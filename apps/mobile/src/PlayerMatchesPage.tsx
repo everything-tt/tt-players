@@ -116,7 +116,7 @@ export function PlayerMatchesPage() {
               <p className="tt-player-section-state mb-0">No matches available for this player.</p>
             ) : (
               <>
-                <AppListGroup size="large" className="tt-match-history-list">
+                <AppListGroup size="large">
                   {matches.map((match, index) => (
                     <AppListItem
                       key={match.id}

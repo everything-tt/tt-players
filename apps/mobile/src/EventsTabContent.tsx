@@ -93,7 +93,7 @@ export function EventsTabContent() {
             <span className="tt-player-section-note">{favouriteTournaments.length} saved</span>
           </div>
 
-          <AppListGroup size="large" className="tt-tournament-list tt-player-list">
+          <AppListGroup size="large" className="tt-player-list">
             {favouriteTournaments.map((event, index) => {
               const dateStr = event.event_date ? formatDate(event.event_date) : 'Unknown Date';
               const matchLabel = event.match_count === 1 ? '1 match' : `${event.match_count} matches`;
@@ -153,7 +153,7 @@ export function EventsTabContent() {
               </h2>
               <span className="tt-player-section-note">{events.length} shown</span>
             </div>
-            <AppListGroup size="large" className="tt-tournament-list tt-player-list">
+            <AppListGroup size="large" className="tt-player-list">
               {events.map((event, index) => {
                 const dateStr = event.event_date ? formatDate(event.event_date) : 'Unknown Date';
                 const matchLabel = event.match_count === 1 ? '1 match' : `${event.match_count} matches`;
