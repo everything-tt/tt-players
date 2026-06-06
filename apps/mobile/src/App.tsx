@@ -5,10 +5,12 @@ import { HomeTabContent } from './HomeTabContent';
 import { LeagueSelectionPage } from './LeagueSelectionPage';
 import { LeaguesTabContent } from './LeaguesTabContent';
 import { TabFooterBar } from './TabFooterBar';
+import { PlayerList } from './components/PlayerList';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { useTabNavigation, type AppTabId } from './navigation/tab-navigation';
 import { useLeaguesQuery, usePlayerSearchQuery } from './queries';
 import { usePWAInstallContext } from './PWAInstallContext';
+import { useTheme } from './ui/appkit';
 
 type MenuId = 'menu-main' | 'menu-share';
 type MenuPlacement = 'left' | 'right' | 'top' | 'bottom';
@@ -47,7 +49,6 @@ const HEADER_SWITCH_SCROLL = 40;
 const SEARCH_DEBOUNCE_MS = 250;
 const MAX_SELECTED_LEAGUES = 10;
 
-const THEME_STORAGE_KEY = 'TTPlayers-Theme';
 const FAVOURITES_STORAGE_KEY = 'tt_players_favourite_players';
 const FAVOURITES_UPDATED_EVENT = 'tt_players_favourite_players_updated';
 const LEAGUES_STORAGE_KEY = 'tt_players_selected_league_ids';
@@ -59,19 +60,6 @@ function formatBuildTime(value: string): string {
   if (Number.isNaN(timestamp.getTime())) return 'unknown';
 
   return `${timestamp.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
-}
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(' ').filter(Boolean);
-  if (parts.length >= 2) {
-    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-  }
-  return (parts[0] ?? 'P').slice(0, 2).toUpperCase();
-}
-
-function getWinRate(player: Pick<PlayerSearchItem, 'wins' | 'played'>): number {
-  if (player.played <= 0) return 0;
-  return Math.round((player.wins / player.played) * 100);
 }
 
 function isValidFavouritePlayer(value: unknown): value is PlayerSearchItem {
@@ -137,7 +125,7 @@ function App() {
   const [activeMenuId, setActiveMenuId] = useState<MenuId | null>(null);
   const [favouritePlayers, setFavouritePlayers] = useState<PlayerSearchItem[]>(() => parseStoredFavouritePlayers());
   const [isBooting, setIsBooting] = useState(true);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const { isDarkMode, toggleTheme } = useTheme();
   const [isLeagueSelectorOpen, setIsLeagueSelectorOpen] = useState(false);
   const [isLeagueSelectionReady, setIsLeagueSelectionReady] = useState(false);
   const [playerSearchScope, setPlayerSearchScope] = useState<PlayerSearchScope>('all');
@@ -257,29 +245,6 @@ function App() {
     return handleSystemBack();
   }, [activeMenuId, handleSystemBack, isLeagueSelectorOpen]);
 
-  const activateDarkMode = () => {
-    document.body.classList.add('theme-dark');
-    document.body.classList.remove('theme-light', 'detect-theme');
-    localStorage.setItem(THEME_STORAGE_KEY, 'dark-mode');
-    setIsDarkMode(true);
-  };
-
-  const activateLightMode = () => {
-    document.body.classList.add('theme-light');
-    document.body.classList.remove('theme-dark', 'detect-theme');
-    localStorage.setItem(THEME_STORAGE_KEY, 'light-mode');
-    setIsDarkMode(false);
-  };
-
-  const toggleTheme = (event: MouseEvent<HTMLAnchorElement | HTMLInputElement>): void => {
-    event.preventDefault();
-    if (document.body.classList.contains('theme-dark')) {
-      activateLightMode();
-      return;
-    }
-    activateDarkMode();
-  };
-
   const isFavouritePlayer = (playerId: string) => (
     favouritePlayers.some((player) => player.id === playerId)
   );
@@ -343,15 +308,6 @@ function App() {
   useEffect(() => {
     const timerId = window.setTimeout(() => setIsBooting(false), 350);
     return () => window.clearTimeout(timerId);
-  }, []);
-
-  useEffect(() => {
-    const rememberedTheme = localStorage.getItem(THEME_STORAGE_KEY);
-    if (rememberedTheme === 'dark-mode') {
-      activateDarkMode();
-    } else {
-      activateLightMode();
-    }
   }, []);
 
   useEffect(() => {
@@ -635,24 +591,11 @@ function App() {
                     <span className="tt-player-section-note">{favouritePlayers.length} saved</span>
                   </div>
                   <div className="favourites-scroll">
-                    <div className="list-group list-custom-large tt-player-large-list tt-players-list">
-                    {favouritePlayers.map((player) => (
-                      <div
-                        key={player.id}
-                        className="tt-players-row"
-                      >
-                        <a
-                          href="#"
-                          className="tt-players-row-main"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            navigateInActiveTab(`player/${player.id}`);
-                          }}
-                        >
-                          <span className="tt-player-avatar bg-highlight color-white">{getInitials(player.name)}</span>
-                          <span>{player.name}</span>
-                          <strong>{getWinRate(player)}% WR • {player.played} matches</strong>
-                        </a>
+                    <PlayerList
+                      players={favouritePlayers}
+                      onSelectPlayer={(player) => navigateInActiveTab(`player/${player.id}`)}
+                      listClassName="tt-player-large-list"
+                      renderTrailing={(player) => (
                         <button
                           type="button"
                           className="tt-player-remove-badge"
@@ -665,9 +608,8 @@ function App() {
                         >
                           Remove
                         </button>
-                      </div>
-                    ))}
-                    </div>
+                      )}
+                    />
                   </div>
                 </section>
               ) : null}
@@ -699,44 +641,29 @@ function App() {
                     ) : listItems.length === 0 ? (
                       <p className="tt-player-section-state">No players found matching "{normalizedQuery}"</p>
                     ) : (
-                      <div className="list-group list-custom-large tt-player-large-list tt-player-search-list tt-players-list">
-                        {listItems.map((player: PlayerSearchItem) => {
+                      <PlayerList
+                        players={listItems}
+                        onSelectPlayer={(player) => navigateInActiveTab(`player/${player.id}`)}
+                        listClassName="tt-player-large-list tt-player-search-list"
+                        renderTrailing={(player) => {
                           const isFavourite = isFavouritePlayer(player.id);
                           return (
-                            <div
-                              key={player.id}
-                              data-filter-item
-                              className="tt-players-row"
+                            <button
+                              type="button"
+                              className={isFavourite ? 'tt-player-favourite-icon active' : 'tt-player-favourite-icon'}
+                              aria-label={isFavourite ? `Remove ${player.name} from favourites` : `Add ${player.name} to favourites`}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                toggleFavouritePlayer(player);
+                              }}
                             >
-                              <a
-                                href="#"
-                                className="tt-players-row-main"
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  navigateInActiveTab(`player/${player.id}`);
-                                }}
-                              >
-                                <span className="tt-player-avatar bg-highlight color-white">{getInitials(player.name)}</span>
-                                <span>{player.name}</span>
-                                <strong>{getWinRate(player)}% WR • {player.played} matches</strong>
-                              </a>
-                              <button
-                                type="button"
-                                className={isFavourite ? 'tt-player-favourite-icon active' : 'tt-player-favourite-icon'}
-                                aria-label={isFavourite ? `Remove ${player.name} from favourites` : `Add ${player.name} to favourites`}
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  event.stopPropagation();
-                                  toggleFavouritePlayer(player);
-                                }}
-                              >
-                                <i className="fa fa-heart" />
-                                <span>{isFavourite ? 'Saved' : 'Add'}</span>
-                              </button>
-                            </div>
+                              <i className="fa fa-heart" />
+                              <span>{isFavourite ? 'Saved' : 'Add'}</span>
+                            </button>
                           );
-                        })}
-                      </div>
+                        }}
+                      />
                     )}
                 </section>
               ) : null}

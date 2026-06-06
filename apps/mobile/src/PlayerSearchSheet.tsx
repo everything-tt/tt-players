@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
-  getInitials,
   type PlayerSearchItem,
 } from './player-shared';
 import { usePlayerSearchQuery } from './queries';
+
+import { PlayerList } from './components/PlayerList';
 
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -101,25 +102,11 @@ export function PlayerSearchSheet({
               <p className="tt-picker-empty">No players found matching "{normalizedQuery}"</p>
             )}
 
-            <div className="list-group list-custom-large tt-players-list tt-h2h-compact-list">
-              {results.map((player) => (
-                <div key={player.id} className="tt-players-row">
-                  <a
-                    href="#"
-                    className="tt-players-row-main"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      onSelect(player);
-                    }}
-                  >
-                    <span className="tt-player-avatar bg-highlight color-white">{getInitials(player.name)}</span>
-                    <span>{player.name}</span>
-                    <strong>{player.wins}W · {player.played} played</strong>
-                  </a>
-                  <i className="fa fa-angle-right align-self-center text-end opacity-30 pe-2" style={{ gridColumn: 3, gridRow: '1 / span 2' }} />
-                </div>
-              ))}
-            </div>
+            <PlayerList
+              players={results}
+              onSelectPlayer={onSelect}
+              listClassName="tt-h2h-compact-list"
+            />
           </div>
         </div>
       </div>

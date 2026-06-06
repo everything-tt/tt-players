@@ -20,6 +20,9 @@
   --state-danger: oklch(53% 0.16 30);
   --state-danger-soft: oklch(53% 0.16 30 / 0.16);
   --state-danger-text: oklch(48% 0.16 30);
+  --state-warning: oklch(68% 0.16 75);
+  --state-warning-soft: oklch(68% 0.16 75 / 0.16);
+  --state-warning-text: oklch(60% 0.16 75);
   --on-state: oklch(98% 0.006 151);
   --ink: oklch(21% 0.034 158);
   --ink-muted: oklch(21% 0.034 158 / 0.6);
@@ -51,6 +54,9 @@ body.theme-dark {
   --state-danger: oklch(72% 0.16 30);
   --state-danger-soft: oklch(72% 0.16 30 / 0.22);
   --state-danger-text: oklch(75% 0.16 30);
+  --state-warning: oklch(78% 0.15 75);
+  --state-warning-soft: oklch(78% 0.15 75 / 0.2);
+  --state-warning-text: oklch(81% 0.15 75);
   --on-state: oklch(98% 0.006 151);
   --ink: oklch(94% 0.006 265);
   --ink-muted: oklch(94% 0.006 265 / 0.62);
@@ -85,7 +91,11 @@ body.theme-dark {
   color: var(--on-state) !important;
 }
 
-.tt-icon-loss,
+.tt-icon-loss {
+  background: var(--state-warning) !important;
+  color: var(--on-state) !important;
+}
+
 .tt-icon-danger {
   background: var(--state-danger) !important;
   color: var(--on-state) !important;
@@ -1660,11 +1670,19 @@ body.theme-dark .tt-home-toggle {
 }
 
 .tt-match-result-win {
-  background: var(--accent) !important;
+  background: var(--state-success) !important;
 }
 
 .tt-match-result-loss {
-  background: var(--accent) !important;
+  background: var(--state-warning) !important;
+}
+
+.tt-bg-success {
+  background-color: var(--state-success) !important;
+}
+
+.tt-bg-warning {
+  background-color: var(--state-warning) !important;
 }
 
 .tt-match-history-list a span:not(.badge),

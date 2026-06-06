@@ -1,16 +1,16 @@
 import type { MouseEventHandler, ReactNode } from 'react';
-import { cx } from './cx';
+import { cx } from '../utils/cx';
 
-type AppListSize = 'small' | 'large';
+export type AppListSize = 'small' | 'large';
 
-interface AppListGroupProps {
+export interface AppListGroupProps {
   children: ReactNode;
   size?: AppListSize;
   className?: string;
 }
 
-interface AppListItemProps {
-  iconClassName: string;
+export interface AppListItemProps {
+  iconClassName?: string;
   title: ReactNode;
   subtitle?: ReactNode;
   className?: string;
@@ -18,12 +18,18 @@ interface AppListItemProps {
   href?: string;
   borderless?: boolean;
   trailingIconClassName?: string;
+  trailingElement?: ReactNode;
+  children?: ReactNode;
 }
 
 export function AppListGroup({ children, size = 'large', className }: AppListGroupProps) {
   return (
     <div
-      className={cx('list-group', size === 'large' ? 'list-custom-large' : 'list-custom-small', className)}
+      className={cx(
+        'list-group',
+        size === 'large' ? 'list-custom-large' : 'list-custom-small',
+        className
+      )}
     >
       {children}
     </div>
@@ -39,13 +45,20 @@ export function AppListItem({
   href = '#',
   borderless = false,
   trailingIconClassName = 'fa fa-angle-right',
+  trailingElement,
+  children,
 }: AppListItemProps) {
   return (
     <a href={href} onClick={onClick} className={cx(borderless && 'border-0', className)}>
-      <i className={iconClassName} />
+      {iconClassName ? <i className={iconClassName} /> : null}
       <span>{title}</span>
       {subtitle ? <strong>{subtitle}</strong> : null}
-      <i className={trailingIconClassName} />
+      {children}
+      {trailingElement !== undefined ? (
+        trailingElement
+      ) : trailingIconClassName ? (
+        <i className={trailingIconClassName} />
+      ) : null}
     </a>
   );
 }

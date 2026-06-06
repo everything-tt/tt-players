@@ -511,7 +511,7 @@ export function H2HTabContent({ onOpenPlayer }: H2HTabContentProps) {
                 {h2h.encounters.map((encounter) => {
                   const isWin = encounter.isWin;
                   const badgeText = isWin ? 'W' : 'L';
-                  const bgClass = isWin ? 'bg-success' : 'bg-danger';
+                  const bgClass = isWin ? 'tt-bg-success' : 'tt-bg-warning';
                   return (
                     <div key={encounter.id} className="tt-players-row">
                       <a

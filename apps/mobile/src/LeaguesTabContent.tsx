@@ -301,42 +301,25 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
               ) : standingsRows.length === 0 ? (
                 <p className="tt-player-section-state">No standings available yet.</p>
               ) : (
-                <div className="tt-table-wrap">
-                  <table className="table table-borderless tt-standings-table mb-0" aria-label="League standings">
-                    <thead>
-                      <tr>
-                        <th scope="col" className="tt-standings-rank">#</th>
-                        <th scope="col" className="tt-standings-team">Team</th>
-                        <th scope="col">W</th>
-                        <th scope="col">L</th>
-                        <th scope="col">Pts</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {standingsRows.map((row: StandingsRow) => (
-                        <tr
-                          key={row.team_id}
-                          className="tt-standings-row"
-                          tabIndex={0}
-                          role="button"
-                          aria-label={`View ${row.team_name}`}
-                          onClick={() => navigateInTab('leagues', `team/${row.team_id}`)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault();
-                              navigateInTab('leagues', `team/${row.team_id}`);
-                            }
-                          }}
-                        >
-                          <td className="tt-standings-rank">{row.position}</td>
-                          <td className="tt-standings-team">{row.team_name}</td>
-                          <td>{row.won}</td>
-                          <td>{row.lost}</td>
-                          <td><strong>{row.points}</strong></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="tt-home-leaders-list mt-3">
+                  {standingsRows.map((row: StandingsRow) => (
+                    <a
+                      key={row.team_id}
+                      href="#"
+                      className="tt-home-leaders-row"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navigateInTab('leagues', `team/${row.team_id}`);
+                      }}
+                    >
+                      <span className="tt-home-leaders-rank">{row.position}</span>
+                      <span className="tt-home-leaders-name">{row.team_name}</span>
+                      <span className="tt-home-leaders-stat">
+                        {row.won}W · {row.drawn ?? 0}D · {row.lost}L · {row.played} played
+                      </span>
+                      <span className="tt-home-leaders-rate">{row.points} pts</span>
+                    </a>
+                  ))}
                 </div>
               )}
           </section>

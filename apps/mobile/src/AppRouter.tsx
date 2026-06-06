@@ -9,6 +9,7 @@ import { TeamPage } from './TeamPage';
 import PWAReloadPrompt from './PWAReloadPrompt';
 import PWAInstallSheet from './PWAInstallSheet';
 import { PWAInstallProvider } from './PWAInstallContext';
+import { ThemeProvider } from './ui/appkit';
 
 function LegacyPlayerRedirect() {
   const { playerId = '' } = useParams<{ playerId: string }>();
@@ -42,29 +43,31 @@ function EnsureValidTab({ children }: { children: JSX.Element }) {
 export function AppRouter() {
   return (
     <HashRouter>
-      <PWAInstallProvider>
-        <PWAReloadPrompt />
-        <PWAInstallSheet />
-        <TabNavigationProvider>
-        <Routes>
-          <Route path="/" element={<Navigate to="/tabs/home" replace />} />
+      <ThemeProvider>
+        <PWAInstallProvider>
+          <PWAReloadPrompt />
+          <PWAInstallSheet />
+          <TabNavigationProvider>
+          <Routes>
+            <Route path="/" element={<Navigate to="/tabs/home" replace />} />
 
-          <Route path="/tabs/:tabId" element={<EnsureValidTab><App /></EnsureValidTab>} />
-          <Route path="/tabs/:tabId/player/:playerId" element={<EnsureValidTab><PlayerPage /></EnsureValidTab>} />
-          <Route path="/tabs/:tabId/player/:playerId/insights" element={<EnsureValidTab><PlayerInsightsPage /></EnsureValidTab>} />
-          <Route path="/tabs/:tabId/player/:playerId/matches" element={<EnsureValidTab><PlayerMatchesPage /></EnsureValidTab>} />
-          <Route path="/tabs/:tabId/team/:teamId" element={<EnsureValidTab><TeamPage /></EnsureValidTab>} />
-          <Route path="/tabs/:tabId/fixture/:fixtureId" element={<EnsureValidTab><FixturePage /></EnsureValidTab>} />
-          <Route path="/tabs/:tabId/*" element={<TabRootRedirect />} />
+            <Route path="/tabs/:tabId" element={<EnsureValidTab><App /></EnsureValidTab>} />
+            <Route path="/tabs/:tabId/player/:playerId" element={<EnsureValidTab><PlayerPage /></EnsureValidTab>} />
+            <Route path="/tabs/:tabId/player/:playerId/insights" element={<EnsureValidTab><PlayerInsightsPage /></EnsureValidTab>} />
+            <Route path="/tabs/:tabId/player/:playerId/matches" element={<EnsureValidTab><PlayerMatchesPage /></EnsureValidTab>} />
+            <Route path="/tabs/:tabId/team/:teamId" element={<EnsureValidTab><TeamPage /></EnsureValidTab>} />
+            <Route path="/tabs/:tabId/fixture/:fixtureId" element={<EnsureValidTab><FixturePage /></EnsureValidTab>} />
+            <Route path="/tabs/:tabId/*" element={<TabRootRedirect />} />
 
-          <Route path="/players/:playerId" element={<LegacyPlayerRedirect />} />
-          <Route path="/players/:playerId/insights" element={<LegacyPlayerInsightsRedirect />} />
-          <Route path="/players/:playerId/matches" element={<LegacyPlayerMatchesRedirect />} />
+            <Route path="/players/:playerId" element={<LegacyPlayerRedirect />} />
+            <Route path="/players/:playerId/insights" element={<LegacyPlayerInsightsRedirect />} />
+            <Route path="/players/:playerId/matches" element={<LegacyPlayerMatchesRedirect />} />
 
-          <Route path="*" element={<Navigate to="/tabs/home" replace />} />
-        </Routes>
-        </TabNavigationProvider>
-      </PWAInstallProvider>
+            <Route path="*" element={<Navigate to="/tabs/home" replace />} />
+          </Routes>
+          </TabNavigationProvider>
+        </PWAInstallProvider>
+      </ThemeProvider>
     </HashRouter>
   );
 }
