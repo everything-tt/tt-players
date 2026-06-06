@@ -2,6 +2,10 @@ import type { ScrapeTarget } from './bootstrap.js';
 import { scrapeUrlTask } from './tasks/scrapeUrlTask.js';
 import { processLogTask } from './tasks/processLogTask.js';
 import { scrapeMatchesTask } from './tasks/scrapeMatchesTask.js';
+import { scrapeSport80EventsTask } from './tasks/scrapeSport80EventsTask.js';
+import { scrapeSport80EventResultsTask } from './tasks/scrapeSport80EventResultsTask.js';
+import { scrapeSport80RankingsDiscoveryTask } from './tasks/scrapeSport80RankingsDiscoveryTask.js';
+import { scrapeSport80RankingTableTask } from './tasks/scrapeSport80RankingTableTask.js';
 
 let scheduledScrapeTargets: ScrapeTarget[] = [];
 
@@ -59,5 +63,9 @@ export const taskList = {
     scrapeUrlTask,
     processLogTask,
     scrapeMatchesTask,
+    scrapeSport80EventsTask,
+    scrapeSport80EventResultsTask,
+    scrapeSport80RankingsDiscoveryTask,
+    scrapeSport80RankingTableTask,
     scheduleScrapeTasks,
 };

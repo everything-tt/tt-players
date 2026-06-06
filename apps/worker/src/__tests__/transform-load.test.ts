@@ -10,6 +10,10 @@ import * as m002 from '@tt-players/db/src/migrations/002_create_core_tables.js';
 import * as m003 from '@tt-players/db/src/migrations/003_create_match_tables.js';
 import * as m004 from '@tt-players/db/src/migrations/004_create_raw_scrape_logs.js';
 import * as m006 from '@tt-players/db/src/migrations/006_add_canonical_player_id_to_external_players.js';
+import * as m013 from '@tt-players/db/src/migrations/013_add_rubber_score_source.js';
+import * as m015 from '@tt-players/db/src/migrations/015_add_rubber_played_at.js';
+import * as m016 from '@tt-players/db/src/migrations/016_create_sport80_event_scrape_state.js';
+import * as m017 from '@tt-players/db/src/migrations/017_create_source_event_staging_tables.js';
 
 import type { Database } from '@tt-players/db';
 
@@ -32,6 +36,10 @@ class StaticMigrationProvider implements MigrationProvider {
             '003_create_match_tables': m003,
             '004_create_raw_scrape_logs': m004,
             '006_add_canonical_player_id_to_external_players': m006,
+            '013_add_rubber_score_source': m013,
+            '015_add_rubber_played_at': m015,
+            '016_create_sport80_event_scrape_state': m016,
+            '017_create_source_event_staging_tables': m017,
         };
     }
 }

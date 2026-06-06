@@ -23,8 +23,8 @@ export interface ParsedPlayer {
 
 export interface ParsedFixture {
     externalId: string;          // match id (stringified)
-    homeTeamExternalId: string;  // teamId (stringified)
-    awayTeamExternalId: string;  // teamId (stringified)
+    homeTeamExternalId: string | null;  // teamId (stringified), null for individual events
+    awayTeamExternalId: string | null;  // teamId (stringified), null for individual events
     datePlayed: string | null;   // ISO date string, null if unscheduled
     status: FixtureStatus;
     roundName: string | null;
@@ -40,6 +40,8 @@ export interface ParsedRubber {
     homeGamesWon: number;
     awayGamesWon: number;
     outcomeType: OutcomeType;
+    scoreSource?: 'games' | 'win_loss_only';
+    playedAt?: string | null;
 }
 
 export interface ParsedStanding {

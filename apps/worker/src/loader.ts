@@ -127,10 +127,14 @@ export async function loadTTLeaguesData(
                     .insertInto('fixtures')
                     .values(
                         parsedData.fixtures.map((f) => {
-                            const homeTeamId = teamIdMap.get(f.homeTeamExternalId);
-                            const awayTeamId = teamIdMap.get(f.awayTeamExternalId);
+                            const homeTeamId = f.homeTeamExternalId
+                                ? teamIdMap.get(f.homeTeamExternalId)
+                                : null;
+                            const awayTeamId = f.awayTeamExternalId
+                                ? teamIdMap.get(f.awayTeamExternalId)
+                                : null;
 
-                            if (!homeTeamId || !awayTeamId) {
+                            if ((f.homeTeamExternalId && !homeTeamId) || (f.awayTeamExternalId && !awayTeamId)) {
                                 throw new Error(
                                     `Team not found for fixture ${f.externalId}: ` +
                                     `home=${f.homeTeamExternalId} (${homeTeamId}), ` +
@@ -211,6 +215,8 @@ export async function loadTTLeaguesData(
                                 home_points_scored: null,
                                 away_points_scored: null,
                                 outcome_type: r.outcomeType,
+                                score_source: r.scoreSource ?? 'games',
+                                played_at: r.playedAt ?? null,
                                 updated_at: new Date(),
                             };
                         }),
@@ -225,6 +231,8 @@ export async function loadTTLeaguesData(
                             home_games_won: (eb) => eb.ref('excluded.home_games_won'),
                             away_games_won: (eb) => eb.ref('excluded.away_games_won'),
                             outcome_type: (eb) => eb.ref('excluded.outcome_type'),
+                            score_source: (eb) => eb.ref('excluded.score_source'),
+                            played_at: (eb) => eb.ref('excluded.played_at'),
                             updated_at: new Date(),
                         }),
                     )

@@ -8,6 +8,10 @@ export type FixtureStatus = 'upcoming' | 'completed' | 'postponed';
 
 export type OutcomeType = 'normal' | 'walkover' | 'retired' | 'void';
 
+export type ScoreSource = 'games' | 'win_loss_only';
+
+export type RankingListKind = 'ranking' | 'rating';
+
 export type ScrapeStatus = 'pending' | 'processed' | 'failed';
 
 // ─── Table Types ──────────────────────────────────────────────────────────────
@@ -167,6 +171,8 @@ export interface RubbersTable {
     home_points_scored: number | null;
     away_points_scored: number | null;
     outcome_type: OutcomeType;
+    score_source: Generated<ScoreSource>;
+    played_at: ColumnType<Date | null, string | Date | null, string | Date | null>;
     created_at: Generated<Date>;
     updated_at: ColumnType<Date, Date | undefined, Date>;
     deleted_at: ColumnType<Date | null, Date | null, Date | null>;
@@ -175,6 +181,54 @@ export interface RubbersTable {
 export type Rubber = Selectable<RubbersTable>;
 export type NewRubber = Insertable<RubbersTable>;
 export type RubberUpdate = Updateable<RubbersTable>;
+
+export interface RankingCategoriesTable {
+    id: Generated<string>;
+    platform_id: string;
+    external_id: string;
+    name: string;
+    created_at: Generated<Date>;
+    updated_at: ColumnType<Date, Date | undefined, Date>;
+}
+
+export type RankingCategory = Selectable<RankingCategoriesTable>;
+export type NewRankingCategory = Insertable<RankingCategoriesTable>;
+export type RankingCategoryUpdate = Updateable<RankingCategoriesTable>;
+
+export interface RankingPeriodsTable {
+    id: Generated<string>;
+    platform_id: string;
+    external_id: string;
+    label: string;
+    period_end_date: ColumnType<Date | null, string | Date | null, string | Date | null>;
+    created_at: Generated<Date>;
+    updated_at: ColumnType<Date, Date | undefined, Date>;
+}
+
+export type RankingPeriod = Selectable<RankingPeriodsTable>;
+export type NewRankingPeriod = Insertable<RankingPeriodsTable>;
+export type RankingPeriodUpdate = Updateable<RankingPeriodsTable>;
+
+export interface RankingEntriesTable {
+    id: Generated<string>;
+    period_id: string;
+    category_id: string;
+    player_id: string;
+    list_kind: RankingListKind;
+    ranking_row_external_id: string | null;
+    athlete_external_id: string | null;
+    rank: number | null;
+    points: number | null;
+    county_country: string | null;
+    inactive_periods: number | null;
+    is_initial_rating: Generated<boolean>;
+    created_at: Generated<Date>;
+    updated_at: ColumnType<Date, Date | undefined, Date>;
+}
+
+export type RankingEntry = Selectable<RankingEntriesTable>;
+export type NewRankingEntry = Insertable<RankingEntriesTable>;
+export type RankingEntryUpdate = Updateable<RankingEntriesTable>;
 
 export interface RawScrapeLogsTable {
     id: Generated<string>;
@@ -189,6 +243,72 @@ export interface RawScrapeLogsTable {
 export type RawScrapeLog = Selectable<RawScrapeLogsTable>;
 export type NewRawScrapeLog = Insertable<RawScrapeLogsTable>;
 export type RawScrapeLogUpdate = Updateable<RawScrapeLogsTable>;
+
+export interface Sport80EventScrapeStateTable {
+    id: Generated<string>;
+    event_id: string;
+    event_name: string | null;
+    event_date: ColumnType<Date | null, string | Date | null, string | Date | null>;
+    category: string | null;
+    status: ScrapeStatus;
+    result_rows: number | null;
+    last_error: string | null;
+    first_seen_at: Generated<Date>;
+    last_attempted_at: ColumnType<Date | null, Date | undefined, Date | null>;
+    processed_at: ColumnType<Date | null, Date | undefined, Date | null>;
+    updated_at: ColumnType<Date, Date | undefined, Date>;
+}
+
+export type Sport80EventScrapeState = Selectable<Sport80EventScrapeStateTable>;
+export type NewSport80EventScrapeState = Insertable<Sport80EventScrapeStateTable>;
+export type Sport80EventScrapeStateUpdate = Updateable<Sport80EventScrapeStateTable>;
+
+export interface SourceEventsTable {
+    id: Generated<string>;
+    platform_id: string;
+    source: string;
+    external_id: string;
+    name: string;
+    event_date: ColumnType<Date | null, string | Date | null, string | Date | null>;
+    category: string | null;
+    public_url: string | null;
+    raw_payload: unknown;
+    canonical_competition_id: string | null;
+    first_seen_at: Generated<Date>;
+    last_seen_at: ColumnType<Date, Date | undefined, Date>;
+    updated_at: ColumnType<Date, Date | undefined, Date>;
+}
+
+export type SourceEvent = Selectable<SourceEventsTable>;
+export type NewSourceEvent = Insertable<SourceEventsTable>;
+export type SourceEventUpdate = Updateable<SourceEventsTable>;
+
+export interface SourceEventResultRowsTable {
+    id: Generated<string>;
+    source_event_id: string;
+    source: string;
+    external_id: string;
+    played_at: ColumnType<Date | null, string | Date | null, string | Date | null>;
+    round_name: string | null;
+    round_order: number | null;
+    round_raw: unknown;
+    home_raw: string;
+    away_raw: string;
+    home_player_name: string;
+    home_player_external_id: string;
+    away_player_name: string;
+    away_player_external_id: string;
+    winner_side: string;
+    raw_payload: unknown;
+    canonical_rubber_id: string | null;
+    first_seen_at: Generated<Date>;
+    last_seen_at: ColumnType<Date, Date | undefined, Date>;
+    updated_at: ColumnType<Date, Date | undefined, Date>;
+}
+
+export type SourceEventResultRow = Selectable<SourceEventResultRowsTable>;
+export type NewSourceEventResultRow = Insertable<SourceEventResultRowsTable>;
+export type SourceEventResultRowUpdate = Updateable<SourceEventResultRowsTable>;
 
 export interface CacheEntriesTable {
     id: Generated<string>;
@@ -219,6 +339,12 @@ export interface Database {
     league_standings: LeagueStandingsTable;
     fixtures: FixturesTable;
     rubbers: RubbersTable;
+    ranking_categories: RankingCategoriesTable;
+    ranking_periods: RankingPeriodsTable;
+    ranking_entries: RankingEntriesTable;
     raw_scrape_logs: RawScrapeLogsTable;
+    sport80_event_scrape_state: Sport80EventScrapeStateTable;
+    source_events: SourceEventsTable;
+    source_event_result_rows: SourceEventResultRowsTable;
     cache_entries: CacheEntriesTable;
 }

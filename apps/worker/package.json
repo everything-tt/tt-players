@@ -8,6 +8,10 @@
         "test:watch": "vitest",
         "worker:start": "tsx src/worker.ts",
         "worker:scrape": "tsx src/scrape-once.ts",
+        "sport80:scrape": "tsx src/scrape-sport80-once.ts",
+        "sport80:rankings": "tsx src/scrape-sport80-rankings-once.ts",
+        "sport80:backfill-played-at": "tsx src/backfill-sport80-rubber-played-at.ts",
+        "sport80:backfill-source-events": "tsx src/backfill-sport80-source-events.ts",
         "scrape:uk": "tsx src/scrape-uk-ready-leagues.ts",
         "worker:migrate": "tsx -e \"import { runMigrations } from 'graphile-worker'; runMigrations({ connectionString: process.env.DATABASE_URL }).then(() => console.log('Done'));\"",
         "research:uk": "tsx src/research-uk-leagues.ts"

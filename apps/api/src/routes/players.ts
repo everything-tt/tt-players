@@ -1079,6 +1079,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     opponent_games: number;
                     is_win: number;
                     is_home: number;
+                    score_source: string;
                     season_is_active: boolean;
                 }>`
                     SELECT
@@ -1089,6 +1090,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         COALESCE(opp_cp.name, opp_ep.name) AS opponent_name,
                         CASE WHEN r.home_player_1_id = ANY(${sourceIds}) THEN r.home_games_won ELSE r.away_games_won END AS player_games,
                         CASE WHEN r.home_player_1_id = ANY(${sourceIds}) THEN r.away_games_won ELSE r.home_games_won END AS opponent_games,
+                        r.score_source,
                         CASE
                             WHEN (r.home_player_1_id = ANY(${sourceIds}) AND r.home_games_won > r.away_games_won)
                               OR (r.away_player_1_id = ANY(${sourceIds}) AND r.away_games_won > r.home_games_won)
@@ -1164,6 +1166,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                             opponentName: row.opponent_name ?? 'Unknown',
                             playerGames: Number(row.player_games),
                             opponentGames: Number(row.opponent_games),
+                            scoreSource: row.score_source,
                             isWin: Number(row.is_win) === 1,
                             isHome: Number(row.is_home) === 1,
                             seasonIsActive: row.season_is_active,
@@ -1220,8 +1223,10 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     if (row.isWin) divisionAgg.wins += 1;
                     byDivisionMap.set(row.division, divisionAgg);
 
-                    const score = `${row.playerGames}-${row.opponentGames}`;
-                    scorePatternMap.set(score, (scorePatternMap.get(score) ?? 0) + 1);
+                    if (row.scoreSource === 'games') {
+                        const score = `${row.playerGames}-${row.opponentGames}`;
+                        scorePatternMap.set(score, (scorePatternMap.get(score) ?? 0) + 1);
+                    }
 
                     if (row.isHome) {
                         homePlayed += 1;
@@ -1634,10 +1639,12 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                             ELSE false
                         END as "isWin",
                         CASE
+                            WHEN r.score_source = 'win_loss_only' THEN 'Won'
                             WHEN r.home_player_1_id = ANY(${sourceIds}) THEN CONCAT('Won ', r.home_games_won, '-', r.away_games_won)
                             WHEN r.away_player_1_id = ANY(${sourceIds}) THEN CONCAT('Won ', r.away_games_won, '-', r.home_games_won)
                         END as result_win,
                         CASE
+                            WHEN r.score_source = 'win_loss_only' THEN 'Lost'
                             WHEN r.home_player_1_id = ANY(${sourceIds}) THEN CONCAT('Lost ', r.home_games_won, '-', r.away_games_won)
                             WHEN r.away_player_1_id = ANY(${sourceIds}) THEN CONCAT('Lost ', r.away_games_won, '-', r.home_games_won)
                         END as result_loss
@@ -1759,10 +1766,12 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                             ELSE false
                         END as "isWin",
                         CASE 
+                            WHEN r.score_source = 'win_loss_only' THEN 'Won'
                             WHEN r.home_player_1_id = ANY(${sourceIds}) THEN CONCAT('Won ', r.home_games_won, '-', r.away_games_won)
                             WHEN r.away_player_1_id = ANY(${sourceIds}) THEN CONCAT('Won ', r.away_games_won, '-', r.home_games_won)
                         END as result_win,
                         CASE 
+                            WHEN r.score_source = 'win_loss_only' THEN 'Lost'
                             WHEN r.home_player_1_id = ANY(${sourceIds}) THEN CONCAT('Lost ', r.home_games_won, '-', r.away_games_won)
                             WHEN r.away_player_1_id = ANY(${sourceIds}) THEN CONCAT('Lost ', r.away_games_won, '-', r.home_games_won)
                         END as result_loss

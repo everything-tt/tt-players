@@ -19,7 +19,11 @@ if (!DATABASE_URL) {
  * Queue scheduleScrapeTasks every day at 2:00 AM.
  * Backfill up to 1 day of missed jobs.
  */
-const CRONTAB = `0 2 * * * scheduleScrapeTasks ?fill=1d`;
+const CRONTAB = `
+0 2 * * * scheduleScrapeTasks ?fill=1d
+30 2 * * * scrapeSport80EventsTask ?fill=1d
+0 3 * * * scrapeSport80RankingsDiscoveryTask ?fill=1d
+`;
 
 /**
  * Starts the Graphile Worker runner.

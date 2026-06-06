@@ -36,12 +36,14 @@ function chooseCanonicalId(group: ExternalPlayerRow[]): string | null {
 }
 
 /**
- * Auto-link cross-platform players when the match is high-confidence:
+ * Auto-link cross-platform players using the product policy:
  * - exact normalized name match
- * - exactly two rows with that name
- * - rows belong to different platforms
+ * - rows belong to at least two platforms
  * - both rows have external IDs
  * - name looks like a full name (contains whitespace)
+ *
+ * This is intentionally non-destructive: source player rows remain active and
+ * rubber player references are not remapped.
  */
 export async function reconcilePlayersByName(
     db: Kysely<Database>,
@@ -68,10 +70,8 @@ export async function reconcilePlayersByName(
     const now = new Date();
 
     for (const group of byNormalizedName.values()) {
-        if (group.length !== 2) continue;
-
         const platformCount = new Set(group.map((p) => p.platform_id)).size;
-        if (platformCount !== 2) continue;
+        if (platformCount < 2) continue;
 
         const canonicalId = chooseCanonicalId(group);
         if (!canonicalId) continue;

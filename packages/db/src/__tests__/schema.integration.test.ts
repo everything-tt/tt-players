@@ -15,6 +15,12 @@ import * as m008 from '../migrations/008_create_cache_entries.js';
 import * as m009 from '../migrations/009_create_regions.js';
 import * as m010 from '../migrations/010_add_performance_indexes_2.js';
 import * as m011 from '../migrations/011_add_detail_page_performance_indexes.js';
+import * as m012 from '../migrations/012_add_raw_scrape_log_source_url_indexes.js';
+import * as m013 from '../migrations/013_add_rubber_score_source.js';
+import * as m014 from '../migrations/014_create_ranking_history_tables.js';
+import * as m015 from '../migrations/015_add_rubber_played_at.js';
+import * as m016 from '../migrations/016_create_sport80_event_scrape_state.js';
+import * as m017 from '../migrations/017_create_source_event_staging_tables.js';
 
 const { Pool } = pg;
 
@@ -43,6 +49,12 @@ class StaticMigrationProvider implements MigrationProvider {
             '009_create_regions': m009,
             '010_add_performance_indexes_2': m010,
             '011_add_detail_page_performance_indexes': m011,
+            '012_add_raw_scrape_log_source_url_indexes': m012,
+            '013_add_rubber_score_source': m013,
+            '014_create_ranking_history_tables': m014,
+            '015_add_rubber_played_at': m015,
+            '016_create_sport80_event_scrape_state': m016,
+            '017_create_source_event_staging_tables': m017,
         };
     }
 }
@@ -270,6 +282,14 @@ describe('Database Schema Integration Tests', () => {
             );
             expect(values).toHaveLength(3);
         });
+
+        it('should have the ranking_list_kind enum with correct values', () => {
+            const values = enumValues
+                .filter((e) => e.enum_name === 'ranking_list_kind')
+                .map((e) => e.enum_value);
+            expect(values).toEqual(expect.arrayContaining(['ranking', 'rating']));
+            expect(values).toHaveLength(2);
+        });
     });
 
     // ── Table Existence ───────────────────────────────────────────────────────
@@ -287,6 +307,9 @@ describe('Database Schema Integration Tests', () => {
             'league_standings',
             'fixtures',
             'rubbers',
+            'ranking_categories',
+            'ranking_periods',
+            'ranking_entries',
             'raw_scrape_logs',
             'cache_entries',
         ];
@@ -563,7 +586,7 @@ describe('Database Schema Integration Tests', () => {
                     'away_player_1_id', 'away_player_2_id',
                     'home_games_won', 'away_games_won',
                     'home_points_scored', 'away_points_scored',
-                    'outcome_type',
+                    'outcome_type', 'score_source', 'played_at',
                     'created_at', 'updated_at', 'deleted_at',
                 ])
             );
@@ -593,6 +616,19 @@ describe('Database Schema Integration Tests', () => {
             const col = columns.find((c) => c.column_name === 'outcome_type');
             expect(col?.data_type).toBe('USER-DEFINED');
             expect(col?.udt_name).toBe('outcome_type');
+        });
+
+        it('should have score_source as score_source enum with default games', () => {
+            const col = columns.find((c) => c.column_name === 'score_source');
+            expect(col?.data_type).toBe('USER-DEFINED');
+            expect(col?.udt_name).toBe('score_source');
+            expect(col?.column_default).toContain("'games'::score_source");
+        });
+
+        it('should have nullable played_at timestamp for row-level match time', () => {
+            const col = columns.find((c) => c.column_name === 'played_at');
+            expect(col?.data_type).toBe('timestamp without time zone');
+            expect(col?.is_nullable).toBe('YES');
         });
     });
 
@@ -627,6 +663,31 @@ describe('Database Schema Integration Tests', () => {
         it('should have scraped_at with default', () => {
             const col = columns.find((c) => c.column_name === 'scraped_at');
             expect(col?.column_default).toBeTruthy();
+        });
+    });
+
+    describe('Table: ranking_entries', () => {
+        let columns: ColumnInfo[];
+        beforeAll(async () => {
+            columns = await getTableColumns('ranking_entries');
+        });
+
+        it('should have the correct columns', () => {
+            const colNames = columns.map((c) => c.column_name);
+            expect(colNames).toEqual(
+                expect.arrayContaining([
+                    'id', 'period_id', 'category_id', 'player_id',
+                    'list_kind', 'ranking_row_external_id', 'athlete_external_id',
+                    'rank', 'points', 'county_country', 'inactive_periods',
+                    'is_initial_rating', 'created_at', 'updated_at',
+                ]),
+            );
+        });
+
+        it('should have list_kind as ranking_list_kind enum', () => {
+            const col = columns.find((c) => c.column_name === 'list_kind');
+            expect(col?.data_type).toBe('USER-DEFINED');
+            expect(col?.udt_name).toBe('ranking_list_kind');
         });
     });
 
@@ -738,7 +799,7 @@ describe('Database Schema Integration Tests', () => {
 
             // Roll back all migrations one by one
             let rolledBack = 0;
-            const maxRollbacks = 10; // Safety limit
+            const maxRollbacks = 20; // Safety limit
 
             while (rolledBack < maxRollbacks) {
                 const { error, results } = await migrator.migrateDown();

@@ -16,6 +16,12 @@ import * as m008 from '../../../../../packages/db/src/migrations/008_create_cach
 import * as m009 from '../../../../../packages/db/src/migrations/009_create_regions.js';
 import * as m010 from '../../../../../packages/db/src/migrations/010_add_performance_indexes_2.js';
 import * as m011 from '../../../../../packages/db/src/migrations/011_add_detail_page_performance_indexes.js';
+import * as m012 from '../../../../../packages/db/src/migrations/012_add_raw_scrape_log_source_url_indexes.js';
+import * as m013 from '../../../../../packages/db/src/migrations/013_add_rubber_score_source.js';
+import * as m014 from '../../../../../packages/db/src/migrations/014_create_ranking_history_tables.js';
+import * as m015 from '../../../../../packages/db/src/migrations/015_add_rubber_played_at.js';
+import * as m016 from '../../../../../packages/db/src/migrations/016_create_sport80_event_scrape_state.js';
+import * as m017 from '../../../../../packages/db/src/migrations/017_create_source_event_staging_tables.js';
 
 const { Pool } = pg;
 
@@ -37,6 +43,12 @@ class StaticMigrationProvider implements MigrationProvider {
             '009_create_regions': m009,
             '010_add_performance_indexes_2': m010,
             '011_add_detail_page_performance_indexes': m011,
+            '012_add_raw_scrape_log_source_url_indexes': m012,
+            '013_add_rubber_score_source': m013,
+            '014_create_ranking_history_tables': m014,
+            '015_add_rubber_played_at': m015,
+            '016_create_sport80_event_scrape_state': m016,
+            '017_create_source_event_staging_tables': m017,
         };
     }
 }
