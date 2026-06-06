@@ -1,4 +1,4 @@
-import { type Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
 import type { Sport80EventResultTableRow, Sport80EventTableRow } from './sport80-client.js';
 import {
@@ -178,7 +178,7 @@ export async function upsertSport80SourceEvent(
                 category: (eb) => eb.ref('excluded.category'),
                 public_url: (eb) => eb.ref('excluded.public_url'),
                 raw_payload: (eb) => eb.ref('excluded.raw_payload'),
-                canonical_competition_id: (eb) => eb.ref('excluded.canonical_competition_id'),
+                canonical_competition_id: sql`coalesce(excluded.canonical_competition_id, source_events.canonical_competition_id)`,
                 last_seen_at: now,
                 updated_at: now,
             }),

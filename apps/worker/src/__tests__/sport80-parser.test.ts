@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     extractSport80AthleteId,
+    parseSport80EventName,
     parseSport80EventResults,
     parseSport80PlayerCell,
     parseSport80RankingPlayerName,
@@ -124,6 +125,20 @@ describe('Sport80 parser', () => {
                 playedAt: '2026-04-26 09:30:00',
             },
         ]);
+    });
+
+    it('parses event display fields from source event names', () => {
+        expect(parseSport80EventName('Huddersfield Junior 1 Star - 2026-04-26: Junior')).toEqual({
+            displayName: 'Huddersfield Junior 1 Star',
+            dateFromName: '2026-04-26',
+            category: 'Junior',
+        });
+
+        expect(parseSport80EventName('Under 11-14 National Championships - 2014-06-01:')).toEqual({
+            displayName: 'Under 11-14 National Championships',
+            dateFromName: '2014-06-01',
+            category: null,
+        });
     });
 
     it('normalizes Sport80 date_and_time values to timestamps', () => {

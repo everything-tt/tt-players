@@ -14,6 +14,7 @@ import * as m013 from '@tt-players/db/src/migrations/013_add_rubber_score_source
 import * as m015 from '@tt-players/db/src/migrations/015_add_rubber_played_at.js';
 import * as m016 from '@tt-players/db/src/migrations/016_create_sport80_event_scrape_state.js';
 import * as m017 from '@tt-players/db/src/migrations/017_create_source_event_staging_tables.js';
+import * as m018 from '@tt-players/db/src/migrations/018_add_competition_event_display_fields.js';
 
 import type { Database } from '@tt-players/db';
 
@@ -41,6 +42,7 @@ class StaticMigrationProvider implements MigrationProvider {
             '015_add_rubber_played_at': m015,
             '016_create_sport80_event_scrape_state': m016,
             '017_create_source_event_staging_tables': m017,
+            '018_add_competition_event_display_fields': m018,
         };
     }
 }

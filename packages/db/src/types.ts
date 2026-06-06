@@ -81,6 +81,9 @@ export interface CompetitionsTable {
     season_id: string;
     external_id: string;
     name: string;
+    display_name: string | null;
+    event_date: ColumnType<Date | null, string | Date | null, string | Date | null>;
+    category: string | null;
     type: CompetitionType;
     last_scraped_at: ColumnType<Date | null, Date | null, Date | null>;
     created_at: Generated<Date>;

@@ -21,6 +21,7 @@ import * as m014 from '../migrations/014_create_ranking_history_tables.js';
 import * as m015 from '../migrations/015_add_rubber_played_at.js';
 import * as m016 from '../migrations/016_create_sport80_event_scrape_state.js';
 import * as m017 from '../migrations/017_create_source_event_staging_tables.js';
+import * as m018 from '../migrations/018_add_competition_event_display_fields.js';
 
 const { Pool } = pg;
 
@@ -55,6 +56,7 @@ class StaticMigrationProvider implements MigrationProvider {
             '015_add_rubber_played_at': m015,
             '016_create_sport80_event_scrape_state': m016,
             '017_create_source_event_staging_tables': m017,
+            '018_add_competition_event_display_fields': m018,
         };
     }
 }

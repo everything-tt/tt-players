@@ -18,6 +18,9 @@ import {
   type StandingsResponse,
   type TeamFormResponse,
   type TeamSummaryResponse,
+  type EventsResponse,
+  type EventDetailResponse,
+  type PlayerTournamentsResponse,
 } from './player-shared';
 
 export function useLeaguesQuery(seasonId?: string, enabled = true) {
@@ -237,3 +240,38 @@ export function useFixtureRubbersQuery(fixtureId: string, enabled = true) {
     enabled: enabled && Boolean(fixtureId),
   });
 }
+
+export function useEventsQuery(query?: string, limit = 20, offset = 0, enabled = true) {
+  const normalized = query?.trim() ?? '';
+  return useQuery({
+    queryKey: ['events', 'list', normalized, limit, offset],
+    queryFn: ({ signal }: { signal: AbortSignal }) => {
+      const params = new URLSearchParams();
+      if (normalized) {
+        params.set('q', normalized);
+      }
+      params.set('limit', String(limit));
+      params.set('offset', String(offset));
+      return apiFetch<EventsResponse>(`/events?${params.toString()}`, signal);
+    },
+    enabled,
+  });
+}
+
+export function useEventDetailQuery(eventId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['events', eventId, 'detail'],
+    queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<EventDetailResponse>(`/events/${eventId}`, signal),
+    enabled: enabled && Boolean(eventId),
+  });
+}
+
+export function usePlayerTournamentsQuery(playerId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['players', playerId, 'tournaments'],
+    queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<PlayerTournamentsResponse>(`/players/${playerId}/tournaments`, signal),
+    enabled: enabled && Boolean(playerId),
+  });
+}
+
+

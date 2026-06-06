@@ -4,6 +4,7 @@ import { H2HTabContent } from './H2HTabContent';
 import { HomeTabContent } from './HomeTabContent';
 import { LeagueSelectionPage } from './LeagueSelectionPage';
 import { LeaguesTabContent } from './LeaguesTabContent';
+import { EventsTabContent } from './EventsTabContent';
 import { TabFooterBar } from './TabFooterBar';
 import { PlayerList } from './components/PlayerList';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
@@ -38,6 +39,7 @@ const tabTitles: Record<AppTabId, string> = {
   players: 'Players',
   leagues: 'Leagues',
   h2h: 'H2H',
+  events: 'Tournaments',
 };
 
 const menuConfigs: Record<MenuId, MenuConfig> = {
@@ -230,6 +232,13 @@ function App() {
       closeActiveMenu();
       switchTab(tabId, 'root');
     };
+
+  const onMenuEventsClick = (event: MouseEvent<HTMLAnchorElement>): void => {
+    event.preventDefault();
+    closeLeagueSelector();
+    closeActiveMenu();
+    navigateInActiveTab('events');
+  };
 
   const onSystemBackPressed = useCallback((): boolean => {
     if (activeMenuId) {
@@ -681,6 +690,10 @@ function App() {
               onOpenPlayer={(playerId) => navigateInActiveTab(`player/${playerId}`)}
             />
           ) : null}
+
+          {activeTab === 'events' ? (
+            <EventsTabContent />
+          ) : null}
         </main>
 
         {isLeagueSelectorOpen ? (
@@ -734,6 +747,11 @@ function App() {
             <a href="#" onClick={onMenuTabClick('leagues')}>
               <i className="fa fa-table-tennis color-white" />
               <span>Leagues</span>
+              <i className="fa fa-angle-right" />
+            </a>
+            <a href="#" onClick={onMenuEventsClick}>
+              <i className="fa fa-trophy color-white" />
+              <span>Tournaments</span>
               <i className="fa fa-angle-right" />
             </a>
             <a href="#" onClick={onMenuTabClick('h2h')}>

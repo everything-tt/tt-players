@@ -4,7 +4,7 @@ import { db, type Database } from '@tt-players/db';
 import { storeScrapePayload } from '../extractor.js';
 import { fetchSport80EventResults, sport80Urls } from '../sport80-client.js';
 import { loadTTLeaguesData } from '../loader.js';
-import { parseSport80EventResults } from '../sport80-parser.js';
+import { parseSport80EventName, parseSport80EventResults } from '../sport80-parser.js';
 import {
     upsertSport80League,
     upsertSport80Platform,
@@ -55,15 +55,33 @@ async function upsertCompetition(
     seasonId: string,
     eventId: string,
     eventName: string,
+    eventDate: string | null,
+    category: string | null,
 ): Promise<string> {
     const externalId = `sport80:event:${eventId}`;
+    const parsedName = parseSport80EventName(eventName);
+    const displayName = parsedName.displayName;
+    const normalizedEventDate = eventDate ?? parsedName.dateFromName;
+    const normalizedCategory = category ?? parsedName.category;
     const existing = await db
         .selectFrom('competitions')
         .select('id')
         .where('season_id', '=', seasonId)
         .where('external_id', '=', externalId)
         .executeTakeFirst();
-    if (existing) return existing.id;
+    if (existing) {
+        await db
+            .updateTable('competitions')
+            .set({
+                name: eventName,
+                display_name: displayName,
+                event_date: normalizedEventDate,
+                category: normalizedCategory,
+            })
+            .where('id', '=', existing.id)
+            .execute();
+        return existing.id;
+    }
 
     const row = await db
         .insertInto('competitions')
@@ -71,6 +89,9 @@ async function upsertCompetition(
             season_id: seasonId,
             external_id: externalId,
             name: eventName,
+            display_name: displayName,
+            event_date: normalizedEventDate,
+            category: normalizedCategory,
             type: 'individual',
         })
         .returning('id')
@@ -129,6 +150,8 @@ export const scrapeSport80EventResultsTask: Task = async (payload, helpers) => {
             seasonId,
             eventId,
             eventName ?? `Sport:80 Event ${eventId}`,
+            eventDate ?? null,
+            category ?? null,
         );
         const sourceEventId = await upsertSport80SourceEvent(db, platformId, {
             id: eventId,

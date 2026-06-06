@@ -5,6 +5,7 @@ import { useTabNavigation } from './navigation/tab-navigation';
 import {
   FAVOURITES_UPDATED_EVENT,
   formatMatchDate,
+  formatDate,
   getInitials,
   parseStoredFavouritePlayers,
   persistFavouritePlayers,
@@ -15,7 +16,9 @@ import {
   usePlayerExtendedStatsQuery,
   usePlayerInsightsQuery,
   usePlayerRubbersQuery,
+  usePlayerTournamentsQuery,
 } from './queries';
+import { SegmentedToggle } from './components/SegmentedToggle';
 import { TabShellPage } from './TabShellPage';
 import {
   AppButtonLink,
@@ -33,11 +36,13 @@ export function PlayerPage() {
   const { playerId = '' } = useParams<{ playerId: string }>();
 
   const [favouritePlayers, setFavouritePlayers] = useState<FavouritePlayer[]>(() => parseStoredFavouritePlayers());
+  const [seasonPanelMode, setSeasonPanelMode] = useState<'clubs' | 'tournaments'>('clubs');
 
   const statsQuery = usePlayerExtendedStatsQuery(playerId, Boolean(playerId));
   const affiliationsQuery = usePlayerCurrentSeasonAffiliationsQuery(playerId, Boolean(playerId));
   const recentMatchesQuery = usePlayerRubbersQuery(playerId, 10, 0, Boolean(playerId));
   const insightsQuery = usePlayerInsightsQuery(playerId, Boolean(playerId));
+  const tournamentsQuery = usePlayerTournamentsQuery(playerId, Boolean(playerId));
 
   const stats = statsQuery.data ?? null;
   const statsError = playerId
@@ -57,6 +62,10 @@ export function PlayerPage() {
   const insightsError = insightsQuery.error instanceof Error ? insightsQuery.error.message : null;
   const insightsLoading = insightsQuery.isLoading;
 
+  const tournamentMatches = tournamentsQuery.data?.data ?? [];
+  const tournamentMatchesLoading = tournamentsQuery.isLoading;
+  const tournamentMatchesError = tournamentsQuery.error instanceof Error ? tournamentsQuery.error.message : null;
+
   const winRate = useMemo(() => {
     if (!stats || stats.total <= 0) return 0;
     return Math.round((stats.wins / stats.total) * 100);
@@ -67,6 +76,37 @@ export function PlayerPage() {
     return favouritePlayers.some((player) => player.id === stats.player_id);
   }, [favouritePlayers, stats]);
   const recentResults = useMemo(() => (insights?.form.recent_results ?? []).slice(0, 10), [insights]);
+  const tournamentsPlayed = useMemo(() => {
+    const events = new Map<string, {
+      event_id: string;
+      event_name: string;
+      event_date: string | null;
+      category: string | null;
+      platform_name: string;
+      played: number;
+      wins: number;
+    }>();
+
+    for (const match of tournamentMatches as any[]) {
+      const existing = events.get(match.event_id) ?? {
+        event_id: match.event_id,
+        event_name: match.event_name,
+        event_date: match.event_date,
+        category: match.category,
+        platform_name: match.platform_name,
+        played: 0,
+        wins: 0,
+      };
+      const isWin = (match.winner_side === 'home' && match.player_side === 'home') ||
+        (match.winner_side === 'away' && match.player_side === 'away');
+      existing.played += 1;
+      existing.wins += isWin ? 1 : 0;
+      events.set(match.event_id, existing);
+    }
+
+    return Array.from(events.values());
+  }, [tournamentMatches]);
+  const recentTournaments = useMemo(() => tournamentsPlayed.slice(0, 5), [tournamentsPlayed]);
 
   const goBack = (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
@@ -224,30 +264,81 @@ export function PlayerPage() {
               </div>
             </section>
 
-            <section className="tt-player-section" aria-labelledby="tt-player-season-title">
-              <div className="tt-player-section-header">
-                <h2 id="tt-player-season-title" className="tt-player-section-title">Current Season</h2>
-                <span className="tt-player-section-note">{affiliations.length} teams</span>
+            <section className="tt-player-section" aria-label="Current season clubs and tournaments">
+              <div className="tt-home-leaders-header">
+                <SegmentedToggle
+                  ariaLabel="Choose current season view"
+                  value={seasonPanelMode}
+                  onChange={setSeasonPanelMode}
+                  options={[
+                    { value: 'clubs', label: 'Clubs' },
+                    { value: 'tournaments', label: 'Tournaments' },
+                  ]}
+                />
+                <span className="tt-home-leaders-desc">
+                  {seasonPanelMode === 'clubs' ? `${affiliations.length} teams` : `${tournamentsPlayed.length} events`}
+                </span>
               </div>
-              {affiliationsLoading ? (
-                <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading current season clubs...</p>
-              ) : affiliationsError ? (
-                <p className="tt-player-section-state tt-player-section-error">Unable to load current season clubs.</p>
-              ) : affiliations.length === 0 ? (
-                <p className="tt-player-section-state">No active-season clubs found.</p>
+
+              {seasonPanelMode === 'clubs' ? (
+                affiliationsLoading ? (
+                  <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading current season clubs...</p>
+                ) : affiliationsError ? (
+                  <p className="tt-player-section-state tt-player-section-error">Unable to load current season clubs.</p>
+                ) : affiliations.length === 0 ? (
+                  <p className="tt-player-section-state">No active-season clubs found.</p>
+                ) : (
+                  <AppListGroup size="large" className="tt-season-list tt-player-list">
+                    {affiliations.map((affiliation: any, index: number) => (
+                      <AppListItem
+                        key={`${affiliation.team_id}-${affiliation.competition_name}-${affiliation.season_id}`}
+                        iconClassName="fa fa-table-tennis rounded-xl tt-icon-team"
+                        title={affiliation.team_name}
+                        subtitle={`${affiliation.league_name} · ${affiliation.competition_name} · ${affiliation.season_name}`}
+                        onClick={openInLeaguesTab(`team/${affiliation.team_id}`)}
+                        borderless={index === affiliations.length - 1}
+                      />
+                    ))}
+                  </AppListGroup>
+                )
+              ) : tournamentMatchesLoading ? (
+                <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading tournaments...</p>
+              ) : tournamentMatchesError ? (
+                <p className="tt-player-section-state tt-player-section-error">Unable to load tournaments.</p>
+              ) : recentTournaments.length === 0 ? (
+                <p className="tt-player-section-state">No tournament appearances found.</p>
               ) : (
-                <AppListGroup size="large" className="tt-season-list tt-player-list">
-                  {affiliations.map((affiliation: any, index: number) => (
-                    <AppListItem
-                      key={`${affiliation.team_id}-${affiliation.competition_name}-${affiliation.season_id}`}
-                      iconClassName="fa fa-table-tennis rounded-xl tt-icon-team"
-                      title={affiliation.team_name}
-                      subtitle={`${affiliation.league_name} · ${affiliation.competition_name} · ${affiliation.season_name}`}
-                      onClick={openInLeaguesTab(`team/${affiliation.team_id}`)}
-                      borderless={index === affiliations.length - 1}
-                    />
-                  ))}
-                </AppListGroup>
+                <>
+                  <AppListGroup size="large" className="tt-tournament-list tt-player-list">
+                    {recentTournaments.map((event, index) => {
+                    const dateStr = event.event_date ? formatDate(event.event_date) : 'Unknown Date';
+                    const lossCount = event.played - event.wins;
+                    return (
+                      <AppListItem
+                        key={event.event_id}
+                        iconClassName="fa fa-trophy rounded-xl tt-icon-tournament"
+                        title={event.event_name}
+                        subtitle={`${dateStr} · ${event.category ?? 'Tournament'} · ${event.wins}-${lossCount} from ${event.played}`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          navigateInActiveTab(`event/${event.event_id}`);
+                        }}
+                        borderless={index === recentTournaments.length - 1}
+                      />
+                    );
+                  })}
+                  </AppListGroup>
+                  {tournamentsPlayed.length > 0 ? (
+                    <AppButtonLink
+                      full
+                      size="sm"
+                      className="tt-player-full-list-button"
+                      onClick={openSection(`player/${playerId}/tournaments`)}
+                    >
+                      View All Tournaments
+                    </AppButtonLink>
+                  ) : null}
+                </>
               )}
             </section>
 
@@ -280,7 +371,7 @@ export function PlayerPage() {
 
             <section className="tt-player-section" aria-labelledby="tt-player-matches-title">
               <div className="tt-player-section-header">
-                <h2 id="tt-player-matches-title" className="tt-player-section-title">Last 10 Matches</h2>
+                <h2 id="tt-player-matches-title" className="tt-player-section-title">Last 10 League Matches</h2>
                 <span className="tt-player-section-note">{recentMatches.length} matches</span>
               </div>
               {recentMatchesLoading ? (
@@ -288,7 +379,7 @@ export function PlayerPage() {
               ) : recentMatchesError ? (
                 <p className="tt-player-section-state tt-player-section-error">Unable to load recent matches.</p>
               ) : recentMatches.length === 0 ? (
-                <p className="tt-player-section-state">No recent matches found.</p>
+                <p className="tt-player-section-state">No recent league matches found.</p>
               ) : (
                 <>
                   <AppListGroup size="large" className="tt-match-history-list tt-player-list">

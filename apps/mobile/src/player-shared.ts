@@ -360,3 +360,104 @@ export function formatIsoDate(value: string | null | undefined): string {
   const day = String(parsed.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
+
+export interface EventItem {
+  id: string;
+  platform_id: string;
+  source: string;
+  external_id: string;
+  name: string;
+  event_date: string | null;
+  category: string | null;
+  public_url: string | null;
+  platform_name: string;
+  match_count: number;
+}
+
+export interface EventsResponse {
+  data: EventItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface EventResultRow {
+  id: string;
+  played_at: string | null;
+  round_name: string | null;
+  round_order: number | null;
+  home_player_name: string;
+  home_player_external_id: string;
+  away_player_name: string;
+  away_player_external_id: string;
+  winner_side: string;
+  canonical_rubber_id: string | null;
+  home_player_resolved_id: string | null;
+  away_player_resolved_id: string | null;
+}
+
+export interface EventDetailResponse {
+  event: EventItem;
+  results: EventResultRow[];
+}
+
+export interface PlayerTournamentMatch {
+  event_id: string;
+  event_name: string;
+  event_date: string | null;
+  category: string | null;
+  platform_name: string;
+  match_id: string;
+  played_at: string | null;
+  round_name: string | null;
+  home_player_name: string;
+  away_player_name: string;
+  winner_side: string;
+  player_side: 'home' | 'away';
+}
+
+export interface PlayerTournamentsResponse {
+  data: PlayerTournamentMatch[];
+}
+
+export const FAVOURITE_TOURNAMENTS_STORAGE_KEY = 'tt_players_favourite_tournaments';
+export const FAVOURITE_TOURNAMENTS_UPDATED_EVENT = 'tt_players_favourite_tournaments_updated';
+
+export interface FavouriteTournament {
+  id: string;
+  name: string;
+  event_date: string | null;
+  category: string | null;
+  platform_name: string;
+  match_count: number;
+}
+
+export function isValidFavouriteTournament(value: unknown): value is FavouriteTournament {
+  if (!value || typeof value !== 'object') return false;
+  const item = value as Record<string, unknown>;
+  return typeof item.id === 'string'
+    && typeof item.name === 'string'
+    && (item.event_date === null || typeof item.event_date === 'string')
+    && (item.category === null || typeof item.category === 'string')
+    && typeof item.platform_name === 'string'
+    && typeof item.match_count === 'number';
+}
+
+export function parseStoredFavouriteTournaments(): FavouriteTournament[] {
+  try {
+    const raw = localStorage.getItem(FAVOURITE_TOURNAMENTS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isValidFavouriteTournament);
+  } catch {
+    return [];
+  }
+}
+
+export function persistFavouriteTournaments(tournaments: FavouriteTournament[]) {
+  localStorage.setItem(FAVOURITE_TOURNAMENTS_STORAGE_KEY, JSON.stringify(tournaments));
+  window.dispatchEvent(new Event(FAVOURITE_TOURNAMENTS_UPDATED_EVENT));
+}
+
+

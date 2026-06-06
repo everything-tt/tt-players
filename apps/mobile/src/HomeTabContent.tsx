@@ -3,6 +3,7 @@ import type { AppTabId } from './navigation/tab-navigation';
 import { type LeagueWithDivisions } from './player-shared';
 import { useLeadersQuery, usePlayerCountQuery } from './queries';
 import { useTabNavigation } from './navigation/tab-navigation';
+import { SegmentedToggle } from './components/SegmentedToggle';
 
 type DashboardTabId = Exclude<AppTabId, 'home'>;
 
@@ -84,6 +85,12 @@ export function HomeTabContent({
       description: 'Compare any two players',
       iconClassName: 'fa fa-code-compare',
     },
+    {
+      tabId: 'events' as DashboardTabId,
+      title: 'Tournaments',
+      description: 'Sport80 events & grand prix results',
+      iconClassName: 'fa fa-trophy',
+    },
   ];
 
   return (
@@ -113,22 +120,15 @@ export function HomeTabContent({
 
       <div className="tt-home-leaders">
         <div className="tt-home-leaders-header">
-          <div className="tt-home-toggle">
-            <button
-              type="button"
-              className={listMode === 'top' ? 'tt-home-toggle-btn active' : 'tt-home-toggle-btn'}
-              onClick={() => setListMode('top')}
-            >
-              Top
-            </button>
-            <button
-              type="button"
-              className={listMode === 'trending' ? 'tt-home-toggle-btn active' : 'tt-home-toggle-btn'}
-              onClick={() => setListMode('trending')}
-            >
-              Trending
-            </button>
-          </div>
+          <SegmentedToggle
+            ariaLabel="Choose leaderboard mode"
+            value={listMode}
+            onChange={setListMode}
+            options={[
+              { value: 'top', label: 'Top' },
+              { value: 'trending', label: 'Trending' },
+            ]}
+          />
           <span className="tt-home-leaders-desc">
             {listMode === 'top' ? 'By win rate' : 'By activity'}
           </span>

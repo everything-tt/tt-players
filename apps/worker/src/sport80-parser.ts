@@ -22,6 +22,12 @@ export interface Sport80ParsedEvent {
     rows: Sport80EventResultRow[];
 }
 
+export interface Sport80EventNameParts {
+    displayName: string;
+    dateFromName: string | null;
+    category: string | null;
+}
+
 export interface Sport80RankingPlayerName {
     name: string;
     membershipNo: string | null;
@@ -173,6 +179,26 @@ export function sport80Timestamp(value: string | null): string | null {
     const match = value.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::(\d{2}))?/);
     if (!match) return null;
     return `${match[1]} ${match[2]}:${match[3] ?? '00'}`;
+}
+
+export function parseSport80EventName(value: string): Sport80EventNameParts {
+    const trimmed = value.replace(/\s+/g, ' ').trim();
+    const match = trimmed.match(/^(.*?)\s+-\s+(\d{4}-\d{2}-\d{2})(?::\s*(.*))?$/);
+    if (!match) {
+        return {
+            displayName: trimmed,
+            dateFromName: null,
+            category: null,
+        };
+    }
+
+    const displayName = match[1]?.trim() || trimmed;
+    const category = match[3]?.trim() || null;
+    return {
+        displayName,
+        dateFromName: match[2] ?? null,
+        category,
+    };
 }
 
 export function parseSport80EventResults(event: Sport80ParsedEvent): ParsedTTLeaguesData {
