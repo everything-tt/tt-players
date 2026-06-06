@@ -105,7 +105,7 @@ export function PlayerSearchSheet({
             <PlayerList
               players={results}
               onSelectPlayer={onSelect}
-              listClassName="tt-h2h-compact-list"
+              compact
             />
           </div>
         </div>

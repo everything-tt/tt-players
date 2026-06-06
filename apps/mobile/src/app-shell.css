@@ -860,6 +860,10 @@ body.theme-dark .tt-league-picker-row.selected {
   row-gap: 2px;
 }
 
+.tt-players-row i {
+  line-height: 1 !important;
+}
+
 .tt-players-row:last-child {
   border-bottom: 0;
 }

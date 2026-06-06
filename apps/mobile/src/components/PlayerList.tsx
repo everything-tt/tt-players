@@ -10,6 +10,7 @@ interface PlayerListProps {
   listClassName?: string;
   size?: 'small' | 'large';
   coloredAvatars?: boolean;
+  compact?: boolean;
 }
 
 export function PlayerList({
@@ -19,6 +20,7 @@ export function PlayerList({
   listClassName = 'tt-player-large-list',
   size = 'large',
   coloredAvatars = false,
+  compact = false,
 }: PlayerListProps) {
   const items = players.map((player) => ({
     ...player,
@@ -34,6 +36,7 @@ export function PlayerList({
       size={size}
       coloredAvatars={coloredAvatars}
       getAvatarColor={getPlayerAvatarColor}
+      compact={compact}
     />
   );
 }
