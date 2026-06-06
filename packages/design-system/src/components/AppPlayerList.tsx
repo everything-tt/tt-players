@@ -54,7 +54,7 @@ export function AppPlayerList({
       )}
     >
       {items.map((item) => (
-        <div key={item.id} className="tt-players-row">
+        <div key={item.id} className={cx('tt-players-row', onSelectItem && 'tt-clickable-row')}>
           {onSelectItem ? (
             <a
               href="#"

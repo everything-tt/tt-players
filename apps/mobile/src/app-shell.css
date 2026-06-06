@@ -856,8 +856,26 @@ body.theme-dark .tt-league-picker-row.selected {
   grid-template-rows: auto auto;
   min-height: 68px;
   overflow: hidden;
-  padding: 11px 0;
+  padding: 11px 16px;
+  margin: 0 -16px;
   row-gap: 2px;
+  transition: background-color 0.15s ease;
+}
+
+body.theme-dark .tt-players-row {
+  border-bottom-color: rgba(255, 255, 255, 0.18);
+}
+
+.tt-players-row.tt-clickable-row {
+  cursor: pointer;
+}
+
+.tt-players-row.tt-clickable-row:hover {
+  background-color: var(--accent-subtle);
+}
+
+.tt-players-row.tt-clickable-row:active {
+  background-color: var(--accent-soft);
 }
 
 .tt-players-row i {
@@ -2986,8 +3004,10 @@ body.theme-dark .tt-h2h-duel-vs {
   grid-template-rows: auto auto;
   min-height: 52px;
   overflow: hidden;
-  padding: 6px 0;
+  padding: 6px 16px;
+  margin: 0 -16px;
   row-gap: 2px;
+  transition: background-color 0.15s ease;
 }
 
 body.theme-dark .tt-h2h-compact-list .tt-players-row {
