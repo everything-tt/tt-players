@@ -49,6 +49,7 @@ interface LeagueConfig {
 export interface ScrapeTarget {
     url: string;
     fixturesUrl: string | null;
+    tenantHost: string | null;
     platformId: string;
     platformType: 'tt365' | 'ttleagues';
     competitionId: string;
@@ -432,6 +433,7 @@ export async function bootstrap(
             targets.push({
                 url: standingsUrl,
                 fixturesUrl,
+                tenantHost: league.platform === 'ttleagues' ? new URL(league.baseUrl).host : null,
                 platformId,
                 platformType: league.platform,
                 competitionId,
@@ -472,6 +474,7 @@ export async function bootstrap(
             targets.push({
                 url: historicalTarget.standingsUrl,
                 fixturesUrl: historicalTarget.fixturesUrl,
+                tenantHost: league.platform === 'ttleagues' ? new URL(league.baseUrl).host : null,
                 platformId,
                 platformType: league.platform,
                 competitionId: historicalCompetitionId,

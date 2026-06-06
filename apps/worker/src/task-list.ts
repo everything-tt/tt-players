@@ -45,6 +45,7 @@ const scheduleScrapeTasks = async (
         if (target.platformType === 'ttleagues' && target.divisionExtId) {
             await helpers.addJob('scrapeMatchesTask', {
                 divisionId: target.divisionExtId,
+                tenantHost: target.tenantHost,
                 platformId: target.platformId,
                 platformType: target.platformType,
                 competitionId: target.competitionId,

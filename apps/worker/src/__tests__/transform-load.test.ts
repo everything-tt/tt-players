@@ -263,6 +263,27 @@ describe('Wave 3: Transform & Load (TT Leagues)', () => {
             expect(result.rubbers).toHaveLength(10);
         });
 
+        it('should skip incomplete set rows with null rubber scores', async () => {
+            const { parseTTLeaguesData } = await import('../parser.js');
+            const sets = structuredClone(mockData.sets['220789']);
+            sets[0].homeScore = null;
+            sets[0].awayScore = null;
+            sets[0].games = sets[0].games.map((game) => ({
+                ...game,
+                home: null,
+                away: null,
+            }));
+
+            const result = parseTTLeaguesData({
+                standings: mockData.standings,
+                matches: mockData.matches,
+                sets: { '220789': sets },
+            });
+
+            expect(result.rubbers).toHaveLength(9);
+            expect(result.rubbers.some((rubber) => rubber.externalId === String(sets[0].id))).toBe(false);
+        });
+
         it('should detect the doubles rubber (last set with 2 players per side)', async () => {
             const { parseTTLeaguesData } = await import('../parser.js');
 

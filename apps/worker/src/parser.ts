@@ -111,7 +111,7 @@ export function parseTTLeaguesData(input: RawTTLeaguesInput): ParsedTTLeaguesDat
     const playerMap = new Map<string, ParsedPlayer>();
 
     for (const sets of Object.values(setsMap)) {
-        for (const set of sets) {
+        for (const set of sets.filter(isScoredSet)) {
             const allPlayers = [...set.homePlayers, ...set.awayPlayers];
             for (const player of allPlayers) {
                 const extId = player.userId || null;
@@ -137,7 +137,7 @@ export function parseTTLeaguesData(input: RawTTLeaguesInput): ParsedTTLeaguesDat
     // 5. Extract rubbers from sets
     const rubbers: ParsedRubber[] = [];
     for (const sets of Object.values(setsMap)) {
-        for (const set of sets) {
+        for (const set of sets.filter(isScoredSet)) {
             rubbers.push(mapSetToRubber(set));
         }
     }
@@ -190,7 +190,11 @@ function deriveOutcomeType(set: TTSet): OutcomeType {
     return 'normal';
 }
 
-function mapSetToRubber(set: TTSet): ParsedRubber {
+function isScoredSet(set: TTSet): set is TTSet & { homeScore: number; awayScore: number } {
+    return set.homeScore != null && set.awayScore != null;
+}
+
+function mapSetToRubber(set: TTSet & { homeScore: number; awayScore: number }): ParsedRubber {
     const isDoubles = set.homePlayers.length > 1 || set.awayPlayers.length > 1;
 
     return {

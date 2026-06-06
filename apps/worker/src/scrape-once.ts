@@ -137,6 +137,7 @@ async function main() {
             console.log(`  → Queuing matches:   ${target.leagueName} - ${target.divisionName}`);
             await quickAddJob({ connectionString: DATABASE_URL }, 'scrapeMatchesTask', {
                 divisionId: target.divisionExtId,
+                tenantHost: target.tenantHost,
                 platformId: target.platformId,
                 platformType: target.platformType,
                 competitionId: target.competitionId,

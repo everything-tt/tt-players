@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 export interface ScrapeMatchesPayload {
     /** TT Leagues API division ID */
     divisionId: string;
+    tenantHost?: string | null;
     platformId: string;
     platformType: 'ttleagues';
     competitionId: string;
@@ -23,6 +24,15 @@ const TTL_MATCHES_FETCH_TIMEOUT_MS = Number(
 const TTL_SETS_FETCH_TIMEOUT_MS = Number(
     process.env['TTL_SETS_FETCH_TIMEOUT_MS'] ?? '12000',
 );
+const TTL_SETS_FETCH_DELAY_MS = Number(
+    process.env['TTL_SETS_FETCH_DELAY_MS'] ?? '250',
+);
+const TTL_SETS_429_RETRIES = Number(
+    process.env['TTL_SETS_429_RETRIES'] ?? '2',
+);
+const TTL_SETS_429_RETRY_DELAY_MS = Number(
+    process.env['TTL_SETS_429_RETRY_DELAY_MS'] ?? '5000',
+);
 
 function hash(body: string): string {
     return createHash('sha256').update(body).digest('hex');
@@ -32,11 +42,37 @@ function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function fetchSetsJson(
+    url: string,
+    headers: Record<string, string>,
+    helpers: { logger: { info: (msg: string) => void } },
+): Promise<unknown | undefined> {
+    for (let attempt = 0; attempt <= TTL_SETS_429_RETRIES; attempt += 1) {
+        const res = await fetchWithTimeout(url, TTL_SETS_FETCH_TIMEOUT_MS, headers);
+        if (res.ok) return res.json();
+
+        if (res.status !== 429) {
+            helpers.logger.info(`scrapeMatchesTask: skip sets for ${url} (HTTP ${res.status})`);
+            return undefined;
+        }
+
+        if (attempt === TTL_SETS_429_RETRIES) {
+            throw new Error(`HTTP 429 fetching ${url} after ${TTL_SETS_429_RETRIES + 1} attempts`);
+        }
+
+        helpers.logger.info(
+            `scrapeMatchesTask: rate limited for ${url}; retrying in ${TTL_SETS_429_RETRY_DELAY_MS}ms`,
+        );
+        await sleep(TTL_SETS_429_RETRY_DELAY_MS);
+    }
+}
+
 async function fetchWithOneRetry(
     url: string,
+    headers: Record<string, string>,
     helpers: { logger: { info: (msg: string) => void } },
 ): Promise<Response> {
-    const first = await fetchWithTimeout(url, TTL_MATCHES_FETCH_TIMEOUT_MS);
+    const first = await fetchWithTimeout(url, TTL_MATCHES_FETCH_TIMEOUT_MS, headers);
     if (first.ok) return first;
 
     helpers.logger.info(
@@ -44,16 +80,20 @@ async function fetchWithOneRetry(
     );
     await sleep(SCRAPE_RETRY_DELAY_MS);
 
-    const second = await fetchWithTimeout(url, TTL_MATCHES_FETCH_TIMEOUT_MS);
+    const second = await fetchWithTimeout(url, TTL_MATCHES_FETCH_TIMEOUT_MS, headers);
     if (second.ok) return second;
     throw new Error(`HTTP ${second.status} fetching ${url}`);
 }
 
-async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+async function fetchWithTimeout(
+    url: string,
+    timeoutMs: number,
+    headers: Record<string, string> = {},
+): Promise<Response> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-        return await fetch(url, { signal: controller.signal });
+        return await fetch(url, { signal: controller.signal, headers });
     } finally {
         clearTimeout(timeout);
     }
@@ -66,13 +106,20 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Respons
  * processLogTask.
  */
 export const scrapeMatchesTask: Task = async (payload, helpers) => {
-    const { divisionId, platformId, competitionId } = payload as ScrapeMatchesPayload;
+    const { divisionId, tenantHost, platformId, competitionId } = payload as ScrapeMatchesPayload;
+    if (!tenantHost) {
+        throw new Error(`scrapeMatchesTask: missing tenantHost for division ${divisionId}`);
+    }
+    const ttlHeaders = {
+        Tenant: tenantHost,
+        Entry: '1',
+    };
 
     const matchesUrl = `${TTL_API_BASE}/divisions/${divisionId}/matches`;
     helpers.logger.info(`scrapeMatchesTask: fetching ${matchesUrl}`);
 
     // 1. Fetch the matches list
-    const matchesRes = await fetchWithOneRetry(matchesUrl, helpers);
+    const matchesRes = await fetchWithOneRetry(matchesUrl, ttlHeaders, helpers);
     const matchesJson = await matchesRes.json();
 
     // Parse to find completed matches
@@ -113,17 +160,13 @@ export const scrapeMatchesTask: Task = async (payload, helpers) => {
     for (const match of matchesNeedingSets) {
         const setsUrl = `${TTL_API_BASE}/matches/${match.id}/sets`;
         try {
-            const setsRes = await fetchWithTimeout(setsUrl, TTL_SETS_FETCH_TIMEOUT_MS);
-            if (setsRes.ok) {
-                setsMap[String(match.id)] = await setsRes.json();
-            } else {
-                helpers.logger.info(`scrapeMatchesTask: skip sets for match ${match.id} (HTTP ${setsRes.status})`);
-            }
+            const setsJson = await fetchSetsJson(setsUrl, ttlHeaders, helpers);
+            if (setsJson !== undefined) setsMap[String(match.id)] = setsJson;
         } catch (err) {
-            helpers.logger.info(`scrapeMatchesTask: skip sets for match ${match.id} (${err})`);
+            throw new Error(`scrapeMatchesTask: failed sets for match ${match.id} (${err})`);
         }
-        // Rate limit: small delay between requests
-        await new Promise((r) => setTimeout(r, 500));
+        // Rate limit: small delay between requests.
+        await new Promise((r) => setTimeout(r, TTL_SETS_FETCH_DELAY_MS));
     }
 
     helpers.logger.info(`scrapeMatchesTask: fetched sets for ${Object.keys(setsMap).length} matches`);

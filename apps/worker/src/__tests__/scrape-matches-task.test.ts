@@ -232,6 +232,7 @@ describe('scrapeMatchesTask optimization', () => {
         const addJob = vi.fn(async () => undefined);
         const payload: ScrapeMatchesPayload = {
             divisionId: '1632',
+            tenantHost: 'example.ttleagues.com',
             platformId,
             platformType: 'ttleagues',
             competitionId,
@@ -302,6 +303,7 @@ describe('scrapeMatchesTask optimization', () => {
 
         const payload: ScrapeMatchesPayload = {
             divisionId: '1632',
+            tenantHost: 'example.ttleagues.com',
             platformId,
             platformType: 'ttleagues',
             competitionId,

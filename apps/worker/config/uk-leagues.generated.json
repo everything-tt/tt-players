@@ -540,8 +540,8 @@
         "platform": "ttleagues",
         "leagueName": "Crewe Table Tennis League",
         "externalId": "crewe-ttl",
-        "seasonName": "2023-24 Open Prelim Rounds",
-        "seasonExtId": "2023-24-open-prelim-rounds",
+        "seasonName": "2025/26 Winter Season",
+        "seasonExtId": "2025-26-winter-season",
         "baseUrl": "https://crewe.ttleagues.com",
         "history": {
             "enabled": true,
@@ -550,36 +550,16 @@
         },
         "divisions": [
             {
-                "name": "Group 1",
-                "divisionId": 8398
+                "name": "Division 1",
+                "divisionId": 10777
             },
             {
-                "name": "Group 2",
-                "divisionId": 8391
+                "name": "Division 2",
+                "divisionId": 10778
             },
             {
-                "name": "Group 3",
-                "divisionId": 8392
-            },
-            {
-                "name": "Group 4",
-                "divisionId": 8393
-            },
-            {
-                "name": "Group 5",
-                "divisionId": 8394
-            },
-            {
-                "name": "Group 6",
-                "divisionId": 8395
-            },
-            {
-                "name": "Group 7",
-                "divisionId": 8396
-            },
-            {
-                "name": "Group 8",
-                "divisionId": 8397
+                "name": "Division 3",
+                "divisionId": 10779
             }
         ],
         "regions": [
