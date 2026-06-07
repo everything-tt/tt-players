@@ -113,7 +113,7 @@ export const scrapeSport80RankingTableTask: Task = async (payload, helpers) => {
     if (entries.length === 0) return;
 
     await db
-        .insertInto('ranking_entries')
+        .insertInto('staging.ranking_entries')
         .values(entries)
         .onConflict((oc) =>
             oc.columns(['period_id', 'category_id', 'player_id', 'list_kind']).doUpdateSet({

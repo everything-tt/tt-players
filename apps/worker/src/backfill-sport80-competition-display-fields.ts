@@ -6,7 +6,7 @@ dotenv.config();
 
 async function main(): Promise<void> {
     const rows = await db
-        .selectFrom('source_events')
+        .selectFrom('staging.source_events')
         .select(['canonical_competition_id', 'name', 'event_date', 'category'])
         .where('source', '=', 'sport80')
         .where('canonical_competition_id', 'is not', null)

@@ -784,7 +784,7 @@ async function main(): Promise<void> {
                         substring(lower(endpoint_url) from '/results/player/statistics/.*/([0-9]+)(?:[/?#]|$)') as external_id,
                         endpoint_url,
                         scraped_at
-                    from raw_scrape_logs
+                    from staging.raw_scrape_logs
                     where endpoint_url ilike '%/results/player/statistics/%'
                 ),
                 ranked as (

@@ -22,6 +22,8 @@ import * as m015 from '../migrations/015_add_rubber_played_at.js';
 import * as m016 from '../migrations/016_create_sport80_event_scrape_state.js';
 import * as m017 from '../migrations/017_create_source_event_staging_tables.js';
 import * as m018 from '../migrations/018_add_competition_event_display_fields.js';
+import * as m019 from '../migrations/019_add_competition_source_fields.js';
+import * as m020 from '../migrations/020_create_staging_schema.js';
 
 const { Pool } = pg;
 
@@ -57,6 +59,8 @@ class StaticMigrationProvider implements MigrationProvider {
             '016_create_sport80_event_scrape_state': m016,
             '017_create_source_event_staging_tables': m017,
             '018_add_competition_event_display_fields': m018,
+            '019_add_competition_source_fields': m019,
+            '020_create_staging_schema': m020,
         };
     }
 }
@@ -76,6 +80,7 @@ async function createTestDatabase(): Promise<void> {
     const adminPool = new Pool({ connectionString: ADMIN_DATABASE_URL });
     await adminPool.query(`DROP DATABASE IF EXISTS ${TEST_DB_NAME}`);
     await adminPool.query(`CREATE DATABASE ${TEST_DB_NAME}`);
+    await adminPool.query(`ALTER DATABASE ${TEST_DB_NAME} SET search_path TO public, staging`);
     await adminPool.end();
 }
 
@@ -132,7 +137,7 @@ async function getTableColumns(tableName: string): Promise<ColumnInfo[]> {
             'is_nullable',
             'column_default',
         ])
-        .where('table_schema', '=', 'public')
+        .where('table_schema', 'in', ['public', 'staging'])
         .where('table_name', '=', tableName)
         .execute();
     return result as unknown as ColumnInfo[];
@@ -142,7 +147,7 @@ async function getTableNames(): Promise<string[]> {
     const result = await testDb
         .selectFrom('information_schema.tables' as any)
         .select('table_name')
-        .where('table_schema', '=', 'public')
+        .where('table_schema', 'in', ['public', 'staging'])
         .where('table_type', '=', 'BASE TABLE')
         .execute();
     return (result as unknown as { table_name: string }[]).map((r) => r.table_name);
@@ -161,7 +166,7 @@ async function getEnumValues(): Promise<EnumValue[]> {
         FROM pg_type t
         JOIN pg_enum e ON t.oid = e.enumtypid
         JOIN pg_namespace n ON t.typnamespace = n.oid
-        WHERE n.nspname = 'public'
+        WHERE n.nspname IN ('public', 'staging')
         ORDER BY t.typname, e.enumsortorder
       `,
             parameters: [],
@@ -176,7 +181,7 @@ async function getEnumValues(): Promise<EnumValue[]> {
       FROM pg_type t
       JOIN pg_enum e ON t.oid = e.enumtypid
       JOIN pg_namespace n ON t.typnamespace = n.oid
-      WHERE n.nspname = 'public'
+      WHERE n.nspname IN ('public', 'staging')
       ORDER BY t.typname, e.enumsortorder
     `);
         await pool.end();
@@ -197,7 +202,7 @@ async function getUniqueConstraints(): Promise<ConstraintInfo[]> {
     const res = await pool.query(`
     SELECT tc.constraint_name, tc.table_name, tc.constraint_type
     FROM information_schema.table_constraints tc
-    WHERE tc.table_schema = 'public'
+    WHERE tc.table_schema IN ('public', 'staging')
       AND tc.constraint_type = 'UNIQUE'
     ORDER BY tc.table_name, tc.constraint_name
   `);
@@ -216,7 +221,7 @@ async function getIndexes(): Promise<IndexInfo[]> {
     const res = await pool.query(`
     SELECT indexname, tablename, indexdef
     FROM pg_indexes
-    WHERE schemaname = 'public'
+    WHERE schemaname IN ('public', 'staging')
     ORDER BY tablename, indexname
   `);
     await pool.end();

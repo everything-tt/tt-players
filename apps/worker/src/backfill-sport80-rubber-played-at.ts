@@ -13,7 +13,7 @@ type Sport80EventResultsPayload = {
 };
 
 const logs = await db
-    .selectFrom('raw_scrape_logs')
+    .selectFrom('staging.raw_scrape_logs')
     .select(['endpoint_url', 'raw_payload'])
     .where('endpoint_url', 'like', '%admin-tte-rankings.sport80.com/api/events/%/table?data=1%')
     .execute();
@@ -64,7 +64,7 @@ if (mappings.size > 0) {
             WHERE r.external_id = b.external_id
               AND r.played_at IS NULL
         `.execute(trx);
-        updated = Number(result.numUpdatedRows ?? 0);
+        updated = Number((result as any).numAffectedRows ?? (result as any).numUpdatedRows ?? 0);
     });
 }
 

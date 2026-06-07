@@ -102,10 +102,18 @@ export function fixturesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     .leftJoin('external_players as hp2', 'hp2.id', 'rubbers.home_player_2_id')
                     .leftJoin('external_players as ap1', 'ap1.id', 'rubbers.away_player_1_id')
                     .leftJoin('external_players as ap2', 'ap2.id', 'rubbers.away_player_2_id')
-                    .leftJoin('external_players as hcp1', 'hcp1.id', (eb) => eb.fn.coalesce('hp1.canonical_player_id', 'hp1.id'))
-                    .leftJoin('external_players as hcp2', 'hcp2.id', (eb) => eb.fn.coalesce('hp2.canonical_player_id', 'hp2.id'))
-                    .leftJoin('external_players as acp1', 'acp1.id', (eb) => eb.fn.coalesce('ap1.canonical_player_id', 'ap1.id'))
-                    .leftJoin('external_players as acp2', 'acp2.id', (eb) => eb.fn.coalesce('ap2.canonical_player_id', 'ap2.id'))
+                    .leftJoin('external_players as hcp1', (join) =>
+                        join.onRef('hcp1.id', '=', sql<string>`coalesce(hp1.canonical_player_id, hp1.id)`)
+                    )
+                    .leftJoin('external_players as hcp2', (join) =>
+                        join.onRef('hcp2.id', '=', sql<string>`coalesce(hp2.canonical_player_id, hp2.id)`)
+                    )
+                    .leftJoin('external_players as acp1', (join) =>
+                        join.onRef('acp1.id', '=', sql<string>`coalesce(ap1.canonical_player_id, ap1.id)`)
+                    )
+                    .leftJoin('external_players as acp2', (join) =>
+                        join.onRef('acp2.id', '=', sql<string>`coalesce(ap2.canonical_player_id, ap2.id)`)
+                    )
                     .select([
                         'rubbers.id',
                         'rubbers.fixture_id',

@@ -34,7 +34,7 @@ async function main(): Promise<void> {
             SELECT
                 substring(endpoint_url from '/events/([0-9]+)/table') AS event_id,
                 raw_payload
-            FROM raw_scrape_logs
+            FROM staging.raw_scrape_logs
             WHERE endpoint_url LIKE '%/api/events/%/table?data=1%'
         )
         SELECT
@@ -45,7 +45,7 @@ async function main(): Promise<void> {
             c.id AS competition_id,
             logs.raw_payload
         FROM logs
-        LEFT JOIN sport80_event_scrape_state state
+        LEFT JOIN staging.sport80_event_scrape_state state
             ON state.event_id = logs.event_id
         LEFT JOIN competitions c
             ON c.external_id = 'sport80:event:' || logs.event_id
@@ -78,7 +78,7 @@ async function main(): Promise<void> {
 
         await upsertSport80SourceEventResultRows(db, sourceEventId, payload.data as any[]);
         events++;
-        resultRows += payload.data.length;
+        resultRows += payload.data?.length ?? 0;
 
         if (events % 500 === 0) {
             console.log(`backfill-sport80-source-events: staged ${events} events, ${resultRows} rows`);

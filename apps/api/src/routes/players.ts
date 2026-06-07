@@ -1754,25 +1754,26 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         c.event_date::text as event_date,
                         c.category,
                         p.name as platform_name,
-                        serr.id as match_id,
-                        serr.played_at::text as played_at,
-                        serr.round_name,
-                        serr.home_player_name,
-                        serr.away_player_name,
-                        serr.winner_side,
-                        CASE WHEN ep_home.id = ANY(${sourceIds}) THEN 'home' ELSE 'away' END as player_side
-                    FROM source_event_result_rows serr
-                    INNER JOIN source_events se ON se.id = serr.source_event_id
-                    INNER JOIN competitions c ON c.id = se.canonical_competition_id
-                    INNER JOIN platforms p ON p.id = se.platform_id
-                    LEFT JOIN external_players ep_home ON ep_home.platform_id = se.platform_id 
-                        AND ep_home.external_id = serr.home_player_external_id 
-                        AND ep_home.deleted_at IS NULL
-                    LEFT JOIN external_players ep_away ON ep_away.platform_id = se.platform_id 
-                        AND ep_away.external_id = serr.away_player_external_id 
-                        AND ep_away.deleted_at IS NULL
-                    WHERE (ep_home.id = ANY(${sourceIds}) OR ep_away.id = ANY(${sourceIds}))
-                    ORDER BY c.event_date DESC, serr.played_at DESC
+                        r.id as match_id,
+                        r.played_at::text as played_at,
+                        f.round_name,
+                        COALESCE(hp.name, 'Unknown') as home_player_name,
+                        COALESCE(ap.name, 'Unknown') as away_player_name,
+                        CASE WHEN r.home_games_won > r.away_games_won THEN 'home' ELSE 'away' END as winner_side,
+                        CASE WHEN hp.id = ANY(${sourceIds}) THEN 'home' ELSE 'away' END as player_side
+                    FROM rubbers r
+                    INNER JOIN fixtures f ON f.id = r.fixture_id
+                    INNER JOIN competitions c ON c.id = f.competition_id AND c.type = 'individual'
+                    INNER JOIN seasons s ON s.id = c.season_id
+                    INNER JOIN leagues l ON l.id = s.league_id
+                    INNER JOIN platforms p ON p.id = l.platform_id
+                    LEFT JOIN external_players hp ON hp.id = r.home_player_1_id
+                    LEFT JOIN external_players ap ON ap.id = r.away_player_1_id
+                    WHERE r.is_doubles = false
+                    AND r.deleted_at IS NULL
+                    AND c.deleted_at IS NULL
+                    AND (hp.id = ANY(${sourceIds}) OR ap.id = ANY(${sourceIds}))
+                    ORDER BY c.event_date DESC, r.played_at DESC
                 `.execute(db);
 
                 return { data: matches.rows };

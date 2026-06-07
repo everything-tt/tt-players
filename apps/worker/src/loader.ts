@@ -282,7 +282,7 @@ export async function loadTTLeaguesData(
             // ── 6. Mark scrape logs as processed ──────────────────────────
             if (scrapeLogIds.length > 0) {
                 await trx
-                    .updateTable('raw_scrape_logs')
+                    .updateTable('staging.raw_scrape_logs')
                     .set({ status: 'processed' })
                     .where('id', 'in', scrapeLogIds)
                     .execute();
@@ -292,7 +292,7 @@ export async function loadTTLeaguesData(
         // Transaction rolled back — mark scrape logs as 'failed' outside the tx
         if (scrapeLogIds.length > 0) {
             await db
-                .updateTable('raw_scrape_logs')
+                .updateTable('staging.raw_scrape_logs')
                 .set({ status: 'failed' })
                 .where('id', 'in', scrapeLogIds)
                 .execute();

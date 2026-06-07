@@ -1,11 +1,13 @@
 export { db, createDb } from './database.js';
-export type { Database } from './types.js';
+export type { Database, ApiDatabase, StagingDatabase } from './types.js';
 export type {
     // Enum types
     CompetitionType,
     FixtureStatus,
     OutcomeType,
     ScrapeStatus,
+    RankingListKind,
+    ScoreSource,
     // Table row types
     Platform,
     NewPlatform,
@@ -46,4 +48,16 @@ export type {
     CacheEntry,
     NewCacheEntry,
     CacheEntryUpdate,
+    RankingCategory,
+    NewRankingCategory,
+    RankingCategoryUpdate,
+    RankingPeriod,
+    NewRankingPeriod,
+    RankingPeriodUpdate,
+    RankingEntry,
+    NewRankingEntry,
+    RankingEntryUpdate,
+    Sport80EventScrapeState,
+    NewSport80EventScrapeState,
+    Sport80EventScrapeStateUpdate,
 } from './types.js';

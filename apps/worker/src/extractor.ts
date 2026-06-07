@@ -12,7 +12,7 @@ export async function storeScrapePayload(
     const hash = createHash('sha256').update(body).digest('hex');
 
     const result = await db
-        .insertInto('raw_scrape_logs')
+        .insertInto('staging.raw_scrape_logs')
         .values({
             platform_id: platformId,
             endpoint_url: url,

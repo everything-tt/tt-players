@@ -34,9 +34,9 @@ const EventResultRowSchema = z.object({
     round_name: z.string().nullable(),
     round_order: z.number().int().nullable(),
     home_player_name: z.string(),
-    home_player_external_id: z.string(),
+    home_player_external_id: z.string().nullable(),
     away_player_name: z.string(),
-    away_player_external_id: z.string(),
+    away_player_external_id: z.string().nullable(),
     winner_side: z.string(),
     canonical_rubber_id: z.string().uuid().nullable(),
     home_player_resolved_id: z.string().uuid().nullable(),
@@ -100,22 +100,23 @@ export function eventsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         .innerJoin('seasons as s', 's.id', 'c.season_id')
                         .innerJoin('leagues as l', 'l.id', 's.league_id')
                         .innerJoin('platforms as p', 'p.id', 'l.platform_id')
-                        .leftJoin('source_events as se', 'se.canonical_competition_id', 'c.id')
                         .select([
                             'c.id',
                             'p.id as platform_id',
-                            sql<string>`coalesce(se.source, 'canonical')`.as('source'),
+                            sql<string>`coalesce(c.source, 'canonical')`.as('source'),
                             'c.external_id',
                             sql<string>`coalesce(c.display_name, c.name)`.as('name'),
                             sql<string | null>`c.event_date::text`.as('event_date'),
                             'c.category',
-                            'se.public_url',
+                            'c.source_url as public_url',
                             'p.name as platform_name',
                             (qb) => qb
-                                .selectFrom('source_event_result_rows as serr')
-                                .innerJoin('source_events as result_se', 'result_se.id', 'serr.source_event_id')
+                                .selectFrom('rubbers as r')
+                                .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
                                 .select(qb.fn.countAll().as('count'))
-                                .whereRef('result_se.canonical_competition_id', '=', 'c.id')
+                                .whereRef('f.competition_id', '=', 'c.id')
+                                .where('r.deleted_at', 'is', null)
+                                .where('r.is_doubles', '=', false)
                                 .as('match_count'),
                         ]);
 
@@ -178,22 +179,23 @@ export function eventsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         .innerJoin('seasons as s', 's.id', 'c.season_id')
                         .innerJoin('leagues as l', 'l.id', 's.league_id')
                         .innerJoin('platforms as p', 'p.id', 'l.platform_id')
-                        .leftJoin('source_events as se', 'se.canonical_competition_id', 'c.id')
                         .select([
                             'c.id',
                             'p.id as platform_id',
-                            sql<string>`coalesce(se.source, 'canonical')`.as('source'),
+                            sql<string>`coalesce(c.source, 'canonical')`.as('source'),
                             'c.external_id',
                             sql<string>`coalesce(c.display_name, c.name)`.as('name'),
                             sql<string | null>`c.event_date::text`.as('event_date'),
                             'c.category',
-                            'se.public_url',
+                            'c.source_url as public_url',
                             'p.name as platform_name',
                             (qb) => qb
-                                .selectFrom('source_event_result_rows as serr')
-                                .innerJoin('source_events as result_se', 'result_se.id', 'serr.source_event_id')
+                                .selectFrom('rubbers as r')
+                                .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
                                 .select(qb.fn.countAll().as('count'))
-                                .whereRef('result_se.canonical_competition_id', '=', 'c.id')
+                                .whereRef('f.competition_id', '=', 'c.id')
+                                .where('r.deleted_at', 'is', null)
+                                .where('r.is_doubles', '=', false)
                                 .as('match_count'),
                         ])
                         .where('c.id', '=', id)
@@ -209,37 +211,29 @@ export function eventsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     }
 
                     const results = await db
-                        .selectFrom('source_event_result_rows as serr')
-                        .innerJoin('source_events as se', 'se.id', 'serr.source_event_id')
-                        .leftJoin('external_players as hp', (join) =>
-                            join
-                                .onRef('hp.platform_id', '=', 'se.platform_id')
-                                .onRef('hp.external_id', '=', 'serr.home_player_external_id')
-                                .on('hp.deleted_at', 'is', null)
-                        )
-                        .leftJoin('external_players as ap', (join) =>
-                            join
-                                .onRef('ap.platform_id', '=', 'se.platform_id')
-                                .onRef('ap.external_id', '=', 'serr.away_player_external_id')
-                                .on('ap.deleted_at', 'is', null)
-                        )
+                        .selectFrom('rubbers as r')
+                        .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
+                        .leftJoin('external_players as hp1', 'hp1.id', 'r.home_player_1_id')
+                        .leftJoin('external_players as ap1', 'ap1.id', 'r.away_player_1_id')
                         .select([
-                            'serr.id',
-                            'serr.played_at',
-                            'serr.round_name',
-                            'serr.round_order',
-                            'serr.home_player_name',
-                            'serr.home_player_external_id',
-                            'serr.away_player_name',
-                            'serr.away_player_external_id',
-                            'serr.winner_side',
-                            'serr.canonical_rubber_id',
-                            sql<string | null>`COALESCE(hp.canonical_player_id, hp.id)`.as('home_player_resolved_id'),
-                            sql<string | null>`COALESCE(ap.canonical_player_id, ap.id)`.as('away_player_resolved_id'),
+                            'r.id',
+                            'r.played_at',
+                            'f.round_name',
+                            'f.round_order',
+                            sql<string>`COALESCE(hp1.name, 'Unknown')`.as('home_player_name'),
+                            sql<string | null>`hp1.external_id`.as('home_player_external_id'),
+                            sql<string>`COALESCE(ap1.name, 'Unknown')`.as('away_player_name'),
+                            sql<string | null>`ap1.external_id`.as('away_player_external_id'),
+                            sql<string>`CASE WHEN r.home_games_won > r.away_games_won THEN 'home' ELSE 'away' END`.as('winner_side'),
+                            sql<string | null>`r.id`.as('canonical_rubber_id'),
+                            sql<string | null>`COALESCE(hp1.canonical_player_id, hp1.id)`.as('home_player_resolved_id'),
+                            sql<string | null>`COALESCE(ap1.canonical_player_id, ap1.id)`.as('away_player_resolved_id'),
                         ])
-                        .where('se.canonical_competition_id', '=', id)
-                        .orderBy('serr.round_order', 'asc')
-                        .orderBy('serr.played_at', 'asc')
+                        .where('f.competition_id', '=', id)
+                        .where('r.deleted_at', 'is', null)
+                        .where('r.is_doubles', '=', false)
+                        .orderBy('f.round_order', 'asc')
+                        .orderBy('r.played_at', 'asc')
                         .execute();
 
                     // Format dates

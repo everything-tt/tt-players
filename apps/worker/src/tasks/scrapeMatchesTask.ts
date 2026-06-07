@@ -181,7 +181,7 @@ export const scrapeMatchesTask: Task = async (payload, helpers) => {
     // 4. Store in raw_scrape_logs
     const payloadHash = hash(bundledPayload);
     const [log] = await db
-        .insertInto('raw_scrape_logs')
+        .insertInto('staging.raw_scrape_logs')
         .values({
             platform_id: platformId,
             endpoint_url: `${matchesUrl}?bundled=matches+sets`,

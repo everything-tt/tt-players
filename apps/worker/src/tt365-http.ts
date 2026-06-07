@@ -101,7 +101,7 @@ async function runTT365RateLimited<T>(fn: () => Promise<T>): Promise<T> {
         return await fn();
     } finally {
         if (releaseQueue) {
-            releaseQueue();
+            (releaseQueue as () => void)();
         }
     }
 }

@@ -257,53 +257,44 @@ The latest verified live Render deploys were:
 
 The local database contains the source data and must not be deleted.
 
-Before touching the remote database, a local backup was created:
+### Schema Segregation Recommendation
+As the scrape history grows, the local database size will exceed the free 1.5 GB limit of the Aiven PostgreSQL cluster (reaching over 2.2 GB with indexes). To operate within the limit, we recommend segregating the database tables:
+- **Scrape & Auxiliary Schema (Local only)**: Heavy logging and staging data (`raw_scrape_logs`, `ranking_entries`) that contain verbose JSON/HTML payloads. These are only needed locally for ETL processing and are never queried by the Fastify REST API. Excluding their data saves ~1.9 GB of database space.
+- **Canonical Schema (Production / API)**: Clean, structured tables required by the REST API (`leagues`, `competitions`, `teams`, `fixtures`, `rubbers`, `external_players`, `source_events`, `source_event_result_rows` with payloads excluded).
 
-```text
-backups/tt_players_local_20260601T185647Z.dump
-```
-
-The backup checksum was written next to it, and the dump was verified with:
-
-```bash
-pg_restore --list backups/tt_players_local_20260601T185647Z.dump
-```
-
-The remote Aiven database was then restored from that local dump. After restore,
-these row counts were verified remotely:
-
-```text
-external_players: 111391
-fixtures: 207817
-leagues: 192
-raw_scrape_logs: 104603
-rubbers: 1875543
-```
-
-For future migrations, always take and verify a local backup before changing any
-remote database:
+### Pruned Backup Creation
+When backing up the local database for production upload, always run a pruned dump that excludes the raw audit and staging data using `--exclude-table-data`:
 
 ```bash
 mkdir -p backups
-backup_path="backups/tt_players_local_$(date -u +%Y%m%dT%H%M%SZ).dump"
+backup_path="backups/tt_players_local_pruned_$(date -u +%Y%m%dT%H%M%SZ).dump"
+
+# Dump the full schema structure but exclude the massive raw scrape/ranking data payloads
 pg_dump --format=custom --no-owner --no-acl \
+  --exclude-table-data="raw_scrape_logs" \
+  --exclude-table-data="ranking_entries" \
   --file "$backup_path" \
   "$LOCAL_DATABASE_URL"
 
 shasum -a 256 "$backup_path" > "$backup_path.sha256"
 pg_restore --list "$backup_path" > /dev/null
 ```
+This produces a compact dump (~219 MB) that safely fits on the Aiven free plan.
 
-Restore to Aiven with:
+### Recovering From Aiven Read-Only Lock
+If a full database upload is attempted, Aiven will hit its 1.5 GB threshold, fail the restore, and lock the cluster into a read-only transaction state (`cannot execute ALTER TABLE in a read-only transaction`). To recover:
+1. Log in to your Aiven web console.
+2. Under the `tt-players-db` service, go to **Databases** and delete the `tt_players` database.
+3. Re-create the `tt_players` database. This drops disk usage back to 0 and immediately deactivates the read-only lock.
+4. Restore the pruned dump to Aiven:
 
 ```bash
 pg_restore --clean --if-exists --no-owner --no-acl \
   --dbname "$REMOTE_DATABASE_URL" \
-  backups/tt_players_local_YYYYMMDDTHHMMSSZ.dump
+  backups/tt_players_local_pruned_YYYYMMDDTHHMMSSZ.dump
 ```
 
-Use a fresh remote database or an explicitly approved empty remote database for
-restore. Never point destructive restore commands at the local database.
+Use a fresh remote database or an explicitly approved empty remote database for restore. Never point destructive restore commands at the local database.
 
 ## Recreating The Deployment
 

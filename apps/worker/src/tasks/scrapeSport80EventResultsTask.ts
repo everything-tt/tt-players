@@ -77,6 +77,8 @@ async function upsertCompetition(
                 display_name: displayName,
                 event_date: normalizedEventDate,
                 category: normalizedCategory,
+                source: 'sport80',
+                source_url: `https://tabletennisengland.sport80.com/public/rankings/results/${eventId}`,
             })
             .where('id', '=', existing.id)
             .execute();
@@ -93,6 +95,8 @@ async function upsertCompetition(
             event_date: normalizedEventDate,
             category: normalizedCategory,
             type: 'individual',
+            source: 'sport80',
+            source_url: `https://tabletennisengland.sport80.com/public/rankings/results/${eventId}`,
         })
         .returning('id')
         .executeTakeFirstOrThrow();
@@ -103,7 +107,7 @@ export const scrapeSport80EventResultsTask: Task = async (payload, helpers) => {
     const { eventId, eventName, eventDate, category, force = false } = payload as ScrapeSport80EventResultsPayload;
 
     const existing = await db
-        .selectFrom('sport80_event_scrape_state')
+        .selectFrom('staging.sport80_event_scrape_state')
         .select('status')
         .where('event_id', '=', eventId)
         .executeTakeFirst();
@@ -113,7 +117,7 @@ export const scrapeSport80EventResultsTask: Task = async (payload, helpers) => {
     }
 
     await db
-        .insertInto('sport80_event_scrape_state')
+        .insertInto('staging.sport80_event_scrape_state')
         .values({
             event_id: eventId,
             event_name: eventName ?? null,
@@ -197,7 +201,7 @@ export const scrapeSport80EventResultsTask: Task = async (payload, helpers) => {
             .execute();
 
         await db
-            .updateTable('sport80_event_scrape_state')
+            .updateTable('staging.sport80_event_scrape_state')
             .set({
                 status: 'processed',
                 result_rows: result.data.length,
@@ -209,7 +213,7 @@ export const scrapeSport80EventResultsTask: Task = async (payload, helpers) => {
             .execute();
     } catch (error) {
         await db
-            .updateTable('sport80_event_scrape_state')
+            .updateTable('staging.sport80_event_scrape_state')
             .set({
                 status: 'failed',
                 last_error: error instanceof Error ? error.message : String(error),

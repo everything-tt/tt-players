@@ -77,28 +77,13 @@ describe('Events API', () => {
                 event_date: '2026-03-28',
                 category: 'Grand Prix',
                 type: 'individual',
-            })
-            .returning('id')
-            .execute();
-
-        // 2. Seed Source Event
-        const [event] = await db
-            .insertInto('source_events')
-            .values({
-                platform_id: platform!.id,
                 source: 'sport80',
-                external_id: 'ext-evt-1',
-                name: 'Croydon GP 2026',
-                event_date: '2026-03-28',
-                category: 'Grand Prix',
-                public_url: 'https://sport80.example.com/events/1',
-                raw_payload: {},
-                canonical_competition_id: competition!.id,
+                source_url: 'https://sport80.example.com/events/1',
             })
             .returning('id')
             .execute();
 
-        // 3. Seed Registered Players to test resolution
+        // 2. Seed Registered Players to test resolution
         const [player1] = await db
             .insertInto('external_players')
             .values({
@@ -109,25 +94,41 @@ describe('Events API', () => {
             .returning('id')
             .execute();
 
-        // 4. Seed Source Event Results
-        await db
-            .insertInto('source_event_result_rows')
+        const [player2] = await db
+            .insertInto('external_players')
             .values({
-                source_event_id: event!.id,
-                source: 'sport80',
-                external_id: 'ext-row-1',
-                played_at: '2026-03-28 10:00:00',
+                platform_id: platform!.id,
+                external_id: 'sport80-player-none',
+                name: 'Unregistered Player',
+            })
+            .returning('id')
+            .execute();
+
+        // 3. Seed Fixtures and Rubbers
+        const [fixture] = await db
+            .insertInto('fixtures')
+            .values({
+                competition_id: competition!.id,
+                external_id: 'ext-fixture-1',
+                status: 'completed',
                 round_name: 'Group 1',
                 round_order: 1,
-                round_raw: {},
-                home_raw: '{}',
-                away_raw: '{}',
-                home_player_name: 'Jane Doe',
-                home_player_external_id: 'sport80-player-1',
-                away_player_name: 'Unregistered Player',
-                away_player_external_id: 'sport80-player-none',
-                winner_side: 'home',
-                raw_payload: {},
+            })
+            .returning('id')
+            .execute();
+
+        await db
+            .insertInto('rubbers')
+            .values({
+                fixture_id: fixture!.id,
+                external_id: 'ext-rubber-1',
+                is_doubles: false,
+                home_player_1_id: player1!.id,
+                away_player_1_id: player2!.id,
+                home_games_won: 3,
+                away_games_won: 1,
+                outcome_type: 'normal',
+                played_at: '2026-03-28 10:00:00',
             })
             .execute();
 
@@ -158,7 +159,7 @@ describe('Events API', () => {
             home_player_resolved_id: player1!.id, // should resolve successfully
             away_player_name: 'Unregistered Player',
             away_player_external_id: 'sport80-player-none',
-            away_player_resolved_id: null, // should be null
+            away_player_resolved_id: player2!.id, // resolves to its own external player record
             winner_side: 'home',
         });
     });

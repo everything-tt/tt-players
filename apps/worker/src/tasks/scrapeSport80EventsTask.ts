@@ -37,7 +37,7 @@ export const scrapeSport80EventsTask: Task = async (payload, helpers) => {
     const eventIds = result.data.map((event) => String(event.id));
     const existingRows = eventIds.length > 0
         ? await db
-            .selectFrom('sport80_event_scrape_state')
+            .selectFrom('staging.sport80_event_scrape_state')
             .select(['event_id', 'status'])
             .where('event_id', 'in', eventIds)
             .execute()
@@ -57,7 +57,7 @@ export const scrapeSport80EventsTask: Task = async (payload, helpers) => {
         });
 
         await db
-            .insertInto('sport80_event_scrape_state')
+            .insertInto('staging.sport80_event_scrape_state')
             .values({
                 event_id: eventId,
                 event_name: event.name,

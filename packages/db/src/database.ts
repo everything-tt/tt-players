@@ -16,24 +16,33 @@ if (!DATABASE_URL) {
     );
 }
 
+const pool = new Pool({
+    connectionString: DATABASE_URL,
+    ssl: DATABASE_URL.includes('sslmode=require') ? { rejectUnauthorized: false } : undefined,
+    max: 10,
+});
+pool.on('connect', (client) => {
+    client.query('SET search_path TO public, staging');
+});
+
 export const db = new Kysely<Database>({
     dialect: new PostgresDialect({
-        pool: new Pool({
-            connectionString: DATABASE_URL,
-            ssl: DATABASE_URL.includes('sslmode=require') ? { rejectUnauthorized: false } : undefined,
-            max: 10,
-        }),
+        pool,
     }),
 });
 
 export function createDb(connectionString: string): Kysely<Database> {
+    const pool = new Pool({
+        connectionString,
+        ssl: connectionString.includes('sslmode=require') ? { rejectUnauthorized: false } : undefined,
+        max: 10,
+    });
+    pool.on('connect', (client) => {
+        client.query('SET search_path TO public, staging');
+    });
     return new Kysely<Database>({
         dialect: new PostgresDialect({
-            pool: new Pool({
-                connectionString,
-                ssl: connectionString.includes('sslmode=require') ? { rejectUnauthorized: false } : undefined,
-                max: 10,
-            }),
+            pool,
         }),
     });
 }

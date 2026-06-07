@@ -85,7 +85,10 @@ export interface CompetitionsTable {
     event_date: ColumnType<Date | null, string | Date | null, string | Date | null>;
     category: string | null;
     type: CompetitionType;
+    source: string | null;
+    source_url: string | null;
     last_scraped_at: ColumnType<Date | null, Date | null, Date | null>;
+
     created_at: Generated<Date>;
     deleted_at: ColumnType<Date | null, Date | null, Date | null>;
 }
@@ -330,7 +333,8 @@ export type CacheEntryUpdate = Updateable<CacheEntriesTable>;
 
 // ─── Database Interface ───────────────────────────────────────────────────────
 
-export interface Database {
+/** Tables served by the API — replicated to prod (public schema) */
+export interface ApiDatabase {
     platforms: PlatformsTable;
     leagues: LeaguesTable;
     regions: RegionsTable;
@@ -342,12 +346,29 @@ export interface Database {
     league_standings: LeagueStandingsTable;
     fixtures: FixturesTable;
     rubbers: RubbersTable;
-    ranking_categories: RankingCategoriesTable;
-    ranking_periods: RankingPeriodsTable;
-    ranking_entries: RankingEntriesTable;
+    cache_entries: CacheEntriesTable;
+}
+
+/** Staging tables — worker-only, not replicated to prod (staging schema) */
+export interface StagingDatabase {
+    'staging.raw_scrape_logs': RawScrapeLogsTable;
+    'staging.sport80_event_scrape_state': Sport80EventScrapeStateTable;
+    'staging.source_events': SourceEventsTable;
+    'staging.source_event_result_rows': SourceEventResultRowsTable;
+    'staging.ranking_categories': RankingCategoriesTable;
+    'staging.ranking_periods': RankingPeriodsTable;
+    'staging.ranking_entries': RankingEntriesTable;
+
+    // Backward-compatible unqualified aliases (resolved via search_path at runtime)
     raw_scrape_logs: RawScrapeLogsTable;
     sport80_event_scrape_state: Sport80EventScrapeStateTable;
     source_events: SourceEventsTable;
     source_event_result_rows: SourceEventResultRowsTable;
-    cache_entries: CacheEntriesTable;
+    ranking_categories: RankingCategoriesTable;
+    ranking_periods: RankingPeriodsTable;
+    ranking_entries: RankingEntriesTable;
 }
+
+/** Full database — used by worker (both schemas) */
+export interface Database extends ApiDatabase, StagingDatabase {}
+

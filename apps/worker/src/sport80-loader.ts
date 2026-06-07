@@ -96,7 +96,7 @@ export async function upsertSport80RankingCategory(
     name: string,
 ): Promise<string> {
     const row = await db
-        .insertInto('ranking_categories')
+        .insertInto('staging.ranking_categories')
         .values({
             platform_id: platformId,
             external_id: externalId,
@@ -122,7 +122,7 @@ export async function upsertSport80RankingPeriod(
     periodEndDate: string | null,
 ): Promise<string> {
     const row = await db
-        .insertInto('ranking_periods')
+        .insertInto('staging.ranking_periods')
         .values({
             platform_id: platformId,
             external_id: externalId,
@@ -157,7 +157,7 @@ export async function upsertSport80SourceEvent(
     const now = new Date();
     const publicUrl = `https://tabletennisengland.sport80.com/public/rankings/results/${event.id}`;
     const row = await db
-        .insertInto('source_events')
+        .insertInto('staging.source_events')
         .values({
             platform_id: platformId,
             source: SPORT80_SOURCE,
@@ -173,12 +173,12 @@ export async function upsertSport80SourceEvent(
         })
         .onConflict((oc) =>
             oc.columns(['source', 'external_id']).doUpdateSet({
-                name: (eb) => eb.ref('excluded.name'),
-                event_date: (eb) => eb.ref('excluded.event_date'),
-                category: (eb) => eb.ref('excluded.category'),
-                public_url: (eb) => eb.ref('excluded.public_url'),
-                raw_payload: (eb) => eb.ref('excluded.raw_payload'),
-                canonical_competition_id: sql`coalesce(excluded.canonical_competition_id, source_events.canonical_competition_id)`,
+                name: (eb: any) => eb.ref('excluded.name'),
+                event_date: (eb: any) => eb.ref('excluded.event_date'),
+                category: (eb: any) => eb.ref('excluded.category'),
+                public_url: (eb: any) => eb.ref('excluded.public_url'),
+                raw_payload: (eb: any) => eb.ref('excluded.raw_payload'),
+                canonical_competition_id: sql`coalesce(excluded.canonical_competition_id, "staging.source_events".canonical_competition_id)`,
                 last_seen_at: now,
                 updated_at: now,
             }),
@@ -228,23 +228,23 @@ export async function upsertSport80SourceEventResultRows(
     });
 
     await db
-        .insertInto('source_event_result_rows')
+        .insertInto('staging.source_event_result_rows')
         .values(values)
         .onConflict((oc) =>
             oc.columns(['source', 'external_id']).doUpdateSet({
-                source_event_id: (eb) => eb.ref('excluded.source_event_id'),
-                played_at: (eb) => eb.ref('excluded.played_at'),
-                round_name: (eb) => eb.ref('excluded.round_name'),
-                round_order: (eb) => eb.ref('excluded.round_order'),
-                round_raw: (eb) => eb.ref('excluded.round_raw'),
-                home_raw: (eb) => eb.ref('excluded.home_raw'),
-                away_raw: (eb) => eb.ref('excluded.away_raw'),
-                home_player_name: (eb) => eb.ref('excluded.home_player_name'),
-                home_player_external_id: (eb) => eb.ref('excluded.home_player_external_id'),
-                away_player_name: (eb) => eb.ref('excluded.away_player_name'),
-                away_player_external_id: (eb) => eb.ref('excluded.away_player_external_id'),
-                winner_side: (eb) => eb.ref('excluded.winner_side'),
-                raw_payload: (eb) => eb.ref('excluded.raw_payload'),
+                source_event_id: (eb: any) => eb.ref('excluded.source_event_id'),
+                played_at: (eb: any) => eb.ref('excluded.played_at'),
+                round_name: (eb: any) => eb.ref('excluded.round_name'),
+                round_order: (eb: any) => eb.ref('excluded.round_order'),
+                round_raw: (eb: any) => eb.ref('excluded.round_raw'),
+                home_raw: (eb: any) => eb.ref('excluded.home_raw'),
+                away_raw: (eb: any) => eb.ref('excluded.away_raw'),
+                home_player_name: (eb: any) => eb.ref('excluded.home_player_name'),
+                home_player_external_id: (eb: any) => eb.ref('excluded.home_player_external_id'),
+                away_player_name: (eb: any) => eb.ref('excluded.away_player_name'),
+                away_player_external_id: (eb: any) => eb.ref('excluded.away_player_external_id'),
+                winner_side: (eb: any) => eb.ref('excluded.winner_side'),
+                raw_payload: (eb: any) => eb.ref('excluded.raw_payload'),
                 last_seen_at: new Date(),
                 updated_at: new Date(),
             }),

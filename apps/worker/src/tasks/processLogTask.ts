@@ -80,7 +80,7 @@ export const processLogTask: Task = async (payload, helpers) => {
 
     // 1. Read the raw scrape log
     const log = await db
-        .selectFrom('raw_scrape_logs')
+        .selectFrom('staging.raw_scrape_logs')
         .select(['id', 'raw_payload', 'status', 'endpoint_url'])
         .where('id', '=', logId)
         .executeTakeFirst();
@@ -238,7 +238,7 @@ async function processTT365Standings(
     if (standings.length === 0) {
         helpers.logger.info(`processLogTask: TT365 log ${logId} has no standings, marking failed`);
         await db
-            .updateTable('raw_scrape_logs')
+            .updateTable('staging.raw_scrape_logs')
             .set({ status: 'failed' })
             .where('id', '=', logId)
             .execute();
@@ -354,7 +354,7 @@ async function processTT365Fixtures(
     }
 
     await db
-        .updateTable('raw_scrape_logs')
+        .updateTable('staging.raw_scrape_logs')
         .set({ status: 'processed' })
         .where('id', '=', logId)
         .execute();
@@ -689,7 +689,7 @@ async function processTT365MatchCard(
                     `processLogTask: TT365 match-card log ${logId} fallback failed (replacements=${fallback.replacements}, impossible_scores=${fallbackHasImpossibleScores}), marking failed`,
                 );
                 await db
-                    .updateTable('raw_scrape_logs')
+                    .updateTable('staging.raw_scrape_logs')
                     .set({ status: 'failed' })
                     .where('id', '=', logId)
                     .execute();
@@ -722,7 +722,7 @@ async function processTT365MatchCard(
             `processLogTask: TT365 match-card log ${logId} invalid team data, marking failed`,
         );
         await db
-            .updateTable('raw_scrape_logs')
+            .updateTable('staging.raw_scrape_logs')
             .set({ status: 'failed' })
             .where('id', '=', logId)
             .execute();
@@ -764,7 +764,7 @@ async function processTT365PlayerStats(
     helpers: { logger: { info: (msg: string) => void } },
 ): Promise<boolean> {
     await db
-        .updateTable('raw_scrape_logs')
+        .updateTable('staging.raw_scrape_logs')
         .set({ status: 'processed' })
         .where('id', '=', logId)
         .execute();
