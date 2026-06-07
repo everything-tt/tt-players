@@ -61,7 +61,7 @@ export function AboutTabContent() {
       <div className="card card-style" style={{ padding: '20px', margin: '0 0 20px 0', borderRadius: '12px' }}>
         <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '8px' }}>About TT Players</h2>
         <p style={{ fontSize: '14px', lineHeight: '1.6', marginBottom: '16px', opacity: 0.85 }}>
-          TT Players is a Postgres-maximalist aggregator and ETL pipeline that scrapes UK table tennis league websites (including TT Leagues and Table Tennis 365), aggregates historical match results, and makes them accessible through a type-safe API and PWA mobile shell.
+          TT Players is a companion app for UK table tennis players. It gathers match results and player statistics from different league websites (including TT Leagues and Table Tennis 365) so you can easily search for players, check league tables, analyze head-to-head records, and follow tournament results in one clean, simple app.
         </p>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '11px', padding: '4px 10px', background: 'rgba(255,255,255,0.08)', borderRadius: '20px', fontWeight: '500' }}>
