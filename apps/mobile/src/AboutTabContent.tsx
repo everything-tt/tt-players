@@ -76,35 +76,7 @@ export function AboutTabContent() {
         </div>
       </div>
 
-      {/* ── Open Source Section ── */}
-      <div className="card card-style" style={{ padding: '20px', margin: '0 0 20px 0', borderRadius: '12px', background: 'linear-gradient(135deg, rgba(36, 41, 47, 0.4) 0%, rgba(20, 20, 20, 0.4) 100%)' }}>
-        <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <i className="fab fa-github" style={{ fontSize: '18px' }} /> Open Source Project
-        </h3>
-        <p style={{ fontSize: '13px', lineHeight: '1.5', marginBottom: '16px', opacity: 0.8 }}>
-          This project is fully open source. You can view the code, report issues, or contribute new features directly on GitHub.
-        </p>
-        <a
-          href="https://github.com/wudong/tt-players"
-          target="_blank"
-          rel="noreferrer"
-          className="btn btn-m btn-full rounded-s text-uppercase font-900 shadow-s"
-          style={{
-            background: '#24292f',
-            border: 'none',
-            color: '#fff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            textDecoration: 'none',
-            padding: '10px',
-            fontSize: '12px',
-          }}
-        >
-          <i className="fab fa-github" /> View Repository
-        </a>
-      </div>
+
 
       {/* ── Feedback Form Section ── */}
       <div className="card card-style" style={{ padding: '20px', margin: '0 0 20px 0', borderRadius: '12px' }}>

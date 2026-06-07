@@ -792,11 +792,7 @@ function App() {
               <span>TournaPilot</span>
               <i className="fa fa-angle-right" />
             </a>
-            <a href="https://github.com/wudong/tt-players" target="_blank" rel="noreferrer" onClick={onCloseMenuClick}>
-              <i className="fab fa-github color-white" />
-              <span>GitHub Repository</span>
-              <i className="fa fa-angle-right" />
-            </a>
+
           </div>
 
           <div className="tt-main-menu-build" aria-label={`Build ${APP_BUILD_TIME}, commit ${APP_COMMIT}`}>
