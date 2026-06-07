@@ -360,7 +360,6 @@ export interface ApiDatabase {
     fixtures: FixturesTable;
     rubbers: RubbersTable;
     cache_entries: CacheEntriesTable;
-    feedback: FeedbackTable;
 }
 
 /** Staging tables — worker-only, not replicated to prod (staging schema) */
@@ -372,6 +371,7 @@ export interface StagingDatabase {
     'staging.ranking_categories': RankingCategoriesTable;
     'staging.ranking_periods': RankingPeriodsTable;
     'staging.ranking_entries': RankingEntriesTable;
+    'staging.feedback': FeedbackTable;
 
     // Backward-compatible unqualified aliases (resolved via search_path at runtime)
     raw_scrape_logs: RawScrapeLogsTable;
@@ -381,6 +381,7 @@ export interface StagingDatabase {
     ranking_categories: RankingCategoriesTable;
     ranking_periods: RankingPeriodsTable;
     ranking_entries: RankingEntriesTable;
+    feedback: FeedbackTable;
 }
 
 /** Full database — used by worker (both schemas) */

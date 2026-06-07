@@ -63,7 +63,7 @@ describe('POST /api/feedback', () => {
 
         // Verify it exists in database
         const feedback = await db
-            .selectFrom('feedback')
+            .selectFrom('staging.feedback')
             .selectAll()
             .where('id', '=', res.body.id)
             .executeTakeFirst();

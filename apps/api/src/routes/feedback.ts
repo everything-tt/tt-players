@@ -45,7 +45,7 @@ export function feedbackRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     const cleanName = name && name.trim() !== '' ? name.trim() : null;
 
                     const result = await db
-                        .insertInto('feedback')
+                        .insertInto('staging.feedback')
                         .values({
                             name: cleanName,
                             email: cleanEmail,

@@ -2,7 +2,7 @@ import { type Kysely, sql } from 'kysely';
 
 export async function up(db: Kysely<any>): Promise<void> {
     await db.schema
-        .createTable('feedback')
+        .createTable('staging.feedback')
         .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()` as any))
         .addColumn('name', 'varchar')
         .addColumn('email', 'varchar')
@@ -13,5 +13,5 @@ export async function up(db: Kysely<any>): Promise<void> {
 }
 
 export async function down(db: Kysely<any>): Promise<void> {
-    await db.schema.dropTable('feedback').execute();
+    await db.schema.dropTable('staging.feedback').execute();
 }
