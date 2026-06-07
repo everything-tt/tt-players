@@ -44,6 +44,49 @@ describe('GET /api/health', () => {
     });
 });
 
+describe('POST /api/feedback', () => {
+    it('successfully records general feedback', async () => {
+        const res = await request
+            .post('/api/feedback')
+            .send({
+                name: 'John Doe',
+                email: 'john@example.com',
+                message_type: 'general',
+                message: 'Love the app!',
+            })
+            .expect(200);
+
+        expect(res.body).toEqual({
+            success: true,
+            id: expect.any(String),
+        });
+
+        // Verify it exists in database
+        const feedback = await db
+            .selectFrom('feedback')
+            .selectAll()
+            .where('id', '=', res.body.id)
+            .executeTakeFirst();
+
+        expect(feedback).toBeDefined();
+        expect(feedback?.name).toBe('John Doe');
+        expect(feedback?.email).toBe('john@example.com');
+        expect(feedback?.message_type).toBe('general');
+        expect(feedback?.message).toBe('Love the app!');
+    });
+
+    it('returns 400 for invalid body schema', async () => {
+        await request
+            .post('/api/feedback')
+            .send({
+                email: 'not-an-email',
+                message_type: 'invalid-type',
+                message: 'hi',
+            })
+            .expect(400);
+    });
+});
+
 // ─── /leagues/:id/snapshot ──────────────────────────────────────────────────
 
 describe('GET /leagues/:id/snapshot', () => {

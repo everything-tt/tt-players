@@ -331,6 +331,19 @@ export type CacheEntry = Selectable<CacheEntriesTable>;
 export type NewCacheEntry = Insertable<CacheEntriesTable>;
 export type CacheEntryUpdate = Updateable<CacheEntriesTable>;
 
+export interface FeedbackTable {
+    id: Generated<string>;
+    name: string | null;
+    email: string | null;
+    message_type: string;
+    message: string;
+    created_at: Generated<Date>;
+}
+
+export type Feedback = Selectable<FeedbackTable>;
+export type NewFeedback = Insertable<FeedbackTable>;
+export type FeedbackUpdate = Updateable<FeedbackTable>;
+
 // ─── Database Interface ───────────────────────────────────────────────────────
 
 /** Tables served by the API — replicated to prod (public schema) */
@@ -347,6 +360,7 @@ export interface ApiDatabase {
     fixtures: FixturesTable;
     rubbers: RubbersTable;
     cache_entries: CacheEntriesTable;
+    feedback: FeedbackTable;
 }
 
 /** Staging tables — worker-only, not replicated to prod (staging schema) */

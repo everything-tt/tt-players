@@ -24,6 +24,7 @@ import * as m017 from '../migrations/017_create_source_event_staging_tables.js';
 import * as m018 from '../migrations/018_add_competition_event_display_fields.js';
 import * as m019 from '../migrations/019_add_competition_source_fields.js';
 import * as m020 from '../migrations/020_create_staging_schema.js';
+import * as m021 from '../migrations/021_create_feedback_table.js';
 
 const { Pool } = pg;
 
@@ -61,6 +62,7 @@ class StaticMigrationProvider implements MigrationProvider {
             '018_add_competition_event_display_fields': m018,
             '019_add_competition_source_fields': m019,
             '020_create_staging_schema': m020,
+            '021_create_feedback_table': m021,
         };
     }
 }

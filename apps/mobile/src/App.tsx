@@ -5,6 +5,7 @@ import { HomeTabContent } from './HomeTabContent';
 import { LeagueSelectionPage } from './LeagueSelectionPage';
 import { LeaguesTabContent } from './LeaguesTabContent';
 import { EventsTabContent } from './EventsTabContent';
+import { AboutTabContent } from './AboutTabContent';
 import { TabFooterBar } from './TabFooterBar';
 import { PlayerList } from './components/PlayerList';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
@@ -40,6 +41,7 @@ const tabTitles: Record<AppTabId, string> = {
   leagues: 'Leagues',
   h2h: 'H2H',
   events: 'Tournaments',
+  about: 'About',
 };
 
 const menuConfigs: Record<MenuId, MenuConfig> = {
@@ -694,6 +696,10 @@ function App() {
           {activeTab === 'events' ? (
             <EventsTabContent />
           ) : null}
+
+          {activeTab === 'about' ? (
+            <AboutTabContent />
+          ) : null}
         </main>
 
         {isLeagueSelectorOpen ? (
@@ -759,6 +765,11 @@ function App() {
               <span>Head to Head</span>
               <i className="fa fa-angle-right" />
             </a>
+            <a href="#" onClick={onMenuTabClick('about')}>
+              <i className="fa fa-info-circle color-white" />
+              <span>About & Feedback</span>
+              <i className="fa fa-angle-right" />
+            </a>
           </div>
 
           <h6 className="menu-divider mt-4">Settings</h6>
@@ -779,6 +790,11 @@ function App() {
             <a href="https://www.tournapilot.com/app" target="_blank" rel="noreferrer" onClick={onCloseMenuClick}>
               <i className="fa fa-external-link-alt color-white" />
               <span>TournaPilot</span>
+              <i className="fa fa-angle-right" />
+            </a>
+            <a href="https://github.com/wudong/tt-players" target="_blank" rel="noreferrer" onClick={onCloseMenuClick}>
+              <i className="fab fa-github color-white" />
+              <span>GitHub Repository</span>
               <i className="fa fa-angle-right" />
             </a>
           </div>

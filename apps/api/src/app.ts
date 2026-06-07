@@ -15,6 +15,7 @@ import { teamsRoutes } from './routes/teams.js';
 import { playersRoutes } from './routes/players.js';
 import { fixturesRoutes } from './routes/fixtures.js';
 import { eventsRoutes } from './routes/events.js';
+import { feedbackRoutes } from './routes/feedback.js';
 
 export async function buildApp(db: Kysely<Database>) {
     const app = Fastify({ logger: false }).withTypeProvider<ZodTypeProvider>();
@@ -57,6 +58,7 @@ export async function buildApp(db: Kysely<Database>) {
     await app.register(playersRoutes(db), { prefix: '/api/players' });
     await app.register(fixturesRoutes(db), { prefix: '/api/fixtures' });
     await app.register(eventsRoutes(db), { prefix: '/api/events' });
+    await app.register(feedbackRoutes(db), { prefix: '/api/feedback' });
 
     return app;
 }
