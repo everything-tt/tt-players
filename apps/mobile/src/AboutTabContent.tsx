@@ -14,6 +14,16 @@ export function AboutTabContent() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
+  const handleResetData = () => {
+    const confirmed = window.confirm(
+      'Are you sure you want to delete all saved favorites, selected leagues, and settings? This cannot be undone.'
+    );
+    if (confirmed) {
+      localStorage.clear();
+      window.location.reload();
+    }
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!message.trim() || message.trim().length < 3) {
@@ -215,6 +225,29 @@ export function AboutTabContent() {
             </button>
           </form>
         )}
+      </div>
+
+      {/* ── Saved Data Reset Section ── */}
+      <div className="card card-style" style={{ padding: '20px', margin: '0 0 20px 0', borderRadius: '12px' }}>
+        <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '8px' }}>Saved Data</h3>
+        <p style={{ fontSize: '13px', lineHeight: '1.5', marginBottom: '16px', opacity: 0.85 }}>
+          Your favorites, selected leagues, and active settings are stored locally on this device.
+        </p>
+        <button
+          type="button"
+          onClick={handleResetData}
+          className="btn btn-m btn-full rounded-s text-uppercase font-900 shadow-s w-100"
+          style={{
+            background: '#dc3545',
+            border: 'none',
+            color: '#fff',
+            padding: '10px',
+            fontSize: '12px',
+            cursor: 'pointer',
+          }}
+        >
+          Clear Saved Data
+        </button>
       </div>
     </div>
   );

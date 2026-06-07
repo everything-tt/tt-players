@@ -767,7 +767,7 @@ function App() {
             </a>
             <a href="#" onClick={onMenuTabClick('about')}>
               <i className="fa fa-info-circle color-white" />
-              <span>About & Feedback</span>
+              <span>About</span>
               <i className="fa fa-angle-right" />
             </a>
           </div>
