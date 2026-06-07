@@ -595,7 +595,12 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 const leagueCsv = leagueIds.join(',');
                 const searchPattern = `%${normalizedQuery}%`;
                 const limit = normalizedQuery ? 20 : 10;
-                let rows;
+                let rows: Array<{
+                    id: string;
+                    name: string;
+                    played: number | string | null;
+                    wins: number | string | null;
+                }>;
                 if (!normalizedQuery) {
                     rows = await sql<{
                         id: string;
