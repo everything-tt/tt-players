@@ -424,15 +424,9 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 const versionRes = await sql<{ data_version: Date | null }>`
                     SELECT GREATEST(
                         COALESCE((
-                            SELECT MAX(COALESCE(r.updated_at, r.created_at))
-                            FROM rubbers r
-                            JOIN fixtures f ON f.id = r.fixture_id
-                            JOIN competitions c ON c.id = f.competition_id
-                            JOIN seasons s ON s.id = c.season_id
-                            WHERE r.deleted_at IS NULL
-                              AND r.outcome_type != 'walkover'
-                              AND ((${seasonId ?? null}::uuid IS NULL AND s.is_active = true)
-                                   OR s.id = ${seasonId ?? null}::uuid)
+                            SELECT MAX(updated_at)
+                            FROM rubbers
+                            WHERE deleted_at IS NULL
                         ), '-infinity'::timestamp),
                         COALESCE((
                             SELECT MAX(updated_at)
@@ -601,90 +595,136 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 const leagueCsv = leagueIds.join(',');
                 const searchPattern = `%${normalizedQuery}%`;
                 const limit = normalizedQuery ? 20 : 10;
-                const orderBy = normalizedQuery
-                    ? sql`name ASC`
-                    : sql`played DESC, wins DESC, name ASC`;
+                let rows;
+                if (!normalizedQuery) {
+                    rows = await sql<{
+                        id: string;
+                        name: string;
+                        played: number | string | null;
+                        wins: number | string | null;
+                    }>`
+                        WITH recent_rubbers AS (
+                            SELECT
+                                r.id AS rubber_id,
+                                r.home_player_1_id AS home_pid,
+                                r.away_player_1_id AS away_pid,
+                                CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END AS home_win,
+                                CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END AS away_win
+                            FROM rubbers r
+                            JOIN fixtures f ON f.id = r.fixture_id
+                            JOIN competitions c ON c.id = f.competition_id
+                            JOIN seasons s ON s.id = c.season_id
+                            WHERE r.is_doubles = false
+                              AND r.deleted_at IS NULL
+                              AND f.deleted_at IS NULL
+                              AND c.deleted_at IS NULL
+                              AND s.deleted_at IS NULL
+                              AND f.date_played >= NOW() - INTERVAL '100 days'
+                              AND r.outcome_type != 'walkover'
+                              AND (${leagueCsv} = '' OR s.league_id::text = ANY(string_to_array(${leagueCsv}, ',')))
+                        ),
+                        player_stats AS (
+                            SELECT
+                                COALESCE(ep.canonical_player_id, ep.id) AS canonical_id,
+                                COUNT(*)::int AS played,
+                                SUM(win)::int AS wins
+                            FROM (
+                                SELECT home_pid AS pid, home_win AS win FROM recent_rubbers WHERE home_pid IS NOT NULL
+                                UNION ALL
+                                SELECT away_pid AS pid, away_win AS win FROM recent_rubbers WHERE away_pid IS NOT NULL
+                            ) s
+                            JOIN external_players ep ON ep.id = s.pid
+                            WHERE ep.deleted_at IS NULL
+                            GROUP BY COALESCE(ep.canonical_player_id, ep.id)
+                        )
+                        SELECT
+                            c.id,
+                            c.name,
+                            ps.played,
+                            ps.wins
+                        FROM player_stats ps
+                        JOIN external_players c ON c.id = ps.canonical_id
+                        WHERE c.deleted_at IS NULL AND (c.canonical_player_id IS NULL OR c.canonical_player_id = c.id)
+                        ORDER BY ps.played DESC, ps.wins DESC, c.name ASC
+                        LIMIT ${limit}
+                    `.execute(db).then((result) => result.rows);
+                } else {
+                    rows = await sql<{
+                        id: string;
+                        name: string;
+                        played: number | string | null;
+                        wins: number | string | null;
+                    }>`
+                        WITH matched_canonicals AS (
+                            SELECT DISTINCT COALESCE(ep.canonical_player_id, ep.id) AS canonical_id
+                            FROM external_players ep
+                            LEFT JOIN external_players cp ON cp.id = COALESCE(ep.canonical_player_id, ep.id)
+                            WHERE ep.deleted_at IS NULL
+                              AND (ep.name ILIKE ${searchPattern} OR cp.name ILIKE ${searchPattern})
+                        ),
+                        canonical_rows AS (
+                            SELECT
+                                COALESCE(ep.canonical_player_id, ep.id) AS canonical_id,
+                                MIN(COALESCE(cp.name, ep.name)) AS canonical_name
+                            FROM external_players ep
+                            LEFT JOIN external_players cp ON cp.id = COALESCE(ep.canonical_player_id, ep.id)
+                            WHERE ep.deleted_at IS NULL
+                              AND COALESCE(ep.canonical_player_id, ep.id) IN (SELECT canonical_id FROM matched_canonicals)
+                            GROUP BY COALESCE(ep.canonical_player_id, ep.id)
+                        ),
+                        player_rubbers AS (
+                            SELECT
+                                COALESCE(ep.canonical_player_id, ep.id) AS canonical_id,
+                                r.id AS rubber_id,
+                                CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END AS win
+                            FROM rubbers r
+                            JOIN external_players ep ON ep.id = r.home_player_1_id
+                            JOIN fixtures f ON f.id = r.fixture_id
+                            JOIN competitions c ON c.id = f.competition_id
+                            JOIN seasons s ON s.id = c.season_id
+                            WHERE r.is_doubles = false
+                              AND r.deleted_at IS NULL
+                              AND r.outcome_type != 'walkover'
+                              AND ep.deleted_at IS NULL
+                              AND f.deleted_at IS NULL
+                              AND c.deleted_at IS NULL
+                              AND s.deleted_at IS NULL
+                              AND (${leagueCsv} = '' OR s.league_id::text = ANY(string_to_array(${leagueCsv}, ',')))
+                              AND COALESCE(ep.canonical_player_id, ep.id) IN (SELECT canonical_id FROM matched_canonicals)
 
-                const rows = await sql<{
-                    id: string;
-                    name: string;
-                    played: number | string | null;
-                    wins: number | string | null;
-                }>`
-                    WITH active_players AS (
+                            UNION ALL
+
+                            SELECT
+                                COALESCE(ep.canonical_player_id, ep.id) AS canonical_id,
+                                r.id AS rubber_id,
+                                CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END AS win
+                            FROM rubbers r
+                            JOIN external_players ep ON ep.id = r.away_player_1_id
+                            JOIN fixtures f ON f.id = r.fixture_id
+                            JOIN competitions c ON c.id = f.competition_id
+                            JOIN seasons s ON s.id = c.season_id
+                            WHERE r.is_doubles = false
+                              AND r.deleted_at IS NULL
+                              AND r.outcome_type != 'walkover'
+                              AND ep.deleted_at IS NULL
+                              AND f.deleted_at IS NULL
+                              AND c.deleted_at IS NULL
+                              AND s.deleted_at IS NULL
+                              AND (${leagueCsv} = '' OR s.league_id::text = ANY(string_to_array(${leagueCsv}, ',')))
+                              AND COALESCE(ep.canonical_player_id, ep.id) IN (SELECT canonical_id FROM matched_canonicals)
+                        )
                         SELECT
-                            ep.id,
-                            ep.name,
-                            COALESCE(ep.canonical_player_id, ep.id) AS canonical_id,
-                            COALESCE(cp.name, ep.name) AS canonical_name
-                        FROM external_players ep
-                        LEFT JOIN external_players cp
-                            ON cp.id = COALESCE(ep.canonical_player_id, ep.id)
-                        WHERE ep.deleted_at IS NULL
-                    ),
-                    matched_canonicals AS (
-                        SELECT DISTINCT canonical_id
-                        FROM active_players
-                        WHERE ${normalizedQuery} = ''
-                           OR name ILIKE ${searchPattern}
-                           OR canonical_name ILIKE ${searchPattern}
-                    ),
-                    canonical_rows AS (
-                        SELECT
-                            ap.canonical_id,
-                            MIN(ap.canonical_name) AS canonical_name
-                        FROM active_players ap
-                        JOIN matched_canonicals mc
-                            ON mc.canonical_id = ap.canonical_id
-                        GROUP BY ap.canonical_id
-                    ),
-                    player_rubbers AS (
-                        SELECT
-                            ap.canonical_id,
-                            r.id AS rubber_id,
-                            MAX(
-                                CASE
-                                    WHEN (r.home_player_1_id = ap.id AND r.home_games_won > r.away_games_won)
-                                      OR (r.away_player_1_id = ap.id AND r.away_games_won > r.home_games_won)
-                                    THEN 1
-                                    ELSE 0
-                                END
-                            ) AS win
-                        FROM active_players ap
-                        JOIN matched_canonicals mc
-                            ON mc.canonical_id = ap.canonical_id
-                        LEFT JOIN rubbers r
-                            ON (r.home_player_1_id = ap.id OR r.away_player_1_id = ap.id)
-                           AND r.deleted_at IS NULL
-                           AND r.is_doubles = false
-                           AND r.outcome_type != 'walkover'
-                        LEFT JOIN fixtures f
-                            ON f.id = r.fixture_id
-                           AND f.deleted_at IS NULL
-                        LEFT JOIN competitions c
-                            ON c.id = f.competition_id
-                           AND c.deleted_at IS NULL
-                        LEFT JOIN seasons s
-                            ON s.id = c.season_id
-                           AND s.deleted_at IS NULL
-                        WHERE (${leagueCsv} = '' OR s.league_id::text = ANY(string_to_array(${leagueCsv}, ',')))
-                          AND (${normalizedQuery} <> '' OR f.date_played >= NOW() - INTERVAL '100 days')
-                          AND r.id IS NOT NULL
-                        GROUP BY ap.canonical_id, r.id
-                    )
-                    SELECT
-                        cr.canonical_id AS id,
-                        cr.canonical_name AS name,
-                        COUNT(pr.rubber_id)::int AS played,
-                        COALESCE(SUM(pr.win), 0)::int AS wins
-                    FROM canonical_rows cr
-                    LEFT JOIN player_rubbers pr
-                        ON pr.canonical_id = cr.canonical_id
-                    GROUP BY cr.canonical_id, cr.canonical_name
-                    HAVING ${normalizedQuery} <> '' OR COUNT(pr.rubber_id) > 0
-                    ORDER BY ${orderBy}
-                    LIMIT ${limit}
-                `.execute(db).then((result) => result.rows);
+                            cr.canonical_id AS id,
+                            cr.canonical_name AS name,
+                            COUNT(pr.rubber_id)::int AS played,
+                            COALESCE(SUM(pr.win), 0)::int AS wins
+                        FROM canonical_rows cr
+                        LEFT JOIN player_rubbers pr ON pr.canonical_id = cr.canonical_id
+                        GROUP BY cr.canonical_id, cr.canonical_name
+                        ORDER BY name ASC
+                        LIMIT ${limit}
+                    `.execute(db).then((result) => result.rows);
+                }
 
                 return reply.send({
                     data: rows.map(r => ({
@@ -791,14 +831,12 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 const extVersionRes = await sql<{ data_version: Date | null }>`
                     SELECT GREATEST(
                         COALESCE((
-                            SELECT MAX(COALESCE(r.updated_at, r.created_at, f.updated_at, f.created_at))
+                            SELECT MAX(r.updated_at)
                             FROM rubbers r
-                            JOIN fixtures f ON f.id = r.fixture_id
                             WHERE (r.home_player_1_id = ANY(${sourceIds}) OR r.away_player_1_id = ANY(${sourceIds})
                                    OR r.home_player_2_id = ANY(${sourceIds}) OR r.away_player_2_id = ANY(${sourceIds}))
                               AND r.deleted_at IS NULL
                               AND r.outcome_type != 'walkover'
-                              AND f.deleted_at IS NULL
                         ), '-infinity'::timestamp),
                         COALESCE((
                             SELECT MAX(updated_at)
@@ -1035,9 +1073,8 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 const dataVersionRes = await sql<{ data_version: Date | null }>`
                     SELECT GREATEST(
                         COALESCE((
-                            SELECT MAX(COALESCE(r.updated_at, r.created_at, f.updated_at, f.created_at))
+                            SELECT MAX(r.updated_at)
                             FROM rubbers r
-                            JOIN fixtures f ON f.id = r.fixture_id
                             WHERE (
                                 r.home_player_1_id = ANY(${sourceIds})
                                 OR r.away_player_1_id = ANY(${sourceIds})
@@ -1046,7 +1083,6 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                             )
                               AND r.deleted_at IS NULL
                               AND r.outcome_type != 'walkover'
-                              AND f.deleted_at IS NULL
                         ), '-infinity'::timestamp),
                         COALESCE((
                             SELECT MAX(updated_at)
@@ -1772,7 +1808,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     WHERE r.is_doubles = false
                     AND r.deleted_at IS NULL
                     AND c.deleted_at IS NULL
-                    AND (hp.id = ANY(${sourceIds}) OR ap.id = ANY(${sourceIds}))
+                    AND (r.home_player_1_id = ANY(${sourceIds}) OR r.away_player_1_id = ANY(${sourceIds}))
                     ORDER BY c.event_date DESC, r.played_at DESC
                 `.execute(db);
 
