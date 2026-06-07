@@ -23,7 +23,10 @@ export function EventsTabContent() {
   const [total, setTotal] = useState(0);
   const [favouriteTournaments, setFavouriteTournaments] = useState<FavouriteTournament[]>(() => parseStoredFavouriteTournaments());
 
-  const eventsQuery = useEventsQuery(debouncedQuery, PAGE_SIZE, offset);
+  const isSearchActive = query.trim().length > 0;
+  const currentLimit = isSearchActive ? PAGE_SIZE : 10;
+
+  const eventsQuery = useEventsQuery(debouncedQuery, currentLimit, isSearchActive ? offset : 0);
 
   // Reset pagination state when query changes
   useEffect(() => {
@@ -58,6 +61,26 @@ export function EventsTabContent() {
     };
   }, []);
 
+  const toggleFavourite = (event: EventItem | FavouriteTournament) => {
+    const isFav = favouriteTournaments.some((t) => t.id === event.id);
+    let next;
+    if (isFav) {
+      next = favouriteTournaments.filter((t) => t.id !== event.id);
+    } else {
+      const fav: FavouriteTournament = {
+        id: event.id,
+        name: event.name,
+        event_date: event.event_date,
+        category: event.category,
+        platform_name: event.platform_name,
+        match_count: event.match_count,
+      };
+      next = [fav, ...favouriteTournaments];
+    }
+    setFavouriteTournaments(next);
+    persistFavouriteTournaments(next);
+  };
+
   const pageError = eventsQuery.error instanceof Error ? eventsQuery.error.message : null;
   const isLoadingInitial = eventsQuery.isLoading && offset === 0;
   const isLoadingMore = eventsQuery.isLoading && offset > 0;
@@ -86,7 +109,7 @@ export function EventsTabContent() {
       </section>
 
       {/* Saved Tournaments Section */}
-      {favouriteTournaments.length > 0 && !query ? (
+      {favouriteTournaments.length > 0 && !isSearchActive ? (
         <section className="tt-player-section mb-4" aria-labelledby="tt-favourite-tournaments-title">
           <div className="tt-player-section-header">
             <h2 id="tt-favourite-tournaments-title" className="tt-player-section-title">Saved Tournaments</h2>
@@ -149,14 +172,17 @@ export function EventsTabContent() {
           <section className="tt-player-section" aria-labelledby="tt-tournament-results-title">
             <div className="tt-player-section-header">
               <h2 id="tt-tournament-results-title" className="tt-player-section-title">
-                {query ? 'Search Results' : 'Recent Tournaments'}
+                {isSearchActive ? 'Search Results' : 'Recent Tournaments'}
               </h2>
-              <span className="tt-player-section-note">{events.length} shown</span>
+              <span className="tt-player-section-note">
+                {isSearchActive ? `${events.length} shown` : 'Last 10'}
+              </span>
             </div>
             <AppListGroup size="large" className="tt-player-list">
-              {events.map((event, index) => {
+              {events.slice(0, isSearchActive ? undefined : 10).map((event, index) => {
                 const dateStr = event.event_date ? formatDate(event.event_date) : 'Unknown Date';
                 const matchLabel = event.match_count === 1 ? '1 match' : `${event.match_count} matches`;
+                const isFav = favouriteTournaments.some((t) => t.id === event.id);
 
                 return (
                   <AppListItem
@@ -164,39 +190,66 @@ export function EventsTabContent() {
                     iconClassName="fa fa-trophy rounded-xl tt-icon-tournament"
                     title={event.name}
                     subtitle={`${dateStr} · ${event.category ?? 'Tournament'} · ${matchLabel}`}
+                    trailingElement={
+                      <button
+                        type="button"
+                        className={`tt-tournament-favourite-icon ${isFav ? 'active' : ''}`}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: isFav ? '#ff3b30' : 'rgba(255,255,255,0.3)',
+                          cursor: 'pointer',
+                          fontSize: '16px',
+                          padding: '12px 8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          toggleFavourite(event);
+                        }}
+                        aria-label={isFav ? `Remove ${event.name} from saved` : `Save ${event.name}`}
+                      >
+                        <i className={isFav ? 'fa fa-heart' : 'far fa-heart'} />
+                      </button>
+                    }
                     onClick={(e) => {
                       e.preventDefault();
                       navigateInActiveTab(`event/${event.id}`);
                     }}
-                    borderless={index === events.length - 1}
+                    borderless={index === Math.min(events.length, isSearchActive ? events.length : 10) - 1}
                   />
                 );
               })}
             </AppListGroup>
           </section>
 
-          <div className="content mt-0 mb-4 text-center">
-            <p className="color-theme opacity-50 font-11 mb-2">
-              Showing {events.length} of {total} tournaments
-            </p>
-            {hasMore && (
-              <a
-                href="#"
-                onClick={handleLoadMore}
-                className="btn btn-sm btn-full btn-border border-highlight color-highlight font-12 font-600 rounded-sm"
-                style={{ width: '100%', display: 'block' }}
-              >
-                {isLoadingMore ? (
-                  <>
-                    <i className="fa fa-spinner fa-spin me-2" />
-                    Loading more...
-                  </>
-                ) : (
-                  'Load More Tournaments'
-                )}
-              </a>
-            )}
-          </div>
+          {isSearchActive && (
+            <div className="content mt-0 mb-4 text-center">
+              <p className="color-theme opacity-50 font-11 mb-2">
+                Showing {events.length} of {total} tournaments
+              </p>
+              {hasMore && (
+                <a
+                  href="#"
+                  onClick={handleLoadMore}
+                  className="btn btn-sm btn-full btn-border border-highlight color-highlight font-12 font-600 rounded-sm"
+                  style={{ width: '100%', display: 'block' }}
+                >
+                  {isLoadingMore ? (
+                    <>
+                      <i className="fa fa-spinner fa-spin me-2" />
+                      Loading more...
+                    </>
+                  ) : (
+                    'Load More Tournaments'
+                  )}
+                </a>
+              )}
+            </div>
+          )}
         </>
       )}
     </>
