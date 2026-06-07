@@ -195,15 +195,20 @@ export function EventsTabContent() {
                         type="button"
                         className={`tt-tournament-favourite-icon ${isFav ? 'active' : ''}`}
                         style={{
+                          position: 'absolute',
+                          right: '10px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
                           background: 'none',
                           border: 'none',
                           color: isFav ? '#ff3b30' : 'rgba(255,255,255,0.3)',
                           cursor: 'pointer',
                           fontSize: '16px',
-                          padding: '12px 8px',
+                          padding: '8px',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
+                          zIndex: 10,
                         }}
                         onClick={(e) => {
                           e.preventDefault();
