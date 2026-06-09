@@ -1,0 +1,247 @@
+--- QUERY 143 (calls: 8, total_time: 41800.42s, mean_time: 5225.05s) ---\nWITH active_players AS (
+                        SELECT
+                            ep.id,
+                            ep.name,
+                            COALESCE(ep.canonical_player_id, ep.id) AS canonical_id,
+                            COALESCE(cp.name, ep.name) AS canonical_name
+                        FROM external_players ep
+                        LEFT JOIN external_players cp
+                            ON cp.id = COALESCE(ep.canonical_player_id, ep.id)
+                        WHERE ep.deleted_at IS NULL
+                    ),
+                    matched_canonicals AS (
+                        SELECT DISTINCT canonical_id
+                        FROM active_players
+                        WHERE $1 = $9
+                           OR name ILIKE $2
+                           OR canonical_name ILIKE $3
+                    ),
+                    canonical_rows AS (
+                        SELECT
+                            ap.canonical_id,
+                            MIN(ap.canonical_name) AS canonical_name
+                        FROM active_players ap
+                        JOIN matched_canonicals mc
+                            ON mc.canonical_id = ap.canonical_id
+                        GROUP BY ap.canonical_id
+                    ),
+                    player_rubbers AS (
+                        SELECT
+                            ap.canonical_id,
+                            r.id AS rubber_id,
+                            MAX(
+                                CASE
+                                    WHEN (r.home_player_1_id = ap.id AND r.home_games_won > r.away_games_won)
+                                      OR (r.away_player_1_id = ap.id AND r.away_games_won > r.home_games_won)
+                                    THEN $10
+                                    ELSE $11
+                                END
+                            ) AS win
+                        FROM active_players ap
+                        JOIN matched_canonicals mc
+                            ON mc.canonical_id = ap.canonical_id
+                        LEFT JOIN rubbers r
+                            ON (r.home_player_1_id = ap.id OR r.away_player_1_id = ap.id)
+                           AND r.deleted_at IS NULL
+                           AND r.is_doubles = $12
+                           AND r.outcome_type != $13
+                        LEFT JOIN fixtures f
+                            ON f.id = r.fixture_id
+                           AND f.deleted_at IS NULL
+                        LEFT JOIN competitions c
+                            ON c.id = f.competition_id
+                           AND c.deleted_at IS NULL
+                        LEFT JOIN seasons s
+                            ON s.id = c.season_id
+                           AND s.deleted_at IS NULL
+                        WHERE ($4 = $14 OR s.league_id::text = ANY(string_to_array($5, $15)))
+                          AND ($6 <> $16 OR f.date_played >= NOW() - INTERVAL $17)
+                          AND r.id IS NOT NULL
+                        GROUP BY ap.canonical_id, r.id
+                    )
+                    SELECT
+                        cr.canonical_id AS id,
+                        cr.canonical_name AS name,
+                        COUNT(pr.rubber_id)::int AS played,
+                        COALESCE(SUM(pr.win), $18)::int AS wins
+                    FROM canonical_rows cr
+                    LEFT JOIN player_rubbers pr
+                        ON pr.canonical_id = cr.canonical_id
+                    GROUP BY cr.canonical_id, cr.canonical_name
+                    HAVING $7 <> $19 OR COUNT(pr.rubber_id) > $20
+                    ORDER BY played DESC, wins DESC, name ASC
+                    LIMIT $8\n
+--- QUERY 36 (calls: 5, total_time: 5902.91s, mean_time: 1180.58s) ---\nSELECT 
+                        c.id as event_id,
+                        coalesce(c.display_name, c.name) as event_name,
+                        c.event_date::text as event_date,
+                        c.category,
+                        p.name as platform_name,
+                        r.id as match_id,
+                        r.played_at::text as played_at,
+                        f.round_name,
+                        COALESCE(hp.name, $25) as home_player_name,
+                        COALESCE(ap.name, $26) as away_player_name,
+                        CASE WHEN r.home_games_won > r.away_games_won THEN $27 ELSE $28 END as winner_side,
+                        CASE WHEN hp.id = ANY(ARRAY[$1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::uuid, $7::uuid, $8::uuid]::uuid[]) THEN $29 ELSE $30 END as player_side
+                    FROM rubbers r
+                    INNER JOIN fixtures f ON f.id = r.fixture_id
+                    INNER JOIN competitions c ON c.id = f.competition_id AND c.type = $31
+                    INNER JOIN seasons s ON s.id = c.season_id
+                    INNER JOIN leagues l ON l.id = s.league_id
+                    INNER JOIN platforms p ON p.id = l.platform_id
+                    LEFT JOIN external_players hp ON hp.id = r.home_player_1_id
+                    LEFT JOIN external_players ap ON ap.id = r.away_player_1_id
+                    WHERE r.is_doubles = $32
+                    AND r.deleted_at IS NULL
+                    AND c.deleted_at IS NULL
+                    AND (hp.id = ANY(ARRAY[$9::uuid, $10::uuid, $11::uuid, $12::uuid, $13::uuid, $14::uuid, $15::uuid, $16::uuid]::uuid[]) OR ap.id = ANY(ARRAY[$17::uuid, $18::uuid, $19::uuid, $20::uuid, $21::uuid, $22::uuid, $23::uuid, $24::uuid]::uuid[]))
+                    ORDER BY c.event_date DESC, r.played_at DESC\n
+--- QUERY 136 (calls: 42, total_time: 5427.22s, mean_time: 129.22s) ---\nSELECT GREATEST(
+                        COALESCE((
+                            SELECT MAX(COALESCE(r.updated_at, r.created_at))
+                            FROM rubbers r
+                            JOIN fixtures f ON f.id = r.fixture_id
+                            JOIN competitions c ON c.id = f.competition_id
+                            JOIN seasons s ON s.id = c.season_id
+                            WHERE r.deleted_at IS NULL
+                              AND r.outcome_type != $3
+                              AND (($1::uuid IS NULL AND s.is_active = $4)
+                                   OR s.id = $2::uuid)
+                        ), $5::timestamp),
+                        COALESCE((
+                            SELECT MAX(updated_at)
+                            FROM external_players
+                            WHERE deleted_at IS NULL
+                        ), $6::timestamp)
+                    ) AS data_version\n
+--- QUERY 142 (calls: 9, total_time: 1594.65s, mean_time: 177.18s) ---\nWITH active_players AS (
+                        SELECT
+                            ep.id,
+                            ep.name,
+                            COALESCE(ep.canonical_player_id, ep.id) AS canonical_id,
+                            COALESCE(cp.name, ep.name) AS canonical_name
+                        FROM external_players ep
+                        LEFT JOIN external_players cp
+                            ON cp.id = COALESCE(ep.canonical_player_id, ep.id)
+                        WHERE ep.deleted_at IS NULL
+                    ),
+                    matched_canonicals AS (
+                        SELECT DISTINCT canonical_id
+                        FROM active_players
+                        WHERE $1 = $9
+                           OR name ILIKE $2
+                           OR canonical_name ILIKE $3
+                    ),
+                    canonical_rows AS (
+                        SELECT
+                            ap.canonical_id,
+                            MIN(ap.canonical_name) AS canonical_name
+                        FROM active_players ap
+                        JOIN matched_canonicals mc
+                            ON mc.canonical_id = ap.canonical_id
+                        GROUP BY ap.canonical_id
+                    ),
+                    player_rubbers AS (
+                        SELECT
+                            ap.canonical_id,
+                            r.id AS rubber_id,
+                            MAX(
+                                CASE
+                                    WHEN (r.home_player_1_id = ap.id AND r.home_games_won > r.away_games_won)
+                                      OR (r.away_player_1_id = ap.id AND r.away_games_won > r.home_games_won)
+                                    THEN $10
+                                    ELSE $11
+                                END
+                            ) AS win
+                        FROM active_players ap
+                        JOIN matched_canonicals mc
+                            ON mc.canonical_id = ap.canonical_id
+                        LEFT JOIN rubbers r
+                            ON (r.home_player_1_id = ap.id OR r.away_player_1_id = ap.id)
+                           AND r.deleted_at IS NULL
+                           AND r.is_doubles = $12
+                           AND r.outcome_type != $13
+                        LEFT JOIN fixtures f
+                            ON f.id = r.fixture_id
+                           AND f.deleted_at IS NULL
+                        LEFT JOIN competitions c
+                            ON c.id = f.competition_id
+                           AND c.deleted_at IS NULL
+                        LEFT JOIN seasons s
+                            ON s.id = c.season_id
+                           AND s.deleted_at IS NULL
+                        WHERE ($4 = $14 OR s.league_id::text = ANY(string_to_array($5, $15)))
+                          AND ($6 <> $16 OR f.date_played >= NOW() - INTERVAL $17)
+                          AND r.id IS NOT NULL
+                        GROUP BY ap.canonical_id, r.id
+                    )
+                    SELECT
+                        cr.canonical_id AS id,
+                        cr.canonical_name AS name,
+                        COUNT(pr.rubber_id)::int AS played,
+                        COALESCE(SUM(pr.win), $18)::int AS wins
+                    FROM canonical_rows cr
+                    LEFT JOIN player_rubbers pr
+                        ON pr.canonical_id = cr.canonical_id
+                    GROUP BY cr.canonical_id, cr.canonical_name
+                    HAVING $7 <> $19 OR COUNT(pr.rubber_id) > $20
+                    ORDER BY name ASC
+                    LIMIT $8\n
+--- QUERY 171 (calls: 5, total_time: 1506.28s, mean_time: 301.26s) ---\nWITH player_affiliations AS (
+                        SELECT
+                            f.home_team_id AS team_id,
+                            l.id AS league_id,
+                            l.name AS league_name,
+                            s.id AS season_id,
+                            s.name AS season_name,
+                            c.name AS competition_name
+                        FROM rubbers r
+                        JOIN fixtures f ON f.id = r.fixture_id
+                        JOIN competitions c ON c.id = f.competition_id
+                        JOIN seasons s ON s.id = c.season_id
+                        JOIN leagues l ON l.id = s.league_id
+                        WHERE (r.home_player_1_id = ANY(ARRAY[$1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::uuid, $7::uuid, $8::uuid]::uuid[]) OR r.home_player_2_id = ANY(ARRAY[$9::uuid, $10::uuid, $11::uuid, $12::uuid, $13::uuid, $14::uuid, $15::uuid, $16::uuid]::uuid[]))
+                          AND f.home_team_id IS NOT NULL
+                          AND s.is_active = $33
+                          AND r.deleted_at IS NULL
+                          AND f.deleted_at IS NULL
+                          AND c.deleted_at IS NULL
+                          AND s.deleted_at IS NULL
+                          AND l.deleted_at IS NULL
+
+                        UNION ALL
+
+                        SELECT
+                            f.away_team_id AS team_id,
+                            l.id AS league_id,
+                            l.name AS league_name,
+                            s.id AS season_id,
+                            s.name AS season_name,
+                            c.name AS competition_name
+                        FROM rubbers r
+                        JOIN fixtures f ON f.id = r.fixture_id
+                        JOIN competitions c ON c.id = f.competition_id
+                        JOIN seasons s ON s.id = c.season_id
+                        JOIN leagues l ON l.id = s.league_id
+                        WHERE (r.away_player_1_id = ANY(ARRAY[$17::uuid, $18::uuid, $19::uuid, $20::uuid, $21::uuid, $22::uuid, $23::uuid, $24::uuid]::uuid[]) OR r.away_player_2_id = ANY(ARRAY[$25::uuid, $26::uuid, $27::uuid, $28::uuid, $29::uuid, $30::uuid, $31::uuid, $32::uuid]::uuid[]))
+                          AND f.away_team_id IS NOT NULL
+                          AND s.is_active = $34
+                          AND r.deleted_at IS NULL
+                          AND f.deleted_at IS NULL
+                          AND c.deleted_at IS NULL
+                          AND s.deleted_at IS NULL
+                          AND l.deleted_at IS NULL
+                    )
+                    SELECT DISTINCT
+                        pa.team_id,
+                        t.name AS team_name,
+                        pa.league_id,
+                        pa.league_name,
+                        pa.season_id,
+                        pa.season_name,
+                        pa.competition_name
+                    FROM player_affiliations pa
+                    JOIN teams t ON t.id = pa.team_id
+                    WHERE t.deleted_at IS NULL
+                    ORDER BY pa.league_name ASC, pa.competition_name ASC, t.name ASC\n
