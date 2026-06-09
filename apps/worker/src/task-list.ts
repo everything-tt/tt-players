@@ -59,6 +59,46 @@ const scheduleScrapeTasks = async (
     }
 };
 
+const purgeExpiredCacheEntries = async (
+    _payload: unknown,
+    helpers: {
+        query: <T extends { [column: string]: any }>(queryText: string, values?: unknown[]) => Promise<{ rows: T[] }>;
+        logger: { info: (msg: string) => void };
+    },
+) => {
+    const batchSize = 1000;
+    let totalDeleted = 0;
+
+    for (;;) {
+        const result = await helpers.query<{ deleted_count: number }>(`
+            WITH expired AS (
+                SELECT id
+                FROM cache_entries
+                WHERE expires_at < now()
+                ORDER BY expires_at ASC
+                LIMIT $1
+            ),
+            deleted AS (
+                DELETE FROM cache_entries ce
+                USING expired
+                WHERE ce.id = expired.id
+                RETURNING 1
+            )
+            SELECT COUNT(*)::int AS deleted_count
+            FROM deleted
+        `, [batchSize]);
+
+        const deletedCount = Number(result.rows[0]?.deleted_count ?? 0);
+        totalDeleted += deletedCount;
+
+        if (deletedCount < batchSize) {
+            break;
+        }
+    }
+
+    helpers.logger.info(`purgeExpiredCacheEntries: deleted ${totalDeleted} expired cache entries`);
+};
+
 export const taskList = {
     scrapeUrlTask,
     processLogTask,
@@ -68,4 +108,5 @@ export const taskList = {
     scrapeSport80RankingsDiscoveryTask,
     scrapeSport80RankingTableTask,
     scheduleScrapeTasks,
+    purgeExpiredCacheEntries,
 };

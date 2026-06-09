@@ -522,6 +522,15 @@ describe('GET /players/:id/stats', () => {
 // ─── /players/search ────────────────────────────────────────────────────────
 
 describe('GET /players/search', () => {
+    it('sets cache headers for search requests with query strings', async () => {
+        const res = await request
+            .get('/api/players/search?q=Alice')
+            .expect(200);
+
+        expect(res.headers['cache-control']).toContain('max-age=60');
+        expect(res.headers['surrogate-control']).toContain('s-maxage=120');
+    });
+
     it('collapses active canonical aliases into one search result', async () => {
         const [canonicalPlayer] = await db
             .insertInto('external_players')
@@ -817,6 +826,62 @@ describe('GET /players/:id/rubbers', () => {
             opponent: expect.any(String),
             isWin: expect.any(Boolean),
         });
+    });
+
+    it('supports cursor pagination without duplicate rubbers', async () => {
+        const [fixture] = await db
+            .insertInto('fixtures')
+            .values({
+                competition_id: ids.competitionId,
+                external_id: 'ext-fixture-cursor-rubbers',
+                home_team_id: ids.homeTeamId,
+                away_team_id: ids.awayTeamId,
+                date_played: '2025-04-01',
+                status: 'completed',
+                updated_at: new Date(),
+            })
+            .returning('id')
+            .execute();
+
+        await db
+            .insertInto('rubbers')
+            .values([
+                {
+                    fixture_id: fixture!.id,
+                    external_id: 'ext-rubber-cursor-1',
+                    home_player_1_id: ids.homePlayerId,
+                    away_player_1_id: ids.awayPlayerId,
+                    home_games_won: 3,
+                    away_games_won: 0,
+                    outcome_type: 'normal',
+                    updated_at: new Date(),
+                },
+                {
+                    fixture_id: fixture!.id,
+                    external_id: 'ext-rubber-cursor-2',
+                    home_player_1_id: ids.homePlayerId,
+                    away_player_1_id: ids.awayPlayerId,
+                    home_games_won: 3,
+                    away_games_won: 1,
+                    outcome_type: 'normal',
+                    updated_at: new Date(),
+                },
+            ])
+            .execute();
+
+        const first = await request
+            .get(`/api/players/${ids.homePlayerId}/rubbers?limit=2&offset=0`)
+            .expect(200);
+
+        expect(first.body.cursor.has_more).toBe(true);
+        expect(first.body.cursor.next_cursor).toEqual(expect.any(String));
+
+        const second = await request
+            .get(`/api/players/${ids.homePlayerId}/rubbers?limit=2&cursor=${encodeURIComponent(first.body.cursor.next_cursor)}`)
+            .expect(200);
+
+        const firstIds = new Set(first.body.data.map((row: { id: string }) => row.id));
+        expect(second.body.data.some((row: { id: string }) => firstIds.has(row.id))).toBe(false);
     });
 });
 

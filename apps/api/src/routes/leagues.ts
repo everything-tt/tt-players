@@ -180,7 +180,9 @@ export function leaguesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     });
                 }
 
-                const snapshot = await sql<{
+                const [snapshot, totalPlayerIds] = await Promise.all([
+                    // Active competition snapshot
+                    sql<{
                     division_id: string;
                     division_name: string;
                     teams: number;
@@ -254,17 +256,9 @@ export function leaguesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     LEFT JOIN standing_counts sc ON sc.competition_id = ac.id
                     LEFT JOIN player_counts pc ON pc.competition_id = ac.id
                     ORDER BY ac.name ASC
-                `.execute(db);
-
-                const divisions = snapshot.rows.map((row) => ({
-                    divisionId: row.division_id,
-                    divisionName: row.division_name,
-                    teams: Number(row.teams),
-                    players: Number(row.players),
-                    matches: Number(row.matches),
-                }));
-
-                const totalPlayerIds = await sql<{ players: number }>`
+                `.execute(db),
+                    // Unique player count
+                sql<{ players: number }>`
                     WITH active_competitions AS (
                         SELECT c.id
                         FROM competitions c
@@ -301,7 +295,17 @@ export function leaguesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     )
                     SELECT COUNT(DISTINCT player_id)::int AS players
                     FROM player_appearances
-                `.execute(db);
+                `.execute(db)
+                ]);
+
+                const divisions = snapshot.rows.map((row) => ({
+                    divisionId: row.division_id,
+                    divisionName: row.division_name,
+                    teams: Number(row.teams),
+                    players: Number(row.players),
+                    matches: Number(row.matches),
+                }));
+
 
                 return reply.send({
                     divisions,

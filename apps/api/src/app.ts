@@ -37,6 +37,35 @@ export async function buildApp(db: Kysely<Database>) {
     // ── Compression (gzip/deflate) ───────────────────────────────────────────
     await app.register(compress, { global: true, threshold: 1024 });
 
+    // ── Caching headers (Cache-Control) ─────────────────────────────────────
+    const CACHE_STATIC = 'public, max-age=300, s-maxage=300, stale-while-revalidate=60';
+    const CACHE_DYNAMIC = 'public, max-age=60, s-maxage=120, stale-while-revalidate=30';
+    const CACHE_LEADERBOARD = 'public, max-age=300, s-maxage=600, stale-while-revalidate=120';
+
+    const CACHE_ROUTE_MAP: Array<[RegExp, string]> = [
+        [/^\/api\/leagues(\/|$)/, CACHE_STATIC],
+        [/^\/api\/competitions\/[\w-]+\/standings(\/|$)/, CACHE_STATIC],
+        [/^\/api\/players\/leaders(\/|$)/, CACHE_LEADERBOARD],
+        [/^\/api\/players\/count(\/|$)/, CACHE_STATIC],
+        [/^\/api\/players\/search(\/|$)/, CACHE_DYNAMIC],
+        [/^\/api\/teams\/[\w-]+\/(summary|roster|form)(\/|$)/, CACHE_STATIC],
+        [/^\/api\/fixtures\/[\w-]+\/rubbers(\/|$)/, CACHE_DYNAMIC],
+        [/^\/api\/health(\/|$)/, 'no-cache'],
+    ];
+
+    app.addHook('onSend', async (request, reply, payload) => {
+        if (reply.statusCode < 200 || reply.statusCode >= 300) return;
+        if (reply.getHeader('Cache-Control')) return;
+
+        const url = request.url.split('?')[0] ?? request.url;
+        for (const [pattern, cacheControl] of CACHE_ROUTE_MAP) {
+            if (pattern.test(url)) {
+                reply.header('Cache-Control', cacheControl);
+                reply.header('Surrogate-Control', cacheControl);
+                break;
+            }
+        }
+    });
     // ── Global error handler ──────────────────────────────────────────────────
     app.setErrorHandler((error: any, _request, reply) => {
         const statusCode = error.statusCode ?? 500;

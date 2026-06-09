@@ -12,8 +12,19 @@ const ParamsSchema = z.object({
 const PaginationQuerySchema = z.object({
     limit: z.coerce.number().int().min(1).max(100).default(20),
     offset: z.coerce.number().int().min(0).default(0),
+    cursor: z.string().optional(),
 });
 
+const CursorMetaSchema = z.object({
+    next_cursor: z.string().nullable(),
+    has_more: z.boolean(),
+});
+
+const RubberCursorSchema = z.object({
+    date: z.string(),
+    id: z.string().uuid(),
+    total: z.number().int().nonnegative().optional(),
+});
 const SearchQuerySchema = z.object({
     q: z.string().optional(),
     league_ids: z.string().optional(),
@@ -55,16 +66,6 @@ const ExtendedResponseSchema = ResponseSchema.extend({
     nemesis: z.string(),
     duo: z.string(),
     streak: z.string(),
-    most_played_opponents: z.array(
-        z.object({
-            opponent_id: z.string().uuid(),
-            opponent_name: z.string(),
-            played: z.number().int(),
-            wins: z.number().int(),
-            losses: z.number().int(),
-            win_rate: z.number().int(),
-        }),
-    ),
 });
 
 const CareerByYearItemSchema = z.object({
@@ -238,46 +239,64 @@ interface ResolvedPlayerIdentity {
 }
 
 function uuidArray(ids: string[]): RawBuilder<string[]> {
+    if (ids.length === 0) {
+        return sql`ARRAY[]::uuid[]`;
+    }
     return sql`ARRAY[${sql.join(ids.map((id) => sql`${id}::uuid`))}]::uuid[]`;
+}
+
+function encodeRubberCursor(date: Date | string | null, id: string, total?: number): string {
+    const dateValue = date instanceof Date ? date.toISOString() : String(date);
+    return Buffer.from(JSON.stringify({ date: dateValue, id, total })).toString('base64');
+}
+
+function decodeRubberCursor(cursor: string | undefined): { date: string; id: string; total?: number } | null {
+    if (!cursor) return null;
+    try {
+        const decoded = JSON.parse(Buffer.from(cursor, 'base64').toString('utf-8'));
+        return RubberCursorSchema.parse(decoded);
+    } catch {
+        return null;
+    }
 }
 
 async function resolvePlayerIdentity(
     db: Kysely<Database>,
     requestedId: string,
 ): Promise<ResolvedPlayerIdentity | null> {
-    const requested = await db
-        .selectFrom('external_players')
-        .select(['id', 'name', 'canonical_player_id'])
-        .where('id', '=', requestedId)
-        .where('deleted_at', 'is', null)
-        .executeTakeFirst();
-
-    if (!requested) return null;
-
-    const canonicalId = requested.canonical_player_id ?? requested.id;
-    const canonical = await db
-        .selectFrom('external_players')
-        .select(['id', 'name'])
-        .where('id', '=', canonicalId)
-        .where('deleted_at', 'is', null)
-        .executeTakeFirst();
-
-    const sources = await sql<{ id: string }>`
-        SELECT id
-        FROM external_players
-        WHERE COALESCE(canonical_player_id, id) = ${canonicalId}::uuid
-          AND deleted_at IS NULL
+    const result = await sql<{
+        canonical_id: string;
+        canonical_name: string;
+        source_ids: string[];
+    }>`
+        WITH player_info AS (
+            SELECT
+                ep.id,
+                COALESCE(ep.canonical_player_id, ep.id) AS canonical_id,
+                COALESCE(cp.name, ep.name) AS canonical_name
+            FROM external_players ep
+            LEFT JOIN external_players cp ON cp.id = COALESCE(ep.canonical_player_id, ep.id)
+                                      AND cp.deleted_at IS NULL
+            WHERE ep.id = ${requestedId}::uuid
+              AND ep.deleted_at IS NULL
+        )
+        SELECT
+            pi.canonical_id,
+            pi.canonical_name,
+            ARRAY_AGG(DISTINCT ep2.id) AS source_ids
+        FROM player_info pi
+        JOIN external_players ep2 ON COALESCE(ep2.canonical_player_id, ep2.id) = pi.canonical_id
+        WHERE ep2.deleted_at IS NULL
+        GROUP BY pi.canonical_id, pi.canonical_name
     `.execute(db);
 
-    const sourceIds = sources.rows.map((row) => row.id);
-    if (!sourceIds.includes(requested.id)) {
-        sourceIds.push(requested.id);
-    }
+    if (result.rows.length === 0) return null;
 
+    const row = result.rows[0];
     return {
-        canonicalId,
-        playerName: canonical?.name ?? requested.name,
-        sourceIds,
+        canonicalId: row.canonical_id,
+        playerName: row.canonical_name,
+        sourceIds: row.source_ids,
     };
 }
 
@@ -341,11 +360,6 @@ async function writeCache(
         )
         .execute();
 
-    // Purge expired entries to prevent unbounded growth
-    await db
-        .deleteFrom('cache_entries')
-        .where('expires_at', '<', now)
-        .execute();
 }
 
 export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
@@ -414,11 +428,12 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
             async (request, reply) => {
                 const { mode, limit, min_played: minPlayed, season_id: seasonId } = request.query;
                 const effectiveLimit = mode === 'win_pct' ? Math.max(limit, 10) : limit;
-                const leagueCsv = (request.query.league_ids ?? '')
+                const leagueIds = (request.query.league_ids ?? '')
                     .split(',')
                     .map((id) => id.trim())
-                    .filter((id) => id.length > 0)
-                    .join(',');
+                    .filter((id) => id.length > 0);
+                const leagueCsv = leagueIds.join(',');
+                const leagueIdArray = uuidArray(leagueIds);
 
                 // Compute data version for leaders cache
                 const versionRes = await sql<{ data_version: Date | null }>`
@@ -446,13 +461,14 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     return reply.send(cachedLeaders);
                 }
 
-                const aggregateRes = await sql<{
+                const leadersRes = await sql<{
                     player_id: string;
                     player_name: string;
                     played: number;
                     wins: number;
                     losses: number;
                     win_rate: number;
+                    score: number | null;
                 }>`
                     WITH singles AS (
                         SELECT
@@ -472,7 +488,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                               (${seasonId ?? null}::uuid IS NULL AND s.is_active = true)
                               OR s.id = ${seasonId ?? null}::uuid
                           )
-                          AND (${leagueCsv} = '' OR s.league_id::text = ANY(string_to_array(${leagueCsv}, ',')))
+                          AND (${leagueIds.length} = 0 OR s.league_id = ANY(${leagueIdArray}))
 
                         UNION ALL
 
@@ -493,7 +509,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                               (${seasonId ?? null}::uuid IS NULL AND s.is_active = true)
                               OR s.id = ${seasonId ?? null}::uuid
                           )
-                          AND (${leagueCsv} = '' OR s.league_id::text = ANY(string_to_array(${leagueCsv}, ',')))
+                          AND (${leagueIds.length} = 0 OR s.league_id = ANY(${leagueIdArray}))
                     ),
                     aggregated AS (
                         SELECT
@@ -502,67 +518,64 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                             SUM(is_win)::int AS wins
                         FROM singles
                         GROUP BY player_id
+                    ),
+                    ranked AS (
+                        SELECT
+                            canonical_ep.id AS player_id,
+                            canonical_ep.name AS player_name,
+                            a.played,
+                            a.wins,
+                            (a.played - a.wins)::int AS losses,
+                            ROUND((a.wins::numeric / NULLIF(a.played, 0)) * 100, 2)::float8 AS win_rate,
+                            ROUND((
+                                (
+                                    ((a.wins::numeric / NULLIF(a.played, 0)) * 100) * 0.7
+                                    + (LEAST(a.played, 30)::numeric / 30) * 100 * 0.3
+                                ) * 100
+                            )) / 100::numeric AS score
+                        FROM aggregated a
+                        JOIN external_players canonical_ep ON canonical_ep.id = a.player_id
+                        WHERE canonical_ep.deleted_at IS NULL
                     )
                     SELECT
-                        canonical_ep.id AS player_id,
-                        canonical_ep.name AS player_name,
-                        a.played,
-                        a.wins,
-                        (a.played - a.wins)::int AS losses,
-                        ROUND((a.wins::numeric / NULLIF(a.played, 0)) * 100, 2)::float8 AS win_rate
-                    FROM aggregated a
-                    JOIN external_players canonical_ep ON canonical_ep.id = a.player_id
-                    WHERE canonical_ep.deleted_at IS NULL
+                        player_id,
+                        player_name,
+                        played,
+                        wins,
+                        losses,
+                        win_rate,
+                        CASE WHEN ${mode} = 'combined' THEN score::float8 ELSE NULL END AS score
+                    FROM ranked
+                    WHERE (${mode} = 'most_played' OR played >= ${minPlayed})
+                    ORDER BY
+                        CASE WHEN ${mode} = 'combined' THEN score END DESC NULLS LAST,
+                        CASE WHEN ${mode} = 'win_pct' THEN win_rate END DESC NULLS LAST,
+                        CASE WHEN ${mode} = 'most_played' THEN played END DESC NULLS LAST,
+                        played DESC,
+                        wins DESC,
+                        CASE WHEN ${mode} = 'most_played' THEN win_rate END DESC NULLS LAST,
+                        player_name ASC
+                    LIMIT ${effectiveLimit}
                 `.execute(db);
 
-                const baseRows = aggregateRes.rows.map((row) => ({
+                const data = leadersRes.rows.map((row, index) => ({
+                    rank: index + 1,
                     player_id: row.player_id,
                     player_name: row.player_name,
                     played: Number(row.played),
                     wins: Number(row.wins),
                     losses: Number(row.losses),
                     win_rate: Number(row.win_rate),
-                    score: null as number | null,
+                    score: row.score === null ? null : Number(row.score),
                 }));
 
                 let formula = 'Ranked by combined score: 70% win rate + 30% match volume (capped at 30 matches).';
-                let ranked = baseRows;
 
                 if (mode === 'win_pct') {
                     formula = `Ranked by win rate, minimum ${minPlayed} matches, tie-breakers: played then wins.`;
-                    ranked = ranked
-                        .filter((row) => row.played >= minPlayed)
-                        .sort((a, b) =>
-                            b.win_rate - a.win_rate
-                            || b.played - a.played
-                            || b.wins - a.wins
-                            || a.player_name.localeCompare(b.player_name));
                 } else if (mode === 'most_played') {
                     formula = 'Ranked by matches played, tie-breakers: wins then win rate.';
-                    ranked = ranked
-                        .sort((a, b) =>
-                            b.played - a.played
-                            || b.wins - a.wins
-                            || b.win_rate - a.win_rate
-                            || a.player_name.localeCompare(b.player_name));
-                } else {
-                    ranked = ranked
-                        .filter((row) => row.played >= minPlayed)
-                        .map((row) => ({
-                            ...row,
-                            score: Math.round((((row.win_rate * 0.7) + (Math.min(row.played, 30) / 30) * 100 * 0.3) * 100)) / 100,
-                        }))
-                        .sort((a, b) =>
-                            (b.score ?? 0) - (a.score ?? 0)
-                            || b.played - a.played
-                            || b.wins - a.wins
-                            || a.player_name.localeCompare(b.player_name));
                 }
-
-                const data = ranked.slice(0, effectiveLimit).map((row, index) => ({
-                    rank: index + 1,
-                    ...row,
-                }));
 
                 const payload = {
                     mode,
@@ -849,8 +862,12 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 const extVersionRes = await sql<{ data_version: Date | null }>`
                     SELECT GREATEST(
                         COALESCE((
-                            SELECT MAX(r.updated_at)
+                            SELECT MAX(GREATEST(r.updated_at, f.updated_at))
                             FROM rubbers r
+                            JOIN fixtures f ON f.id = r.fixture_id
+                            JOIN competitions c ON c.id = f.competition_id
+                            JOIN seasons s ON s.id = c.season_id
+                            JOIN leagues l ON l.id = s.league_id
                             WHERE (r.home_player_1_id = ANY(${sourceIds}) OR r.away_player_1_id = ANY(${sourceIds})
                                    OR r.home_player_2_id = ANY(${sourceIds}) OR r.away_player_2_id = ANY(${sourceIds}))
                               AND r.deleted_at IS NULL
@@ -881,7 +898,6 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     nemesisRes,
                     duoRes,
                     streakRes,
-                    mostPlayedOpponentsRes,
                 ] = await Promise.all([
                     // 0. Win/loss totals
                     db
@@ -963,48 +979,6 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         LIMIT 10
                     `.execute(db),
 
-                    // 4. Most played opponents
-                    sql<{
-                        opponent_id: string;
-                        opponent_name: string;
-                        played: number;
-                        wins: number;
-                        losses: number;
-                    }>`
-                        WITH opponents AS (
-                            SELECT
-                                CASE WHEN home_player_1_id = ANY(${sourceIds}) THEN away_player_1_id ELSE home_player_1_id END as opp_id,
-                                CASE
-                                    WHEN (home_player_1_id = ANY(${sourceIds}) AND home_games_won > away_games_won)
-                                      OR (away_player_1_id = ANY(${sourceIds}) AND away_games_won > home_games_won) THEN 1
-                                    ELSE 0
-                                END as is_win,
-                                CASE
-                                    WHEN (home_player_1_id = ANY(${sourceIds}) AND home_games_won < away_games_won)
-                                      OR (away_player_1_id = ANY(${sourceIds}) AND away_games_won < home_games_won) THEN 1
-                                    ELSE 0
-                                END as is_loss
-                            FROM rubbers
-                            WHERE (home_player_1_id = ANY(${sourceIds}) OR away_player_1_id = ANY(${sourceIds}))
-                              AND is_doubles = false
-                              AND deleted_at IS NULL
-                              AND outcome_type != 'walkover'
-                        )
-                        SELECT
-                            COALESCE(ep.canonical_player_id, ep.id) as opponent_id,
-                            COALESCE(cp.name, ep.name) as opponent_name,
-                            COUNT(*)::int as played,
-                            SUM(o.is_win)::int as wins,
-                            SUM(o.is_loss)::int as losses
-                        FROM opponents o
-                        JOIN external_players ep ON ep.id = o.opp_id
-                        LEFT JOIN external_players cp ON cp.id = COALESCE(ep.canonical_player_id, ep.id)
-                        WHERE o.opp_id IS NOT NULL
-                          AND ep.deleted_at IS NULL
-                        GROUP BY COALESCE(ep.canonical_player_id, ep.id), COALESCE(cp.name, ep.name)
-                        ORDER BY COUNT(*) DESC, SUM(o.is_win) DESC, COALESCE(cp.name, ep.name) ASC
-                        LIMIT 6
-                    `.execute(db),
                 ]);
 
                 // calculate streak string
@@ -1034,16 +1008,6 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     duoStr = `${r.partner_name} (${wr}% WR)`;
                 }
 
-                const mostPlayedOpponents = mostPlayedOpponentsRes.rows.map((row) => ({
-                    opponent_id: row.opponent_id,
-                    opponent_name: row.opponent_name,
-                    played: Number(row.played),
-                    wins: Number(row.wins),
-                    losses: Number(row.losses),
-                    win_rate: Number(row.played) > 0
-                        ? Math.round((Number(row.wins) / Number(row.played)) * 100)
-                        : 0,
-                }));
 
                 const payload = {
                     player_id: player.canonicalId,
@@ -1055,7 +1019,6 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     nemesis: nemesisStr,
                     duo: duoStr,
                     streak: streakStr,
-                    most_played_opponents: mostPlayedOpponents,
                 };
                 await writeCache(db, PLAYER_EXTENDED_CACHE_TYPE, player.canonicalId, payload, extDataVersion);
                 return reply.send(payload);
@@ -1091,8 +1054,12 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 const dataVersionRes = await sql<{ data_version: Date | null }>`
                     SELECT GREATEST(
                         COALESCE((
-                            SELECT MAX(r.updated_at)
+                            SELECT MAX(GREATEST(r.updated_at, f.updated_at))
                             FROM rubbers r
+                            JOIN fixtures f ON f.id = r.fixture_id
+                            JOIN competitions c ON c.id = f.competition_id
+                            JOIN seasons s ON s.id = c.season_id
+                            JOIN leagues l ON l.id = s.league_id
                             WHERE (
                                 r.home_player_1_id = ANY(${sourceIds})
                                 OR r.away_player_1_id = ANY(${sourceIds})
@@ -1657,8 +1624,10 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                             total: z.number().int(),
                             limit: z.number().int(),
                             offset: z.number().int(),
+                            cursor: CursorMetaSchema.optional(),
                             data: z.array(RubberItemSchema),
                         }),
+                        400: ErrorSchema,
                         404: ErrorSchema,
                         500: ErrorSchema,
                     },
@@ -1666,7 +1635,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
             },
             async (request, reply) => {
                 const { id } = request.params;
-                const { limit, offset } = request.query;
+                const { limit, offset, cursor: cursorParam } = request.query;
                 const player = await resolvePlayerIdentity(db, id);
 
                 if (!player) {
@@ -1678,12 +1647,21 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
 
                 const sourceIds = uuidArray(player.sourceIds);
 
-                const matches = await sql<any>`
+                const cursor = decodeRubberCursor(cursorParam);
+                if (cursorParam && !cursor) {
+                    return reply.status(400).send({
+                        error: 'Invalid cursor',
+                        statusCode: 400,
+                    });
+                }
+
+                const pageLimit = cursor ? limit + 1 : limit;
+                const pageOffset = cursor ? 0 : offset;
+                const matchesPromise = sql<any>`
                     SELECT
-                        COUNT(*) OVER() AS total_count,
                         r.id,
                         r.fixture_id,
-                        f.date_played as date,
+                        COALESCE(f.date_played::timestamp, f.created_at) as date,
                         CONCAT(l.name, ' · ', c.name) as league,
                         COALESCE(opp_ep.canonical_player_id, opp_ep.id) as opponent_id,
                         COALESCE(opp_cp.name, opp_ep.name) as opponent,
@@ -1716,32 +1694,42 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     WHERE (r.home_player_1_id = ANY(${sourceIds}) OR r.away_player_1_id = ANY(${sourceIds}))
                       AND r.is_doubles = false
                       AND r.deleted_at IS NULL
+                      AND f.deleted_at IS NULL
+                      AND c.deleted_at IS NULL
+                      AND s.deleted_at IS NULL
+                      AND l.deleted_at IS NULL
                       AND c.type <> 'individual'
-                    ORDER BY f.date_played DESC
-                    LIMIT ${limit}
-                    OFFSET ${offset}
+                      AND (${cursor?.date ?? null}::timestamptz IS NULL OR (COALESCE(f.date_played::timestamp, f.created_at), r.id) < (${cursor?.date ?? null}::timestamptz, ${cursor?.id ?? null}::uuid))
+                    ORDER BY COALESCE(f.date_played::timestamp, f.created_at) DESC, r.id DESC
+                    LIMIT ${pageLimit}
+                    OFFSET ${pageOffset}
                 `.execute(db);
 
-                // Use COUNT(*) OVER() from the data query when rows exist;
-                // fall back to a lightweight COUNT only when page is empty (offset exceeds total)
-                let total: number;
-                if (matches.rows.length > 0) {
-                    total = Number(matches.rows[0].total_count);
-                } else {
-                    const countRes = await sql<{ count: number }>`
+                const countPromise = cursor && cursor.total !== undefined
+                    ? Promise.resolve({ rows: [{ count: cursor.total }] })
+                    : sql<{ count: number }>`
                         SELECT COUNT(*)::int as count
                         FROM rubbers r
                         JOIN fixtures f ON f.id = r.fixture_id
                         JOIN competitions c ON c.id = f.competition_id
+                        JOIN seasons s ON s.id = c.season_id
+                        JOIN leagues l ON l.id = s.league_id
                         WHERE (r.home_player_1_id = ANY(${sourceIds}) OR r.away_player_1_id = ANY(${sourceIds}))
                           AND r.is_doubles = false
                           AND r.deleted_at IS NULL
+                          AND f.deleted_at IS NULL
+                          AND c.deleted_at IS NULL
+                          AND s.deleted_at IS NULL
+                          AND l.deleted_at IS NULL
                           AND c.type <> 'individual'
                     `.execute(db);
-                    total = countRes.rows[0]?.count ?? 0;
-                }
 
-                const data = matches.rows.map((m: any) => ({
+                const [matches, countRes] = await Promise.all([matchesPromise, countPromise]);
+
+                const pageRows = cursor ? matches.rows.slice(0, limit) : matches.rows;
+                const total = Number(countRes.rows[0]?.count ?? 0);
+
+                const data = pageRows.map((m: any) => ({
                     id: m.id,
                     fixture_id: m.fixture_id,
                     date: String(m.date),
@@ -1752,10 +1740,18 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     isWin: m.isWin,
                 }));
 
+                let nextCursor: string | null = null;
+                let hasMore = cursor ? matches.rows.length > limit : matches.rows.length === limit && offset + limit < total;
+                if (hasMore && pageRows.length > 0) {
+                    const last = pageRows[pageRows.length - 1];
+                    nextCursor = encodeRubberCursor(last.date, last.id, total);
+                }
+
                 return reply.send({
                     total,
                     limit,
                     offset,
+                    cursor: { next_cursor: nextCursor, has_more: hasMore },
                     data,
                 });
             }

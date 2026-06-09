@@ -26,6 +26,8 @@ import * as m018 from '../../../../../packages/db/src/migrations/018_add_competi
 import * as m019 from '../../../../../packages/db/src/migrations/019_add_competition_source_fields.js';
 import * as m020 from '../../../../../packages/db/src/migrations/020_create_staging_schema.js';
 import * as m021 from '../../../../../packages/db/src/migrations/021_create_feedback_table.js';
+import * as m022 from '../../../../../packages/db/src/migrations/022_add_updated_at_indexes.js';
+import * as m023 from '../../../../../packages/db/src/migrations/023_add_expression_and_region_indexes.js';
 
 const { Pool } = pg;
 
@@ -57,6 +59,8 @@ class StaticMigrationProvider implements MigrationProvider {
             '019_add_competition_source_fields': m019,
             '020_create_staging_schema': m020,
             '021_create_feedback_table': m021,
+            '022_add_updated_at_indexes': m022,
+            '023_add_expression_and_region_indexes': m023,
         };
     }
 }

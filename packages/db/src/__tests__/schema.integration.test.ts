@@ -25,6 +25,8 @@ import * as m018 from '../migrations/018_add_competition_event_display_fields.js
 import * as m019 from '../migrations/019_add_competition_source_fields.js';
 import * as m020 from '../migrations/020_create_staging_schema.js';
 import * as m021 from '../migrations/021_create_feedback_table.js';
+import * as m022 from '../migrations/022_add_updated_at_indexes.js';
+import * as m023 from '../migrations/023_add_expression_and_region_indexes.js';
 
 const { Pool } = pg;
 
@@ -63,6 +65,8 @@ class StaticMigrationProvider implements MigrationProvider {
             '019_add_competition_source_fields': m019,
             '020_create_staging_schema': m020,
             '021_create_feedback_table': m021,
+            '022_add_updated_at_indexes': m022,
+            '023_add_expression_and_region_indexes': m023,
         };
     }
 }
@@ -792,6 +796,14 @@ describe('Database Schema Integration Tests', () => {
                 'idx_rubbers_fixture_created_active',
                 'idx_league_standings_team_updated_active',
                 'idx_league_standings_team_created_active',
+                'idx_rubbers_home_p1_fixture_updated_active',
+                'idx_rubbers_away_p1_fixture_updated_active',
+                'idx_rubbers_home_p2_fixture_updated_active',
+                'idx_rubbers_away_p2_fixture_updated_active',
+                'idx_fixtures_id_updated_active',
+                'idx_external_players_updated_at_active',
+                'idx_external_players_canonical_coalesce',
+                'idx_league_regions_region_id',
             ];
 
             for (const indexName of expected) {
@@ -808,7 +820,7 @@ describe('Database Schema Integration Tests', () => {
 
             // Roll back all migrations one by one
             let rolledBack = 0;
-            const maxRollbacks = 20; // Safety limit
+            const maxRollbacks = 30; // Safety limit
 
             while (rolledBack < maxRollbacks) {
                 const { error, results } = await migrator.migrateDown();
