@@ -1,4 +1,4 @@
-name: Deploy to Netlify
+name: Verify Render Build
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     env:
       VITE_API_URL: /api
@@ -24,16 +24,10 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
-      - name: Build
-        run: pnpm build
+      - name: Build API
+        run: pnpm --filter @tt-players/api... build
 
-      - name: Run Migrations
-        run: pnpm db:migrate
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          NODE_TLS_REJECT_UNAUTHORIZED: 0
-
-      - name: Deploy to Netlify
-        run: npx netlify-cli deploy --dir=apps/mobile/dist --prod --no-build --site=${{ secrets.NETLIFY_SITE_ID }} --auth=${{ secrets.NETLIFY_AUTH_TOKEN }} --filter=@tt-players/mobile
+      - name: Build Mobile
+        run: pnpm --filter @tt-players/mobile build
