@@ -10,6 +10,11 @@ const ParamsSchema = z.object({
     id: z.string().uuid(),
 });
 
+const QuerySchema = z.object({
+    limit: z.coerce.number().int().min(1).max(500).default(500),
+    offset: z.coerce.number().int().min(0).default(0),
+});
+
 const RubberItemSchema = z.object({
     id: z.string().uuid(),
     fixture_id: z.string().uuid(),
@@ -50,9 +55,13 @@ export function fixturesRoutes(db: Kysely<Database>): FastifyPluginAsync {
             {
                 schema: {
                     params: ParamsSchema,
+                    querystring: QuerySchema,
                     response: {
                         200: z.object({
                             fixture: FixtureMetaSchema,
+                            total: z.number().int(),
+                            limit: z.number().int(),
+                            offset: z.number().int(),
                             data: z.array(RubberItemSchema),
                         }),
                         404: ErrorSchema,
@@ -62,6 +71,7 @@ export function fixturesRoutes(db: Kysely<Database>): FastifyPluginAsync {
             },
             async (request, reply) => {
                 const { id } = request.params;
+                const { limit, offset } = request.query;
 
                 const fixture = await db
                     .selectFrom('fixtures as f')
@@ -96,7 +106,14 @@ export function fixturesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     });
                 }
 
-                const rubbers = await db
+                const [countRow, rubbers] = await Promise.all([
+                    db
+                        .selectFrom('rubbers')
+                        .select((eb) => eb.fn.countAll<number>().as('count'))
+                        .where('fixture_id', '=', id)
+                        .where('deleted_at', 'is', null)
+                        .executeTakeFirstOrThrow(),
+                    db
                     .selectFrom('rubbers')
                     .leftJoin('external_players as hp1', 'hp1.id', 'rubbers.home_player_1_id')
                     .leftJoin('external_players as hp2', 'hp2.id', 'rubbers.home_player_2_id')
@@ -133,7 +150,10 @@ export function fixturesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     .where('rubbers.deleted_at', 'is', null)
                     .orderBy('rubbers.created_at', 'asc')
                     .orderBy('rubbers.external_id', 'asc')
-                    .execute();
+                    .limit(limit)
+                    .offset(offset)
+                    .execute(),
+                ]);
 
                 const sourceUrl = await resolveFixtureSourceUrl(
                     db,
@@ -162,6 +182,9 @@ export function fixturesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         away_team_name: fixture.away_team_name,
                         source_url: sourceUrl,
                     },
+                    total: Number(countRow.count),
+                    limit,
+                    offset,
                     data: rubbers as any,
                 });
             }

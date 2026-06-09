@@ -27,6 +27,7 @@ import * as m020 from '../migrations/020_create_staging_schema.js';
 import * as m021 from '../migrations/021_create_feedback_table.js';
 import * as m022 from '../migrations/022_add_updated_at_indexes.js';
 import * as m023 from '../migrations/023_add_expression_and_region_indexes.js';
+import * as m024 from '../migrations/024_add_recent_fixture_search_indexes.js';
 
 const { Pool } = pg;
 
@@ -67,6 +68,7 @@ class StaticMigrationProvider implements MigrationProvider {
             '021_create_feedback_table': m021,
             '022_add_updated_at_indexes': m022,
             '023_add_expression_and_region_indexes': m023,
+            '024_add_recent_fixture_search_indexes': m024,
         };
     }
 }
@@ -804,6 +806,8 @@ describe('Database Schema Integration Tests', () => {
                 'idx_external_players_updated_at_active',
                 'idx_external_players_canonical_coalesce',
                 'idx_league_regions_region_id',
+                'idx_fixtures_date_competition_active',
+                'idx_seasons_active_id_league',
             ];
 
             for (const indexName of expected) {

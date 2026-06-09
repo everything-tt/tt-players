@@ -28,6 +28,7 @@ import * as m020 from '../../../../../packages/db/src/migrations/020_create_stag
 import * as m021 from '../../../../../packages/db/src/migrations/021_create_feedback_table.js';
 import * as m022 from '../../../../../packages/db/src/migrations/022_add_updated_at_indexes.js';
 import * as m023 from '../../../../../packages/db/src/migrations/023_add_expression_and_region_indexes.js';
+import * as m024 from '../../../../../packages/db/src/migrations/024_add_recent_fixture_search_indexes.js';
 
 const { Pool } = pg;
 
@@ -61,6 +62,7 @@ class StaticMigrationProvider implements MigrationProvider {
             '021_create_feedback_table': m021,
             '022_add_updated_at_indexes': m022,
             '023_add_expression_and_region_indexes': m023,
+            '024_add_recent_fixture_search_indexes': m024,
         };
     }
 }

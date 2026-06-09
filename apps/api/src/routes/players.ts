@@ -606,6 +606,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     .map((id) => id.trim())
                     .filter((id) => id.length > 0);
                 const leagueCsv = leagueIds.join(',');
+                const leagueIdArray = uuidArray(leagueIds);
                 const searchPattern = `%${normalizedQuery}%`;
                 const limit = normalizedQuery ? 20 : 10;
                 let rows: Array<{
@@ -621,49 +622,61 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         played: number | string | null;
                         wins: number | string | null;
                     }>`
-                        WITH recent_rubbers AS (
-                            SELECT
-                                r.id AS rubber_id,
-                                r.home_player_1_id AS home_pid,
-                                r.away_player_1_id AS away_pid,
-                                CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END AS home_win,
-                                CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END AS away_win
-                            FROM rubbers r
-                            JOIN fixtures f ON f.id = r.fixture_id
+                        WITH recent_fixtures AS MATERIALIZED (
+                            SELECT f.id
+                            FROM fixtures f
                             JOIN competitions c ON c.id = f.competition_id
                             JOIN seasons s ON s.id = c.season_id
-                            WHERE r.is_doubles = false
-                              AND r.deleted_at IS NULL
-                              AND f.deleted_at IS NULL
+                            WHERE f.deleted_at IS NULL
                               AND c.deleted_at IS NULL
                               AND s.deleted_at IS NULL
                               AND f.date_played >= NOW() - INTERVAL '100 days'
-                              AND r.outcome_type != 'walkover'
-                              AND (${leagueCsv} = '' OR s.league_id::text = ANY(string_to_array(${leagueCsv}, ',')))
+                              AND (${leagueIds.length} = 0 OR s.league_id = ANY(${leagueIdArray}))
+                            ORDER BY f.date_played DESC, f.id DESC
+                            LIMIT 1500
                         ),
-                        player_stats AS (
+                        recent_players AS (
                             SELECT
                                 COALESCE(ep.canonical_player_id, ep.id) AS canonical_id,
                                 COUNT(*)::int AS played,
-                                SUM(win)::int AS wins
-                            FROM (
-                                SELECT home_pid AS pid, home_win AS win FROM recent_rubbers WHERE home_pid IS NOT NULL
+                                SUM(p.win)::int AS wins
+                            FROM recent_fixtures f
+                            CROSS JOIN LATERAL (
+                                SELECT r.home_player_1_id AS pid,
+                                       CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END AS win
+                                FROM rubbers r
+                                WHERE r.fixture_id = f.id
+                                  AND r.is_doubles = false
+                                  AND r.deleted_at IS NULL
+                                  AND r.outcome_type != 'walkover'
+                                  AND r.home_player_1_id IS NOT NULL
+
                                 UNION ALL
-                                SELECT away_pid AS pid, away_win AS win FROM recent_rubbers WHERE away_pid IS NOT NULL
-                            ) s
-                            JOIN external_players ep ON ep.id = s.pid
+
+                                SELECT r.away_player_1_id AS pid,
+                                       CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END AS win
+                                FROM rubbers r
+                                WHERE r.fixture_id = f.id
+                                  AND r.is_doubles = false
+                                  AND r.deleted_at IS NULL
+                                  AND r.outcome_type != 'walkover'
+                                  AND r.away_player_1_id IS NOT NULL
+
+                                OFFSET 0
+                            ) p
+                            JOIN external_players ep ON ep.id = p.pid
                             WHERE ep.deleted_at IS NULL
                             GROUP BY COALESCE(ep.canonical_player_id, ep.id)
                         )
                         SELECT
                             c.id,
                             c.name,
-                            ps.played,
-                            ps.wins
-                        FROM player_stats ps
-                        JOIN external_players c ON c.id = ps.canonical_id
+                            rp.played,
+                            rp.wins
+                        FROM recent_players rp
+                        JOIN external_players c ON c.id = rp.canonical_id
                         WHERE c.deleted_at IS NULL AND (c.canonical_player_id IS NULL OR c.canonical_player_id = c.id)
-                        ORDER BY ps.played DESC, ps.wins DESC, c.name ASC
+                        ORDER BY rp.played DESC, rp.wins DESC, c.name ASC
                         LIMIT ${limit}
                     `.execute(db).then((result) => result.rows);
                 } else {
