@@ -9,7 +9,9 @@ type DashboardTabId = Exclude<AppTabId, 'home'>;
 
 interface HomeTabContentProps {
   allLeagues: LeagueWithDivisions[];
+  hasCompletedLeagueOnboarding: boolean;
   selectedLeagueIds: string[];
+  onOpenLeagueSelector: () => void;
   onOpenTab: (tabId: DashboardTabId) => void;
 }
 
@@ -20,20 +22,24 @@ type PlayerListMode = 'top' | 'trending';
 
 export function HomeTabContent({
   allLeagues,
+  hasCompletedLeagueOnboarding,
   selectedLeagueIds,
+  onOpenLeagueSelector,
   onOpenTab,
 }: HomeTabContentProps) {
   const { navigateInTab } = useTabNavigation();
   const [listMode, setListMode] = useState<PlayerListMode>('top');
-  const isAllLeagueScope = selectedLeagueIds.length === 0
-    || (allLeagues.length > 0 && selectedLeagueIds.length === allLeagues.length);
+  const hasLeagueScope = hasCompletedLeagueOnboarding && selectedLeagueIds.length > 0;
+  const isAllLeagueScope = hasLeagueScope
+    && allLeagues.length > 0
+    && selectedLeagueIds.length === allLeagues.length;
 
   const leadersQuery = useLeadersQuery({
     mode: 'combined',
     leagueIds: isAllLeagueScope ? [] : selectedLeagueIds,
     limit: LEADERS_LIMIT,
     minPlayed: LEADERS_MIN_PLAYED,
-    enabled: true,
+    enabled: hasLeagueScope,
   });
   const leaders = leadersQuery.data?.data ?? [];
   const isLeadersLoading = leadersQuery.isLoading;
@@ -44,7 +50,7 @@ export function HomeTabContent({
     leagueIds: isAllLeagueScope ? [] : selectedLeagueIds,
     limit: LEADERS_LIMIT,
     minPlayed: LEADERS_MIN_PLAYED,
-    enabled: true,
+    enabled: hasLeagueScope,
   });
   const trending = trendingQuery.data?.data ?? [];
   const isTrendingLoading = trendingQuery.isLoading;
@@ -60,6 +66,8 @@ export function HomeTabContent({
 
   const scopeLabel = isAllLeagueScope
     ? `All ${leagueCount} leagues`
+    : !hasLeagueScope
+      ? 'Choose your leagues'
     : `${selectedLeagueIds.length} of ${leagueCount} leagues`;
 
   const currentList = listMode === 'top' ? leaders : trending;
@@ -119,6 +127,21 @@ export function HomeTabContent({
       </div>
 
       <div className="tt-home-leaders">
+        {!hasLeagueScope ? (
+          <div className="tt-home-onboarding">
+            <div className="tt-home-onboarding-icon">
+              <i className="fa fa-filter" />
+            </div>
+            <h2 className="tt-home-onboarding-title">Choose leagues first</h2>
+            <p className="tt-home-onboarding-copy">
+              Pick the leagues you follow, then TT Players will show top and trending players for that scope.
+            </p>
+            <button type="button" className="tt-home-onboarding-button" onClick={onOpenLeagueSelector}>
+              Select leagues
+            </button>
+          </div>
+        ) : (
+          <>
         <div className="tt-home-leaders-header">
           <SegmentedToggle
             ariaLabel="Choose leaderboard mode"
@@ -161,6 +184,8 @@ export function HomeTabContent({
               </a>
             ))}
           </div>
+        )}
+          </>
         )}
       </div>
 

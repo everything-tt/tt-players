@@ -6,7 +6,7 @@ import {
     validatorCompiler,
     type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
 
 import { competitionsRoutes } from './routes/competitions.js';
@@ -80,6 +80,16 @@ export async function buildApp(db: Kysely<Database>) {
         status: 'ok',
         service: 'tt-players-api',
     }));
+
+    app.get('/api/health/db', async () => {
+        await sql`select 1`.execute(db);
+
+        return {
+            status: 'ok',
+            service: 'tt-players-api',
+            database: 'ok',
+        };
+    });
 
     await app.register(leaguesRoutes(db), { prefix: '/api/leagues' });
     await app.register(competitionsRoutes(db), { prefix: '/api/competitions' });

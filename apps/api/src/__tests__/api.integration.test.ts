@@ -44,6 +44,20 @@ describe('GET /api/health', () => {
     });
 });
 
+describe('GET /api/health/db', () => {
+    it('returns ok after touching the database', async () => {
+        const res = await request
+            .get('/api/health/db')
+            .expect(200);
+
+        expect(res.body).toEqual({
+            status: 'ok',
+            service: 'tt-players-api',
+            database: 'ok',
+        });
+    });
+});
+
 describe('POST /api/feedback', () => {
     it('successfully records general feedback', async () => {
         const res = await request

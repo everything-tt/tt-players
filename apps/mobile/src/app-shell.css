@@ -472,6 +472,11 @@ body.theme-dark .list-custom-large a {
   width: 38px;
 }
 
+.tt-picker-close-disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
 .tt-picker-remove-icon {
   color: var(--ink-muted);
   flex-shrink: 0;
@@ -569,6 +574,14 @@ body.theme-dark .list-custom-large a {
   min-width: 18px;
   padding: 0 5px;
   line-height: 1;
+}
+
+.tt-picker-required {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 10px 0 0;
 }
 
 body.theme-dark .tt-picker-tabs {
@@ -1088,6 +1101,56 @@ body.theme-dark .tt-players-row {
 
 .tt-home-leaders-error {
   color: var(--state-danger-text);
+}
+
+.tt-home-onboarding {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 8px 18px;
+  text-align: center;
+}
+
+.tt-home-onboarding-icon {
+  align-items: center;
+  background: var(--accent);
+  border-radius: 50%;
+  color: var(--on-accent);
+  display: inline-flex;
+  height: 44px;
+  justify-content: center;
+  margin-bottom: 14px;
+  width: 44px;
+}
+
+.tt-home-onboarding-title {
+  color: var(--ink);
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 0 8px;
+}
+
+.tt-home-onboarding-copy {
+  color: var(--ink-muted);
+  font-size: 14px;
+  line-height: 1.45;
+  margin: 0 auto 16px;
+  max-width: 320px;
+}
+
+.tt-home-onboarding-button {
+  background: var(--accent);
+  border: 0;
+  border-radius: 10px;
+  color: var(--on-accent);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  min-height: 42px;
+  padding: 0 18px;
 }
 
 .tt-home-leaders-list {

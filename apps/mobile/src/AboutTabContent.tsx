@@ -14,12 +14,20 @@ export function AboutTabContent() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  const handleResetData = () => {
+  const handleResetData = async () => {
     const confirmed = window.confirm(
       'Are you sure you want to delete all saved favorites, selected leagues, and settings? This cannot be undone.'
     );
     if (confirmed) {
       localStorage.clear();
+      sessionStorage.clear();
+
+      if ('caches' in window) {
+        const cacheNames = await window.caches.keys();
+        await Promise.all(cacheNames.map((cacheName) => window.caches.delete(cacheName)));
+      }
+
+      window.location.replace('/#/tabs/home');
       window.location.reload();
     }
   };

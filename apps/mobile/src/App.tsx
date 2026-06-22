@@ -56,6 +56,7 @@ const MAX_SELECTED_LEAGUES = 10;
 const FAVOURITES_STORAGE_KEY = 'tt_players_favourite_players';
 const FAVOURITES_UPDATED_EVENT = 'tt_players_favourite_players_updated';
 const LEAGUES_STORAGE_KEY = 'tt_players_selected_league_ids';
+const LEAGUE_ONBOARDING_STORAGE_KEY = 'tt_players_league_onboarding_complete';
 const APP_BUILD_TIME = formatBuildTime(import.meta.env.VITE_APP_BUILD_TIME);
 const APP_COMMIT = import.meta.env.VITE_APP_COMMIT || 'unknown';
 
@@ -104,6 +105,11 @@ function persistFavouritePlayers(players: PlayerSearchItem[]) {
   window.dispatchEvent(new Event(FAVOURITES_UPDATED_EVENT));
 }
 
+function hasCompletedStoredLeagueOnboarding(): boolean {
+  return localStorage.getItem(LEAGUE_ONBOARDING_STORAGE_KEY) === 'true'
+    || parseStoredLeagueIds().length > 0;
+}
+
 
 function InstallAppMenuItem({ onClose }: { onClose: (e: MouseEvent<HTMLAnchorElement>) => void }) {
   const { triggerInstallPrompt, canInstall } = usePWAInstallContext();
@@ -132,6 +138,7 @@ function App() {
   const { isDarkMode, toggleTheme } = useTheme();
   const [isLeagueSelectorOpen, setIsLeagueSelectorOpen] = useState(false);
   const [isLeagueSelectionReady, setIsLeagueSelectionReady] = useState(false);
+  const [hasCompletedLeagueOnboarding, setHasCompletedLeagueOnboarding] = useState(() => hasCompletedStoredLeagueOnboarding());
   const [playerSearchScope, setPlayerSearchScope] = useState<PlayerSearchScope>('all');
   const [query, setQuery] = useState('');
   const [selectedLeagueIds, setSelectedLeagueIds] = useState<string[]>([]);
@@ -150,9 +157,11 @@ function App() {
   const allLeagueIds = useMemo(() => allLeagues.map((league: { id: string }) => league.id), [allLeagues]);
   const isLeaguesLoading = leaguesQuery.isLoading;
   const leaguesError = leaguesQuery.error instanceof Error ? leaguesQuery.error.message : null;
-  const isAllLeagueScope = selectedLeagueIds.length === 0
-    || (allLeagues.length > 0 && selectedLeagueIds.length === allLeagues.length);
-  const selectedLeagueBadgeLabel = isAllLeagueScope ? 'All' : selectedLeagueIds.length;
+  const hasSelectedLeagueScope = hasCompletedLeagueOnboarding && selectedLeagueIds.length > 0;
+  const isAllLeagueScope = hasSelectedLeagueScope
+    && allLeagues.length > 0
+    && selectedLeagueIds.length === allLeagues.length;
+  const selectedLeagueBadgeLabel = !hasCompletedLeagueOnboarding ? 'Choose' : isAllLeagueScope ? 'All' : selectedLeagueIds.length;
   const playerSearchLeagueIds = playerSearchScope === 'selected' ? selectedLeagueIds : [];
   const isSearchMode = normalizedQuery.length > 2;
   const isShortSearchQuery = normalizedQuery.length > 0 && normalizedQuery.length <= 2;
@@ -198,7 +207,10 @@ function App() {
     closeActiveMenu();
     setIsLeagueSelectorOpen(true);
   };
-  const closeLeagueSelector = () => setIsLeagueSelectorOpen(false);
+  const closeLeagueSelector = () => {
+    if (!hasCompletedLeagueOnboarding && selectedLeagueIds.length === 0 && !leaguesError) return;
+    setIsLeagueSelectorOpen(false);
+  };
 
   const onMenuTrigger =
     (menuId: MenuId) =>
@@ -277,11 +289,12 @@ function App() {
     setSelectedLeagueIds((previous) => {
       const validIdSet = new Set(allLeagueIds);
       const validPrevious = previous.filter((id) => validIdSet.has(id));
-      const baseline = validPrevious.length === 0 ? allLeagueIds : validPrevious;
+      const baseline = validPrevious.length === 0 ? [] : validPrevious;
       if (baseline.includes(leagueId)) return baseline;
       if (baseline.length >= MAX_SELECTED_LEAGUES) return baseline;
       return [...baseline, leagueId];
     });
+    setHasCompletedLeagueOnboarding(true);
   };
 
   const removeLeagueFromSelection = (leagueId: string) => {
@@ -290,7 +303,7 @@ function App() {
     setSelectedLeagueIds((previous) => {
       const validIdSet = new Set(allLeagueIds);
       const validPrevious = previous.filter((id) => validIdSet.has(id));
-      const baseline = validPrevious.length === 0 ? allLeagueIds : validPrevious;
+      const baseline = validPrevious.length === 0 ? allLeagueIds.slice(0, MAX_SELECTED_LEAGUES) : validPrevious;
       const next = baseline.filter((id) => id !== leagueId);
       return next.length > 0 ? next : baseline;
     });
@@ -302,7 +315,7 @@ function App() {
     setSelectedLeagueIds((previous) => {
       const validIdSet = new Set(allLeagueIds);
       const validPrevious = previous.filter((id) => validIdSet.has(id));
-      const baseline = validPrevious.length === 0 ? allLeagueIds : validPrevious;
+      const baseline = validPrevious.length === 0 ? [] : validPrevious;
       if (baseline.length >= MAX_SELECTED_LEAGUES) return baseline;
       const nextSelected = new Set(baseline);
 
@@ -314,6 +327,7 @@ function App() {
 
       return allLeagueIds.filter((leagueId: string) => nextSelected.has(leagueId));
     });
+    setHasCompletedLeagueOnboarding(true);
   };
 
   useEffect(() => {
@@ -345,24 +359,29 @@ function App() {
 
     const validLeagueIds = new Set(allLeagues.map((league: { id: string }) => league.id));
     const storedSelection = parseStoredLeagueIds().filter((id) => validLeagueIds.has(id));
+    const storedOnboardingComplete = hasCompletedStoredLeagueOnboarding();
 
     setSelectedLeagueIds((previous) => {
       const validPrevious = previous.filter((id) => validLeagueIds.has(id));
       if (validPrevious.length > 0) {
         return validPrevious.slice(0, MAX_SELECTED_LEAGUES);
       }
-      return storedSelection.length > 0
+      return storedOnboardingComplete && storedSelection.length > 0
         ? storedSelection.slice(0, MAX_SELECTED_LEAGUES)
-        : allLeagues.slice(0, MAX_SELECTED_LEAGUES).map((league: { id: string }) => league.id);
+        : [];
     });
 
+    setHasCompletedLeagueOnboarding(storedOnboardingComplete && storedSelection.length > 0);
     setIsLeagueSelectionReady(true);
   }, [allLeagues, isLeaguesLoading, leaguesError]);
 
   useEffect(() => {
     if (!isLeagueSelectionReady) return;
     localStorage.setItem(LEAGUES_STORAGE_KEY, JSON.stringify(selectedLeagueIds));
-  }, [isLeagueSelectionReady, selectedLeagueIds]);
+    if (hasCompletedLeagueOnboarding) {
+      localStorage.setItem(LEAGUE_ONBOARDING_STORAGE_KEY, 'true');
+    }
+  }, [hasCompletedLeagueOnboarding, isLeagueSelectionReady, selectedLeagueIds]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -549,7 +568,9 @@ function App() {
           {activeTab === 'home' ? (
             <HomeTabContent
               allLeagues={allLeagues}
+              hasCompletedLeagueOnboarding={hasCompletedLeagueOnboarding}
               selectedLeagueIds={selectedLeagueIds}
+              onOpenLeagueSelector={openLeagueSelector}
               onOpenTab={(tabId) => switchTab(tabId, 'root')}
             />
           ) : null}
@@ -714,6 +735,7 @@ function App() {
             onRemoveLeague={removeLeagueFromSelection}
             onSelectRegion={selectRegionLeagues}
             onClose={closeLeagueSelector}
+            requireSelection={!hasCompletedLeagueOnboarding && !leaguesError}
             maxSelectedLeagues={MAX_SELECTED_LEAGUES}
           />
         ) : null}

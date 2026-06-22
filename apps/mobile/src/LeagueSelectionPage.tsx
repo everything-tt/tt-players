@@ -18,6 +18,7 @@ interface LeagueSelectionPageProps {
   selectedLeagueIds: string[];
   onAddLeague: (leagueId: string) => void;
   onClose: () => void;
+  requireSelection?: boolean;
   maxSelectedLeagues: number;
   onRemoveLeague: (leagueId: string) => void;
   onSelectRegion: (leagueIds: string[]) => void;
@@ -51,10 +52,10 @@ function buildRegionBuckets(leagues: LeagueWithDivisions[]): RegionBucket[] {
 
 export function LeagueSelectionPage({
   allLeagues, isAllLeagueScope, isLeagueSelectionReady, isLeaguesLoading,
-  leaguesError, selectedLeagueIds, onAddLeague, onClose, maxSelectedLeagues,
+  leaguesError, selectedLeagueIds, onAddLeague, onClose, requireSelection = false, maxSelectedLeagues,
   onRemoveLeague, onSelectRegion,
 }: LeagueSelectionPageProps) {
-  const [activeTab, setActiveTab] = useState<PickerTab>('selected');
+  const [activeTab, setActiveTab] = useState<PickerTab>(() => selectedLeagueIds.length > 0 ? 'selected' : 'areas');
   const [query, setQuery] = useState('');
   const [addedRegion, setAddedRegion] = useState<string | null>(null);
   const feedbackTimer = useRef<number | null>(null);
@@ -97,6 +98,10 @@ export function LeagueSelectionPage({
   const isLoading = !isLeagueSelectionReady || isLeaguesLoading;
   const isAtSelectionLimit = selectedLeagueIdSet.size >= maxSelectedLeagues;
   const selectedCount = selectedLeagueIdSet.size;
+  const canClose = !requireSelection || selectedCount > 0;
+  const handleClose = () => {
+    if (canClose) onClose();
+  };
 
   const tabs: { id: PickerTab; label: string; badge?: number }[] = [
     { id: 'selected', label: 'Selected', badge: selectedCount },
@@ -114,7 +119,7 @@ export function LeagueSelectionPage({
 
   return (
     <>
-      <div className="menu-hider menu-active" onClick={onClose} style={{ zIndex: 998 }} />
+      <div className="menu-hider menu-active" onClick={handleClose} style={{ zIndex: 998 }} />
       <div className="menu menu-box-bottom rounded-m menu-active tt-picker-menu" style={{ height: '72%', zIndex: 999 }}>
         <div className="tt-picker-shell">
           <div className="tt-picker-top">
@@ -123,7 +128,7 @@ export function LeagueSelectionPage({
                 <p className="tt-picker-eyebrow">League Scope</p>
                 <h4 className="tt-picker-title">Leagues</h4>
               </div>
-              <a href="#" onClick={(e) => { e.preventDefault(); onClose(); }} className="tt-picker-close">
+              <a href="#" onClick={(e) => { e.preventDefault(); handleClose(); }} className={`tt-picker-close ${canClose ? '' : 'tt-picker-close-disabled'}`}>
                 <i className="fa fa-times-circle font-20" />
               </a>
             </div>
@@ -154,6 +159,9 @@ export function LeagueSelectionPage({
                 </button>
               ))}
             </div>
+            {requireSelection && selectedCount === 0 ? (
+              <p className="tt-picker-required">Choose at least one league to start.</p>
+            ) : null}
           </div>
 
           <div className="tt-picker-body">
