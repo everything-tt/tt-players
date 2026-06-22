@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
+import { SkeletonBlock } from './components/Skeleton';
 import { usePageNavigation } from './hooks/usePageNavigation';
 import { formatDate } from './player-shared';
 import { useFixtureRubbersQuery } from './queries';
@@ -7,10 +8,56 @@ import { TabShellPage } from './TabShellPage';
 import {
   AppHeader,
   AppHeaderSpacer,
-  AppLoadingCard,
   AppMessageCard,
   AppPageContent,
 } from './ui/appkit';
+
+function FixturePageSkeleton() {
+  return (
+    <>
+      <section className="tt-fixture-hero" aria-label="Loading fixture details">
+        <div className="tt-fixture-hero-top">
+          <div className="tt-fixture-hero-copy">
+            <SkeletonBlock className="tt-skeleton-eyebrow" />
+            <SkeletonBlock className="tt-skeleton-title" />
+            <SkeletonBlock className="tt-skeleton-text mt-2" />
+            <SkeletonBlock className="tt-skeleton-text app-skeleton-short mt-2" />
+          </div>
+        </div>
+        <div className="tt-fixture-score" aria-label="Loading score">
+          <div>
+            <SkeletonBlock className="tt-skeleton-score" />
+            <SkeletonBlock className="tt-skeleton-text mt-2" />
+          </div>
+          <span className="tt-fixture-score-separator">-</span>
+          <div>
+            <SkeletonBlock className="tt-skeleton-score" />
+            <SkeletonBlock className="tt-skeleton-text mt-2" />
+          </div>
+        </div>
+      </section>
+
+      <section className="tt-player-section" aria-label="Loading match breakdown">
+        <div className="tt-player-section-header">
+          <SkeletonBlock className="tt-skeleton-text" />
+          <SkeletonBlock className="tt-skeleton-text app-skeleton-short" />
+        </div>
+        <div className="tt-rubber-list">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="tt-rubber-item">
+              <SkeletonBlock className="tt-skeleton-text app-skeleton-short" />
+              <div className="tt-rubber-scorecard">
+                <SkeletonBlock className="tt-skeleton-text" />
+                <SkeletonBlock className="tt-skeleton-pill" />
+                <SkeletonBlock className="tt-skeleton-text" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </>
+  );
+}
 
 export function FixturePage() {
   const { goBack, goHome, navigate } = usePageNavigation();
@@ -57,7 +104,7 @@ export function FixturePage() {
             action={{ label: 'Back Home', onClick: goHome }}
           />
         ) : rubbersQuery.isLoading && !fixtureMeta ? (
-          <AppLoadingCard message="Loading fixture details..." />
+          <FixturePageSkeleton />
         ) : !fixtureMeta ? (
           <AppMessageCard
             title="Fixture unavailable"
@@ -111,7 +158,18 @@ export function FixturePage() {
                 </div>
 
                 {rubbersQuery.isLoading ? (
-                  <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading rubbers...</p>
+                  <div className="tt-rubber-list">
+                    {Array.from({ length: 4 }).map((_, index) => (
+                      <div key={index} className="tt-rubber-item">
+                        <SkeletonBlock className="tt-skeleton-text app-skeleton-short" />
+                        <div className="tt-rubber-scorecard">
+                          <SkeletonBlock className="tt-skeleton-text" />
+                          <SkeletonBlock className="tt-skeleton-pill" />
+                          <SkeletonBlock className="tt-skeleton-text" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : rubbersQuery.error ? (
                   <p className="tt-player-section-state tt-player-section-error">Failed to load fixture details.</p>
                 ) : rubbers.length === 0 ? (

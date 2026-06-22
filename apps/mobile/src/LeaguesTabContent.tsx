@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   type LeagueWithDivisions,
 } from './player-shared';
+import { SkeletonBlock, SkeletonList } from './components/Skeleton';
 import { useLeagueSnapshotQuery, useLeaguesQuery, useStandingsQuery } from './queries';
 import { useTabNavigation } from './navigation/tab-navigation';
 
@@ -176,7 +177,12 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
 
         {leaguesError ? <p className="tt-player-section-state tt-player-section-error">Failed to load leagues: {leaguesError}</p> : null}
         {isLeaguesLoading ? (
-          <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading leagues...</p>
+          <div className="tt-skeleton-list">
+            <div className="tt-skeleton-list-copy">
+              <SkeletonBlock className="tt-skeleton-text" />
+              <SkeletonBlock className="tt-skeleton-text app-skeleton-short" />
+            </div>
+          </div>
         ) : null}
         {!isLeaguesLoading && visibleLeagues.length === 0 ? (
           <p className="tt-player-section-state">No leagues are available for the active season.</p>
@@ -226,7 +232,19 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
               </div>
 
               {isLeagueSnapshotLoading ? (
-                <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading league snapshot...</p>
+                <>
+                  <div className="tt-league-summary-grid">
+                    {Array.from({ length: 4 }).map((_, index) => (
+                      <div key={index} className="tt-league-kpi">
+                        <SkeletonBlock className="tt-skeleton-stat" />
+                        <SkeletonBlock className="tt-skeleton-text mt-2" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3">
+                    <SkeletonList rows={4} />
+                  </div>
+                </>
               ) : leagueSnapshotError ? (
                 <p className="tt-player-section-state tt-player-section-error">Failed to load league snapshot: {leagueSnapshotError}</p>
               ) : !leagueSnapshot ? (
@@ -295,7 +313,9 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
               </div>
 
               {isStandingsLoading ? (
-                <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading standings...</p>
+                <div className="tt-home-leaders-list mt-3">
+                  <SkeletonList rows={5} />
+                </div>
               ) : standingsError ? (
                 <p className="tt-player-section-state tt-player-section-error">Failed to load standings: {standingsError}</p>
               ) : standingsRows.length === 0 ? (

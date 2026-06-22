@@ -3,11 +3,11 @@ import { useParams } from 'react-router-dom';
 import { useEventDetailQuery } from './queries';
 import { usePageNavigation } from './hooks/usePageNavigation';
 import { TabShellPage } from './TabShellPage';
+import { SectionSkeleton, SkeletonBlock } from './components/Skeleton';
 import { formatDate, parseStoredFavouriteTournaments, persistFavouriteTournaments, FAVOURITE_TOURNAMENTS_UPDATED_EVENT, type FavouriteTournament } from './player-shared';
 import {
   AppHeader,
   AppHeaderSpacer,
-  AppLoadingCard,
   AppMessageCard,
   AppPageContent,
   AppButtonLink,
@@ -25,6 +25,47 @@ type EventPlayerSummary = {
   losses: number;
   winRate: number;
 };
+
+function EventDetailSkeleton() {
+  return (
+    <>
+      <section className="tt-players-search-panel tt-tournament-summary" aria-label="Loading tournament details">
+        <div className="tt-players-search-top">
+          <div>
+            <SkeletonBlock className="tt-skeleton-eyebrow" />
+            <SkeletonBlock className="tt-skeleton-title" />
+          </div>
+        </div>
+
+        <div className="tt-tournament-summary-meta">
+          <SkeletonBlock className="tt-skeleton-text" />
+          <SkeletonBlock className="tt-skeleton-text" />
+          <SkeletonBlock className="tt-skeleton-text" />
+        </div>
+
+        <div className="tt-player-actions">
+          <SkeletonBlock className="tt-skeleton-button" />
+          <SkeletonBlock className="tt-skeleton-button" />
+        </div>
+      </section>
+
+      <section className="tt-player-section" aria-label="Loading top players">
+        <div className="tt-player-section-header">
+          <SkeletonBlock className="tt-skeleton-text" />
+          <SkeletonBlock className="tt-skeleton-text app-skeleton-short" />
+        </div>
+        <div className="tt-event-top-player-grid">
+          <SkeletonBlock className="tt-skeleton-event-card" />
+          <SkeletonBlock className="tt-skeleton-event-card" />
+          <SkeletonBlock className="tt-skeleton-event-card" />
+        </div>
+      </section>
+
+      <SectionSkeleton rows={4} />
+      <SectionSkeleton rows={4} />
+    </>
+  );
+}
 
 export function EventDetailPage() {
   const { goBack, goHome, navigateInTab } = usePageNavigation();
@@ -159,7 +200,7 @@ export function EventDetailPage() {
   return (
     <TabShellPage>
       <AppHeader
-        title={event?.name ?? 'Tournament Details'}
+        title="Tournament"
         onTitleClick={goHome}
         leftAction={{ iconClassName: 'fas fa-chevron-left', onClick: goBack, position: 1, ariaLabel: 'Back' }}
         rightAction={{ iconClassName: 'fas fa-home', onClick: goHome, position: 4, ariaLabel: 'Home' }}
@@ -174,7 +215,7 @@ export function EventDetailPage() {
             action={{ label: 'Back Home', onClick: goHome }}
           />
         ) : detailQuery.isLoading && !event ? (
-          <AppLoadingCard message="Loading tournament details..." />
+          <EventDetailSkeleton />
         ) : !event ? (
           <AppMessageCard
             title="Tournament Unavailable"

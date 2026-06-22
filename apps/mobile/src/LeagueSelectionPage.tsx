@@ -30,6 +30,10 @@ function leagueRegionLabels(league: LeagueWithDivisions): string[] {
     .filter((name) => name.length > 0);
 }
 
+function leagueSeasonLabel(league: LeagueWithDivisions): string {
+  return league.season?.trim() || 'Season unknown';
+}
+
 function buildRegionBuckets(leagues: LeagueWithDivisions[]): RegionBucket[] {
   const buckets = new Map<string, { id: string; label: string; leagueIds: Set<string> }>();
   for (const league of leagues) {
@@ -180,6 +184,7 @@ export function LeagueSelectionPage({
                   >
                     <div className="tt-league-picker-row-content">
                       <span className="tt-league-picker-row-name">{league.name}</span>
+                      <span className="tt-league-picker-row-season">{leagueSeasonLabel(league)}</span>
                       <span className="tt-league-picker-row-meta">
                         {leagueRegionLabels(league).join(' · ')}
                         {leagueRegionLabels(league).length > 0 ? ' · ' : ''}
@@ -217,7 +222,12 @@ export function LeagueSelectionPage({
                       </span>
                       <div className="tt-league-picker-row-content">
                         <span className="tt-league-picker-row-name">{league.name}</span>
-                        <span className="tt-league-picker-row-meta">{league.divisions.length} divisions</span>
+                        <span className="tt-league-picker-row-season">{leagueSeasonLabel(league)}</span>
+                        <span className="tt-league-picker-row-meta">
+                          {leagueRegionLabels(league).join(' · ')}
+                          {leagueRegionLabels(league).length > 0 ? ' · ' : ''}
+                          {league.divisions.length} divisions
+                        </span>
                       </div>
                     </button>
                   );

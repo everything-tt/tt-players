@@ -1,6 +1,7 @@
 import { type MouseEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { FormResultPills } from './components/FormResultPills';
+import { SectionSkeleton, SkeletonBlock, SkeletonList } from './components/Skeleton';
 import { usePageNavigation } from './hooks/usePageNavigation';
 import { formatMatchDate } from './player-shared';
 import {
@@ -15,11 +16,34 @@ import {
   AppHeaderSpacer,
   AppListGroup,
   AppListItem,
-  AppLoadingCard,
   AppMessageCard,
   AppPageContent,
   AppPlayerList,
 } from './ui/appkit';
+
+function TeamPageSkeleton() {
+  return (
+    <>
+      <section className="tt-team-hero" aria-label="Loading team profile">
+        <div className="tt-team-hero-top">
+          <div className="tt-team-hero-copy">
+            <SkeletonBlock className="tt-skeleton-eyebrow" />
+            <SkeletonBlock className="tt-skeleton-title" />
+            <SkeletonBlock className="tt-skeleton-text mt-2" />
+          </div>
+          <SkeletonBlock className="tt-skeleton-avatar" />
+        </div>
+        <div className="tt-team-spotlight">
+          <div className="tt-team-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
+          <div className="tt-team-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
+        </div>
+      </section>
+
+      <SectionSkeleton rows={4} />
+      <SectionSkeleton rows={4} />
+    </>
+  );
+}
 
 export function TeamPage() {
   const { goBackInActiveTab, navigateInActiveTab, switchTab } = usePageNavigation();
@@ -77,7 +101,7 @@ export function TeamPage() {
 
       <AppPageContent>
         {summaryLoading ? (
-          <AppLoadingCard message="Loading team profile..." />
+          <TeamPageSkeleton />
         ) : !summary ? (
           <AppMessageCard
             title="Team not available"
@@ -127,7 +151,7 @@ export function TeamPage() {
                   <span className="tt-player-section-note">{roster.length} players</span>
                 </div>
                 {rosterLoading ? (
-                  <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading roster...</p>
+                  <SkeletonList rows={4} />
                 ) : rosterError ? (
                   <p className="tt-player-section-state tt-player-section-error">Unable to load squad roster.</p>
                 ) : roster.length === 0 ? (
@@ -151,7 +175,7 @@ export function TeamPage() {
                   <span className="tt-player-section-note">{fixtures.length} matches</span>
                 </div>
                 {fixturesLoading ? (
-                  <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading matches...</p>
+                  <SkeletonList rows={4} />
                 ) : fixturesError ? (
                   <p className="tt-player-section-state tt-player-section-error">Unable to load recent matches.</p>
                 ) : fixtures.length === 0 ? (

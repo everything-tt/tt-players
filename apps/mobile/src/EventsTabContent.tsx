@@ -3,10 +3,10 @@ import { useEventsQuery } from './queries';
 import { usePageNavigation } from './hooks/usePageNavigation';
 import { formatDate, type EventItem, parseStoredFavouriteTournaments, persistFavouriteTournaments, FAVOURITE_TOURNAMENTS_UPDATED_EVENT, type FavouriteTournament } from './player-shared';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
+import { SkeletonList } from './components/Skeleton';
 import {
   AppListGroup,
   AppListItem,
-  AppLoadingCard,
   AppMessageCard,
   AppSearchInput,
 } from './ui/appkit';
@@ -155,7 +155,15 @@ export function EventsTabContent() {
       ) : null}
 
       {isLoadingInitial ? (
-        <AppLoadingCard message="Loading tournaments list..." />
+        <section className="tt-player-section" aria-label="Loading tournaments">
+          <div className="tt-player-section-header">
+            <h2 className="tt-player-section-title">
+              {isSearchActive ? 'Search Results' : 'Recent Tournaments'}
+            </h2>
+            <span className="tt-player-section-note">Loading</span>
+          </div>
+          <SkeletonList rows={isSearchActive ? 6 : 4} />
+        </section>
       ) : pageError && events.length === 0 ? (
         <AppMessageCard
           title="Failed to load events"

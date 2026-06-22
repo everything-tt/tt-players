@@ -6,6 +6,7 @@ import { LeagueSelectionPage } from './LeagueSelectionPage';
 import { LeaguesTabContent } from './LeaguesTabContent';
 import { EventsTabContent } from './EventsTabContent';
 import { AboutTabContent } from './AboutTabContent';
+import { QuickFeedbackSheet } from './QuickFeedbackSheet';
 import { TabFooterBar } from './TabFooterBar';
 import { PlayerList } from './components/PlayerList';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
@@ -51,7 +52,7 @@ const menuConfigs: Record<MenuId, MenuConfig> = {
 
 const HEADER_SWITCH_SCROLL = 40;
 const SEARCH_DEBOUNCE_MS = 250;
-const MAX_SELECTED_LEAGUES = 10;
+const MAX_SELECTED_LEAGUES = 15;
 
 const FAVOURITES_STORAGE_KEY = 'tt_players_favourite_players';
 const FAVOURITES_UPDATED_EVENT = 'tt_players_favourite_players_updated';
@@ -137,6 +138,7 @@ function App() {
   const [isBooting, setIsBooting] = useState(true);
   const { isDarkMode, toggleTheme } = useTheme();
   const [isLeagueSelectorOpen, setIsLeagueSelectorOpen] = useState(false);
+  const [isFeedbackSheetOpen, setIsFeedbackSheetOpen] = useState(false);
   const [isLeagueSelectionReady, setIsLeagueSelectionReady] = useState(false);
   const [hasCompletedLeagueOnboarding, setHasCompletedLeagueOnboarding] = useState(() => hasCompletedStoredLeagueOnboarding());
   const [playerSearchScope, setPlayerSearchScope] = useState<PlayerSearchScope>('all');
@@ -205,12 +207,19 @@ function App() {
   const closeActiveMenu = () => setActiveMenuId(null);
   const openLeagueSelector = () => {
     closeActiveMenu();
+    setIsFeedbackSheetOpen(false);
     setIsLeagueSelectorOpen(true);
   };
   const closeLeagueSelector = () => {
     if (!hasCompletedLeagueOnboarding && selectedLeagueIds.length === 0 && !leaguesError) return;
     setIsLeagueSelectorOpen(false);
   };
+  const openFeedbackSheet = (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    closeActiveMenu();
+    setIsFeedbackSheetOpen(true);
+  };
+  const closeFeedbackSheet = () => setIsFeedbackSheetOpen(false);
 
   const onMenuTrigger =
     (menuId: MenuId) =>
@@ -487,6 +496,24 @@ function App() {
     twitter: `https://twitter.com/intent/tweet?url=${pageHref}&text=${pageTitle}`,
     whatsapp: `https://wa.me/?text=${pageTitle}%20${pageHref}`,
   };
+  const onShareClick = async (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    closeActiveMenu();
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: document.title || 'TT Players',
+          url: window.location.href,
+        });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+      }
+    }
+
+    setActiveMenuId('menu-share');
+  };
 
   const listItems = normalizedQuery.length === 0 ? searchResults.slice(1) : searchResults;
 
@@ -507,27 +534,28 @@ function App() {
         <div id="page" className="app-shell-page">
           {!isLeagueSelectorOpen ? (
             <>
-        <header ref={headerRef} style={wrapperStyle} className="header header-auto-show header-fixed header-logo-center">
-          <a href="#" className="header-title" onClick={onFooterTabClick(activeTab)}>TT Players</a>
-          <a href="#" className="header-icon header-icon-1" data-menu="menu-main" onClick={onMenuTrigger('menu-main')}>
+        <header ref={headerRef} style={wrapperStyle} className="header header-auto-show header-fixed header-logo-center" aria-hidden="true">
+          <a href="#" className="header-title" tabIndex={-1} onClick={onFooterTabClick(activeTab)}>TT Players</a>
+          <a href="#" className="header-icon header-icon-1" tabIndex={-1} data-menu="menu-main" onClick={onMenuTrigger('menu-main')}>
             <i className="fas fa-bars" />
           </a>
             <a
               href="#"
               className="header-icon header-icon-2 tt-header-league-filter"
+              tabIndex={-1}
               onClick={onOpenLeagueSelector}
               aria-label="Select leagues"
             >
               <i className="fas fa-filter" />
               <span className="tt-page-league-count">{selectedLeagueBadgeLabel}</span>
             </a>
-          <a href="#" className="header-icon header-icon-3" data-menu="menu-share" onClick={onMenuTrigger('menu-share')}>
-            <i className="fas fa-share-alt" />
+          <a href="#" className="header-icon header-icon-3" tabIndex={-1} onClick={openFeedbackSheet} aria-label="Send feedback">
+            <i className="fas fa-comment-dots" />
           </a>
-          <a href="#" className="header-icon header-icon-4 show-on-theme-dark" data-toggle-theme onClick={toggleTheme}>
+          <a href="#" className="header-icon header-icon-4 show-on-theme-dark" tabIndex={-1} data-toggle-theme onClick={toggleTheme}>
             <i className="fas fa-sun" />
           </a>
-          <a href="#" className="header-icon header-icon-4 show-on-theme-light" data-toggle-theme onClick={toggleTheme}>
+          <a href="#" className="header-icon header-icon-4 show-on-theme-light" tabIndex={-1} data-toggle-theme onClick={toggleTheme}>
             <i className="fas fa-moon" />
           </a>
         </header>
@@ -537,7 +565,10 @@ function App() {
           <>
             <div ref={pageTitleRef} className="page-title page-title-fixed">
               <h1>{tabTitles[activeTab]}</h1>
-              <a href="#" className="page-title-icon bg-theme color-theme" data-menu="menu-share" onClick={onMenuTrigger('menu-share')}>
+              <a href="#" className="page-title-icon bg-theme color-theme" onClick={openFeedbackSheet} aria-label="Send feedback">
+                <i className="fa fa-comment-dots" />
+              </a>
+              <a href="#" className="page-title-icon bg-theme color-theme" onClick={onShareClick} aria-label="Share TT Players">
                 <i className="fa fa-share-alt" />
               </a>
               <a
@@ -740,6 +771,10 @@ function App() {
           />
         ) : null}
 
+        {isFeedbackSheetOpen ? (
+          <QuickFeedbackSheet onClose={closeFeedbackSheet} />
+        ) : null}
+
         <div
           id="menu-main"
           className={`menu menu-box-left rounded-0 tt-main-menu ${activeMenuId === 'menu-main' ? 'menu-active' : ''}`}
@@ -809,6 +844,11 @@ function App() {
 
           <h6 className="menu-divider mt-4">Links</h6>
           <div className="list-group list-custom-small list-menu">
+            <a href="#" onClick={onShareClick}>
+              <i className="fa fa-share-alt color-white" />
+              <span>Share TT Players</span>
+              <i className="fa fa-angle-right" />
+            </a>
             <a href="https://www.tournapilot.com/app" target="_blank" rel="noreferrer" onClick={onCloseMenuClick}>
               <i className="fa fa-external-link-alt color-white" />
               <span>TournaPilot</span>

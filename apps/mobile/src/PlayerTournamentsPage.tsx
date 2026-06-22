@@ -1,6 +1,7 @@
 import { useMemo, type MouseEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import './app-shell.css';
+import { SkeletonList } from './components/Skeleton';
 import { useTabNavigation } from './navigation/tab-navigation';
 import { formatDate } from './player-shared';
 import { usePlayerExtendedStatsQuery, usePlayerTournamentsQuery } from './queries';
@@ -81,7 +82,7 @@ export function PlayerTournamentsPage() {
             <span className="tt-player-section-note">{tournaments.length} events</span>
           </div>
           {tournamentsLoading ? (
-            <p className="tt-player-section-state mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading tournaments...</p>
+            <SkeletonList rows={5} />
           ) : tournamentsError ? (
             <div>
               <p className="tt-player-section-state tt-player-section-error mb-3">Failed to load tournaments.</p>

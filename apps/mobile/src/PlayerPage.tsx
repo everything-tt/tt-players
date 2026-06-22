@@ -19,6 +19,7 @@ import {
   usePlayerTournamentsQuery,
 } from './queries';
 import { SegmentedToggle } from './components/SegmentedToggle';
+import { SkeletonBlock, SkeletonList } from './components/Skeleton';
 import { TabShellPage } from './TabShellPage';
 import {
   AppButtonLink,
@@ -26,10 +27,79 @@ import {
   AppHeaderSpacer,
   AppListGroup,
   AppListItem,
-  AppLoadingCard,
   AppMessageCard,
   AppPageContent,
 } from './ui/appkit';
+
+function PlayerProfileSkeleton() {
+  return (
+    <>
+      <section className="tt-player-hero" aria-label="Loading player profile">
+        <div className="tt-player-hero-top">
+          <div className="tt-player-hero-copy">
+            <SkeletonBlock className="tt-skeleton-eyebrow" />
+            <SkeletonBlock className="tt-skeleton-title" />
+            <SkeletonBlock className="tt-skeleton-text mt-2" />
+          </div>
+          <SkeletonBlock className="tt-skeleton-avatar" />
+        </div>
+
+        <div className="tt-player-spotlight">
+          <div className="tt-player-winrate">
+            <SkeletonBlock className="tt-skeleton-title" />
+            <SkeletonBlock className="tt-skeleton-text mt-2" />
+          </div>
+          <div className="tt-player-hero-stats">
+            <div className="tt-player-hero-stat"><SkeletonBlock className="tt-skeleton-stat" /></div>
+            <div className="tt-player-hero-stat"><SkeletonBlock className="tt-skeleton-stat" /></div>
+            <div className="tt-player-hero-stat"><SkeletonBlock className="tt-skeleton-stat" /></div>
+          </div>
+        </div>
+
+        <div className="tt-player-actions">
+          <SkeletonBlock className="tt-skeleton-button" />
+          <SkeletonBlock className="tt-skeleton-button" />
+        </div>
+
+        <div className="tt-form-recent">
+          <div className="tt-form-recent-list">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <SkeletonBlock key={index} className="tt-skeleton-pill" />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="tt-player-section" aria-label="Loading current season">
+        <div className="tt-player-section-header">
+          <SkeletonBlock className="tt-skeleton-text" />
+          <SkeletonBlock className="tt-skeleton-text app-skeleton-short" />
+        </div>
+        <SkeletonList rows={3} />
+      </section>
+
+      <section className="tt-player-section" aria-label="Loading form">
+        <div className="tt-player-section-header">
+          <SkeletonBlock className="tt-skeleton-text" />
+          <SkeletonBlock className="tt-skeleton-text app-skeleton-short" />
+        </div>
+        <div className="tt-player-metric-grid">
+          <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
+          <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
+          <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
+        </div>
+      </section>
+
+      <section className="tt-player-section" aria-label="Loading recent matches">
+        <div className="tt-player-section-header">
+          <SkeletonBlock className="tt-skeleton-text" />
+          <SkeletonBlock className="tt-skeleton-text app-skeleton-short" />
+        </div>
+        <SkeletonList rows={4} />
+      </section>
+    </>
+  );
+}
 
 export function PlayerPage() {
   const { goBackInActiveTab, navigateInActiveTab, navigateInTab, switchTab } = useTabNavigation();
@@ -177,7 +247,7 @@ export function PlayerPage() {
 
       <AppPageContent>
         {statsLoading ? (
-          <AppLoadingCard message="Loading player profile..." />
+          <PlayerProfileSkeleton />
         ) : !stats ? (
           <AppMessageCard
             title="Player not available"
@@ -282,7 +352,7 @@ export function PlayerPage() {
 
               {seasonPanelMode === 'clubs' ? (
                 affiliationsLoading ? (
-                  <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading current season clubs...</p>
+                  <SkeletonList rows={3} />
                 ) : affiliationsError ? (
                   <p className="tt-player-section-state tt-player-section-error">Unable to load current season clubs.</p>
                 ) : affiliations.length === 0 ? (
@@ -302,7 +372,7 @@ export function PlayerPage() {
                   </AppListGroup>
                 )
               ) : tournamentMatchesLoading ? (
-                <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading tournaments...</p>
+                <SkeletonList rows={3} />
               ) : tournamentMatchesError ? (
                 <p className="tt-player-section-state tt-player-section-error">Unable to load tournaments.</p>
               ) : recentTournaments.length === 0 ? (
@@ -348,7 +418,11 @@ export function PlayerPage() {
                 <span className="tt-player-section-note">Rolling performance</span>
               </div>
               {insightsLoading ? (
-                <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading form insights...</p>
+                <div className="tt-player-metric-grid" aria-label="Loading form insights">
+                  <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
+                  <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
+                  <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
+                </div>
               ) : insightsError || !insights ? (
                 <p className="tt-player-section-state tt-player-section-error">Unable to load form insights.</p>
               ) : (
@@ -375,7 +449,7 @@ export function PlayerPage() {
                 <span className="tt-player-section-note">{recentMatches.length} matches</span>
               </div>
               {recentMatchesLoading ? (
-                <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading recent matches...</p>
+                <SkeletonList rows={4} />
               ) : recentMatchesError ? (
                 <p className="tt-player-section-state tt-player-section-error">Unable to load recent matches.</p>
               ) : recentMatches.length === 0 ? (

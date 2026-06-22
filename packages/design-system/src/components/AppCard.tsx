@@ -46,12 +46,17 @@ export function AppCardContent({ children, className }: AppCardContentProps) {
 
 export function AppLoadingCard({ message, className }: AppLoadingCardProps) {
   return (
-    <AppCard className={className}>
+    <AppCard className={cx('app-loading-card', className)}>
       <AppCardContent>
-        <p className="mb-0">
-          <i className="fa fa-spinner fa-spin me-2" />
-          {message}
-        </p>
+        <div className="app-loading-card-body" role="status" aria-live="polite">
+          <span className="app-loading-dot" aria-hidden="true" />
+          <span>{message}</span>
+        </div>
+        <div className="app-loading-skeleton" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
       </AppCardContent>
     </AppCard>
   );

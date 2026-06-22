@@ -1,6 +1,7 @@
 import { type MouseEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import './app-shell.css';
+import { SectionSkeleton, SkeletonBlock } from './components/Skeleton';
 import { useTabNavigation } from './navigation/tab-navigation';
 import { calcWinRate, getInitials } from './player-shared';
 import { usePlayerExtendedStatsQuery, usePlayerInsightsQuery } from './queries';
@@ -10,10 +11,41 @@ import {
   AppHeaderSpacer,
   AppListGroup,
   AppListItem,
-  AppLoadingCard,
   AppMessageCard,
   AppPageContent,
 } from './ui/appkit';
+
+function PlayerInsightsSkeleton() {
+  return (
+    <>
+      <section className="tt-insights-hero" aria-label="Loading insights overview">
+        <div className="tt-player-hero-top">
+          <div className="tt-player-hero-copy">
+            <SkeletonBlock className="tt-skeleton-eyebrow" />
+            <SkeletonBlock className="tt-skeleton-title" />
+            <SkeletonBlock className="tt-skeleton-text mt-2" />
+          </div>
+          <SkeletonBlock className="tt-skeleton-avatar" />
+        </div>
+
+        <div className="tt-player-spotlight">
+          <div className="tt-player-winrate">
+            <SkeletonBlock className="tt-skeleton-title" />
+            <SkeletonBlock className="tt-skeleton-text mt-2" />
+          </div>
+          <div className="tt-player-hero-stats">
+            <div className="tt-player-hero-stat"><SkeletonBlock className="tt-skeleton-stat" /></div>
+            <div className="tt-player-hero-stat"><SkeletonBlock className="tt-skeleton-stat" /></div>
+            <div className="tt-player-hero-stat"><SkeletonBlock className="tt-skeleton-stat" /></div>
+          </div>
+        </div>
+      </section>
+
+      <SectionSkeleton rows={3} />
+      <SectionSkeleton rows={3} />
+    </>
+  );
+}
 
 export function PlayerInsightsPage() {
   const { goBackInActiveTab, switchTab } = useTabNavigation();
@@ -58,7 +90,7 @@ export function PlayerInsightsPage() {
 
       <AppPageContent>
         {isLoading ? (
-          <AppLoadingCard message="Loading insights..." />
+          <PlayerInsightsSkeleton />
         ) : error || !stats || !insights ? (
           <AppMessageCard
             message="Failed to load insights."

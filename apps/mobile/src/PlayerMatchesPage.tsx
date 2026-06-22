@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import './app-shell.css';
+import { SkeletonList } from './components/Skeleton';
 import { useTabNavigation } from './navigation/tab-navigation';
 import { formatMatchDate, type RubberItem } from './player-shared';
 import { usePlayerExtendedStatsQuery, usePlayerRubbersQuery } from './queries';
@@ -106,7 +107,7 @@ export function PlayerMatchesPage() {
             <span className="tt-player-section-note">Full Match List</span>
           </div>
             {matchesLoading && matches.length === 0 ? (
-              <p className="tt-player-section-state mb-0"><i className="fa fa-spinner fa-spin me-2" />Loading matches...</p>
+              <SkeletonList rows={6} />
             ) : matchesError && matches.length === 0 ? (
               <div>
                 <p className="tt-player-section-state tt-player-section-error mb-3">Failed to load match history.</p>
