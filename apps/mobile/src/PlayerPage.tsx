@@ -31,9 +31,10 @@ import { FavouriteButton } from './components/FavouriteButton';
 import { FormResultPills } from './components/FormResultPills';
 
 const APP_NAME = 'TT Players';
+const PUBLIC_PATH = '/players';
 
 function getPlayerShareUrl(playerId: string): string {
-  return `${window.location.origin}/players/${playerId}`;
+  return `${window.location.origin}${PUBLIC_PATH}/${playerId}`;
 }
 
 function setPageMeta(name: string, content: string): void {
