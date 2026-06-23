@@ -1,4 +1,4 @@
-import { useMemo, useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import './app-shell.css';
 import { useTabNavigation } from './navigation/tab-navigation';
@@ -29,6 +29,42 @@ import {
 import { DetailHeader } from './components/DetailHeader';
 import { FavouriteButton } from './components/FavouriteButton';
 import { FormResultPills } from './components/FormResultPills';
+
+const APP_NAME = 'TT Players';
+
+function getPlayerShareUrl(playerId: string): string {
+  return `${window.location.origin}/players/${playerId}`;
+}
+
+function setPageMeta(name: string, content: string): void {
+  let tag = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
+  if (!tag) {
+    tag = document.createElement('meta');
+    tag.name = name;
+    document.head.appendChild(tag);
+  }
+  tag.content = content;
+}
+
+function setPropertyMeta(property: string, content: string): void {
+  let tag = document.querySelector<HTMLMetaElement>(`meta[property="${property}"]`);
+  if (!tag) {
+    tag = document.createElement('meta');
+    tag.setAttribute('property', property);
+    document.head.appendChild(tag);
+  }
+  tag.content = content;
+}
+
+function setCanonicalLink(href: string): void {
+  let link = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+  if (!link) {
+    link = document.createElement('link');
+    link.rel = 'canonical';
+    document.head.appendChild(link);
+  }
+  link.href = href;
+}
 
 function PlayerProfileSkeleton() {
   return (
@@ -144,6 +180,59 @@ export function PlayerPage() {
   const recentResults = useMemo(() => (insights?.form.recent_results ?? []).slice(0, 10), [insights]);
   const tournamentsPlayed = useMemo(() => groupTournamentMatches(tournamentMatches), [tournamentMatches]);
   const recentTournaments = useMemo(() => tournamentsPlayed.slice(0, 5), [tournamentsPlayed]);
+  const [shareStatus, setShareStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!stats) return;
+
+    const title = `${stats.player_name} | ${APP_NAME}`;
+    const description = `${stats.player_name}: ${stats.total} matches, ${stats.wins} wins, ${winRate}% win rate.`;
+    const shareUrl = getPlayerShareUrl(stats.player_id);
+    const imageUrl = `${window.location.origin}/images/thumb-players.png`;
+
+    document.title = title;
+    setPageMeta('description', description);
+    setPageMeta('robots', 'index,follow');
+    setPageMeta('theme-color', '#0f172a');
+    setCanonicalLink(shareUrl);
+    setPropertyMeta('og:type', 'profile');
+    setPropertyMeta('og:site_name', APP_NAME);
+    setPropertyMeta('og:title', title);
+    setPropertyMeta('og:description', description);
+    setPropertyMeta('og:url', shareUrl);
+    setPropertyMeta('og:image', imageUrl);
+    setPropertyMeta('twitter:card', 'summary_large_image');
+    setPropertyMeta('twitter:title', title);
+    setPropertyMeta('twitter:description', description);
+    setPropertyMeta('twitter:image', imageUrl);
+  }, [stats, winRate]);
+
+  const sharePlayerProfile = async () => {
+    if (!stats) return;
+
+    const title = `${stats.player_name} | ${APP_NAME}`;
+    const url = getPlayerShareUrl(stats.player_id);
+    const text = `${stats.player_name} on TT Players`;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text, url });
+        setShareStatus('Shared profile link');
+        return;
+      }
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        setShareStatus('Profile link copied');
+        return;
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+    }
+
+    window.prompt('Copy this player profile link', url);
+    setShareStatus('Copy the profile link from the prompt');
+  };
 
   const goHome = (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
@@ -232,7 +321,19 @@ export function PlayerPage() {
                 >
                   Insights
                 </AppButtonLink>
+                <AppButtonLink
+                  size="sm"
+                  className="tt-player-action-pill"
+                  tone="outline"
+                  onClick={sharePlayerProfile}
+                >
+                  Share
+                </AppButtonLink>
               </div>
+
+              {shareStatus ? (
+                <p className="tt-player-section-note" aria-live="polite">{shareStatus}</p>
+              ) : null}
 
               <FormResultPills
                 results={recentResults}

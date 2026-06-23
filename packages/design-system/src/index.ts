@@ -81,13 +81,17 @@ export {
 
 export {
   MoreButton,
-  OutcomeBadge,
   ExternalLinkButton,
-  type Outcome,
   type MoreButtonProps,
-  type OutcomeBadgeProps,
   type ExternalLinkButtonProps,
 } from './components/Actions';
+
+export {
+  OutcomeBadge,
+  type OutcomeBadgeProps,
+  type OutcomeResult,
+  type OutcomeVariant,
+} from './components/OutcomeBadge';
 
 export {
   AppListGroup,

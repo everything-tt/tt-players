@@ -40,17 +40,14 @@ export function AppSidebar({
     >
       <div className="tt-main-menu-hero">
         <div className="tt-main-menu-hero-top">
-          <a
-            href="#"
+          <button
+            type="button"
             className="tt-main-menu-close"
-            onClick={(e) => {
-              e.preventDefault();
-              onClose();
-            }}
+            onClick={onClose}
             aria-label="Close menu"
           >
             <i className="fa fa-times" />
-          </a>
+          </button>
         </div>
         <div>
           {subtitle && <p className="tt-picker-eyebrow">{subtitle}</p>}
@@ -89,7 +86,7 @@ export function AppSidebarList({ children, className }: AppSidebarListProps) {
 export interface AppSidebarItemProps {
   iconClassName: string;
   label: string;
-  onClick: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+  onClick: (event: React.MouseEvent<HTMLElement>) => void;
   trailingElement?: ReactNode;
   className?: string;
   href?: string;
@@ -103,8 +100,8 @@ export function AppSidebarItem({
   className,
   href = '#',
 }: AppSidebarItemProps) {
-  return (
-    <a href={href} onClick={onClick} className={className}>
+  const content = (
+    <>
       <i className={cx(iconClassName, 'color-white')} />
       <span>{label}</span>
       {trailingElement !== undefined ? (
@@ -112,6 +109,12 @@ export function AppSidebarItem({
       ) : (
         <i className="fa fa-angle-right" />
       )}
-    </a>
+    </>
   );
+
+  if (href && href !== '#') {
+    return <a href={href} onClick={onClick} className={className}>{content}</a>;
+  }
+
+  return <button type="button" onClick={onClick} className={className}>{content}</button>;
 }

@@ -10,7 +10,7 @@ export interface AppTabBarItem {
 export interface AppTabBarProps {
   items: AppTabBarItem[];
   activeItemId: string;
-  onItemClick: (id: string, event: React.MouseEvent<HTMLAnchorElement>) => void;
+  onItemClick: (id: string, event: React.MouseEvent<HTMLButtonElement>) => void;
   className?: string;
   id?: string;
 }
@@ -25,18 +25,15 @@ export function AppTabBar({
   return (
     <nav id={id} className={cx('footer-bar-3', className)}>
       {items.map((item) => (
-        <a
+        <button
           key={item.id}
-          href="#"
+          type="button"
           className={item.id === activeItemId ? 'active-nav' : undefined}
-          onClick={(e) => {
-            e.preventDefault();
-            onItemClick(item.id, e);
-          }}
+          onClick={(e) => onItemClick(item.id, e)}
         >
           <i className={item.iconClassName} />
           <span>{item.label}</span>
-        </a>
+        </button>
       ))}
     </nav>
   );

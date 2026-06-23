@@ -1,0 +1,188 @@
+pack	page_file	page_label
+commerce	page-store-home.html	Homepage
+commerce	page-store-product-1.html	Product 1
+commerce	page-store-product-2.html	Product 2
+commerce	page-store-product-3.html	Product 3
+commerce	page-store-food.html	Food Menu
+commerce	page-store-listing.html	Listing
+commerce	page-store-cart-1.html	Cart 1
+commerce	page-store-cart-2.html	Cart 2
+commerce	page-store-checkout.html	Checkout
+commerce	page-store-invoice.html	Invoice
+commerce	page-store-tracking.html	Order Tracking
+commerce	page-store-actions.html	Store Actions
+content	page-news-home.html	Home 1
+content	page-news-home-2.html	Home 2
+content	page-news-article-1.html	Article 1
+content	page-news-article-2.html	Article 2
+content	page-news-article-3.html	Article 3
+content	page-news-article-4.html	Article 4
+content	page-news-article-5.html	Article 5
+content	page-news-listing.html	Listing
+content	page-news-categories.html	Categories
+content	page-news-widgets.html	Widgets
+education	page-courses.html	Courses List
+education	page-course-chapters.html	Course Chapters
+education	page-course-content.html	Course Example
+education	page-quiz-page.html	Quiz Page
+education	page-quiz-modal.html	Quiz Modal
+education	page-todo.html	ToDo Lists
+education	page-knowledge.html	Knowledge Base
+events	page-events-home-1.html	Event Home 1
+events	page-events-home-2.html	Event Home 2
+events	page-events-cards.html	Event Cards
+events	page-events-categories.html	Event Categories
+events	page-events-details.html	Event Details
+events	page-places.html	Event Places
+events	page-events-interests.html	Event Interests
+events	page-events-cal-dates.html	Event Calendars
+events	page-events-cal-schedule.html	Event Schedule
+events	page-hours.html	Work Hours
+events	page-events-actions.html	Action Sheets
+finance	page-finance-wallet-2.html	Homepage 1
+finance	page-finance-wallet.html	Homepage 2
+finance	page-finance-subscriptions-1.html	Plan Tabs
+finance	page-finance-subscriptions-3.html	Price Tables
+finance	page-finance-subscriptions-2.html	Subscription Bars
+finance	page-finance-bills.html	Bills & History
+finance	page-finance-goals.html	Target & Goal
+finance	page-finance-invoice.html	Invoice Template
+finance	page-finance-wallet-cards.html	Wallet Cards
+finance	page-finance-actions.html	Wallet Actions
+food	page-food-home-1.html	Homepage Classic
+food	page-food-home-2.html	Homepage Cards 1
+food	page-food-home-3.html	Homepage Header
+food	page-food-list.html	Product Lists
+food	page-food-grid.html	Product Grids
+food	page-food-order-1.html	Order Style 1
+food	page-food-order-2.html	Order Style 2
+food	page-food-product-1.html	Product Header
+food	page-food-product-2.html	Product Creative
+food	page-food-menu-1.html	Menu Style 1
+food	page-food-menu-2.html	Menu Style 2
+food	page-store-food.html	Menu Style 3
+food	page-food-cards.html	Food Cards
+form-wizard	page-form-wizard-1.html	Form Wizard Full Screen
+form-wizard	page-form-wizard-2.html	Form Wizard Action Sheet
+form-wizard	page-form-wizard-3.html	Form Wizard Modal Views
+form-wizard	page-form-wizard-4.html	Form Wizard Combined Styles
+grocery	page-grocery-home-1.html	Homepage Classic
+grocery	page-grocery-home-2.html	Homepage Cards
+grocery	page-grocery-home-3.html	Homepage Search
+grocery	page-grocery-grid.html	Grocery Grid
+grocery	page-grocery-lists.html	Grocery Lists
+grocery	page-grocery-cards.html	Grocery Cards
+grocery	page-grocery-product-1.html	Product Detail - Content
+grocery	page-grocery-product-2.html	Product Detail - Cards
+grocery	page-grocery-product-3.html	Product Detail - Creative
+grocery	page-grocery-product-4.html	Product Detail - About
+grocery	page-grocery-checkout.html	Checkout Page
+health	page-health-home-1.html	Homepage 1
+health	page-health-home-2.html	Homepage 2
+health	page-health-about.html	About Doctor
+health	page-health-procedure-1.html	Procedure 1
+health	page-health-procedure-2.html	Procedure 2
+health	page-health-quiz.html	Health Quiz
+health	page-health-services-grid.html	Department Grid
+health	page-health-services-list.html	Department List
+health	page-health-schedule.html	Schedule
+health	page-health-contact.html	Contact
+multipurpose	page-about.html	About Us
+multipurpose	page-careers.html	Careers
+multipurpose	page-contact.html	Contact
+multipurpose	page-chat-list.html	Chat Heads
+multipurpose	page-chat.html	Chat List
+multipurpose	page-cover.html	Coverpage
+multipurpose	page-interests.html	Interests
+multipurpose	page-instants.html	Instants
+multipurpose	page-profile-1.html	Profile Classic
+multipurpose	page-profile-2.html	Profile Views
+multipurpose	page-profile-3.html	Profile Instagram
+multipurpose	page-user-edit.html	Profile Edit
+multipurpose	page-timeline-1.html	Timeline Center
+multipurpose	page-timeline-2.html	Timeline Left
+multipurpose	page-team.html	Team Page
+multipurpose	page-vcard.html	V-Card
+multipurpose	page-dashboard.html	Dashboard
+multipurpose	page-colors.html	Colors
+multipurpose	page-system-status.html	System Status
+multipurpose	page-maintenance.html	Maintenance Status
+multipurpose	page-terms.html	Terms of Service
+multipurpose	page-construction-1.html	Under Construction
+navigations	page-menu-card.html	Card Menu
+navigations	page-menu-grid.html	Grid Cards
+navigations	page-menu-tabs.html	Row Cards
+navigations	page-menu-creative.html	Creative
+navigations	page-menu-any-side.html	Any Side Menus
+pets	page-pets-splash.html	Homepage 1
+pets	page-pets-home-1.html	Homepage 1
+pets	page-pets-home-2.html	Homepage 2
+pets	page-pets-home-3.html	Homepage 3
+pets	page-pets-about-1.html	About Pet
+pets	page-pets-about-2.html	About Vet
+pets	page-pets-list.html	Pets List
+pets	page-pets-categories.html	Pets Categories
+pets	page-pets-grid.html	Pets Grid
+pets	page-pets-article-1.html	Pets Article 1
+pets	page-pets-article-2.html	Pets Article 2
+pets	page-pets-match-maker.html	Pets Match Maker
+pets	page-pets-reserve.html	Reserve Viewing
+pets	page-pets-contact.html	Contact
+photography	page-photo-home-1.html	Home 1
+photography	page-photo-home-2.html	Home 2
+photography	page-photo-about-1.html	About 1
+photography	page-photo-about-2.html	About 2
+photography	page-photo-services.html	Services
+photography	page-photo-pricing-1.html	Pricing 1
+photography	page-photo-pricing-2.html	Pricing 2
+photography	page-photo-pricing-3.html	Pricing 3
+photography	page-photo-reserve.html	Reserve Form
+photography	page-photo-calendar.html	Calendar Schedule
+socials	page-social-facebook.html	Facebook Profile
+socials	page-social-instagram.html	Instagram Profile
+socials	page-social-quora.html	Quora Page
+socials	page-social-twitter.html	Twitter Profile
+socials	page-social-facebook-post.html	Facebook Post
+socials	page-social-instagram-post.html	Instagram Post
+socials	page-social-twitter-post.html	Twitter Post
+starters	page-splash-1.html	Simple Left
+starters	page-splash-2.html	Simple Image
+starters	page-splash-3.html	Simple Center
+starters	page-splash-4.html	Simple Sign In
+starters	page-splash-walk-1.html	Text & Button
+starters	page-splash-walk-2.html	Ilustrations Slide
+starters	page-splash-walk-3.html	Sliding Center Text
+starters	page-splash-walk-4.html	Ilustration & Sign In
+system	page-system-signin-1.html	Sign In
+system	page-system-signup-1.html	Sign Up
+system	page-system-forgot-1.html	Recover
+system	page-system-error-1.html	Error 404
+system	page-system-construction-1.html	Coming Soon
+system	page-system-otp-1.html	OTP Verification
+system	page-system-signin-2.html	Sign In
+system	page-system-signup-2.html	Sign Up
+system	page-system-forgot-2.html	Recover
+system	page-system-error-2.html	Error 404
+system	page-system-construction-2.html	Coming Soon
+system	page-system-otp-2.html	OTP Verification
+system	page-system-error-3.html	Error 404
+system	page-system-construction-3.html	Coming Soon
+tasks	page-tasks-home.html	Homepage
+tasks	page-tasks-dash.html	Dashboard
+tasks	page-tasks-single-view-1.html	Project 1
+tasks	page-tasks-single-view-2.html	Project 2
+tasks	page-tasks-list.html	Task Lists
+tasks	page-tasks-cards.html	Task Cards
+tasks	page-tasks-actions.html	Action Sheets
+travel	page-travel-home-1.html	Homepage 1
+travel	page-travel-home-2.html	Homepage 2
+travel	page-travel-categories.html	Categories
+travel	page-travel-list.html	List View
+travel	page-travel-interests.html	Interests
+travel	page-travel-article-1.html	Article 1
+travel	page-travel-article-2.html	Article 2
+travel	page-travel-article-3.html	Article 3
+travel	page-travel-article-4.html	Article 4
+travel	page-travel-article-5.html	Article 5
+travel	page-travel-cart.html	Cart
+travel	page-travel-checkout.html	Checkout

@@ -69,6 +69,7 @@ function App() {
   const { activeTab, handleSystemBack, navigateInActiveTab, switchTab } = useTabNavigation();
   const { players: favouritePlayers, isFavourite, toggle: toggleFavourite } = useFavouritePlayers();
   const { isDarkMode, toggleTheme } = useTheme();
+  const { showAndroidSheet, showIosSheet, dismiss: dismissPWAInstall } = usePWAInstallContext();
   const headerRef = useRef<HTMLElement | null>(null);
   const pageTitleRef = useRef<HTMLDivElement | null>(null);
 
@@ -130,9 +131,11 @@ function App() {
 
   const onSystemBackPressed = useCallback((): boolean => {
     if (activeMenuId) { closeActiveMenu(); return true; }
+    if (showAndroidSheet || showIosSheet) { dismissPWAInstall(); return true; }
+    if (isFeedbackSheetOpen) { closeFeedbackSheet(); return true; }
     if (isLeagueSelectorOpen) { closeLeagueSelector(); return true; }
     return handleSystemBack();
-  }, [activeMenuId, handleSystemBack, isLeagueSelectorOpen]);
+  }, [activeMenuId, dismissPWAInstall, handleSystemBack, isFeedbackSheetOpen, isLeagueSelectorOpen, showAndroidSheet, showIosSheet]);
 
   const addLeagueToSelection = (leagueId: string) => {
     if (!allLeagueIds.includes(leagueId)) return;
@@ -212,11 +215,9 @@ function App() {
     };
 
     window.addEventListener('scroll', onScroll, { passive: true });
-    document.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
     return () => {
       window.removeEventListener('scroll', onScroll);
-      document.removeEventListener('scroll', onScroll);
     };
   }, [activeTab]);
 
@@ -300,7 +301,7 @@ function App() {
                 href="#"
                 className="header-icon header-icon-4"
                 onClick={(e) => { e.preventDefault(); toggleTheme(); }}
-                aria-pressed={isDarkMode}
+                aria-checked={isDarkMode}
                 aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
                 role="switch"
               >
@@ -326,11 +327,11 @@ function App() {
                 href="#"
                 className="page-title-icon bg-theme color-theme"
                 onClick={(e) => { e.preventDefault(); toggleTheme(); }}
-                aria-pressed={isDarkMode}
+                aria-checked={isDarkMode}
                 aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
                 role="switch"
               >
-                <i className={isDarkMode ? 'fa fa-lightbulb color-yellow-dark' : 'fa fa-moon'} />
+                <i className={isDarkMode ? 'fa fa-sun' : 'fa fa-moon'} />
               </a>
               <a href="#" className="page-title-icon bg-theme color-theme" onClick={onMenuTrigger('menu-main')} aria-label="Open menu">
                 <i className="fa fa-bars" />
@@ -504,7 +505,7 @@ function App() {
 
           <h6 className="menu-divider mt-4">Settings</h6>
           <div className="list-group list-custom-small list-menu">
-            <a href="#" onClick={(e) => { e.preventDefault(); toggleTheme(); }} aria-pressed={isDarkMode}>
+            <a href="#" onClick={(e) => { e.preventDefault(); toggleTheme(); }} role="switch" aria-checked={isDarkMode}>
               <i className="fa fa-moon color-white" />
               <span>Dark Mode</span>
               <div className="custom-control small-switch ios-switch">

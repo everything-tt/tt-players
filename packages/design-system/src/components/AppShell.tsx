@@ -6,7 +6,7 @@ export type HeaderClearSize = 'small' | 'medium' | 'large';
 
 export interface AppHeaderAction {
   iconClassName: string;
-  onClick: MouseEventHandler<HTMLAnchorElement>;
+  onClick: MouseEventHandler<HTMLButtonElement>;
   position: HeaderIconPosition;
   ariaLabel: string;
   className?: string;
@@ -31,7 +31,7 @@ export interface AppHeaderSpacerProps {
 
 export interface AppHeaderProps {
   title?: ReactNode;
-  onTitleClick?: MouseEventHandler<HTMLAnchorElement>;
+  onTitleClick?: MouseEventHandler<HTMLButtonElement>;
   leftAction?: AppHeaderAction;
   rightAction?: AppHeaderAction;
   actions?: AppHeaderAction[];
@@ -43,15 +43,15 @@ export interface AppHeaderProps {
 
 export function AppHeaderActionLink({ iconClassName, onClick, position, ariaLabel, className, badgeContent }: AppHeaderAction) {
   return (
-    <a
-      href="#"
+    <button
+      type="button"
       className={cx('header-icon', `header-icon-${position}`, className)}
       aria-label={ariaLabel}
       onClick={onClick}
     >
       <i className={iconClassName} />
       {badgeContent}
-    </a>
+    </button>
   );
 }
 
@@ -84,7 +84,7 @@ export const AppHeader = React.forwardRef<HTMLElement, AppHeaderProps>(({
       ) : (
         <>
           {onTitleClick ? (
-            <a href="#" className="header-title" onClick={onTitleClick}>{title}</a>
+            <button type="button" className="header-title" onClick={onTitleClick}>{title}</button>
           ) : (
             <span className="header-title">{title}</span>
           )}

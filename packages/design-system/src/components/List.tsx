@@ -163,7 +163,6 @@ export function ListItem({
     </span>
   );
 
-  const isClickable = Boolean(onClick || href);
   const handleNavigate = (event: React.MouseEvent<HTMLElement>) => {
     if (disabled) { event.preventDefault(); return; }
     event.preventDefault();
@@ -177,10 +176,14 @@ export function ListItem({
     </>
   );
 
-  const clickableEl = isClickable ? (
-    <a href={href ?? "#"} onClick={handleNavigate} className="tt-list-item__clickable" aria-disabled={disabled || undefined}>
+  const clickableEl = href ? (
+    <a href={href} onClick={handleNavigate} className="tt-list-item__clickable" aria-disabled={disabled || undefined}>
       {inner}
     </a>
+  ) : onClick ? (
+    <button type="button" onClick={handleNavigate} className="tt-list-item__clickable" disabled={disabled}>
+      {inner}
+    </button>
   ) : (
     <div className="tt-list-item__clickable">{inner}</div>
   );

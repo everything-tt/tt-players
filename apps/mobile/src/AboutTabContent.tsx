@@ -3,6 +3,7 @@ import { API_BASE_URL } from './player-shared';
 import { FeedbackForm } from './components/FeedbackForm';
 import {
   AppButton,
+  BottomSheet,
   HeroCard,
   SectionHeader,
 } from './ui/appkit';
@@ -24,7 +25,7 @@ export function AboutTabContent() {
       const cacheNames = await window.caches.keys();
       await Promise.all(cacheNames.map((cacheName) => window.caches.delete(cacheName)));
     }
-    window.location.replace('/#/tabs/home');
+    window.location.replace('/tabs/home');
     window.location.reload();
   };
 
@@ -62,28 +63,22 @@ export function AboutTabContent() {
         </AppButton>
       </section>
 
-      {confirmOpen ? (
-        <>
-          <div className="tt-backdrop" onClick={() => setConfirmOpen(false)} aria-hidden="true" />
-          <div className="tt-sheet tt-confirm-sheet" role="dialog" aria-modal="true" aria-label="Confirm clear data" style={{ height: 'auto', maxHeight: '50dvh' }}>
-            <div className="tt-sheet__top">
-              <div>
-                <h2 className="tt-sheet__title">Clear all data?</h2>
-              </div>
-            </div>
-            <div className="tt-sheet__body">
-              <p className="tt-about-description">
-                This deletes all saved favourites, selected leagues, and settings on this device.
-                This cannot be undone.
-              </p>
-              <div className="tt-confirm-actions">
-                <AppButton tone="ghost" full onClick={() => setConfirmOpen(false)}>Cancel</AppButton>
-                <AppButton tone="danger" full onClick={handleResetData}>Clear</AppButton>
-              </div>
-            </div>
-          </div>
-        </>
-      ) : null}
+      <BottomSheet
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        title="Clear all data?"
+        height="auto"
+        className="tt-confirm-sheet"
+      >
+        <p className="tt-about-description">
+          This deletes all saved favourites, selected leagues, and settings on this device.
+          This cannot be undone.
+        </p>
+        <div className="tt-confirm-actions">
+          <AppButton tone="ghost" full onClick={() => setConfirmOpen(false)}>Cancel</AppButton>
+          <AppButton tone="danger" full onClick={handleResetData}>Clear</AppButton>
+        </div>
+      </BottomSheet>
 
       <p className="tt-about-build" aria-label="API endpoint">
         <span>Data: <a href={API_BASE_URL} target="_blank" rel="noopener noreferrer">{API_BASE_URL}</a></span>

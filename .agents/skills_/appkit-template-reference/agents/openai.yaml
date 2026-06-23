@@ -1,0 +1,4 @@
+interface:
+  display_name: "AppKit Template Guide"
+  short_description: "Map UI tasks to AppKit template files quickly."
+  default_prompt: "Map requested UI patterns to the best AppKit template pages/components and suggest implementation in this repo."

@@ -127,7 +127,7 @@ export function FixturePage() {
                             {homePlayers.map((player: any, idx: number) => (
                               <span key={player.id ?? player.name}>
                                 {idx > 0 && <span className="tt-player-separator"> & </span>}
-                                {player.id ? <a href="#" className="tt-rubber-player-link-text" onClick={openPlayer(player.id)}>{player.name}</a> : <span className="tt-rubber-player-name">{player.name}</span>}
+                                {player.id ? <button type="button" className="tt-rubber-player-link-text" onClick={openPlayer(player.id)}>{player.name}</button> : <span className="tt-rubber-player-name">{player.name}</span>}
                               </span>
                             ))}
                           </div>
@@ -136,7 +136,7 @@ export function FixturePage() {
                             {awayPlayers.map((player: any, idx: number) => (
                               <span key={player.id ?? player.name}>
                                 {idx > 0 && <span className="tt-player-separator"> & </span>}
-                                {player.id ? <a href="#" className="tt-rubber-player-link-text" onClick={openPlayer(player.id)}>{player.name}</a> : <span className="tt-rubber-player-name">{player.name}</span>}
+                                {player.id ? <button type="button" className="tt-rubber-player-link-text" onClick={openPlayer(player.id)}>{player.name}</button> : <span className="tt-rubber-player-name">{player.name}</span>}
                               </span>
                             ))}
                           </div>

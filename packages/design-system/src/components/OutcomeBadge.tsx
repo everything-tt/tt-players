@@ -6,7 +6,7 @@ export type OutcomeVariant = 'pill' | 'icon' | 'badge';
 const resultLabel: Record<OutcomeResult, string> = { W: 'Win', L: 'Loss', D: 'Draw' };
 const resultTone: Record<OutcomeResult, string> = { W: 'success', L: 'danger', D: 'warning' };
 
-interface OutcomeBadgeProps {
+export interface OutcomeBadgeProps {
   result: OutcomeResult;
   variant?: OutcomeVariant;
   className?: string;

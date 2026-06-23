@@ -7,13 +7,12 @@ export interface AppPlayerListItem {
   avatarText?: string;
   avatarColor?: string;
   subtitle?: ReactNode;
-  [key: string]: any;
 }
 
-export interface AppPlayerListProps {
-  items: AppPlayerListItem[];
-  onSelectItem?: (item: AppPlayerListItem) => void;
-  renderTrailing?: (item: AppPlayerListItem) => ReactNode;
+export interface AppPlayerListProps<TItem extends AppPlayerListItem = AppPlayerListItem> {
+  items: TItem[];
+  onSelectItem?: (item: TItem) => void;
+  renderTrailing?: (item: TItem) => ReactNode;
   listClassName?: string;
   size?: 'small' | 'large';
   coloredAvatars?: boolean;
@@ -21,7 +20,7 @@ export interface AppPlayerListProps {
   compact?: boolean;
 }
 
-export function AppPlayerList({
+export function AppPlayerList<TItem extends AppPlayerListItem = AppPlayerListItem>({
   items,
   onSelectItem,
   renderTrailing,
@@ -30,7 +29,7 @@ export function AppPlayerList({
   coloredAvatars = false,
   getAvatarColor,
   compact = false,
-}: AppPlayerListProps) {
+}: AppPlayerListProps<TItem>) {
   const finalListClassName = listClassName ?? (compact ? 'tt-player-compact-list' : 'tt-player-large-list');
   const sizeClassName = compact ? 'list-custom-small' : (size === 'large' ? 'list-custom-large' : 'list-custom-small');
 
@@ -56,13 +55,10 @@ export function AppPlayerList({
       {items.map((item) => (
         <div key={item.id} className={cx('tt-players-row', onSelectItem && 'tt-clickable-row')}>
           {onSelectItem ? (
-            <a
-              href="#"
+            <button
+              type="button"
               className="tt-players-row-main"
-              onClick={(event) => {
-                event.preventDefault();
-                onSelectItem(item);
-              }}
+              onClick={() => onSelectItem(item)}
             >
               <span
                 className={cx(
@@ -75,7 +71,7 @@ export function AppPlayerList({
               </span>
               <span>{item.name}</span>
               {item.subtitle ? <strong>{item.subtitle}</strong> : null}
-            </a>
+            </button>
           ) : (
             <div className="tt-players-row-main">
               <span
@@ -95,8 +91,8 @@ export function AppPlayerList({
             renderTrailing(item)
           ) : (
             <i
-              className="fa fa-angle-right align-self-center text-end opacity-30 pe-2"
-              style={{ gridColumn: 3, gridRow: '1 / span 2' }}
+              className="fa fa-angle-right tt-players-row-chevron"
+              aria-hidden="true"
             />
           )}
         </div>

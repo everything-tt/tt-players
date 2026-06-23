@@ -14,7 +14,7 @@ export interface AppListItemProps {
   title: ReactNode;
   subtitle?: ReactNode;
   className?: string;
-  onClick?: MouseEventHandler<any>;
+  onClick?: MouseEventHandler<HTMLElement>;
   href?: string | null;
   borderless?: boolean;
   trailingIconClassName?: string;
@@ -43,7 +43,7 @@ export function AppListItem({
   subtitle,
   className,
   onClick,
-  href = '#',
+  href = null,
   borderless = false,
   trailingIconClassName = 'fa fa-angle-right',
   trailingElement,
@@ -63,17 +63,25 @@ export function AppListItem({
     </>
   );
 
-  if (href === null) {
+  if (href) {
     return (
-      <div onClick={onClick} className={cx('tt-app-list-row', borderless && 'border-0', className)}>
+      <a href={href} onClick={onClick} className={cx(borderless && 'border-0', className)}>
         {content}
-      </div>
+      </a>
+    );
+  }
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={cx('tt-app-list-row', borderless && 'border-0', className)}>
+        {content}
+      </button>
     );
   }
 
   return (
-    <a href={href} onClick={onClick} className={cx(borderless && 'border-0', className)}>
+    <div className={cx('tt-app-list-row', borderless && 'border-0', className)}>
       {content}
-    </a>
+    </div>
   );
 }

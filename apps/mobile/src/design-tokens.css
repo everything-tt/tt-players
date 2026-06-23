@@ -271,9 +271,14 @@ body.theme-dark .tt-hero { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04)
 }
 .tt-list-item__clickable {
   align-items: center;
+  background: transparent;
+  border: 0;
   color: inherit;
   column-gap: 12px;
   display: flex;
+  font: inherit;
+  padding: 0;
+  text-align: left;
   flex: 1;
   gap: 12px;
   min-width: 0;

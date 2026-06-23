@@ -83,7 +83,7 @@ export function PlayerMatchesPage() {
                 {matches.map((match) => (
                   <ListItem
                     key={match.id}
-                    leading={<OutcomeBadge outcome={match.isWin ? 'W' : 'L'} icon />}
+                    leading={<OutcomeBadge result={match.isWin ? 'W' : 'L'} variant="icon" />}
                     title={`${match.opponent} · ${match.result}`}
                     subtitle={`${formatMatchDate(match.date)} · ${match.league}`}
                     onClick={openFixtureInLeaguesTab(match.fixture_id)}

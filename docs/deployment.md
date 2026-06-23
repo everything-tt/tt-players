@@ -152,7 +152,7 @@ API service warm.
 
 ### Render Static Rewrite
 
-The frontend service has a Render rewrite route:
+The frontend service has two Render rewrite routes:
 
 ```text
 source: /api/*
@@ -161,9 +161,13 @@ type: rewrite
 route_id: rdr-d8f8jp3bc2fs73efgo7g
 ```
 
-This is the Render equivalent of a Netlify-style frontend proxy. Browser calls
-to `https://tt-players.graceliu.uk/api/...` are served by the backend API without
-exposing the API hostname in frontend code.
+```text
+source: /*
+destination: /index.html
+type: rewrite
+```
+
+The `/api/*` rule proxies browser API calls to the backend without exposing the API hostname in frontend code. The catch-all `/*` rule is required for the React SPA router so deep links such as `/players/:playerId` load the app shell directly on refresh or first visit.
 
 ### Aiven PostgreSQL
 
@@ -505,8 +509,8 @@ for url in \
   https://tt-players-api.onrender.com/api/health \
   https://tt-players.onrender.com/api/health \
   https://tt-players.graceliu.uk/api/health \
+  https://tt-players.graceliu.uk/players/00000000-0000-0000-0000-000000000000 \
   https://tt-players-api.onrender.com/api/leagues \
-  https://tt-players.onrender.com/api/leagues \
   https://tt-players.graceliu.uk/api/leagues
 do
   printf "%s " "$url"

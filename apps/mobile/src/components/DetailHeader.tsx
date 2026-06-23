@@ -33,7 +33,7 @@ export function DetailHeader({
 }: DetailHeaderProps) {
   const { goBackInActiveTab, switchTab } = useTabNavigation();
 
-  const handleBack = (event: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleBack = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     if (onBack) {
       onBack();
@@ -42,7 +42,7 @@ export function DetailHeader({
     }
   };
 
-  const handleHome = (event: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleHome = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     switchTab('home', 'root');
   };

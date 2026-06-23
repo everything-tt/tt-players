@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manual Verification Intake"
+  short_description: "Capture verified issues and plan follow-up work"
+  default_prompt: "Use $manual-verification-intake to capture my verified app issues, clarify details, and produce a prioritized task list with verification steps."

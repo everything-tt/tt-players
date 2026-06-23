@@ -37,7 +37,7 @@ export function AppButtonLink({
   rounded = 'full',
   fontWeight = 'semibold',
   full = false,
-  href = '#',
+  href,
   ...props
 }: AppButtonLinkProps) {
   return (

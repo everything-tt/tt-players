@@ -63,7 +63,28 @@ A prioritised rollout plan is at the end (§14).
 - Fixed `EventDetailPage.tsx` missing `useState` import.
 - Fixed `AboutTabContent.tsx` and `QuickFeedbackSheet.tsx` duplicate `FeedbackType` definitions.
 
-Remaining larger refactors: unified header, unified `List`/`ListItem`, unified `SearchPanel`, `BottomSheet`, `HeroCard`, full `AppButton` migration, and full overlay focus trapping.
+### Pass 4 (2026-06-23)
+
+- Removed the still-present render-blocking Google Fonts `@import`; body now uses the native/system font stack only (§13.11a).
+- Fixed the remaining dark-mode icon mismatch: page-title and compact header now both use sun/moon (§2.1).
+- Corrected theme switch semantics from `aria-pressed` to `role="switch" aria-checked` for the remaining theme controls (§2.5).
+- Migrated PWA install and reload prompts from raw AppKit menu shells, inline z-indexes, and raw `btn` classes to the shared `BottomSheet` + `AppButton` primitives (§7, §5).
+- Removed the unused duplicate `usePWAInstall` hook; `PWAInstallContext` is now the single PWA install prompt owner.
+- Migrated About clear-data confirmation onto shared `BottomSheet`; removed the hand-rolled confirm backdrop/sheet and inline dialog styles (§7.4, §8.10).
+- Added PWA install and feedback sheet handling to system back navigation; Android/back now dismisses these overlays before tab navigation (§7.3).
+- Removed the duplicate document scroll listener; header scroll state is driven by the single window listener (§13.11j).
+- Converted design-system `MoreButton` and `AppTabBar` action primitives away from fake `href="#"` anchors to real buttons; fixture rubber player actions are buttons too (§10.2).
+
+### Pass 5 (2026-06-23)
+
+- Added `packages/design-system/README.md` with explicit module boundaries, legacy compatibility notes, and reuse rules.
+- Removed fake `href="#"` action anchors from the design-system package: `AppShell`, `AppSidebar`, `AppList`, `AppPlayerList`, `ListItem`, and `AppButtonLink` no longer emit hash links for actions (§10.2).
+- Consolidated duplicate W/L/D exports: `OutcomeBadge` now exports from `components/OutcomeBadge.tsx`; `Actions.tsx` only owns action/link primitives (§8.5).
+- Made `AppPlayerList` generic instead of using an `any` index signature, preserving typed trailing/select payloads for legacy consumers (§13.11h).
+- Hardened `ThemeContext` with DOM/storage guards so the theme module is reusable outside the current browser-only mobile shell (§1.6).
+- Added button reset styles for design-system components that now render semantic buttons.
+
+Remaining larger refactors: unified header, full `AppButton` migration, full overlay-stack integration across every overlay type, remaining app-level fake-action anchors, stronger typing for lingering app-screen `any`, and localStorage ownership consolidation.
 
 ---
 
