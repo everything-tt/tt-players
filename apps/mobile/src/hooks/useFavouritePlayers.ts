@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback } from 'react';
+import { useLocalStorageList } from './useLocalStorageList';
 import {
   FAVOURITES_STORAGE_KEY,
   FAVOURITES_UPDATED_EVENT,
@@ -6,78 +7,42 @@ import {
   type FavouritePlayer,
 } from '../player-shared';
 
+/**
+ * Reactive favourite-players list. Single implementation consumed by
+ * App.tsx (search/favourites), PlayerPage, and anywhere else that needs it.
+ * Replaces the inline parse/persist/sync copies that lived in each file.
+ */
 export function useFavouritePlayers() {
-  const [players, setPlayers] = useState<FavouritePlayer[]>(() => {
-    try {
-      const raw = localStorage.getItem(FAVOURITES_STORAGE_KEY);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw) as unknown;
-      if (!Array.isArray(parsed)) return [];
-      return parsed.filter(isValidFavouritePlayer);
-    } catch {
-      return [];
-    }
-  });
+  const [players, api] = useLocalStorageList<FavouritePlayer>(
+    FAVOURITES_STORAGE_KEY,
+    FAVOURITES_UPDATED_EVENT,
+    isValidFavouritePlayer,
+  );
 
-  useEffect(() => {
-    const syncFromStorage = () => {
-      try {
-        const raw = localStorage.getItem(FAVOURITES_STORAGE_KEY);
-        if (!raw) {
-          setPlayers([]);
-          return;
-        }
-        const parsed = JSON.parse(raw) as unknown;
-        if (!Array.isArray(parsed)) {
-          setPlayers([]);
-          return;
-        }
-        setPlayers(parsed.filter(isValidFavouritePlayer));
-      } catch {
-        setPlayers([]);
-      }
-    };
+  const isFavourite = useCallback(
+    (playerId: string) => players.some((p) => p.id === playerId),
+    [players],
+  );
 
-    window.addEventListener('storage', syncFromStorage);
-    window.addEventListener(FAVOURITES_UPDATED_EVENT, syncFromStorage);
-    return () => {
-      window.removeEventListener('storage', syncFromStorage);
-      window.removeEventListener(FAVOURITES_UPDATED_EVENT, syncFromStorage);
-    };
-  }, []);
+  const toggle = useCallback(
+    (player: FavouritePlayer) => api.toggle(player, (p) => p.id === player.id),
+    [api],
+  );
 
-  const isFavourite = (playerId: string): boolean => {
-    return players.some((player) => player.id === playerId);
-  };
-
-  const toggle = (player: FavouritePlayer): void => {
-    setPlayers((previous) => {
-      const exists = previous.some((item) => item.id === player.id);
-      const next = exists
-        ? previous.filter((item) => item.id !== player.id)
-        : [player, ...previous.filter((item) => item.id !== player.id)];
-
-      localStorage.setItem(FAVOURITES_STORAGE_KEY, JSON.stringify(next));
-      window.dispatchEvent(new Event(FAVOURITES_UPDATED_EVENT));
-      return next;
-    });
-  };
-
-  const add = (player: FavouritePlayer): void => {
-    if (isFavourite(player.id)) return;
-    toggle(player);
-  };
-
-  const remove = (playerId: string): void => {
-    const player = players.find((p) => p.id === playerId);
-    if (player) toggle(player);
-  };
+  const remove = useCallback(
+    (playerId: string) => api.remove((p) => p.id === playerId),
+    [api],
+  );
 
   return {
     players,
     isFavourite,
     toggle,
-    add,
     remove,
+    set: api.set,
+    add: api.add,
+    has: api.has,
+    clear: api.clear,
   };
 }
+

@@ -6,11 +6,11 @@ const PWAReloadPrompt: React.FC = () => {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
-    onRegistered(r) {
-      console.log('SW Registered: ' + r);
+    onRegistered() {
+      // Registered successfully.
     },
-    onRegisterError(error: any) {
-      console.log('SW registration error', error);
+    onRegisterError() {
+      // Ignore registration errors in the UI; the app still works without SW.
     },
   });
 

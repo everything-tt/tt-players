@@ -1,47 +1,34 @@
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { SkeletonBlock } from './components/Skeleton';
-import { usePageNavigation } from './hooks/usePageNavigation';
-import { formatDate } from './player-shared';
+import { useTabNavigation } from './navigation/tab-navigation';
+import { formatDate, getQueryError } from './player-shared';
 import { useFixtureRubbersQuery } from './queries';
 import { TabShellPage } from './TabShellPage';
+import { DetailHeader } from './components/DetailHeader';
 import {
-  AppHeader,
-  AppHeaderSpacer,
-  AppMessageCard,
-  AppPageContent,
+  EmptyState,
+  ErrorState,
+  ExternalLinkButton,
+  HeroCard,
+  SectionHeader,
 } from './ui/appkit';
 
 function FixturePageSkeleton() {
   return (
     <>
-      <section className="tt-fixture-hero" aria-label="Loading fixture details">
-        <div className="tt-fixture-hero-top">
-          <div className="tt-fixture-hero-copy">
+      <section className="tt-hero" aria-label="Loading fixture details">
+        <div className="tt-hero__top">
+          <div className="tt-hero__copy">
             <SkeletonBlock className="tt-skeleton-eyebrow" />
             <SkeletonBlock className="tt-skeleton-title" />
             <SkeletonBlock className="tt-skeleton-text mt-2" />
             <SkeletonBlock className="tt-skeleton-text app-skeleton-short mt-2" />
           </div>
         </div>
-        <div className="tt-fixture-score" aria-label="Loading score">
-          <div>
-            <SkeletonBlock className="tt-skeleton-score" />
-            <SkeletonBlock className="tt-skeleton-text mt-2" />
-          </div>
-          <span className="tt-fixture-score-separator">-</span>
-          <div>
-            <SkeletonBlock className="tt-skeleton-score" />
-            <SkeletonBlock className="tt-skeleton-text mt-2" />
-          </div>
-        </div>
       </section>
-
       <section className="tt-player-section" aria-label="Loading match breakdown">
-        <div className="tt-player-section-header">
-          <SkeletonBlock className="tt-skeleton-text" />
-          <SkeletonBlock className="tt-skeleton-text app-skeleton-short" />
-        </div>
+        <SectionHeader title={<SkeletonBlock className="tt-skeleton-text" />} note={<SkeletonBlock className="tt-skeleton-text app-skeleton-short" />} />
         <div className="tt-rubber-list">
           {Array.from({ length: 4 }).map((_, index) => (
             <div key={index} className="tt-rubber-item">
@@ -60,13 +47,13 @@ function FixturePageSkeleton() {
 }
 
 export function FixturePage() {
-  const { goBack, goHome, navigate } = usePageNavigation();
+  const { navigateInActiveTab } = useTabNavigation();
   const { fixtureId = '' } = useParams<{ fixtureId: string }>();
 
   const rubbersQuery = useFixtureRubbersQuery(fixtureId, Boolean(fixtureId));
   const rubbers = rubbersQuery.data?.data ?? [];
   const fixtureMeta = rubbersQuery.data?.fixture;
-  const pageError = rubbersQuery.error instanceof Error ? rubbersQuery.error.message : null;
+  const pageError = getQueryError(rubbersQuery.error);
 
   const [homeScore, awayScore] = useMemo(() => {
     let home = 0;
@@ -79,174 +66,90 @@ export function FixturePage() {
   }, [rubbers]);
 
   const title = `${fixtureMeta?.home_team_name ?? 'Home'} vs ${fixtureMeta?.away_team_name ?? 'Away'}`;
-
   const openPlayer = (playerId: string | null) => (event: React.MouseEvent) => {
     event.preventDefault();
     if (!playerId) return;
-    navigate(`player/${playerId}`);
+    navigateInActiveTab(`player/${playerId}`);
   };
 
   return (
     <TabShellPage>
-      <AppHeader
-        title="Fixture Details"
-        onTitleClick={goHome}
-        leftAction={{ iconClassName: 'fas fa-chevron-left', onClick: goBack, position: 1, ariaLabel: 'Back' }}
-        rightAction={{ iconClassName: 'fas fa-home', onClick: goHome, position: 4, ariaLabel: 'Home' }}
-      />
-      <AppHeaderSpacer />
-
-      <AppPageContent>
+      <DetailHeader title="Fixture Details" />
+      <div className="page-content app-shell-content">
         {!fixtureId ? (
-          <AppMessageCard
-            title="Missing fixture"
-            message="Fixture id is missing from the route."
-            action={{ label: 'Back Home', onClick: goHome }}
-          />
+          <ErrorState title="Missing fixture" message="Fixture id is missing from the route." />
         ) : rubbersQuery.isLoading && !fixtureMeta ? (
           <FixturePageSkeleton />
         ) : !fixtureMeta ? (
-          <AppMessageCard
-            title="Fixture unavailable"
-            message={pageError ?? 'Failed to load this fixture.'}
-            action={{ label: 'Back Home', onClick: goHome }}
-          />
+          <ErrorState title="Fixture unavailable" message={pageError ?? 'Failed to load this fixture.'} />
         ) : (
           <>
-            <section className="tt-fixture-hero" aria-labelledby="tt-fixture-title">
-              <div className="tt-fixture-hero-top">
-                <div className="tt-fixture-hero-copy">
-                  <p className="tt-player-eyebrow">Fixture results</p>
-                  <h1 id="tt-fixture-title" className="tt-fixture-title">{title}</h1>
-                  <p className="tt-fixture-summary-line">
-                    {fixtureMeta.league_name} · {fixtureMeta.division_name}
-                  </p>
-                  <p className="tt-fixture-date">{formatDate(fixtureMeta.played_at ?? '', { includeTime: true })}</p>
-                </div>
-                {fixtureMeta.source_url ? (
-                  <a
-                    href={fixtureMeta.source_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="tt-league-source-link"
-                    aria-label="Open source fixture"
-                  >
-                    <i className="fa fa-globe" />
-                  </a>
-                ) : null}
-              </div>
-
+            <HeroCard
+              eyebrow="Fixture"
+              title={title}
+              summary={<>{fixtureMeta.league_name} · {fixtureMeta.division_name}<br />{formatDate(fixtureMeta.played_at ?? '', { includeTime: true })}</>}
+              actions={fixtureMeta.source_url ? <ExternalLinkButton href={fixtureMeta.source_url} iconClassName="fa fa-globe" aria-label="Open source fixture" /> : null}
+            >
               {rubbers.length > 0 ? (
                 <div className="tt-fixture-score" aria-label="Match score">
-                  <div>
-                    <span className="tt-fixture-score-value">{homeScore}</span>
-                    <span className="tt-fixture-score-label">{fixtureMeta.home_team_name}</span>
-                  </div>
+                  <div><span className="tt-fixture-score-value">{homeScore}</span><span className="tt-fixture-score-label">{fixtureMeta.home_team_name}</span></div>
                   <span className="tt-fixture-score-separator">-</span>
-                  <div>
-                    <span className="tt-fixture-score-value">{awayScore}</span>
-                    <span className="tt-fixture-score-label">{fixtureMeta.away_team_name}</span>
-                  </div>
+                  <div><span className="tt-fixture-score-value">{awayScore}</span><span className="tt-fixture-score-label">{fixtureMeta.away_team_name}</span></div>
                 </div>
               ) : null}
-            </section>
+            </HeroCard>
 
             <section className="tt-player-section" aria-labelledby="tt-fixture-breakdown-title">
-                <div className="tt-player-section-header">
-                  <h2 id="tt-fixture-breakdown-title" className="tt-player-section-title">Match Breakdown</h2>
-                  <span className="tt-player-section-note">{rubbers.length} rubbers</span>
-                </div>
+              <SectionHeader title="Match Breakdown" note={`${rubbers.length} rubbers`} />
+              {rubbersQuery.isLoading ? (
+                <FixturePageSkeleton />
+              ) : rubbersQuery.error ? (
+                <ErrorState message="Failed to load fixture details." />
+              ) : rubbers.length === 0 ? (
+                <EmptyState iconClassName="fa fa-table-tennis" title="No matches" message="No matches found for this fixture." />
+              ) : (
+                <div className="tt-rubber-list">
+                  {rubbers.map((rubber: any) => {
+                    const homePlayers = [
+                      { id: rubber.home_player_1_id, name: rubber.home_player_1_name },
+                      ...(rubber.is_doubles ? [{ id: rubber.home_player_2_id, name: rubber.home_player_2_name }] : []),
+                    ].filter((player) => Boolean(player.name));
+                    const awayPlayers = [
+                      { id: rubber.away_player_1_id, name: rubber.away_player_1_name },
+                      ...(rubber.is_doubles ? [{ id: rubber.away_player_2_id, name: rubber.away_player_2_name }] : []),
+                    ].filter((player) => Boolean(player.name));
 
-                {rubbersQuery.isLoading ? (
-                  <div className="tt-rubber-list">
-                    {Array.from({ length: 4 }).map((_, index) => (
-                      <div key={index} className="tt-rubber-item">
-                        <SkeletonBlock className="tt-skeleton-text app-skeleton-short" />
+                    return (
+                      <div key={rubber.id} className="tt-rubber-item">
+                        <div className="tt-rubber-type-badge">{rubber.is_doubles ? 'Doubles' : 'Singles'}</div>
                         <div className="tt-rubber-scorecard">
-                          <SkeletonBlock className="tt-skeleton-text" />
-                          <SkeletonBlock className="tt-skeleton-pill" />
-                          <SkeletonBlock className="tt-skeleton-text" />
+                          <div className="tt-rubber-side home">
+                            {homePlayers.map((player: any, idx: number) => (
+                              <span key={player.id ?? player.name}>
+                                {idx > 0 && <span className="tt-player-separator"> & </span>}
+                                {player.id ? <a href="#" className="tt-rubber-player-link-text" onClick={openPlayer(player.id)}>{player.name}</a> : <span className="tt-rubber-player-name">{player.name}</span>}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="tt-rubber-score-pill"><span>{rubber.home_games_won}</span><span className="score-divider">:</span><span>{rubber.away_games_won}</span></div>
+                          <div className="tt-rubber-side away">
+                            {awayPlayers.map((player: any, idx: number) => (
+                              <span key={player.id ?? player.name}>
+                                {idx > 0 && <span className="tt-player-separator"> & </span>}
+                                {player.id ? <a href="#" className="tt-rubber-player-link-text" onClick={openPlayer(player.id)}>{player.name}</a> : <span className="tt-rubber-player-name">{player.name}</span>}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ) : rubbersQuery.error ? (
-                  <p className="tt-player-section-state tt-player-section-error">Failed to load fixture details.</p>
-                ) : rubbers.length === 0 ? (
-                  <p className="tt-player-section-state">No matches found for this fixture.</p>
-                ) : (
-                  <div className="tt-rubber-list">
-                    {rubbers.map((rubber: any) => {
-                      const homePlayers = [
-                        { id: rubber.home_player_1_id, name: rubber.home_player_1_name },
-                        ...(rubber.is_doubles ? [{ id: rubber.home_player_2_id, name: rubber.home_player_2_name }] : []),
-                      ].filter((player) => Boolean(player.name));
-
-                      const awayPlayers = [
-                        { id: rubber.away_player_1_id, name: rubber.away_player_1_name },
-                        ...(rubber.is_doubles ? [{ id: rubber.away_player_2_id, name: rubber.away_player_2_name }] : []),
-                      ].filter((player) => Boolean(player.name));
-
-                      return (
-                        <div key={rubber.id} className="tt-rubber-item">
-                          <div className="tt-rubber-type-badge">
-                            {rubber.is_doubles ? 'Doubles' : 'Singles'}
-                          </div>
-                          
-                          <div className="tt-rubber-scorecard">
-                            <div className="tt-rubber-side home">
-                              {homePlayers.map((player: any, idx: number) => (
-                                <span key={player.id ?? player.name}>
-                                  {idx > 0 && <span className="tt-player-separator"> & </span>}
-                                  {player.id ? (
-                                    <a
-                                      href="#"
-                                      className="tt-rubber-player-link-text"
-                                      onClick={openPlayer(player.id)}
-                                    >
-                                      {player.name}
-                                    </a>
-                                  ) : (
-                                    <span className="tt-rubber-player-name">{player.name}</span>
-                                  )}
-                                </span>
-                              ))}
-                            </div>
-
-                            <div className="tt-rubber-score-pill">
-                              <span className="home-score">{rubber.home_games_won}</span>
-                              <span className="score-divider">:</span>
-                              <span className="away-score">{rubber.away_games_won}</span>
-                            </div>
-
-                            <div className="tt-rubber-side away">
-                              {awayPlayers.map((player: any, idx: number) => (
-                                <span key={player.id ?? player.name}>
-                                  {idx > 0 && <span className="tt-player-separator"> & </span>}
-                                  {player.id ? (
-                                    <a
-                                      href="#"
-                                      className="tt-rubber-player-link-text"
-                                      onClick={openPlayer(player.id)}
-                                    >
-                                      {player.name}
-                                    </a>
-                                  ) : (
-                                    <span className="tt-rubber-player-name">{player.name}</span>
-                                  )}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                    );
+                  })}
+                </div>
+              )}
             </section>
           </>
         )}
-      </AppPageContent>
+      </div>
     </TabShellPage>
   );
 }

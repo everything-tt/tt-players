@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import './app-shell.css';
 import { H2HTabContent } from './H2HTabContent';
 import { HomeTabContent } from './HomeTabContent';
@@ -8,54 +8,23 @@ import { EventsTabContent } from './EventsTabContent';
 import { AboutTabContent } from './AboutTabContent';
 import { QuickFeedbackSheet } from './QuickFeedbackSheet';
 import { TabFooterBar } from './TabFooterBar';
-import { PlayerList } from './components/PlayerList';
-import { useDebouncedValue } from './hooks/useDebouncedValue';
+import { SearchPanel } from './components/SearchPanel';
+import { FavouriteButton } from './components/FavouriteButton';
+import { useSearch } from './hooks/useSearch';
+import { useFavouritePlayers } from './hooks/useFavouritePlayers';
 import { useTabNavigation, type AppTabId } from './navigation/tab-navigation';
 import { useLeaguesQuery, usePlayerSearchQuery } from './queries';
 import { usePWAInstallContext } from './PWAInstallContext';
-import { useTheme } from './ui/appkit';
-
-type MenuId = 'menu-main' | 'menu-share';
-type MenuPlacement = 'left' | 'right' | 'top' | 'bottom';
-type MenuEffect = 'none' | 'menu-push' | 'menu-parallax';
-
-type MenuConfig = {
-  effect: MenuEffect;
-  height?: number;
-  id: MenuId;
-  placement: MenuPlacement;
-  width?: number;
-};
-
-type PlayerSearchItem = {
-  id: string;
-  name: string;
-  played: number;
-  wins: number;
-};
+import { useTheme, List, ListItem, Avatar, EmptyState } from './ui/appkit';
+import { getQueryError, TAB_METADATA, type LeagueWithDivisions } from './player-shared';
 
 type PlayerSearchScope = 'all' | 'selected';
+type MenuId = 'menu-main' | 'menu-share';
 
-const tabTitles: Record<AppTabId, string> = {
-  home: 'TTLive',
-  players: 'Players',
-  leagues: 'Leagues',
-  h2h: 'H2H',
-  events: 'Tournaments',
-  about: 'About',
-};
-
-const menuConfigs: Record<MenuId, MenuConfig> = {
-  'menu-main': { id: 'menu-main', placement: 'left', width: 280, effect: 'none' },
-  'menu-share': { id: 'menu-share', placement: 'bottom', height: 370, effect: 'none' },
-};
-
-const HEADER_SWITCH_SCROLL = 40;
 const SEARCH_DEBOUNCE_MS = 250;
 const MAX_SELECTED_LEAGUES = 15;
+const HEADER_SWITCH_SCROLL = 40;
 
-const FAVOURITES_STORAGE_KEY = 'tt_players_favourite_players';
-const FAVOURITES_UPDATED_EVENT = 'tt_players_favourite_players_updated';
 const LEAGUES_STORAGE_KEY = 'tt_players_selected_league_ids';
 const LEAGUE_ONBOARDING_STORAGE_KEY = 'tt_players_league_onboarding_complete';
 const APP_BUILD_TIME = formatBuildTime(import.meta.env.VITE_APP_BUILD_TIME);
@@ -64,29 +33,7 @@ const APP_COMMIT = import.meta.env.VITE_APP_COMMIT || 'unknown';
 function formatBuildTime(value: string): string {
   const timestamp = new Date(value);
   if (Number.isNaN(timestamp.getTime())) return 'unknown';
-
   return `${timestamp.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
-}
-
-function isValidFavouritePlayer(value: unknown): value is PlayerSearchItem {
-  if (!value || typeof value !== 'object') return false;
-  const item = value as Record<string, unknown>;
-  return typeof item.id === 'string'
-    && typeof item.name === 'string'
-    && typeof item.played === 'number'
-    && typeof item.wins === 'number';
-}
-
-function parseStoredFavouritePlayers(): PlayerSearchItem[] {
-  try {
-    const raw = localStorage.getItem(FAVOURITES_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidFavouritePlayer);
-  } catch {
-    return [];
-  }
 }
 
 function parseStoredLeagueIds(): string[] {
@@ -101,29 +48,16 @@ function parseStoredLeagueIds(): string[] {
   }
 }
 
-function persistFavouritePlayers(players: PlayerSearchItem[]) {
-  localStorage.setItem(FAVOURITES_STORAGE_KEY, JSON.stringify(players));
-  window.dispatchEvent(new Event(FAVOURITES_UPDATED_EVENT));
-}
-
 function hasCompletedStoredLeagueOnboarding(): boolean {
   return localStorage.getItem(LEAGUE_ONBOARDING_STORAGE_KEY) === 'true'
     || parseStoredLeagueIds().length > 0;
 }
 
-
 function InstallAppMenuItem({ onClose }: { onClose: (e: MouseEvent<HTMLAnchorElement>) => void }) {
   const { triggerInstallPrompt, canInstall } = usePWAInstallContext();
-
   if (!canInstall) return null;
-
-  const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    onClose(e);
-    triggerInstallPrompt();
-  };
-
   return (
-    <a href="#" onClick={handleClick}>
+    <a href="#" onClick={(e) => { onClose(e); triggerInstallPrompt(); }}>
       <i className="fa fa-download color-white" />
       <span>Install App</span>
       <i className="fa fa-angle-right" />
@@ -133,168 +67,75 @@ function InstallAppMenuItem({ onClose }: { onClose: (e: MouseEvent<HTMLAnchorEle
 
 function App() {
   const { activeTab, handleSystemBack, navigateInActiveTab, switchTab } = useTabNavigation();
-  const [activeMenuId, setActiveMenuId] = useState<MenuId | null>(null);
-  const [favouritePlayers, setFavouritePlayers] = useState<PlayerSearchItem[]>(() => parseStoredFavouritePlayers());
-  const [isBooting, setIsBooting] = useState(true);
+  const { players: favouritePlayers, isFavourite, toggle: toggleFavourite } = useFavouritePlayers();
   const { isDarkMode, toggleTheme } = useTheme();
+  const headerRef = useRef<HTMLElement | null>(null);
+  const pageTitleRef = useRef<HTMLDivElement | null>(null);
+
+  const [activeMenuId, setActiveMenuId] = useState<MenuId | null>(null);
   const [isLeagueSelectorOpen, setIsLeagueSelectorOpen] = useState(false);
   const [isFeedbackSheetOpen, setIsFeedbackSheetOpen] = useState(false);
   const [isLeagueSelectionReady, setIsLeagueSelectionReady] = useState(false);
   const [hasCompletedLeagueOnboarding, setHasCompletedLeagueOnboarding] = useState(() => hasCompletedStoredLeagueOnboarding());
   const [playerSearchScope, setPlayerSearchScope] = useState<PlayerSearchScope>('all');
-  const [query, setQuery] = useState('');
   const [selectedLeagueIds, setSelectedLeagueIds] = useState<string[]>([]);
 
-  const headerRef = useRef<HTMLElement | null>(null);
-  const pageTitleRef = useRef<HTMLDivElement | null>(null);
+  const search = useSearch({ minLength: 3, debounceMs: SEARCH_DEBOUNCE_MS, enabled: activeTab === 'players' });
+  const { query, setQuery, normalizedQuery, debouncedQuery, isTooShort, isActive } = search;
 
-  const normalizedQuery = query.trim();
-  const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
-  const normalizedDebouncedQuery = debouncedQuery.trim();
   const leaguesQuery = useLeaguesQuery();
-  const allLeagues = useMemo(
+  const allLeagues: LeagueWithDivisions[] = useMemo(
     () => (Array.isArray(leaguesQuery.data?.data) ? leaguesQuery.data.data : []),
     [leaguesQuery.data],
   );
-  const allLeagueIds = useMemo(() => allLeagues.map((league: { id: string }) => league.id), [allLeagues]);
+  const allLeagueIds = useMemo(() => allLeagues.map((l) => l.id), [allLeagues]);
   const isLeaguesLoading = leaguesQuery.isLoading;
-  const leaguesError = leaguesQuery.error instanceof Error ? leaguesQuery.error.message : null;
+  const leaguesError = getQueryError(leaguesQuery.error);
+
   const hasSelectedLeagueScope = hasCompletedLeagueOnboarding && selectedLeagueIds.length > 0;
   const isAllLeagueScope = hasSelectedLeagueScope
     && allLeagues.length > 0
     && selectedLeagueIds.length === allLeagues.length;
   const selectedLeagueBadgeLabel = !hasCompletedLeagueOnboarding ? 'Choose' : isAllLeagueScope ? 'All' : selectedLeagueIds.length;
   const playerSearchLeagueIds = playerSearchScope === 'selected' ? selectedLeagueIds : [];
-  const isSearchMode = normalizedQuery.length > 2;
-  const isShortSearchQuery = normalizedQuery.length > 0 && normalizedQuery.length <= 2;
+
   const shouldFetchPlayers = activeTab === 'players'
-    && (normalizedDebouncedQuery.length === 0 || normalizedDebouncedQuery.length > 2);
-  const playersSearchQuery = usePlayerSearchQuery(normalizedDebouncedQuery, playerSearchLeagueIds, {
+    && (debouncedQuery.length === 0 || debouncedQuery.length > 2);
+  const playersSearchQuery = usePlayerSearchQuery(debouncedQuery, playerSearchLeagueIds, {
     enabled: shouldFetchPlayers,
     allLeaguesCount: allLeagues.length,
   });
   const searchResults = playersSearchQuery.data?.data ?? [];
   const isSearchLoading = shouldFetchPlayers
     && (playersSearchQuery.isLoading || (playersSearchQuery.isFetching && !playersSearchQuery.data));
-  const searchError = playersSearchQuery.error instanceof Error ? playersSearchQuery.error.message : null;
-  const activeMenuConfig = activeMenuId ? menuConfigs[activeMenuId] : null;
-
-  const wrapperTransform = useMemo(() => {
-    if (!activeMenuConfig || activeMenuConfig.effect === 'none') {
-      return undefined;
-    }
-
-    const multiplier = activeMenuConfig.effect === 'menu-push' ? 1 : 0.1;
-
-    if (activeMenuConfig.placement === 'left') {
-      return `translateX(${(activeMenuConfig.width ?? 0) * multiplier}px)`;
-    }
-    if (activeMenuConfig.placement === 'right') {
-      return `translateX(-${(activeMenuConfig.width ?? 0) * multiplier}px)`;
-    }
-    if (activeMenuConfig.placement === 'top') {
-      return `translateY(${(activeMenuConfig.height ?? 0) * multiplier}px)`;
-    }
-
-    return `translateY(-${(activeMenuConfig.height ?? 0) * multiplier}px)`;
-  }, [activeMenuConfig]);
-
-  const wrapperStyle: CSSProperties | undefined = wrapperTransform
-    ? { transform: wrapperTransform }
-    : undefined;
+  const searchError = getQueryError(playersSearchQuery.error);
+  const listItems = normalizedQuery.length === 0 ? searchResults.slice(1) : searchResults;
 
   const openActiveMenu = (menuId: MenuId) => setActiveMenuId(menuId);
   const closeActiveMenu = () => setActiveMenuId(null);
-  const openLeagueSelector = () => {
-    closeActiveMenu();
-    setIsFeedbackSheetOpen(false);
-    setIsLeagueSelectorOpen(true);
-  };
+  const openLeagueSelector = () => { closeActiveMenu(); setIsFeedbackSheetOpen(false); setIsLeagueSelectorOpen(true); };
   const closeLeagueSelector = () => {
     if (!hasCompletedLeagueOnboarding && selectedLeagueIds.length === 0 && !leaguesError) return;
     setIsLeagueSelectorOpen(false);
   };
-  const openFeedbackSheet = (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-    closeActiveMenu();
-    setIsFeedbackSheetOpen(true);
-  };
+  const openFeedbackSheet = (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); closeActiveMenu(); setIsFeedbackSheetOpen(true); };
   const closeFeedbackSheet = () => setIsFeedbackSheetOpen(false);
 
-  const onMenuTrigger =
-    (menuId: MenuId) =>
-    (event: MouseEvent<HTMLAnchorElement>): void => {
-      event.preventDefault();
-      openActiveMenu(menuId);
-    };
-
-  const onOpenLeagueSelector = (event: MouseEvent<HTMLAnchorElement>): void => {
-    event.preventDefault();
-    openLeagueSelector();
-  };
-
-  const onCloseMenuClick = (event: MouseEvent<HTMLAnchorElement>): void => {
-    event.preventDefault();
-    closeActiveMenu();
-  };
-
-  const onFooterTabClick =
-    (tabId: AppTabId) =>
-    (event: MouseEvent<HTMLAnchorElement>): void => {
-      event.preventDefault();
-      closeLeagueSelector();
-      closeActiveMenu();
-      switchTab(tabId, 'root');
-    };
-
-  const onMenuTabClick =
-    (tabId: AppTabId) =>
-    (event: MouseEvent<HTMLAnchorElement>): void => {
-      event.preventDefault();
-      closeLeagueSelector();
-      closeActiveMenu();
-      switchTab(tabId, 'root');
-    };
-
-  const onMenuEventsClick = (event: MouseEvent<HTMLAnchorElement>): void => {
-    event.preventDefault();
-    closeLeagueSelector();
-    closeActiveMenu();
-    navigateInActiveTab('events');
-  };
+  const onMenuTrigger = (menuId: MenuId) => (event: MouseEvent<HTMLAnchorElement>): void => { event.preventDefault(); openActiveMenu(menuId); };
+  const onOpenLeagueSelector = (event: MouseEvent<HTMLAnchorElement>): void => { event.preventDefault(); openLeagueSelector(); };
+  const onCloseMenuClick = (event: MouseEvent<HTMLAnchorElement>): void => { event.preventDefault(); closeActiveMenu(); };
+  const onFooterTabClick = (tabId: AppTabId) => (event: MouseEvent<HTMLAnchorElement>): void => { event.preventDefault(); closeLeagueSelector(); closeActiveMenu(); switchTab(tabId, 'root'); };
+  const onMenuTabClick = (tabId: AppTabId) => (event: MouseEvent<HTMLAnchorElement>): void => { event.preventDefault(); closeLeagueSelector(); closeActiveMenu(); switchTab(tabId, 'root'); };
+  const onMenuEventsClick = (event: MouseEvent<HTMLAnchorElement>): void => { event.preventDefault(); closeLeagueSelector(); closeActiveMenu(); navigateInActiveTab('events'); };
 
   const onSystemBackPressed = useCallback((): boolean => {
-    if (activeMenuId) {
-      closeActiveMenu();
-      return true;
-    }
-
-    if (isLeagueSelectorOpen) {
-      closeLeagueSelector();
-      return true;
-    }
-
+    if (activeMenuId) { closeActiveMenu(); return true; }
+    if (isLeagueSelectorOpen) { closeLeagueSelector(); return true; }
     return handleSystemBack();
   }, [activeMenuId, handleSystemBack, isLeagueSelectorOpen]);
 
-  const isFavouritePlayer = (playerId: string) => (
-    favouritePlayers.some((player) => player.id === playerId)
-  );
-
-  const toggleFavouritePlayer = (player: PlayerSearchItem) => {
-    setFavouritePlayers((previous) => {
-      const exists = previous.some((item) => item.id === player.id);
-      const next = exists
-        ? previous.filter((item) => item.id !== player.id)
-        : [player, ...previous.filter((item) => item.id !== player.id)];
-      persistFavouritePlayers(next);
-      return next;
-    });
-  };
-
   const addLeagueToSelection = (leagueId: string) => {
     if (!allLeagueIds.includes(leagueId)) return;
-
     setSelectedLeagueIds((previous) => {
       const validIdSet = new Set(allLeagueIds);
       const validPrevious = previous.filter((id) => validIdSet.has(id));
@@ -308,7 +149,6 @@ function App() {
 
   const removeLeagueFromSelection = (leagueId: string) => {
     if (!allLeagueIds.includes(leagueId)) return;
-
     setSelectedLeagueIds((previous) => {
       const validIdSet = new Set(allLeagueIds);
       const validPrevious = previous.filter((id) => validIdSet.has(id));
@@ -320,66 +160,39 @@ function App() {
 
   const selectRegionLeagues = (leagueIds: string[]) => {
     if (leagueIds.length === 0 || allLeagueIds.length === 0) return;
-
     setSelectedLeagueIds((previous) => {
       const validIdSet = new Set(allLeagueIds);
       const validPrevious = previous.filter((id) => validIdSet.has(id));
       const baseline = validPrevious.length === 0 ? [] : validPrevious;
       if (baseline.length >= MAX_SELECTED_LEAGUES) return baseline;
       const nextSelected = new Set(baseline);
-
       for (const leagueId of leagueIds) {
         if (!validIdSet.has(leagueId)) continue;
         if (nextSelected.size >= MAX_SELECTED_LEAGUES) break;
         nextSelected.add(leagueId);
       }
-
-      return allLeagueIds.filter((leagueId: string) => nextSelected.has(leagueId));
+      return allLeagueIds.filter((leagueId) => nextSelected.has(leagueId));
     });
     setHasCompletedLeagueOnboarding(true);
   };
 
   useEffect(() => {
-    const timerId = window.setTimeout(() => setIsBooting(false), 350);
-    return () => window.clearTimeout(timerId);
-  }, []);
-
-  useEffect(() => {
-    const syncFromStorage = () => {
-      setFavouritePlayers(parseStoredFavouritePlayers());
-    };
-
-    window.addEventListener('storage', syncFromStorage);
-    window.addEventListener(FAVOURITES_UPDATED_EVENT, syncFromStorage);
-    return () => {
-      window.removeEventListener('storage', syncFromStorage);
-      window.removeEventListener(FAVOURITES_UPDATED_EVENT, syncFromStorage);
-    };
-  }, []);
-
-  useEffect(() => {
     if (isLeaguesLoading) return;
-
     if (leaguesError) {
       setSelectedLeagueIds([]);
       setIsLeagueSelectionReady(true);
       return;
     }
-
-    const validLeagueIds = new Set(allLeagues.map((league: { id: string }) => league.id));
+    const validLeagueIds = new Set(allLeagues.map((l) => l.id));
     const storedSelection = parseStoredLeagueIds().filter((id) => validLeagueIds.has(id));
     const storedOnboardingComplete = hasCompletedStoredLeagueOnboarding();
-
     setSelectedLeagueIds((previous) => {
       const validPrevious = previous.filter((id) => validLeagueIds.has(id));
-      if (validPrevious.length > 0) {
-        return validPrevious.slice(0, MAX_SELECTED_LEAGUES);
-      }
+      if (validPrevious.length > 0) return validPrevious.slice(0, MAX_SELECTED_LEAGUES);
       return storedOnboardingComplete && storedSelection.length > 0
         ? storedSelection.slice(0, MAX_SELECTED_LEAGUES)
         : [];
     });
-
     setHasCompletedLeagueOnboarding(storedOnboardingComplete && storedSelection.length > 0);
     setIsLeagueSelectionReady(true);
   }, [allLeagues, isLeaguesLoading, leaguesError]);
@@ -387,56 +200,36 @@ function App() {
   useEffect(() => {
     if (!isLeagueSelectionReady) return;
     localStorage.setItem(LEAGUES_STORAGE_KEY, JSON.stringify(selectedLeagueIds));
-    if (hasCompletedLeagueOnboarding) {
-      localStorage.setItem(LEAGUE_ONBOARDING_STORAGE_KEY, 'true');
-    }
+    if (hasCompletedLeagueOnboarding) localStorage.setItem(LEAGUE_ONBOARDING_STORAGE_KEY, 'true');
   }, [hasCompletedLeagueOnboarding, isLeagueSelectionReady, selectedLeagueIds]);
 
   useEffect(() => {
     const onScroll = () => {
       const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-
-      if (headerRef.current) {
-        if (scrollTop >= HEADER_SWITCH_SCROLL) {
-          headerRef.current.classList.add('header-active');
-        } else {
-          headerRef.current.classList.remove('header-active');
-        }
-      }
-
-      if (pageTitleRef.current) {
-        pageTitleRef.current.style.opacity = scrollTop >= HEADER_SWITCH_SCROLL ? '0' : '1';
-      }
+      const isCompact = scrollTop >= HEADER_SWITCH_SCROLL;
+      headerRef.current?.classList.toggle('header-active', isCompact);
+      if (pageTitleRef.current) pageTitleRef.current.style.opacity = isCompact ? '0' : '1';
     };
 
     window.addEventListener('scroll', onScroll, { passive: true });
     document.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
-
     return () => {
       window.removeEventListener('scroll', onScroll);
       document.removeEventListener('scroll', onScroll);
     };
-  }, []);
+  }, [activeTab]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeLeagueSelector();
-        closeActiveMenu();
-      }
+      if (event.key === 'Escape') { closeLeagueSelector(); closeActiveMenu(); }
     };
-
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   useEffect(() => {
-    const onBackButton = (event: Event) => {
-      event.preventDefault();
-      onSystemBackPressed();
-    };
-
+    const onBackButton = (event: Event) => { event.preventDefault(); onSystemBackPressed(); };
     document.addEventListener('backbutton', onBackButton, false);
     return () => document.removeEventListener('backbutton', onBackButton, false);
   }, [onSystemBackPressed]);
@@ -447,48 +240,21 @@ function App() {
       addListener?: (eventName: string, listenerFunc: () => void) => CapacitorListenerHandle | Promise<CapacitorListenerHandle>;
       exitApp?: () => void;
     };
-    type CapacitorGlobal = {
-      Capacitor?: {
-        App?: CapacitorAppPlugin;
-        Plugins?: { App?: CapacitorAppPlugin };
-      };
-    };
-
+    type CapacitorGlobal = { Capacitor?: { App?: CapacitorAppPlugin; Plugins?: { App?: CapacitorAppPlugin } } };
     const capacitorGlobal = window as Window & CapacitorGlobal;
     const appPlugin = capacitorGlobal.Capacitor?.Plugins?.App ?? capacitorGlobal.Capacitor?.App;
     if (!appPlugin?.addListener) return;
-
     let isActive = true;
     let listenerHandle: CapacitorListenerHandle | null = null;
-
-    const handleBack = () => {
-      const handled = onSystemBackPressed();
-      if (!handled) {
-        appPlugin.exitApp?.();
-      }
-    };
-
+    const handleBack = () => { const handled = onSystemBackPressed(); if (!handled) appPlugin.exitApp?.(); };
     Promise.resolve(appPlugin.addListener('backButton', handleBack))
-      .then((handle) => {
-        if (!isActive) {
-          handle.remove();
-          return;
-        }
-        listenerHandle = handle;
-      })
-      .catch(() => {
-        // Ignore plugin binding issues when not running in a Capacitor container.
-      });
-
-    return () => {
-      isActive = false;
-      listenerHandle?.remove();
-    };
+      .then((handle) => { if (!isActive) { handle.remove(); return; } listenerHandle = handle; })
+      .catch(() => { /* not in a Capacitor container */ });
+    return () => { isActive = false; listenerHandle?.remove(); };
   }, [onSystemBackPressed]);
 
   const pageHref = encodeURIComponent(window.location.href);
   const pageTitle = encodeURIComponent(document.title || 'TT Players');
-
   const shareLinks = {
     facebook: `https://www.facebook.com/sharer/sharer.php?u=${pageHref}`,
     linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${pageHref}`,
@@ -499,260 +265,185 @@ function App() {
   const onShareClick = async (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     closeActiveMenu();
-
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: document.title || 'TT Players',
-          url: window.location.href,
-        });
+        await navigator.share({ title: document.title || 'TT Players', url: window.location.href });
         return;
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
       }
     }
-
     setActiveMenuId('menu-share');
   };
 
-  const listItems = normalizedQuery.length === 0 ? searchResults.slice(1) : searchResults;
+  const menuTabs: AppTabId[] = ['home', 'players', 'leagues', 'events', 'h2h', 'about'];
 
   return (
     <>
-      {isBooting ? (
-        <div id="preloader">
-          <div className="spinner-border color-highlight" role="status" />
-        </div>
-      ) : null}
-
-      <div
-        className={`menu-hider ${activeMenuId ? 'menu-active' : ''}`}
-        onClick={closeActiveMenu}
-        aria-hidden={activeMenuId ? undefined : true}
-      />
-
-        <div id="page" className="app-shell-page">
-          {!isLeagueSelectorOpen ? (
-            <>
-        <header ref={headerRef} style={wrapperStyle} className="header header-auto-show header-fixed header-logo-center" aria-hidden="true">
-          <a href="#" className="header-title" tabIndex={-1} onClick={onFooterTabClick(activeTab)}>TT Players</a>
-          <a href="#" className="header-icon header-icon-1" tabIndex={-1} data-menu="menu-main" onClick={onMenuTrigger('menu-main')}>
-            <i className="fas fa-bars" />
-          </a>
-            <a
-              href="#"
-              className="header-icon header-icon-2 tt-header-league-filter"
-              tabIndex={-1}
-              onClick={onOpenLeagueSelector}
-              aria-label="Select leagues"
-            >
-              <i className="fas fa-filter" />
-              <span className="tt-page-league-count">{selectedLeagueBadgeLabel}</span>
-            </a>
-          <a href="#" className="header-icon header-icon-3" tabIndex={-1} onClick={openFeedbackSheet} aria-label="Send feedback">
-            <i className="fas fa-comment-dots" />
-          </a>
-          <a href="#" className="header-icon header-icon-4 show-on-theme-dark" tabIndex={-1} data-toggle-theme onClick={toggleTheme}>
-            <i className="fas fa-sun" />
-          </a>
-          <a href="#" className="header-icon header-icon-4 show-on-theme-light" tabIndex={-1} data-toggle-theme onClick={toggleTheme}>
-            <i className="fas fa-moon" />
-          </a>
-        </header>
-
-        {!isLeagueSelectorOpen ? <TabFooterBar reselectBehavior="root" /> : null}
-
+      <div id="page" className="app-shell-page">
+        {!isLeagueSelectorOpen ? (
           <>
+            {/* Compact AppKit header: initially hidden by header-auto-show, activated after the page title scrolls away. */}
+            <header ref={headerRef} className="header header-auto-show header-fixed header-logo-center" role="banner">
+              <a href="#" className="header-title" onClick={onFooterTabClick(activeTab)}>{TAB_METADATA[activeTab].label}</a>
+              <a href="#" className="header-icon header-icon-1" onClick={onMenuTrigger('menu-main')} aria-label="Open menu">
+                <i className="fas fa-bars" />
+              </a>
+              <a href="#" className="header-icon header-icon-2 tt-header-league-filter" onClick={onOpenLeagueSelector} aria-label="Select leagues">
+                <i className="fas fa-filter" />
+                <span className="tt-page-league-count">{selectedLeagueBadgeLabel}</span>
+              </a>
+              <a href="#" className="header-icon header-icon-3" onClick={openFeedbackSheet} aria-label="Send feedback">
+                <i className="fas fa-comment-dots" />
+              </a>
+              <a
+                href="#"
+                className="header-icon header-icon-4"
+                onClick={(e) => { e.preventDefault(); toggleTheme(); }}
+                aria-pressed={isDarkMode}
+                aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                role="switch"
+              >
+                <i className={isDarkMode ? 'fas fa-sun' : 'fas fa-moon'} />
+              </a>
+            </header>
+
+            <TabFooterBar reselectBehavior="root" />
+
             <div ref={pageTitleRef} className="page-title page-title-fixed">
-              <h1>{tabTitles[activeTab]}</h1>
+              <h1>{TAB_METADATA[activeTab].label}</h1>
               <a href="#" className="page-title-icon bg-theme color-theme" onClick={openFeedbackSheet} aria-label="Send feedback">
                 <i className="fa fa-comment-dots" />
               </a>
               <a href="#" className="page-title-icon bg-theme color-theme" onClick={onShareClick} aria-label="Share TT Players">
                 <i className="fa fa-share-alt" />
               </a>
-              <a
-                href="#"
-                className="page-title-icon bg-theme color-theme tt-page-league-filter"
-                onClick={onOpenLeagueSelector}
-                aria-label="Select leagues"
-              >
+              <a href="#" className="page-title-icon bg-theme color-theme tt-page-league-filter" onClick={onOpenLeagueSelector} aria-label="Select leagues">
                 <i className="fa fa-filter" />
                 <span className="tt-page-league-count">{selectedLeagueBadgeLabel}</span>
               </a>
-              <a href="#" className="page-title-icon bg-theme color-theme show-on-theme-light" data-toggle-theme onClick={toggleTheme}>
-                <i className="fa fa-moon" />
+              <a
+                href="#"
+                className="page-title-icon bg-theme color-theme"
+                onClick={(e) => { e.preventDefault(); toggleTheme(); }}
+                aria-pressed={isDarkMode}
+                aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                role="switch"
+              >
+                <i className={isDarkMode ? 'fa fa-lightbulb color-yellow-dark' : 'fa fa-moon'} />
               </a>
-              <a href="#" className="page-title-icon bg-theme color-theme show-on-theme-dark" data-toggle-theme onClick={toggleTheme}>
-                <i className="fa fa-lightbulb color-yellow-dark" />
-              </a>
-              <a href="#" className="page-title-icon bg-theme color-theme" data-menu="menu-main" onClick={onMenuTrigger('menu-main')}>
+              <a href="#" className="page-title-icon bg-theme color-theme" onClick={onMenuTrigger('menu-main')} aria-label="Open menu">
                 <i className="fa fa-bars" />
               </a>
             </div>
             <div className="page-title-clear" />
-          </>
+
+            <main className="page-content app-shell-content">
+              {activeTab === 'home' ? (
+                <HomeTabContent
+                  allLeagues={allLeagues}
+                  hasCompletedLeagueOnboarding={hasCompletedLeagueOnboarding}
+                  selectedLeagueIds={selectedLeagueIds}
+                  onOpenLeagueSelector={openLeagueSelector}
+                  onOpenTab={(tabId) => switchTab(tabId, 'root')}
+                />
+              ) : null}
+
+              {activeTab === 'players' ? (
+                <>
+                  <SearchPanel
+                    eyebrow="Players"
+                    title="Find a player"
+                    placeholder="Search players…"
+                    query={query}
+                    onQueryChange={setQuery}
+                    scope={{
+                      ariaLabel: 'Choose player search scope',
+                      value: playerSearchScope,
+                      onChange: (v) => setPlayerSearchScope(v as PlayerSearchScope),
+                      options: [
+                        { value: 'all', label: 'All leagues' },
+                        { value: 'selected', label: 'Selected' },
+                      ],
+                    }}
+                  >
+                    <div aria-live="polite">
+                      {favouritePlayers.length > 0 && !isActive && !isTooShort ? (
+                        <section className="tt-player-section" aria-labelledby="tt-favourite-players-title">
+                          <div className="tt-section-header">
+                            <h2 id="tt-favourite-players-title" className="tt-section-header__title">Favourite Players</h2>
+                            <span className="tt-section-header__note">{favouritePlayers.length} saved</span>
+                          </div>
+                          <List divider="hairline" size="lg">
+                            {favouritePlayers.map((player) => (
+                              <ListItem
+                                key={player.id}
+                                leading={<Avatar text={player.name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()} />}
+                                title={player.name}
+                                subtitle={`${player.wins}W · ${player.played}P`}
+                                onClick={() => navigateInActiveTab(`player/${player.id}`)}
+                                trailing={<FavouriteButton size="icon" saved onToggle={() => toggleFavourite(player)} />}
+                              />
+                            ))}
+                          </List>
+                        </section>
+                      ) : null}
+
+                      {favouritePlayers.length === 0 && !isActive && !isTooShort ? (
+                        <section className="tt-player-section">
+                          <EmptyState
+                            iconClassName="fa fa-search"
+                            title="Search by name"
+                            message="Search across all leagues, then save players here for quicker access."
+                          />
+                        </section>
+                      ) : null}
+
+                      {isActive || isTooShort ? (
+                        <section className="tt-player-section" aria-labelledby="tt-search-results-title">
+                          <div className="tt-section-header">
+                            <h2 id="tt-search-results-title" className="tt-section-header__title">Search Results</h2>
+                            <span className="tt-section-header__note">{listItems.length} players</span>
+                          </div>
+                          {isTooShort ? (
+                            <EmptyState iconClassName="fa fa-keyboard" title="Type at least 3 characters" message="Then we'll search players for you." />
+                          ) : isSearchLoading ? (
+                            <EmptyState iconClassName="fa fa-spinner fa-spin" title="Searching…" />
+                          ) : searchError ? (
+                            <EmptyState iconClassName="fa fa-exclamation-triangle" title="Couldn’t load players" message={searchError} />
+                          ) : listItems.length === 0 ? (
+                            <EmptyState iconClassName="fa fa-search" title="No players found" message={`No players matching “${normalizedQuery}”.`} />
+                          ) : (
+                            <List divider="hairline" size="lg">
+                              {listItems.map((player) => {
+                                const saved = isFavourite(player.id);
+                                return (
+                                  <ListItem
+                                    key={player.id}
+                                    leading={<Avatar text={player.name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()} />}
+                                    title={player.name}
+                                    subtitle={`${player.wins}W · ${player.played}P`}
+                                    onClick={() => navigateInActiveTab(`player/${player.id}`)}
+                                    trailing={<FavouriteButton saved={saved} onToggle={() => toggleFavourite(player)} />}
+                                  />
+                                );
+                              })}
+                            </List>
+                          )}
+                        </section>
+                      ) : null}
+                    </div>
+                  </SearchPanel>
+                </>
+              ) : null}
+
+              {activeTab === 'leagues' ? <LeaguesTabContent selectedLeagueIds={selectedLeagueIds} /> : null}
+              {activeTab === 'h2h' ? <H2HTabContent onOpenPlayer={(playerId) => navigateInActiveTab(`player/${playerId}`)} /> : null}
+              {activeTab === 'events' ? <EventsTabContent /> : null}
+              {activeTab === 'about' ? <AboutTabContent /> : null}
+            </main>
           </>
         ) : null}
-
-        <main className="page-content mt-n1 app-shell-content" style={wrapperStyle}>
-          {activeTab === 'home' ? (
-            <HomeTabContent
-              allLeagues={allLeagues}
-              hasCompletedLeagueOnboarding={hasCompletedLeagueOnboarding}
-              selectedLeagueIds={selectedLeagueIds}
-              onOpenLeagueSelector={openLeagueSelector}
-              onOpenTab={(tabId) => switchTab(tabId, 'root')}
-            />
-          ) : null}
-
-          {activeTab === 'players' ? (
-            <>
-              <section className="tt-players-search-panel" aria-label="Player search">
-                <div className="tt-players-search-top">
-                  <div>
-                    <p className="tt-player-eyebrow">Players</p>
-                    <h1 className="tt-players-search-title">Find a player</h1>
-                  </div>
-                </div>
-
-                <label className="tt-players-search-input">
-                  <i className="fa fa-search" aria-hidden="true" />
-                  <input
-                    type="text"
-                    placeholder="Search players..."
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                  />
-                </label>
-
-                <div className="tt-players-search-scope" aria-label="Player search scope">
-                  <span>Search scope</span>
-                  <div className="tt-players-search-scope-toggle" role="group" aria-label="Choose player search scope">
-                    <button
-                      type="button"
-                      className={playerSearchScope === 'all' ? 'active' : undefined}
-                      onClick={() => setPlayerSearchScope('all')}
-                    >
-                      All leagues
-                    </button>
-                    <button
-                      type="button"
-                      className={playerSearchScope === 'selected' ? 'active' : undefined}
-                      onClick={() => setPlayerSearchScope('selected')}
-                    >
-                      Selected
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              {favouritePlayers.length > 0 && !isSearchMode && !isShortSearchQuery ? (
-                <section className="tt-player-section" aria-labelledby="tt-favourite-players-title">
-                  <div className="tt-player-section-header">
-                    <h2 id="tt-favourite-players-title" className="tt-player-section-title">Favourite Players</h2>
-                    <span className="tt-player-section-note">{favouritePlayers.length} saved</span>
-                  </div>
-                  <div className="favourites-scroll">
-                    <PlayerList
-                      players={favouritePlayers}
-                      onSelectPlayer={(player) => navigateInActiveTab(`player/${player.id}`)}
-                      listClassName="tt-player-large-list"
-                      renderTrailing={(player) => (
-                        <button
-                          type="button"
-                          className="tt-player-remove-badge"
-                          aria-label={`Remove ${player.name} from favourites`}
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            toggleFavouritePlayer(player);
-                          }}
-                        >
-                          Remove
-                        </button>
-                      )}
-                    />
-                  </div>
-                </section>
-              ) : null}
-
-              {favouritePlayers.length === 0 && !isSearchMode && !isShortSearchQuery ? (
-                <section className="tt-player-section tt-players-empty-section" aria-labelledby="tt-players-empty-title">
-                  <div className="tt-player-section-header">
-                    <h2 id="tt-players-empty-title" className="tt-player-section-title">Search by name</h2>
-                    <span className="tt-player-section-note">3+ characters</span>
-                  </div>
-                  <p className="tt-player-section-state">
-                    Search across all leagues, then save players here for quicker access.
-                  </p>
-                </section>
-              ) : null}
-
-              {isSearchMode || isShortSearchQuery ? (
-                <section className="tt-player-section" aria-labelledby="tt-search-results-title">
-                  <div className="tt-player-section-header">
-                    <h2 id="tt-search-results-title" className="tt-player-section-title">Search Results</h2>
-                    <span className="tt-player-section-note">{listItems.length} players</span>
-                  </div>
-                    {normalizedQuery.length > 0 && normalizedQuery.length <= 2 ? (
-                      <p className="tt-player-section-state">Type at least 3 characters to search players.</p>
-                    ) : isSearchLoading ? (
-                      <p className="tt-player-section-state"><i className="fa fa-spinner fa-spin me-2" />Loading players...</p>
-                    ) : searchError ? (
-                      <p className="tt-player-section-state tt-player-section-error">Failed to load players: {searchError}</p>
-                    ) : listItems.length === 0 ? (
-                      <p className="tt-player-section-state">No players found matching "{normalizedQuery}"</p>
-                    ) : (
-                      <PlayerList
-                        players={listItems}
-                        onSelectPlayer={(player) => navigateInActiveTab(`player/${player.id}`)}
-                        listClassName="tt-player-large-list tt-player-search-list"
-                        renderTrailing={(player) => {
-                          const isFavourite = isFavouritePlayer(player.id);
-                          return (
-                            <button
-                              type="button"
-                              className={isFavourite ? 'tt-player-favourite-icon active' : 'tt-player-favourite-icon'}
-                              aria-label={isFavourite ? `Remove ${player.name} from favourites` : `Add ${player.name} to favourites`}
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                toggleFavouritePlayer(player);
-                              }}
-                            >
-                              <i className="fa fa-heart" />
-                              <span>{isFavourite ? 'Saved' : 'Add'}</span>
-                            </button>
-                          );
-                        }}
-                      />
-                    )}
-                </section>
-              ) : null}
-            </>
-          ) : null}
-
-          {activeTab === 'leagues' ? (
-            <LeaguesTabContent
-              selectedLeagueIds={selectedLeagueIds}
-            />
-          ) : null}
-
-          {activeTab === 'h2h' ? (
-            <H2HTabContent
-              onOpenPlayer={(playerId) => navigateInActiveTab(`player/${playerId}`)}
-            />
-          ) : null}
-
-          {activeTab === 'events' ? (
-            <EventsTabContent />
-          ) : null}
-
-          {activeTab === 'about' ? (
-            <AboutTabContent />
-          ) : null}
-        </main>
 
         {isLeagueSelectorOpen ? (
           <LeagueSelectionPage
@@ -771,15 +462,13 @@ function App() {
           />
         ) : null}
 
-        {isFeedbackSheetOpen ? (
-          <QuickFeedbackSheet onClose={closeFeedbackSheet} />
-        ) : null}
+        {isFeedbackSheetOpen ? <QuickFeedbackSheet onClose={closeFeedbackSheet} /> : null}
 
+        {/* ── Main menu (driven by TAB_METADATA) ── */}
         <div
           id="menu-main"
           className={`menu menu-box-left rounded-0 tt-main-menu ${activeMenuId === 'menu-main' ? 'menu-active' : ''}`}
-          data-menu-width={menuConfigs['menu-main'].width}
-          style={{ width: menuConfigs['menu-main'].width }}
+          style={{ width: 280 }}
           aria-hidden={activeMenuId === 'menu-main' ? undefined : true}
         >
           <div className="tt-main-menu-hero">
@@ -789,7 +478,7 @@ function App() {
               </a>
             </div>
             <div>
-              <p className="tt-picker-eyebrow">League Hub</p>
+              <p className="tt-picker-eyebrow">Menu</p>
               <h1 className="tt-main-menu-title">TT Players</h1>
             </div>
           </div>
@@ -797,45 +486,29 @@ function App() {
           <div className="mt-4" />
           <h6 className="menu-divider">Library</h6>
           <div className="list-group list-custom-small list-menu">
-            <a href="#" onClick={onMenuTabClick('home')}>
-              <i className="fa fa-home color-white" />
-              <span>Home</span>
-              <i className="fa fa-angle-right" />
-            </a>
-            <a href="#" onClick={onMenuTabClick('players')}>
-              <i className="fa fa-user-friends color-white" />
-              <span>Players</span>
-              <i className="fa fa-angle-right" />
-            </a>
-            <a href="#" onClick={onMenuTabClick('leagues')}>
-              <i className="fa fa-table-tennis color-white" />
-              <span>Leagues</span>
-              <i className="fa fa-angle-right" />
-            </a>
-            <a href="#" onClick={onMenuEventsClick}>
-              <i className="fa fa-trophy color-white" />
-              <span>Tournaments</span>
-              <i className="fa fa-angle-right" />
-            </a>
-            <a href="#" onClick={onMenuTabClick('h2h')}>
-              <i className="fa fa-code-compare color-white" />
-              <span>Head to Head</span>
-              <i className="fa fa-angle-right" />
-            </a>
-            <a href="#" onClick={onMenuTabClick('about')}>
-              <i className="fa fa-info-circle color-white" />
-              <span>About</span>
-              <i className="fa fa-angle-right" />
-            </a>
+            {menuTabs.map((tabId) => {
+              const meta = TAB_METADATA[tabId];
+              return (
+                <a
+                  key={tabId}
+                  href="#"
+                  onClick={tabId === 'events' ? onMenuEventsClick : onMenuTabClick(tabId)}
+                >
+                  <i className={`${meta.icon} color-white`} />
+                  <span>{meta.label}</span>
+                  <i className="fa fa-angle-right" />
+                </a>
+              );
+            })}
           </div>
 
           <h6 className="menu-divider mt-4">Settings</h6>
           <div className="list-group list-custom-small list-menu">
-            <a href="#" data-toggle-theme onClick={toggleTheme}>
+            <a href="#" onClick={(e) => { e.preventDefault(); toggleTheme(); }} aria-pressed={isDarkMode}>
               <i className="fa fa-moon color-white" />
               <span>Dark Mode</span>
               <div className="custom-control small-switch ios-switch">
-                <input data-toggle-theme type="checkbox" className="ios-input" id="toggle-dark-menu" checked={isDarkMode} readOnly />
+                <input type="checkbox" className="ios-input" id="toggle-dark-menu" checked={isDarkMode} readOnly />
                 <label className="custom-control-label" htmlFor="toggle-dark-menu" />
               </div>
             </a>
@@ -849,12 +522,11 @@ function App() {
               <span>Share TT Players</span>
               <i className="fa fa-angle-right" />
             </a>
-            <a href="https://www.tournapilot.com/app" target="_blank" rel="noreferrer" onClick={onCloseMenuClick}>
+            <a href="https://www.tournapilot.com/app" target="_blank" rel="noopener noreferrer" onClick={onCloseMenuClick}>
               <i className="fa fa-external-link-alt color-white" />
               <span>TournaPilot</span>
               <i className="fa fa-angle-right" />
             </a>
-
           </div>
 
           <div className="tt-main-menu-build" aria-label={`Build ${APP_BUILD_TIME}, commit ${APP_COMMIT}`}>
@@ -866,8 +538,7 @@ function App() {
         <div
           id="menu-share"
           className={`menu menu-box-bottom rounded-m ${activeMenuId === 'menu-share' ? 'menu-active' : ''}`}
-          data-menu-height={menuConfigs['menu-share'].height}
-          style={{ height: menuConfigs['menu-share'].height }}
+          style={{ height: 370 }}
           aria-hidden={activeMenuId === 'menu-share' ? undefined : true}
         >
           <div className="menu-title">
@@ -878,35 +549,34 @@ function App() {
           <div className="divider divider-margins mt-3 mb-0" />
           <div className="content mt-0">
             <div className="list-group list-custom-small list-icon-0">
-              <a className="external-link" href={shareLinks.facebook} target="_blank" rel="noreferrer" onClick={onCloseMenuClick}>
-                <i className="fab fa-facebook-f font-12 bg-facebook color-whiterounded-s" />
+              <a className="external-link" href={shareLinks.facebook} target="_blank" rel="noopener noreferrer" onClick={onCloseMenuClick}>
+                <i className="fab fa-facebook-f font-12 bg-facebook color-white rounded-s" />
                 <span>Facebook</span>
                 <i className="fa fa-angle-right pr-1" />
               </a>
-              <a className="external-link" href={shareLinks.twitter} target="_blank" rel="noreferrer" onClick={onCloseMenuClick}>
-                <i className="fab fa-twitter font-12 bg-twitter color-whiterounded-s" />
+              <a className="external-link" href={shareLinks.twitter} target="_blank" rel="noopener noreferrer" onClick={onCloseMenuClick}>
+                <i className="fab fa-twitter font-12 bg-twitter color-white rounded-s" />
                 <span>Twitter</span>
                 <i className="fa fa-angle-right pr-1" />
               </a>
-              <a className="external-link" href={shareLinks.linkedin} target="_blank" rel="noreferrer" onClick={onCloseMenuClick}>
-                <i className="fab fa-linkedin-in font-12 bg-linkedin color-whiterounded-s" />
+              <a className="external-link" href={shareLinks.linkedin} target="_blank" rel="noopener noreferrer" onClick={onCloseMenuClick}>
+                <i className="fab fa-linkedin-in font-12 bg-linkedin color-white rounded-s" />
                 <span>LinkedIn</span>
                 <i className="fa fa-angle-right pr-1" />
               </a>
-              <a className="external-link" href={shareLinks.whatsapp} target="_blank" rel="noreferrer" onClick={onCloseMenuClick}>
-                <i className="fab fa-whatsapp font-12 bg-whatsapp color-whiterounded-s" />
+              <a className="external-link" href={shareLinks.whatsapp} target="_blank" rel="noopener noreferrer" onClick={onCloseMenuClick}>
+                <i className="fab fa-whatsapp font-12 bg-whatsapp color-white rounded-s" />
                 <span>WhatsApp</span>
                 <i className="fa fa-angle-right pr-1" />
               </a>
               <a className="external-link border-0" href={shareLinks.mail} onClick={onCloseMenuClick}>
-                <i className="fa fa-envelope font-12 bg-mail color-whiterounded-s" />
+                <i className="fa fa-envelope font-12 bg-mail color-white rounded-s" />
                 <span>Email</span>
                 <i className="fa fa-angle-right pr-1" />
               </a>
             </div>
           </div>
         </div>
-
       </div>
     </>
   );

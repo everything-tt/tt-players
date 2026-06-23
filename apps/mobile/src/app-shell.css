@@ -140,6 +140,32 @@ body.theme-dark #footer-bar {
   color: var(--accent) !important;
 }
 
+.app-shell-page .page-title h1 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell-page .page-title-icon {
+  height: 36px;
+  line-height: 37px;
+  margin-right: 8px;
+  width: 36px;
+}
+
+.app-shell-page .page-title-icon:last-child {
+  margin-right: 10px;
+}
+
+.app-shell-page .header-logo-center .header-icon-2 {
+  left: 40px;
+}
+
+.app-shell-page .header-logo-center .header-icon-3 {
+  right: 40px;
+}
+
 .app-shell-page .bg-6 {
   background-color: oklch(28% 0.065 158) !important;
   background-image: linear-gradient(135deg, oklch(22% 0.055 158), oklch(35% 0.082 154)) !important;
@@ -282,33 +308,6 @@ body.theme-dark .list-custom-large a {
 .tt-players-search-input:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 4px var(--accent-ring), 0 12px 30px oklch(21% 0.034 158 / 0.1);
-}
-
-.tt-players-search-scope-toggle {
-  background: var(--accent-subtle);
-  border: 1px solid var(--accent-border);
-  border-radius: 999px;
-  display: inline-flex;
-  flex: 0 0 auto;
-  padding: 3px;
-}
-
-.tt-players-search-scope-toggle button {
-  background: transparent;
-  border: 0;
-  border-radius: 999px;
-  color: var(--ink-muted);
-  font: inherit;
-  font-size: 11px;
-  line-height: 1;
-  min-height: 28px;
-  padding: 0 11px;
-  text-transform: none;
-}
-
-.tt-players-search-scope-toggle button.active {
-  background: var(--accent);
-  color: var(--on-accent);
 }
 
 .tt-leagues-panel {
@@ -624,6 +623,10 @@ body.theme-dark .list-custom-large a {
   padding-bottom: 14px;
 }
 
+.tt-sheet__body > .tt-feedback-form {
+  min-height: 100%;
+}
+
 .tt-feedback-field {
   display: flex;
   flex-direction: column;
@@ -656,6 +659,21 @@ body.theme-dark .list-custom-large a {
 .tt-feedback-field textarea {
   min-height: 108px;
   resize: vertical;
+}
+
+.tt-sheet__body .tt-feedback-field--message {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.tt-sheet__body .tt-feedback-field--message textarea {
+  flex: 1 1 auto;
+  min-height: 180px;
+  resize: none;
+}
+
+.tt-feedback-actions {
+  margin-top: auto;
 }
 
 .tt-feedback-field input:focus,
@@ -2133,17 +2151,6 @@ body.theme-dark .tt-segmented-toggle {
   margin: 18px 0 0;
 }
 
-.tt-favourite-action-button {
-  align-items: center;
-  display: inline-flex !important;
-  justify-content: center;
-  padding-left: 0;
-  padding-right: 0;
-}
-
-.tt-favourite-action-button i {
-  font-size: 15px;
-}
 
 .tt-league-summary-grid {
   display: grid;
@@ -2634,11 +2641,6 @@ body.theme-dark .tt-segmented-toggle {
   font-weight: 600;
 }
 
-.tt-icon-result {
-  background: var(--accent-subtle) !important;
-  color: var(--accent) !important;
-}
-
 .tt-event-top-player-grid {
   display: grid;
   gap: 8px;
@@ -2659,6 +2661,11 @@ body.theme-dark .tt-segmented-toggle {
 
 .tt-event-top-player-card.disabled {
   pointer-events: none;
+}
+
+.tt-event-top-player-card.active {
+  background: var(--surface-subtle);
+  box-shadow: inset 0 0 0 1px var(--accent-border);
 }
 
 .tt-event-top-player-rank {
@@ -2702,27 +2709,54 @@ body.theme-dark .tt-segmented-toggle {
   margin-top: 5px;
 }
 
-.tt-event-match-row {
-  border-bottom: 1px solid var(--border-hairline);
-}
-
-.tt-event-match-row:last-child {
-  border-bottom: 0;
-}
-
-.tt-event-match-players {
+.tt-active-filter {
   align-items: center;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  color: var(--ink-muted);
   display: flex;
-  gap: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding: 9px 10px;
+}
+
+.tt-active-filter strong {
+  color: var(--ink);
+}
+
+.tt-active-filter button {
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  padding: 0;
+}
+
+.tt-tournament-results-list {
+  overflow: hidden;
+}
+
+.tt-tournament-result-item .tt-list-item__clickable {
+  align-items: center;
+}
+
+.tt-tournament-result-item .tt-list-item__content {
+  justify-content: center;
+}
+
+.tt-tournament-result-item .tt-list-item__title,
+.tt-tournament-result-item .tt-list-item__subtitle {
   min-width: 0;
 }
 
-.tt-event-player-link {
-  display: block;
-  flex: 0 1 auto;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.2;
+.tt-tournament-result-name {
+  color: inherit;
+  display: inline;
   min-width: 0;
   overflow: hidden;
   text-decoration: none;
@@ -2730,23 +2764,30 @@ body.theme-dark .tt-segmented-toggle {
   white-space: nowrap;
 }
 
-.tt-event-player-link.winner {
-  color: var(--state-success);
+.tt-tournament-result-name.is-winner {
+  color: var(--ink);
+  font-weight: 850;
 }
 
-.tt-event-player-link.loser {
-  color: var(--state-warning);
+.tt-tournament-result-name.is-loser {
+  color: var(--ink-muted);
+  font-weight: 650;
 }
 
-.tt-event-player-link[aria-disabled='true'] {
+.tt-tournament-result-name[aria-disabled='true'] {
   pointer-events: none;
 }
 
-.tt-event-match-vs {
-  color: var(--ink-muted);
-  flex: 0 0 auto;
-  font-size: 12px;
-  font-weight: 700;
+.tt-tournament-result-subtitle {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+  min-width: 0;
+}
+
+.tt-tournament-result-subtitle .tt-tournament-result-name {
+  display: block;
+  max-width: 45%;
 }
 
 .tt-rubber-item {

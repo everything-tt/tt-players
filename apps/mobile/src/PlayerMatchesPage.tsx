@@ -1,24 +1,26 @@
-import { useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import './app-shell.css';
 import { SkeletonList } from './components/Skeleton';
 import { useTabNavigation } from './navigation/tab-navigation';
-import { formatMatchDate, type RubberItem } from './player-shared';
+import { formatMatchDate, getQueryError, type RubberItem } from './player-shared';
 import { usePlayerExtendedStatsQuery, usePlayerRubbersQuery } from './queries';
 import { TabShellPage } from './TabShellPage';
+import { DetailHeader } from './components/DetailHeader';
 import {
-  AppButtonLink,
-  AppHeader,
-  AppHeaderSpacer,
-  AppListGroup,
-  AppListItem,
-  AppPageContent,
+  List,
+  ListItem,
+  OutcomeBadge,
+  EmptyState,
+  ErrorState,
+  SectionHeader,
+  MoreButton,
 } from './ui/appkit';
 
 const PAGE_SIZE = 20;
 
 export function PlayerMatchesPage() {
-  const { goBackInActiveTab, navigateInTab, switchTab } = useTabNavigation();
+  const { goBackInActiveTab, navigateInTab } = useTabNavigation();
   const { playerId = '' } = useParams<{ playerId: string }>();
 
   const [matches, setMatches] = useState<RubberItem[]>([]);
@@ -34,26 +36,7 @@ export function PlayerMatchesPage() {
   const matchesLoadingMore = matchesQuery.isLoading && offset > 0;
   const hasMore = useMemo(() => matches.length < total, [matches.length, total]);
 
-  const goBack = (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-    goBackInActiveTab(playerId ? `player/${playerId}` : '');
-  };
-
-  const goHome = (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-    switchTab('home', 'root');
-  };
-
-  const onLoadMore = (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-    if (matchesLoadingMore || !hasMore) return;
-    setOffset((previous) => previous + PAGE_SIZE);
-  };
-
-  const openFixtureInLeaguesTab = (fixtureId: string) => (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-    navigateInTab('leagues', `fixture/${fixtureId}`);
-  };
+  const openFixtureInLeaguesTab = (fixtureId: string) => () => navigateInTab('leagues', `fixture/${fixtureId}`);
 
   useEffect(() => {
     if (!playerId) {
@@ -62,94 +45,69 @@ export function PlayerMatchesPage() {
       setMatchesError('Missing player id');
       return;
     }
-
-    if (matchesQuery.error instanceof Error) {
-      if (offset === 0) {
-        setMatches([]);
-        setTotal(0);
-      }
-      setMatchesError(matchesQuery.error.message || 'Failed to load matches');
+    const error = getQueryError(matchesQuery.error);
+    if (error) {
+      if (offset === 0) { setMatches([]); setTotal(0); }
+      setMatchesError(error);
       return;
     }
-
     if (!matchesQuery.data) return;
-
     setMatchesError(null);
     setTotal(matchesQuery.data.total);
     setMatches((previous) => {
-      if (offset === 0) return matchesQuery.data.data;
+      if (offset === 0) return matchesQuery.data!.data;
       const existingIds = new Set(previous.map((item) => item.id));
-      return [...previous, ...matchesQuery.data.data.filter((item) => !existingIds.has(item.id))];
+      return [...previous, ...matchesQuery.data!.data.filter((item) => !existingIds.has(item.id))];
     });
   }, [matchesQuery.data, matchesQuery.error, offset, playerId]);
 
   useEffect(() => {
-    setOffset(0);
-    setMatches([]);
-    setTotal(0);
-    setMatchesError(null);
+    setOffset(0); setMatches([]); setTotal(0); setMatchesError(null);
   }, [playerId]);
 
   return (
     <TabShellPage>
-      <AppHeader
-        title={statsLoading ? 'Match History' : stats?.player_name ?? 'Match History'}
-        onTitleClick={goHome}
-        leftAction={{ iconClassName: 'fas fa-chevron-left', onClick: goBack, position: 1, ariaLabel: 'Back' }}
-        rightAction={{ iconClassName: 'fas fa-home', onClick: goHome, position: 4, ariaLabel: 'Home' }}
-      />
-      <AppHeaderSpacer />
-
-      <AppPageContent>
+      <DetailHeader title={statsLoading ? 'Match History' : stats?.player_name ?? 'Match History'} backFallback={playerId ? `player/${playerId}` : ''} />
+      <div className="page-content app-shell-content">
         <section className="tt-player-section" aria-labelledby="tt-player-matches-full-title">
-          <div className="tt-player-section-header">
-            <h2 id="tt-player-matches-full-title" className="tt-player-section-title">Player Matches</h2>
-            <span className="tt-player-section-note">Full Match List</span>
-          </div>
-            {matchesLoading && matches.length === 0 ? (
-              <SkeletonList rows={6} />
-            ) : matchesError && matches.length === 0 ? (
-              <div>
-                <p className="tt-player-section-state tt-player-section-error mb-3">Failed to load match history.</p>
-                <AppButtonLink onClick={goBack}>Back to Player</AppButtonLink>
-              </div>
-            ) : matches.length === 0 ? (
-              <p className="tt-player-section-state mb-0">No matches available for this player.</p>
-            ) : (
-              <>
-                <AppListGroup size="large">
-                  {matches.map((match, index) => (
-                    <AppListItem
-                      key={match.id}
-                      iconClassName={`fa ${match.isWin ? 'fa-check' : 'fa-times'} rounded-xl ${match.isWin ? 'tt-icon-win' : 'tt-icon-loss'}`}
-                      title={`${match.opponent} · ${match.result}`}
-                      subtitle={`${formatMatchDate(match.date)} · ${match.league}`}
-                      onClick={openFixtureInLeaguesTab(match.fixture_id)}
-                      borderless={index === matches.length - 1}
-                    />
-                  ))}
-                </AppListGroup>
-                <p className="tt-player-section-state font-11 mt-3 mb-0">Showing {matches.length} of {total} matches</p>
-              </>
-            )}
+          <SectionHeader title="Player Matches" note="Full match list" />
+          {matchesLoading && matches.length === 0 ? (
+            <SkeletonList rows={6} />
+          ) : matchesError && matches.length === 0 ? (
+            <ErrorState message="Failed to load match history." onRetry={() => goBackInActiveTab(playerId ? `player/${playerId}` : '')} />
+          ) : matches.length === 0 ? (
+            <EmptyState iconClassName="fa fa-table" title="No matches" message="No matches available for this player." />
+          ) : (
+            <>
+              <List divider="hairline">
+                {matches.map((match) => (
+                  <ListItem
+                    key={match.id}
+                    leading={<OutcomeBadge outcome={match.isWin ? 'W' : 'L'} icon />}
+                    title={`${match.opponent} · ${match.result}`}
+                    subtitle={`${formatMatchDate(match.date)} · ${match.league}`}
+                    onClick={openFixtureInLeaguesTab(match.fixture_id)}
+                    hideChevron
+                  />
+                ))}
+              </List>
+              <p className="tt-section-meta mt-3">Showing {matches.length} of {total} matches</p>
+            </>
+          )}
 
-            {matchesError && matches.length > 0 ? (
-              <p className="tt-player-section-state tt-player-section-error mt-3 mb-0 font-12">Could not load more matches. Try again.</p>
-            ) : null}
+          {matchesError && matches.length > 0 ? (
+            <ErrorState message="Couldn’t load more matches. Try again." />
+          ) : null}
 
-            {hasMore && matches.length > 0 ? (
-              <AppButtonLink
-                full
-                size="sm"
-                className="font-13 mt-3"
-                tone={matchesLoadingMore ? 'outline-highlight' : 'highlight'}
-                onClick={onLoadMore}
-              >
-                {matchesLoadingMore ? 'Loading...' : 'Load More Matches'}
-              </AppButtonLink>
-            ) : null}
+          {hasMore && matches.length > 0 ? (
+            <div className="mt-3">
+              <MoreButton loading={matchesLoadingMore} hasMore={hasMore} onClick={() => setOffset((p) => p + PAGE_SIZE)}>
+                Load more matches
+              </MoreButton>
+            </div>
+          ) : null}
         </section>
-      </AppPageContent>
+      </div>
     </TabShellPage>
   );
 }

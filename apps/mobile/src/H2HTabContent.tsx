@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, type MouseEvent } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   formatMatchDate,
   getInitials,
@@ -6,44 +6,10 @@ import {
 } from './player-shared';
 import { AppButtonLink, AppPlayerList } from './ui/appkit';
 import { PlayerSearchSheet } from './PlayerSearchSheet';
-import { usePageNavigation } from './hooks/usePageNavigation';
+import { useTabNavigation } from './navigation/tab-navigation';
 import { usePlayerH2HQuery } from './queries';
-
-interface FavouriteH2H {
-  player1: PlayerSearchItem;
-  player2: PlayerSearchItem;
-}
-
-const H2H_FAVOURITES_STORAGE_KEY = 'tt_players_favourite_h2h';
-const H2H_FAVOURITES_UPDATED_EVENT = 'tt_players_favourite_h2h_updated';
-
-function isValidFavouriteH2H(value: unknown): value is FavouriteH2H {
-  if (!value || typeof value !== 'object') return false;
-  const item = value as Record<string, unknown>;
-  return !!item.player1 && typeof item.player1 === 'object' &&
-         !!item.player2 && typeof item.player2 === 'object' &&
-         typeof (item.player1 as Record<string, unknown>).id === 'string' &&
-         typeof (item.player1 as Record<string, unknown>).name === 'string' &&
-         typeof (item.player2 as Record<string, unknown>).id === 'string' &&
-         typeof (item.player2 as Record<string, unknown>).name === 'string';
-}
-
-function parseStoredFavouriteH2H(): FavouriteH2H[] {
-  try {
-    const raw = localStorage.getItem(H2H_FAVOURITES_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidFavouriteH2H);
-  } catch {
-    return [];
-  }
-}
-
-function persistFavouriteH2H(h2hs: FavouriteH2H[]) {
-  localStorage.setItem(H2H_FAVOURITES_STORAGE_KEY, JSON.stringify(h2hs));
-  window.dispatchEvent(new Event(H2H_FAVOURITES_UPDATED_EVENT));
-}
+import { useFavouriteH2H } from './hooks/useFavouriteH2H';
+import { FavouriteButton } from './components/FavouriteButton';
 
 function getWinRate(player: Pick<PlayerSearchItem, 'wins' | 'played'>): number {
   if (player.played <= 0) return 0;
@@ -89,8 +55,8 @@ interface LeagueEncounterSummary {
 
 
 export function H2HTabContent({ onOpenPlayer }: H2HTabContentProps) {
-  const { navigateInTab } = usePageNavigation();
-  const [favouriteH2Hs, setFavouriteH2Hs] = useState<FavouriteH2H[]>(() => parseStoredFavouriteH2H());
+  const { navigateInTab } = useTabNavigation();
+  const { items: favouriteH2Hs, isFavourite: isFavouriteMatchup, toggle: toggleFavouriteMatchup, remove: removeFavouriteMatchup } = useFavouriteH2H();
   const [playerA, setPlayerA] = useState<PlayerSearchItem | null>(() => parseStoredActivePlayer(H2H_ACTIVE_PLAYER_A_KEY));
   const [playerB, setPlayerB] = useState<PlayerSearchItem | null>(() => parseStoredActivePlayer(H2H_ACTIVE_PLAYER_B_KEY));
 
@@ -110,51 +76,7 @@ export function H2HTabContent({ onOpenPlayer }: H2HTabContentProps) {
     }
   }, [playerB]);
 
-  const isFavourite = useMemo(() => {
-    if (!playerA || !playerB) return false;
-    return favouriteH2Hs.some(
-      (item) =>
-        (item.player1.id === playerA.id && item.player2.id === playerB.id) ||
-        (item.player1.id === playerB.id && item.player2.id === playerA.id)
-    );
-  }, [favouriteH2Hs, playerA, playerB]);
-
-  const toggleFavourite = (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-    if (!playerA || !playerB) return;
-
-    setFavouriteH2Hs((previous) => {
-      const exists = previous.some(
-        (item) =>
-          (item.player1.id === playerA.id && item.player2.id === playerB.id) ||
-          (item.player1.id === playerB.id && item.player2.id === playerA.id)
-      );
-
-      let next;
-      if (exists) {
-        next = previous.filter(
-          (item) =>
-            !((item.player1.id === playerA.id && item.player2.id === playerB.id) ||
-              (item.player1.id === playerB.id && item.player2.id === playerA.id))
-        );
-      } else {
-        next = [...previous, { player1: playerA, player2: playerB }];
-      }
-
-      persistFavouriteH2H(next);
-      return next;
-    });
-  };
-
-  useEffect(() => {
-    const syncFromStorage = () => {
-      setFavouriteH2Hs(parseStoredFavouriteH2H());
-    };
-    window.addEventListener(H2H_FAVOURITES_UPDATED_EVENT, syncFromStorage);
-    return () => {
-      window.removeEventListener(H2H_FAVOURITES_UPDATED_EVENT, syncFromStorage);
-    };
-  }, []);
+  const isFavourite = playerA && playerB ? isFavouriteMatchup(playerA.id, playerB.id) : false;
 
 
 
@@ -241,18 +163,9 @@ export function H2HTabContent({ onOpenPlayer }: H2HTabContentProps) {
             )}
           </div>
           <div className="tt-h2h-actions">
-            {playerA && playerB && (
-              <AppButtonLink
-                size="sm"
-                className="tt-player-action-pill tt-favourite-action-button"
-                tone={isFavourite ? 'highlight' : 'outline-highlight'}
-                aria-label={isFavourite ? 'Remove favourite' : 'Save favourite'}
-                onClick={toggleFavourite}
-              >
-                <i className={`fa fa-heart ${isFavourite ? 'color-white' : 'color-highlight'}`} />
-                <span>{isFavourite ? 'Saved' : 'Save'}</span>
-              </AppButtonLink>
-            )}
+            {playerA && playerB ? (
+              <FavouriteButton saved={Boolean(isFavourite)} onToggle={() => toggleFavouriteMatchup({ player1: playerA, player2: playerB })} />
+            ) : null}
             {(playerA || playerB) && (
               <AppButtonLink
                 size="sm"
@@ -351,7 +264,7 @@ export function H2HTabContent({ onOpenPlayer }: H2HTabContentProps) {
             <h2 id="tt-favourite-h2h-title" className="tt-player-section-title">Favourite Matchups</h2>
             <span className="tt-player-section-note">{favouriteH2Hs.length} saved</span>
           </div>
-          <div className="favourites-scroll">
+          <div className="mt-2">
             <AppPlayerList
               items={favouriteH2Hs.map((item) => ({
                 id: `${item.player1.id}-${item.player2.id}`,
@@ -373,15 +286,7 @@ export function H2HTabContent({ onOpenPlayer }: H2HTabContentProps) {
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    setFavouriteH2Hs((previous) => {
-                      const next = previous.filter(
-                        (x) =>
-                          !((x.player1.id === item.player1.id && x.player2.id === item.player2.id) ||
-                            (x.player1.id === item.player2.id && x.player2.id === item.player1.id))
-                      );
-                      persistFavouriteH2H(next);
-                      return next;
-                    });
+                    removeFavouriteMatchup(item.player1.id, item.player2.id);
                   }}
                 >
                   Remove

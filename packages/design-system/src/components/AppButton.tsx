@@ -1,33 +1,24 @@
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from 'react';
 import { cx } from '../utils/cx';
 
-export type AppButtonTone = 'highlight' | 'outline-highlight';
+// Extended tone set. `primary`/`outline`/`ghost`/`danger` are the new canonical
+// names; `highlight`/`outline-highlight` kept as aliases for back-compat.
+export type AppButtonTone =
+  | 'highlight' | 'outline-highlight'
+  | 'primary' | 'outline' | 'ghost' | 'danger';
 export type AppButtonSize = 's' | 'sm' | 'm' | 'l';
 export type AppButtonRounded = 'full' | 'm';
 export type AppButtonFontWeight = 'regular' | 'semibold' | 'bold';
 
 const toneClassName: Record<AppButtonTone, string> = {
-  highlight: 'bg-highlight color-white border-0',
-  'outline-highlight': 'color-highlight border-highlight bg-transparent',
+  highlight: 'tt-btn--primary',
+  'outline-highlight': 'tt-btn--outline',
+  primary: 'tt-btn--primary',
+  outline: 'tt-btn--outline',
+  ghost: 'tt-btn--ghost',
+  danger: 'tt-btn--danger',
 };
 
-const sizeClassName: Record<AppButtonSize, string> = {
-  s: 'btn-s',
-  sm: 'btn-sm',
-  m: 'btn-m',
-  l: 'btn-l',
-};
-
-const roundedClassName: Record<AppButtonRounded, string> = {
-  full: 'rounded-pill',
-  m: 'rounded-m',
-};
-
-const fontWeightClassName: Record<AppButtonFontWeight, string> = {
-  regular: 'font-400',
-  semibold: 'font-600',
-  bold: 'font-700',
-};
 
 export interface AppButtonLinkProps extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'children'> {
   children: ReactNode;
@@ -41,10 +32,10 @@ export interface AppButtonLinkProps extends Omit<AnchorHTMLAttributes<HTMLAnchor
 export function AppButtonLink({
   children,
   className,
-  tone = 'highlight',
-  size = 's',
+  tone = 'primary',
+  size = 'sm',
   rounded = 'full',
-  fontWeight = 'regular',
+  fontWeight = 'semibold',
   full = false,
   href = '#',
   ...props
@@ -53,12 +44,12 @@ export function AppButtonLink({
     <a
       href={href}
       className={cx(
-        'btn',
-        sizeClassName[size],
-        roundedClassName[rounded],
-        fontWeightClassName[fontWeight],
+        'tt-btn',
+        `tt-btn--${size}`,
+        `tt-btn-rounded--${rounded}`,
+        `tt-btn-weight--${fontWeight}`,
         toneClassName[tone],
-        full && 'btn-full',
+        full && 'tt-btn--full',
         className,
       )}
       {...props}
@@ -81,10 +72,10 @@ export interface AppButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElem
 export function AppButton({
   children,
   className,
-  tone = 'highlight',
-  size = 's',
+  tone = 'primary',
+  size = 'sm',
   rounded = 'full',
-  fontWeight = 'regular',
+  fontWeight = 'semibold',
   full = false,
   loading = false,
   disabled,
@@ -93,12 +84,12 @@ export function AppButton({
   return (
     <button
       className={cx(
-        'btn',
-        sizeClassName[size],
-        roundedClassName[rounded],
-        fontWeightClassName[fontWeight],
+        'tt-btn',
+        `tt-btn--${size}`,
+        `tt-btn-rounded--${rounded}`,
+        `tt-btn-weight--${fontWeight}`,
         toneClassName[tone],
-        full && 'btn-full',
+        full && 'tt-btn--full',
         className,
       )}
       disabled={disabled || loading}

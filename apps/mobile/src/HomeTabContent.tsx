@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import type { AppTabId } from './navigation/tab-navigation';
-import { type LeagueWithDivisions } from './player-shared';
+import { type LeagueWithDivisions, TAB_METADATA, formatNumber } from './player-shared';
 import { useLeadersQuery, usePlayerCountQuery } from './queries';
 import { useTabNavigation } from './navigation/tab-navigation';
-import { SegmentedToggle } from './components/SegmentedToggle';
+import { SegmentedToggle, EmptyState, List, ListItem, RankBadge, Pill } from './ui/appkit';
 
 type DashboardTabId = Exclude<AppTabId, 'home'>;
 
@@ -34,26 +34,17 @@ export function HomeTabContent({
     && allLeagues.length > 0
     && selectedLeagueIds.length === allLeagues.length;
 
+  // Only the visible mode loads (replaces the previous double-fire).
   const leadersQuery = useLeadersQuery({
-    mode: 'combined',
+    mode: listMode === 'top' ? 'combined' : 'most_played',
     leagueIds: isAllLeagueScope ? [] : selectedLeagueIds,
     limit: LEADERS_LIMIT,
     minPlayed: LEADERS_MIN_PLAYED,
     enabled: hasLeagueScope,
   });
-  const leaders = leadersQuery.data?.data ?? [];
-  const isLeadersLoading = leadersQuery.isLoading;
-  const leadersError = leadersQuery.error instanceof Error ? leadersQuery.error.message : null;
-
-  const trendingQuery = useLeadersQuery({
-    mode: 'most_played',
-    leagueIds: isAllLeagueScope ? [] : selectedLeagueIds,
-    limit: LEADERS_LIMIT,
-    minPlayed: LEADERS_MIN_PLAYED,
-    enabled: hasLeagueScope,
-  });
-  const trending = trendingQuery.data?.data ?? [];
-  const isTrendingLoading = trendingQuery.isLoading;
+  const currentList = leadersQuery.data?.data ?? [];
+  const isListLoading = leadersQuery.isLoading;
+  const leadersError = leadersQuery.error;
 
   const countQuery = usePlayerCountQuery();
   const isCountLoading = countQuery.isLoading;
@@ -62,44 +53,16 @@ export function HomeTabContent({
   const leagueCount = allLeagues.length;
   const divisionCount = allLeagues.reduce((s, l) => s + l.divisions.length, 0);
 
-  const fmt = (v: number | null) => isCountLoading ? '...' : v !== null ? v.toLocaleString() : '–';
+  const fmt = (v: number | null) => isCountLoading ? '…' : formatNumber(v);
 
   const scopeLabel = isAllLeagueScope
     ? `All ${leagueCount} leagues`
     : !hasLeagueScope
       ? 'Choose your leagues'
-    : `${selectedLeagueIds.length} of ${leagueCount} leagues`;
+      : `${selectedLeagueIds.length} of ${leagueCount} leagues`;
 
-  const currentList = listMode === 'top' ? leaders : trending;
-  const isListLoading = listMode === 'top' ? isLeadersLoading : isTrendingLoading;
-  const listError = listMode === 'top' ? leadersError : null;
-
-  const navItems = [
-    {
-      tabId: 'players' as DashboardTabId,
-      title: 'Players',
-      description: `Search across ${fmt(playerCount)} players`,
-      iconClassName: 'fa fa-search',
-    },
-    {
-      tabId: 'leagues' as DashboardTabId,
-      title: 'Leagues',
-      description: `${leagueCount} leagues, ${divisionCount} divisions`,
-      iconClassName: 'fa fa-table-tennis',
-    },
-    {
-      tabId: 'h2h' as DashboardTabId,
-      title: 'Head to Head',
-      description: 'Compare any two players',
-      iconClassName: 'fa fa-code-compare',
-    },
-    {
-      tabId: 'events' as DashboardTabId,
-      title: 'Tournaments',
-      description: 'Sport80 events & grand prix results',
-      iconClassName: 'fa fa-trophy',
-    },
-  ];
+  // Drive nav cards from the single TAB_METADATA source (no more 3 duplicate lists).
+  const navItems: DashboardTabId[] = ['players', 'leagues', 'h2h', 'events'];
 
   return (
     <>
@@ -142,75 +105,73 @@ export function HomeTabContent({
           </div>
         ) : (
           <>
-        <div className="tt-home-leaders-header">
-          <SegmentedToggle
-            ariaLabel="Choose leaderboard mode"
-            value={listMode}
-            onChange={setListMode}
-            options={[
-              { value: 'top', label: 'Top' },
-              { value: 'trending', label: 'Trending' },
-            ]}
-          />
-          <span className="tt-home-leaders-desc">
-            {listMode === 'top' ? 'By win rate' : 'By activity'}
-          </span>
-        </div>
+            <div className="tt-home-leaders-header">
+              <SegmentedToggle
+                ariaLabel="Choose leaderboard mode"
+                value={listMode}
+                onChange={setListMode}
+                options={[
+                  { value: 'top', label: 'Top' },
+                  { value: 'trending', label: 'Trending' },
+                ]}
+              />
+              <span className="tt-home-leaders-desc">
+                {listMode === 'top' ? 'By win rate' : 'By activity'}
+              </span>
+            </div>
 
-        {isListLoading ? (
-          <p className="tt-home-leaders-loading">Loading...</p>
-        ) : listError ? (
-          <p className="tt-home-leaders-loading tt-home-leaders-error">Unable to load</p>
-        ) : currentList.length === 0 ? (
-          <p className="tt-home-leaders-loading">No data available for the selected leagues.</p>
-        ) : (
-          <div className="tt-home-leaders-list">
-            {currentList.map((player: any, index: number) => (
-              <a
-                key={player.player_id}
-                href="#"
-                className="tt-home-leaders-row"
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigateInTab('players', `player/${player.player_id}`);
-                }}
-              >
-                <span className="tt-home-leaders-rank">{index + 1}</span>
-                <span className="tt-home-leaders-name">{player.player_name}</span>
-                <span className="tt-home-leaders-stat">
-                  {player.wins}W &middot; {player.losses}L &middot; {player.played}P
-                </span>
-                <span className="tt-home-leaders-rate">{Math.round(player.win_rate)}%</span>
-              </a>
-            ))}
-          </div>
-        )}
+            <div aria-live="polite">
+              {isListLoading ? (
+                <EmptyState iconClassName="fa fa-spinner fa-spin" title="Loading…" message="Fetching leaders." />
+              ) : leadersError ? (
+                <EmptyState iconClassName="fa fa-exclamation-triangle" title="Couldn’t load leaders" message="Please try again later." />
+              ) : currentList.length === 0 ? (
+                <EmptyState iconClassName="fa fa-chart-line" title="No data yet" message="Not enough matches played in the selected leagues." />
+              ) : (
+                <List divider="hairline">
+                  {currentList.map((player: any, index: number) => (
+                    <ListItem
+                      key={player.player_id}
+                      leading={<RankBadge>{index + 1}</RankBadge>}
+                      title={player.player_name}
+                      subtitle={`${player.wins}W · ${player.losses}L · ${player.played}P`}
+                      trailing={<Pill tone="accent">{Math.round(player.win_rate)}%</Pill>}
+                      onClick={() => navigateInTab('players', `player/${player.player_id}`)}
+                    />
+                  ))}
+                </List>
+              )}
+            </div>
           </>
         )}
       </div>
 
-      <div className="tt-home-nav">
-        {navItems.map((item) => (
-          <a
-            key={item.tabId}
-            href="#"
-            className="tt-home-nav-row"
-            onClick={(e) => {
-              e.preventDefault();
-              onOpenTab(item.tabId);
-            }}
-          >
-            <div className="tt-home-nav-icon">
-              <i className={item.iconClassName} />
-            </div>
-            <div className="tt-home-nav-copy">
-              <span className="tt-home-nav-title">{item.title}</span>
-              <span className="tt-home-nav-desc">{item.description}</span>
-            </div>
-            <i className="fa fa-angle-right tt-home-nav-chevron" />
-          </a>
-        ))}
-      </div>
+      <nav className="tt-home-nav" aria-label="Main sections">
+        {navItems.map((tabId) => {
+          const meta = TAB_METADATA[tabId];
+          const countDesc =
+            tabId === 'players' ? `Search across ${fmt(playerCount)} players` :
+            tabId === 'leagues' ? `${leagueCount} leagues, ${divisionCount} divisions` :
+            meta.description;
+          return (
+            <a
+              key={tabId}
+              href="#"
+              className="tt-home-nav-row"
+              onClick={(e) => { e.preventDefault(); onOpenTab(tabId); }}
+            >
+              <div className="tt-home-nav-icon">
+                <i className={meta.icon} />
+              </div>
+              <div className="tt-home-nav-copy">
+                <span className="tt-home-nav-title">{meta.label}</span>
+                <span className="tt-home-nav-desc">{countDesc}</span>
+              </div>
+              <i className="fa fa-angle-right tt-home-nav-chevron" />
+            </a>
+          );
+        })}
+      </nav>
     </>
   );
 }

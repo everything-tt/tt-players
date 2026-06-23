@@ -23,7 +23,7 @@ const PWAInstallSheet: React.FC = () => {
           style={{ height: '380px', zIndex: 999 }}
         >
           <div className="content">
-            <img className="mx-auto mt-4 rounded-m" src="/appkit/app/icons/icon-128x128.png" alt="img" width="90" />
+            <img className="mx-auto mt-4 rounded-m" src="/appkit/app/icons/icon-128x128.png" alt="" width="90" />
             <h4 className="text-center mt-4 mb-2">TT Players on Home Screen</h4>
             <p className="text-center boxed-text-xl">
               Install TT Players on your home screen, and access it just like a regular app.
@@ -55,7 +55,7 @@ const PWAInstallSheet: React.FC = () => {
         >
           <div className="content">
             <div className="boxed-text-xl top-25">
-              <img className="mx-auto mt-4 rounded-m" src="/appkit/app/icons/icon-128x128.png" alt="img" width="90" />
+              <img className="mx-auto mt-4 rounded-m" src="/appkit/app/icons/icon-128x128.png" alt="" width="90" />
               <h4 className="text-center mt-4 mb-2">TT Players on Home Screen</h4>
               <p className="text-center ms-3 me-3">
                 Install TT Players on your home screen, and access it just like a regular app.

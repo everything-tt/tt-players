@@ -1,46 +1,34 @@
-import { type MouseEvent } from 'react';
-import { useParams } from 'react-router-dom';
 import './app-shell.css';
+import { useParams } from 'react-router-dom';
 import { SectionSkeleton, SkeletonBlock } from './components/Skeleton';
 import { useTabNavigation } from './navigation/tab-navigation';
-import { calcWinRate, getInitials } from './player-shared';
+import { calcWinRate, getInitials, getQueryError } from './player-shared';
 import { usePlayerExtendedStatsQuery, usePlayerInsightsQuery } from './queries';
 import { TabShellPage } from './TabShellPage';
+import { DetailHeader } from './components/DetailHeader';
 import {
-  AppHeader,
-  AppHeaderSpacer,
-  AppListGroup,
-  AppListItem,
-  AppMessageCard,
-  AppPageContent,
+  HeroCard,
+  List,
+  ListItem,
+  IconCircle,
+  EmptyState,
+  ErrorState,
+  SectionHeader,
 } from './ui/appkit';
 
 function PlayerInsightsSkeleton() {
   return (
     <>
-      <section className="tt-insights-hero" aria-label="Loading insights overview">
-        <div className="tt-player-hero-top">
-          <div className="tt-player-hero-copy">
+      <section className="tt-hero" aria-label="Loading insights overview">
+        <div className="tt-hero__top">
+          <div className="tt-hero__copy">
             <SkeletonBlock className="tt-skeleton-eyebrow" />
             <SkeletonBlock className="tt-skeleton-title" />
             <SkeletonBlock className="tt-skeleton-text mt-2" />
           </div>
           <SkeletonBlock className="tt-skeleton-avatar" />
         </div>
-
-        <div className="tt-player-spotlight">
-          <div className="tt-player-winrate">
-            <SkeletonBlock className="tt-skeleton-title" />
-            <SkeletonBlock className="tt-skeleton-text mt-2" />
-          </div>
-          <div className="tt-player-hero-stats">
-            <div className="tt-player-hero-stat"><SkeletonBlock className="tt-skeleton-stat" /></div>
-            <div className="tt-player-hero-stat"><SkeletonBlock className="tt-skeleton-stat" /></div>
-            <div className="tt-player-hero-stat"><SkeletonBlock className="tt-skeleton-stat" /></div>
-          </div>
-        </div>
       </section>
-
       <SectionSkeleton rows={3} />
       <SectionSkeleton rows={3} />
     </>
@@ -48,7 +36,7 @@ function PlayerInsightsSkeleton() {
 }
 
 export function PlayerInsightsPage() {
-  const { goBackInActiveTab, switchTab } = useTabNavigation();
+  const { switchTab } = useTabNavigation();
   const { playerId = '' } = useParams<{ playerId: string }>();
 
   const statsQuery = usePlayerExtendedStatsQuery(playerId, Boolean(playerId));
@@ -57,130 +45,82 @@ export function PlayerInsightsPage() {
   const insights = insightsQuery.data ?? null;
   const isLoading = statsQuery.isLoading || insightsQuery.isLoading;
   const error = playerId
-    ? (statsQuery.error instanceof Error ? statsQuery.error.message : null)
-      || (insightsQuery.error instanceof Error ? insightsQuery.error.message : null)
+    ? getQueryError(statsQuery.error) ?? getQueryError(insightsQuery.error)
     : 'Missing player id';
 
   const momentum = insights?.form.momentum ?? 'new';
   const winRate = stats ? calcWinRate(stats.wins, stats.total) : 0;
 
-  const goBack = (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-    goBackInActiveTab(playerId ? `player/${playerId}` : '');
-  };
-
-  const goHome = (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-    switchTab('home', 'root');
-  };
-
-  const preventDefaultLink = (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-  };
-
   return (
     <TabShellPage>
-      <AppHeader
-        title={stats?.player_name ?? 'Insights'}
-        onTitleClick={goHome}
-        leftAction={{ iconClassName: 'fas fa-chevron-left', onClick: goBack, position: 1, ariaLabel: 'Back' }}
-        rightAction={{ iconClassName: 'fas fa-home', onClick: goHome, position: 4, ariaLabel: 'Home' }}
-      />
-      <AppHeaderSpacer />
-
-      <AppPageContent>
+      <DetailHeader title={stats?.player_name ?? 'Insights'} backFallback={playerId ? `player/${playerId}` : ''} />
+      <div className="page-content app-shell-content">
         {isLoading ? (
           <PlayerInsightsSkeleton />
         ) : error || !stats || !insights ? (
-          <AppMessageCard
-            message="Failed to load insights."
-            action={{ label: 'Back', onClick: goBack }}
-          />
+          <ErrorState message="Failed to load insights." onRetry={() => switchTab('home', 'root')} />
         ) : (
           <>
-            <section className="tt-insights-hero" aria-label="Insights overview">
-              <div className="tt-player-hero-top">
-                <div className="tt-player-hero-copy">
-                  <p className="tt-player-eyebrow">Insights Overview</p>
-                  <h1 className="tt-player-title">{stats.player_name}</h1>
-                  <p className="tt-player-summary-line text-capitalize">Momentum: {momentum}</p>
-                </div>
-                <div className="tt-player-summary-avatar" aria-hidden="true">
-                  <span className="tt-player-summary-initials">{getInitials(stats.player_name)}</span>
-                </div>
-              </div>
-
+            <HeroCard
+              eyebrow="Insights Overview"
+              title={stats.player_name}
+              summary={<span style={{ textTransform: 'capitalize' }}>Momentum: {momentum}</span>}
+              actions={<span className="tt-player-summary-avatar"><span className="tt-player-summary-initials">{getInitials(stats.player_name)}</span></span>}
+            >
               <div className="tt-player-spotlight">
                 <div className="tt-player-winrate">
                   <span className="tt-player-winrate-value">{winRate}%</span>
                   <span className="tt-player-winrate-label">Win Rate</span>
                 </div>
                 <div className="tt-player-hero-stats">
-                  <div className="tt-player-hero-stat">
-                    <span className="tt-player-hero-stat-value">{stats.total}</span>
-                    <span className="tt-player-hero-stat-label">Played</span>
-                  </div>
-                  <div className="tt-player-hero-stat">
-                    <span className="tt-player-hero-stat-value">{stats.wins}</span>
-                    <span className="tt-player-hero-stat-label">Wins</span>
-                  </div>
-                  <div className="tt-player-hero-stat">
-                    <span className="tt-player-hero-stat-value">{stats.losses}</span>
-                    <span className="tt-player-hero-stat-label">Losses</span>
-                  </div>
+                  <div className="tt-player-hero-stat"><span className="tt-player-hero-stat-value">{stats.total}</span><span className="tt-player-hero-stat-label">Played</span></div>
+                  <div className="tt-player-hero-stat"><span className="tt-player-hero-stat-value">{stats.wins}</span><span className="tt-player-hero-stat-label">Wins</span></div>
+                  <div className="tt-player-hero-stat"><span className="tt-player-hero-stat-value">{stats.losses}</span><span className="tt-player-hero-stat-label">Losses</span></div>
                 </div>
               </div>
-            </section>
+            </HeroCard>
 
             <section className="tt-player-section" aria-labelledby="tt-insights-rivals-title">
-              <div className="tt-player-section-header">
-                <h2 id="tt-insights-rivals-title" className="tt-player-section-title">Rival Intelligence</h2>
-                <span className="tt-player-section-note">Trends</span>
-              </div>
-                <AppListGroup size="small">
-                  <AppListItem
-                    iconClassName="fa fa-bolt rounded-xl tt-icon-danger"
-                    title={`Toughest: ${insights.rivals.toughest ? `${insights.rivals.toughest.opponent_name} (${insights.rivals.toughest.win_rate}% WR)` : 'N/A'}`}
-                    onClick={preventDefaultLink}
-                  />
-                  <AppListItem
-                    iconClassName="fa fa-smile rounded-xl tt-icon-success"
-                    title={`Easiest: ${insights.rivals.easiest ? `${insights.rivals.easiest.opponent_name} (${insights.rivals.easiest.win_rate}% WR)` : 'N/A'}`}
-                    onClick={preventDefaultLink}
-                  />
-                  <AppListItem
-                    iconClassName="fa fa-arrow-up rounded-xl tt-icon-trend"
-                    title={`Improving vs: ${insights.rivals.improving_vs ? `${insights.rivals.improving_vs.opponent_name} (+${insights.rivals.improving_vs.delta_points})` : 'N/A'}`}
-                    onClick={preventDefaultLink}
-                    borderless
-                  />
-                </AppListGroup>
+              <SectionHeader title="Rival Intelligence" note="Trends" />
+              <List divider="hairline">
+                <ListItem
+                  leading={<IconCircle iconClassName="fa fa-bolt" tone="danger" />}
+                  title={insights.rivals.toughest ? `Toughest: ${insights.rivals.toughest.opponent_name} (${insights.rivals.toughest.win_rate}% WR)` : 'Toughest: N/A'}
+                  hideChevron
+                />
+                <ListItem
+                  leading={<IconCircle iconClassName="fa fa-smile" tone="success" />}
+                  title={insights.rivals.easiest ? `Easiest: ${insights.rivals.easiest.opponent_name} (${insights.rivals.easiest.win_rate}% WR)` : 'Easiest: N/A'}
+                  hideChevron
+                />
+                <ListItem
+                  leading={<IconCircle iconClassName="fa fa-arrow-up" tone="accent" />}
+                  title={insights.rivals.improving_vs ? `Improving vs: ${insights.rivals.improving_vs.opponent_name} (+${insights.rivals.improving_vs.delta_points})` : 'Improving vs: N/A'}
+                  hideChevron
+                />
+              </List>
             </section>
 
             <section className="tt-player-section" aria-labelledby="tt-insights-career-title">
-              <div className="tt-player-section-header">
-                <h2 id="tt-insights-career-title" className="tt-player-section-title">Career</h2>
-                <span className="tt-player-section-note">Timeline</span>
-              </div>
-                {insights.career_by_year.length === 0 ? (
-                  <p className="tt-player-section-state mb-0">Not enough history yet.</p>
-                ) : (
-                  <AppListGroup size="small">
-                    {insights.career_by_year.map((year: any, index: number) => (
-                      <AppListItem
-                        key={year.year}
-                        iconClassName="fa fa-calendar-alt rounded-xl tt-icon-calendar"
-                        title={`${year.year} · ${year.played} played · ${year.win_rate}% WR`}
-                        onClick={preventDefaultLink}
-                        borderless={index === insights.career_by_year.length - 1}
-                      />
-                    ))}
-                  </AppListGroup>
-                )}
+              <SectionHeader title="Career" note="Timeline" />
+              {insights.career_by_year.length === 0 ? (
+                <EmptyState iconClassName="fa fa-history" title="Not enough history yet" message="Play a few more matches to see your career timeline." />
+              ) : (
+                <List divider="hairline">
+                  {insights.career_by_year.map((year: any) => (
+                    <ListItem
+                      key={year.year}
+                      leading={<IconCircle iconClassName="fa fa-calendar-alt" tone="neutral" />}
+                      title={`${year.year} · ${year.played} played · ${year.win_rate}% WR`}
+                      hideChevron
+                    />
+                  ))}
+                </List>
+              )}
             </section>
           </>
         )}
-      </AppPageContent>
+      </div>
     </TabShellPage>
   );
 }

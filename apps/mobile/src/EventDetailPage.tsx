@@ -1,20 +1,25 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useEventDetailQuery } from './queries';
-import { usePageNavigation } from './hooks/usePageNavigation';
+import { useTabNavigation } from './navigation/tab-navigation';
 import { TabShellPage } from './TabShellPage';
 import { SectionSkeleton, SkeletonBlock } from './components/Skeleton';
-import { formatDate, parseStoredFavouriteTournaments, persistFavouriteTournaments, FAVOURITE_TOURNAMENTS_UPDATED_EVENT, type FavouriteTournament } from './player-shared';
+import { formatDateOrUnknown, formatTime, getInitials } from './player-shared';
 import {
-  AppHeader,
-  AppHeaderSpacer,
   AppMessageCard,
   AppPageContent,
   AppButtonLink,
-  AppListGroup,
-  AppListItem,
   AppSearchInput,
+  List,
+  ListItem,
+  IconCircle,
+  Avatar,
+  Pill,
 } from './ui/appkit';
+import { useFavouriteTournaments } from './hooks/useFavouriteTournaments';
+import { useFavouritePlayers } from './hooks/useFavouritePlayers';
+import { DetailHeader } from './components/DetailHeader';
+import { FavouriteButton } from './components/FavouriteButton';
 
 type EventPlayerSummary = {
   key: string;
@@ -68,18 +73,29 @@ function EventDetailSkeleton() {
 }
 
 export function EventDetailPage() {
-  const { goBack, goHome, navigateInTab } = usePageNavigation();
+  const { switchTab } = useTabNavigation();
+  const goHome = (event: React.MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); switchTab('home', 'root'); };
   const { eventId = '' } = useParams<{ eventId: string }>();
   const [playerQuery, setPlayerQuery] = useState('');
+  const [selectedPlayer, setSelectedPlayer] = useState<EventPlayerSummary | null>(null);
 
   const detailQuery = useEventDetailQuery(eventId, Boolean(eventId));
   const event = detailQuery.data?.event;
   const results = detailQuery.data?.results ?? [];
   const pageError = detailQuery.error instanceof Error ? detailQuery.error.message : null;
 
+  const filteredResults = useMemo(() => {
+    if (!selectedPlayer) return results;
+    return results.filter((match) => {
+      const homeKey = match.home_player_resolved_id ?? `external:${match.home_player_external_id}`;
+      const awayKey = match.away_player_resolved_id ?? `external:${match.away_player_external_id}`;
+      return homeKey === selectedPlayer.key || awayKey === selectedPlayer.key;
+    });
+  }, [results, selectedPlayer]);
+
   const groupedResults = useMemo(() => {
-    const groups: Record<string, typeof results> = {};
-    for (const match of results) {
+    const groups: Record<string, typeof filteredResults> = {};
+    for (const match of filteredResults) {
       const groupKey = match.round_name || 'General';
       if (!groups[groupKey]) {
         groups[groupKey] = [];
@@ -91,7 +107,7 @@ export function EventDetailPage() {
       const bOrder = b[1][0]?.round_order ?? 9999;
       return aOrder - bOrder;
     });
-  }, [results]);
+  }, [filteredResults]);
 
   const tournamentPlayers = useMemo(() => {
     const players = new Map<string, EventPlayerSummary>();
@@ -143,69 +159,34 @@ export function EventDetailPage() {
   const topPlayers = useMemo(() => tournamentPlayers.slice(0, 3), [tournamentPlayers]);
 
   const filteredTournamentPlayers = useMemo(() => {
+    if (selectedPlayer) return [selectedPlayer];
     const normalizedQuery = playerQuery.trim().toLowerCase();
     if (!normalizedQuery) return tournamentPlayers;
     return tournamentPlayers.filter((player) => player.name.toLowerCase().includes(normalizedQuery));
-  }, [playerQuery, tournamentPlayers]);
+  }, [playerQuery, selectedPlayer, tournamentPlayers]);
 
-  const [favouriteTournaments, setFavouriteTournaments] = useState<FavouriteTournament[]>(() => parseStoredFavouriteTournaments());
+  const { isFavourite: isFavouriteTournament, toggle: toggleFavouriteTournament } = useFavouriteTournaments();
+  const { isFavourite: isFavouritePlayer, toggle: toggleFavouritePlayer } = useFavouritePlayers();
+  const isFavourite = event ? isFavouriteTournament(event.id) : false;
 
-  const isFavourite = useMemo(() => {
-    if (!event) return false;
-    return favouriteTournaments.some((t) => t.id === event.id);
-  }, [favouriteTournaments, event]);
-
-  const onToggleFavourite = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault();
-    if (!event) return;
-
-    setFavouriteTournaments((previous) => {
-      const exists = previous.some((t) => t.id === event.id);
-      const next = exists
-        ? previous.filter((t) => t.id !== event.id)
-        : [{
-          id: event.id,
-          name: event.name,
-          event_date: event.event_date,
-          category: event.category,
-          platform_name: event.platform_name,
-          match_count: event.match_count,
-        }, ...previous.filter((t) => t.id !== event.id)];
-
-      persistFavouriteTournaments(next);
-      return next;
-    });
+  const selectPlayerFilter = (player: EventPlayerSummary | null) => (clickEvent?: React.MouseEvent<HTMLElement>) => {
+    clickEvent?.preventDefault();
+    clickEvent?.stopPropagation();
+    setSelectedPlayer(player);
+    if (player) setPlayerQuery('');
   };
 
-  useEffect(() => {
-    const syncFromStorage = () => {
-      setFavouriteTournaments(parseStoredFavouriteTournaments());
-    };
-
-    window.addEventListener('storage', syncFromStorage);
-    window.addEventListener(FAVOURITE_TOURNAMENTS_UPDATED_EVENT, syncFromStorage);
-    return () => {
-      window.removeEventListener('storage', syncFromStorage);
-      window.removeEventListener(FAVOURITE_TOURNAMENTS_UPDATED_EVENT, syncFromStorage);
-    };
-  }, []);
-
-  const openPlayer = (playerId: string | null) => (clickEvent: React.MouseEvent<HTMLAnchorElement>) => {
+  const selectPlayerById = (playerId: string | null) => (clickEvent: React.MouseEvent<HTMLElement>) => {
     clickEvent.preventDefault();
     clickEvent.stopPropagation();
-    if (!playerId) return;
-    navigateInTab('players', `player/${playerId}`);
+    const player = tournamentPlayers.find((item) => item.playerId === playerId) ?? null;
+    setSelectedPlayer(player);
+    if (player) setPlayerQuery('');
   };
 
   return (
     <TabShellPage>
-      <AppHeader
-        title="Tournament"
-        onTitleClick={goHome}
-        leftAction={{ iconClassName: 'fas fa-chevron-left', onClick: goBack, position: 1, ariaLabel: 'Back' }}
-        rightAction={{ iconClassName: 'fas fa-home', onClick: goHome, position: 4, ariaLabel: 'Home' }}
-      />
-      <AppHeaderSpacer />
+      <DetailHeader title="Tournament" />
 
       <AppPageContent>
         {!eventId ? (
@@ -233,22 +214,13 @@ export function EventDetailPage() {
               </div>
 
               <div className="tt-tournament-summary-meta">
-                <span><i className="fa fa-calendar-alt" />{event.event_date ? formatDate(event.event_date) : 'Unknown Date'}</span>
+                <span><i className="fa fa-calendar-alt" />{formatDateOrUnknown(event.event_date)}</span>
                 <span><i className="fa fa-table-tennis" />{event.match_count} matches</span>
                 <span><i className="fa fa-database" />{event.platform_name}</span>
               </div>
 
               <div className="tt-player-actions">
-                <AppButtonLink
-                  size="sm"
-                  className="tt-player-action-pill tt-favourite-action-button"
-                  tone={isFavourite ? 'highlight' : 'outline-highlight'}
-                  aria-label={isFavourite ? 'Remove favourite' : 'Save favourite'}
-                  onClick={onToggleFavourite}
-                >
-                  <i className={`fa fa-heart ${isFavourite ? 'color-white' : 'color-highlight'}`} />
-                  <span>{isFavourite ? 'Saved' : 'Save'}</span>
-                </AppButtonLink>
+                <FavouriteButton saved={Boolean(isFavourite)} onToggle={() => toggleFavouriteTournament(event)} />
                 {event.public_url ? (
                   <AppButtonLink
                     href={event.public_url}
@@ -275,9 +247,9 @@ export function EventDetailPage() {
                     <a
                       key={player.key}
                       href="#"
-                      className={player.playerId ? 'tt-event-top-player-card' : 'tt-event-top-player-card disabled'}
-                      onClick={openPlayer(player.playerId)}
-                      aria-disabled={!player.playerId}
+                      className={`tt-event-top-player-card${selectedPlayer?.key === player.key ? ' active' : ''}`}
+                      onClick={selectPlayerFilter(player)}
+                      aria-pressed={selectedPlayer?.key === player.key}
                     >
                       <span className="tt-event-top-player-rank">{index + 1}</span>
                       <span className="tt-event-top-player-name">{player.name}</span>
@@ -292,40 +264,56 @@ export function EventDetailPage() {
             <section className="tt-player-section" aria-labelledby="tt-event-players-title">
               <div className="tt-player-section-header">
                 <h2 id="tt-event-players-title" className="tt-player-section-title">Players</h2>
-                <span className="tt-player-section-note">{tournamentPlayers.length} players</span>
+                <span className="tt-player-section-note">{selectedPlayer ? `Filtering ${selectedPlayer.name}` : `${tournamentPlayers.length} players`}</span>
               </div>
               <AppSearchInput
                 placeholder="Search tournament players..."
                 value={playerQuery}
                 onChange={(inputEvent) => setPlayerQuery(inputEvent.target.value)}
               />
+              {selectedPlayer ? (
+                <div className="tt-active-filter">
+                  <span>Showing matches for <strong>{selectedPlayer.name}</strong></span>
+                  <button type="button" onClick={() => setSelectedPlayer(null)}>Clear</button>
+                </div>
+              ) : null}
               {filteredTournamentPlayers.length === 0 ? (
                 <p className="tt-player-section-state mt-3">No players match this search.</p>
               ) : (
-                <AppListGroup size="large" className="tt-player-list mt-3">
-                  {filteredTournamentPlayers.map((player, index) => (
-                    <AppListItem
-                      key={player.key}
-                      iconClassName="fa fa-user rounded-xl tt-icon-player"
-                      title={player.name}
-                      subtitle={`${player.wins}-${player.losses} · ${player.winRate}% · ${player.played} matches`}
-                      onClick={openPlayer(player.playerId)}
-                      trailingIconClassName={player.playerId ? undefined : ''}
-                      borderless={index === filteredTournamentPlayers.length - 1}
-                    />
-                  ))}
-                </AppListGroup>
+                <List divider="hairline" size="lg" className="mt-3">
+                  {filteredTournamentPlayers.map((player) => {
+                    const saved = player.playerId ? isFavouritePlayer(player.playerId) : false;
+                    return (
+                      <ListItem
+                        key={player.key}
+                        leading={<Avatar text={getInitials(player.name)} />}
+                        title={player.name}
+                        subtitle={`${player.wins}-${player.losses} · ${player.winRate}% · ${player.played} matches`}
+                        active={selectedPlayer?.key === player.key}
+                        onClick={() => setSelectedPlayer(player)}
+                        trailing={player.playerId ? (
+                          <FavouriteButton
+                            size="icon"
+                            saved={saved}
+                            onToggle={() => toggleFavouritePlayer({ id: player.playerId!, name: player.name, played: player.played, wins: player.wins })}
+                          />
+                        ) : null}
+                        hideChevron
+                      />
+                    );
+                  })}
+                </List>
               )}
             </section>
 
             <section className="tt-player-section" aria-labelledby="tt-matches-list-title">
               <div className="tt-player-section-header">
                 <h2 id="tt-matches-list-title" className="tt-player-section-title">Tournament Results</h2>
-                <span className="tt-player-section-note">{results.length} matches</span>
+                <span className="tt-player-section-note">{filteredResults.length}{selectedPlayer ? ` of ${results.length}` : ''} matches</span>
               </div>
 
               {groupedResults.length === 0 ? (
-                <p className="tt-player-section-state">No match results available for this tournament.</p>
+                <p className="tt-player-section-state">{selectedPlayer ? 'No matches found for this player.' : 'No match results available for this tournament.'}</p>
               ) : (
                 groupedResults.map(([roundName, matches]) => (
                   <div key={roundName} className="tt-tournament-round">
@@ -334,53 +322,48 @@ export function EventDetailPage() {
                       <span>{matches.length} matches</span>
                     </div>
 
-                    <AppListGroup size="large" className="tt-player-list">
+                    <List divider="hairline" size="lg" className="tt-tournament-results-list">
                       {matches.map((match) => {
                         const isHomeWinner = match.winner_side === 'home';
-                        const winnerName = isHomeWinner ? match.home_player_name : match.away_player_name;
-                        const outcomeLabel = isHomeWinner ? 'Home win' : 'Away win';
-                        const homeTone = isHomeWinner ? 'winner' : 'loser';
-                        const awayTone = isHomeWinner ? 'loser' : 'winner';
-                        const timeLabel = match.played_at
-                          ? new Date(match.played_at).toLocaleTimeString('en-GB', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                          : null;
+                        const homeOutcome = isHomeWinner ? 'W' : 'L';
+                        const actionLabel = isHomeWinner ? 'defeated' : 'lost to';
+                        const timeLabel = match.played_at ? formatTime(match.played_at) : null;
 
                         return (
-                          <AppListItem
+                          <ListItem
                             key={match.id}
-                            href={null}
-                            className="tt-event-match-row"
-                            iconClassName="fa fa-table-tennis rounded-xl tt-icon-result"
+                            hideChevron
+                            className="tt-tournament-result-item"
+                            leading={<IconCircle iconClassName={isHomeWinner ? 'fa fa-check' : 'fa fa-times'} tone={isHomeWinner ? 'success' : 'danger'} />}
                             title={(
-                              <span className="tt-event-match-players">
+                              <a
+                                href="#"
+                                className={`tt-tournament-result-name ${isHomeWinner ? 'is-winner' : 'is-loser'}`}
+                                onClick={selectPlayerById(match.home_player_resolved_id)}
+                                aria-disabled={!match.home_player_resolved_id}
+                              >
+                                {match.home_player_name}
+                              </a>
+                            )}
+                            subtitle={(
+                              <span className="tt-tournament-result-subtitle">
+                                <span>{actionLabel}</span>
                                 <a
                                   href="#"
-                                  className={`tt-event-player-link ${homeTone}`}
-                                  onClick={openPlayer(match.home_player_resolved_id)}
-                                  aria-disabled={!match.home_player_resolved_id}
-                                >
-                                  {match.home_player_name}
-                                </a>
-                                <span className="tt-event-match-vs">vs</span>
-                                <a
-                                  href="#"
-                                  className={`tt-event-player-link ${awayTone}`}
-                                  onClick={openPlayer(match.away_player_resolved_id)}
+                                  className={`tt-tournament-result-name ${isHomeWinner ? 'is-loser' : 'is-winner'}`}
+                                  onClick={selectPlayerById(match.away_player_resolved_id)}
                                   aria-disabled={!match.away_player_resolved_id}
                                 >
                                   {match.away_player_name}
                                 </a>
+                                {timeLabel ? <span>· Played {timeLabel}</span> : null}
                               </span>
                             )}
-                            subtitle={timeLabel ? `${timeLabel} · ${outcomeLabel}: ${winnerName}` : `${outcomeLabel}: ${winnerName}`}
-                            trailingIconClassName=""
+                            trailing={<Pill size="xs" tone={isHomeWinner ? 'success' : 'danger'}>{homeOutcome}</Pill>}
                           />
                         );
                       })}
-                    </AppListGroup>
+                    </List>
                   </div>
                 ))
               )}

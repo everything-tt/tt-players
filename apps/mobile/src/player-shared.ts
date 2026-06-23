@@ -263,9 +263,69 @@ export interface FixtureRubbersResponse {
   data: FixtureRubberItem[];
 }
 
+// ── Tab metadata: single source of truth for labels, icons, descriptions ──
+// Consumed by the footer bar, main menu, page title, and home navigation cards
+// so the same tab always has the same name + icon everywhere.
+export const TAB_METADATA = {
+  home:     { label: 'Home',          icon: 'fa fa-home',            description: 'Your leagues at a glance' },
+  players:  { label: 'Players',       icon: 'fa fa-user-friends',    description: 'Search players by name' },
+  leagues:  { label: 'Leagues',       icon: 'fa fa-table-tennis',    description: 'Standings & divisions' },
+  events:   { label: 'Tournaments',   icon: 'fa fa-trophy',          description: 'Event results' },
+  h2h:      { label: 'H2H',           icon: 'fa fa-code-compare',    description: 'Compare two players' },
+  about:    { label: 'About',         icon: 'fa fa-info-circle',     description: 'About this app' },
+} as const;
+
+export const H2H_FAVOURITES_STORAGE_KEY = 'tt_players_favourite_h2h';
+export const H2H_FAVOURITES_UPDATED_EVENT = 'tt_players_favourite_h2h_updated';
+
 export const API_BASE_URL = import.meta.env.VITE_API_URL ?? '/api';
 export const FAVOURITES_STORAGE_KEY = 'tt_players_favourite_players';
 export const FAVOURITES_UPDATED_EVENT = 'tt_players_favourite_players_updated';
+
+// ── Tournament aggregation (was duplicated in PlayerPage + PlayerTournamentsPage) ──
+export interface TournamentSummary {
+  event_id: string;
+  event_name: string;
+  event_date: string | null;
+  category: string | null;
+  platform_name: string;
+  played: number;
+  wins: number;
+}
+
+export function groupTournamentMatches(matches: PlayerTournamentMatch[]): TournamentSummary[] {
+  const events = new Map<string, TournamentSummary>();
+  for (const match of matches) {
+    const existing = events.get(match.event_id) ?? {
+      event_id: match.event_id,
+      event_name: match.event_name,
+      event_date: match.event_date,
+      category: match.category,
+      platform_name: match.platform_name,
+      played: 0,
+      wins: 0,
+    };
+    const isWin = (match.winner_side === 'home' && match.player_side === 'home') ||
+      (match.winner_side === 'away' && match.player_side === 'away');
+    existing.played += 1;
+    existing.wins += isWin ? 1 : 0;
+    events.set(match.event_id, existing);
+  }
+  return Array.from(events.values());
+}
+
+// ── Friendly query-error mapping (replaces 26 copies of `instanceof Error ? … : null`) ──
+export function getQueryError(error: unknown): string | null {
+  if (!error) return null;
+  if (error instanceof Error) {
+    // Never leak raw HTTP status codes to users; map to friendly copy.
+    const msg = error.message || '';
+    if (/^HTTP 4/.test(msg)) return 'We couldn\'t find that. It may have moved.';
+    if (/^HTTP 5/.test(msg)) return 'Our servers hit a snag. Please try again.';
+    return msg;
+  }
+  return 'Something went wrong. Please try again.';
+}
 
 export async function apiFetch<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, { signal });
@@ -282,23 +342,6 @@ export function isValidFavouritePlayer(value: unknown): value is FavouritePlayer
     && typeof item.name === 'string'
     && typeof item.played === 'number'
     && typeof item.wins === 'number';
-}
-
-export function parseStoredFavouritePlayers(): FavouritePlayer[] {
-  try {
-    const raw = localStorage.getItem(FAVOURITES_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidFavouritePlayer);
-  } catch {
-    return [];
-  }
-}
-
-export function persistFavouritePlayers(players: FavouritePlayer[]) {
-  localStorage.setItem(FAVOURITES_STORAGE_KEY, JSON.stringify(players));
-  window.dispatchEvent(new Event(FAVOURITES_UPDATED_EVENT));
 }
 
 export function getInitials(name: string): string {
@@ -320,20 +363,10 @@ export function parseNamePair(text: string | null) {
   return { name: name.trim(), meta: meta?.replace(')', '').trim() ?? '' };
 }
 
-export function formatMatchDate(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-}
-
+// ── Date formatting (consolidated; formatMatchDate kept as an alias for compatibility) ──
 export function formatDate(value: string, options?: { includeTime?: boolean }): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-
   if (options?.includeTime) {
     return parsed.toLocaleString('en-GB', {
       day: '2-digit',
@@ -343,12 +376,19 @@ export function formatDate(value: string, options?: { includeTime?: boolean }): 
       minute: '2-digit',
     });
   }
+  return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
 
-  return parsed.toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+/** Alias of {@link formatDate} without time. Kept for call-site readability on match rows. */
+export function formatMatchDate(value: string): string {
+  return formatDate(value);
+}
+
+/** Formats just the time portion (e.g. "14:05"). Used by fixture/tournament result rows. */
+export function formatTime(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
 export function formatIsoDate(value: string | null | undefined): string {
@@ -359,6 +399,31 @@ export function formatIsoDate(value: string | null | undefined): string {
   const month = String(parsed.getMonth() + 1).padStart(2, '0');
   const day = String(parsed.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+// ── Number / record formatting ──
+export function formatNumber(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '–';
+  return value.toLocaleString('en-GB');
+}
+
+export interface RecordSummary {
+  wins: number;
+  losses: number;
+  draws?: number;
+  played?: number;
+}
+
+/** Single W/L/D record format used everywhere (replaces 4 ad-hoc dialects). */
+export function formatRecord(r: RecordSummary): string {
+  const parts = [`${r.wins}W`, `${r.losses}L`];
+  if (r.draws) parts.splice(1, 0, `${r.draws}D`);
+  if (r.played !== undefined) parts.push(`${r.played}P`);
+  return parts.join(' · ');
+}
+
+export function formatDateOrUnknown(value: string | null | undefined): string {
+  return value ? formatDate(value) : 'Unknown Date';
 }
 
 export interface EventItem {
@@ -441,23 +506,6 @@ export function isValidFavouriteTournament(value: unknown): value is FavouriteTo
     && (item.category === null || typeof item.category === 'string')
     && typeof item.platform_name === 'string'
     && typeof item.match_count === 'number';
-}
-
-export function parseStoredFavouriteTournaments(): FavouriteTournament[] {
-  try {
-    const raw = localStorage.getItem(FAVOURITE_TOURNAMENTS_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidFavouriteTournament);
-  } catch {
-    return [];
-  }
-}
-
-export function persistFavouriteTournaments(tournaments: FavouriteTournament[]) {
-  localStorage.setItem(FAVOURITE_TOURNAMENTS_STORAGE_KEY, JSON.stringify(tournaments));
-  window.dispatchEvent(new Event(FAVOURITE_TOURNAMENTS_UPDATED_EVENT));
 }
 
 

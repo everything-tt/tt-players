@@ -60,8 +60,7 @@ export function PWAInstallProvider({ children }: { children: React.ReactNode }) 
   const install = useCallback(async () => {
     if (deferredPrompt) {
       await deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      console.log(`User response to the install prompt: ${outcome}`);
+      await deferredPrompt.userChoice;
       setDeferredPrompt(null);
       setShowAndroidSheet(false);
     }

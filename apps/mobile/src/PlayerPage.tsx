@@ -1,15 +1,12 @@
-import { useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { useMemo, useState, type MouseEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import './app-shell.css';
 import { useTabNavigation } from './navigation/tab-navigation';
 import {
-  FAVOURITES_UPDATED_EVENT,
   formatMatchDate,
-  formatDate,
+  formatDateOrUnknown,
   getInitials,
-  parseStoredFavouritePlayers,
-  persistFavouritePlayers,
-  type FavouritePlayer,
+  groupTournamentMatches,
 } from './player-shared';
 import {
   usePlayerCurrentSeasonAffiliationsQuery,
@@ -19,17 +16,19 @@ import {
   usePlayerTournamentsQuery,
 } from './queries';
 import { SegmentedToggle } from './components/SegmentedToggle';
+import { useFavouritePlayers } from './hooks/useFavouritePlayers';
 import { SkeletonBlock, SkeletonList } from './components/Skeleton';
 import { TabShellPage } from './TabShellPage';
 import {
   AppButtonLink,
-  AppHeader,
-  AppHeaderSpacer,
   AppListGroup,
   AppListItem,
   AppMessageCard,
   AppPageContent,
 } from './ui/appkit';
+import { DetailHeader } from './components/DetailHeader';
+import { FavouriteButton } from './components/FavouriteButton';
+import { FormResultPills } from './components/FormResultPills';
 
 function PlayerProfileSkeleton() {
   return (
@@ -102,10 +101,10 @@ function PlayerProfileSkeleton() {
 }
 
 export function PlayerPage() {
-  const { goBackInActiveTab, navigateInActiveTab, navigateInTab, switchTab } = useTabNavigation();
+  const { navigateInActiveTab, navigateInTab, switchTab } = useTabNavigation();
   const { playerId = '' } = useParams<{ playerId: string }>();
 
-  const [favouritePlayers, setFavouritePlayers] = useState<FavouritePlayer[]>(() => parseStoredFavouritePlayers());
+  const { isFavourite: isFavouritePlayer, toggle: toggleFavouritePlayer } = useFavouritePlayers();
   const [seasonPanelMode, setSeasonPanelMode] = useState<'clubs' | 'tournaments'>('clubs');
 
   const statsQuery = usePlayerExtendedStatsQuery(playerId, Boolean(playerId));
@@ -141,72 +140,16 @@ export function PlayerPage() {
     return Math.round((stats.wins / stats.total) * 100);
   }, [stats]);
 
-  const isFavourite = useMemo(() => {
-    if (!stats) return false;
-    return favouritePlayers.some((player) => player.id === stats.player_id);
-  }, [favouritePlayers, stats]);
+  const isFavourite = stats ? isFavouritePlayer(stats.player_id) : false;
   const recentResults = useMemo(() => (insights?.form.recent_results ?? []).slice(0, 10), [insights]);
-  const tournamentsPlayed = useMemo(() => {
-    const events = new Map<string, {
-      event_id: string;
-      event_name: string;
-      event_date: string | null;
-      category: string | null;
-      platform_name: string;
-      played: number;
-      wins: number;
-    }>();
-
-    for (const match of tournamentMatches as any[]) {
-      const existing = events.get(match.event_id) ?? {
-        event_id: match.event_id,
-        event_name: match.event_name,
-        event_date: match.event_date,
-        category: match.category,
-        platform_name: match.platform_name,
-        played: 0,
-        wins: 0,
-      };
-      const isWin = (match.winner_side === 'home' && match.player_side === 'home') ||
-        (match.winner_side === 'away' && match.player_side === 'away');
-      existing.played += 1;
-      existing.wins += isWin ? 1 : 0;
-      events.set(match.event_id, existing);
-    }
-
-    return Array.from(events.values());
-  }, [tournamentMatches]);
+  const tournamentsPlayed = useMemo(() => groupTournamentMatches(tournamentMatches), [tournamentMatches]);
   const recentTournaments = useMemo(() => tournamentsPlayed.slice(0, 5), [tournamentsPlayed]);
-
-  const goBack = (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-    goBackInActiveTab();
-  };
 
   const goHome = (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     switchTab('home', 'root');
   };
 
-  const onToggleFavourite = (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-    if (!stats) return;
-
-    setFavouritePlayers((previous) => {
-      const exists = previous.some((player) => player.id === stats.player_id);
-      const next = exists
-        ? previous.filter((player) => player.id !== stats.player_id)
-        : [{
-          id: stats.player_id,
-          name: stats.player_name,
-          played: stats.total,
-          wins: stats.wins,
-        }, ...previous.filter((player) => player.id !== stats.player_id)];
-
-      persistFavouritePlayers(next);
-      return next;
-    });
-  };
 
   const openSection =
     (relativePath: string) =>
@@ -222,28 +165,10 @@ export function PlayerPage() {
       navigateInTab('leagues', relativePath);
     };
 
-  useEffect(() => {
-    const syncFromStorage = () => {
-      setFavouritePlayers(parseStoredFavouritePlayers());
-    };
-
-    window.addEventListener('storage', syncFromStorage);
-    window.addEventListener(FAVOURITES_UPDATED_EVENT, syncFromStorage);
-    return () => {
-      window.removeEventListener('storage', syncFromStorage);
-      window.removeEventListener(FAVOURITES_UPDATED_EVENT, syncFromStorage);
-    };
-  }, []);
 
   return (
     <TabShellPage>
-      <AppHeader
-        title={stats?.player_name ?? 'Player'}
-        onTitleClick={goHome}
-        leftAction={{ iconClassName: 'fas fa-chevron-left', onClick: goBack, position: 1, ariaLabel: 'Back' }}
-        rightAction={{ iconClassName: 'fas fa-home', onClick: goHome, position: 4, ariaLabel: 'Home' }}
-      />
-      <AppHeaderSpacer />
+      <DetailHeader title={stats?.player_name ?? 'Player'} />
 
       <AppPageContent>
         {statsLoading ? (
@@ -292,16 +217,13 @@ export function PlayerPage() {
               </div>
 
               <div className="tt-player-actions">
-                <AppButtonLink
-                  size="sm"
-                  className="tt-player-action-pill tt-favourite-action-button"
-                  tone={isFavourite ? 'highlight' : 'outline-highlight'}
-                  aria-label={isFavourite ? 'Remove favourite' : 'Save favourite'}
-                  onClick={onToggleFavourite}
-                >
-                  <i className={`fa fa-heart ${isFavourite ? 'color-white' : 'color-highlight'}`} />
-                  <span>{isFavourite ? 'Saved' : 'Save'}</span>
-                </AppButtonLink>
+                <FavouriteButton
+                  saved={Boolean(isFavourite)}
+                  onToggle={() => {
+                    if (!stats) return;
+                    toggleFavouritePlayer({ id: stats.player_id, name: stats.player_name, played: stats.total, wins: stats.wins });
+                  }}
+                />
                 <AppButtonLink
                   size="sm"
                   className="tt-player-action-pill"
@@ -312,26 +234,11 @@ export function PlayerPage() {
                 </AppButtonLink>
               </div>
 
-              <div className="tt-form-recent">
-                <span className="tt-form-recent-label">Recent</span>
-                {insightsLoading ? (
-                  <span className="tt-form-recent-empty">Loading...</span>
-                ) : recentResults.length === 0 ? (
-                  <span className="tt-form-recent-empty">No form yet</span>
-                ) : (
-                  <div className="tt-form-recent-list" aria-label="Recent results">
-                    {recentResults.map((result: any, index: number) => (
-                      <span
-                        key={`${result}-${index}`}
-                        className={`tt-form-result-pill ${result === 'W' ? 'tt-form-result-win' : 'tt-form-result-loss'}`}
-                        aria-label={result === 'W' ? 'Win' : 'Loss'}
-                      >
-                        {result}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <FormResultPills
+                results={recentResults}
+                loading={insightsLoading}
+                emptyText="No form yet"
+              />
             </section>
 
             <section className="tt-player-section" aria-label="Current season clubs and tournaments">
@@ -381,7 +288,7 @@ export function PlayerPage() {
                 <>
                   <AppListGroup size="large" className="tt-player-list">
                     {recentTournaments.map((event, index) => {
-                    const dateStr = event.event_date ? formatDate(event.event_date) : 'Unknown Date';
+                    const dateStr = formatDateOrUnknown(event.event_date);
                     const lossCount = event.played - event.wins;
                     return (
                       <AppListItem
