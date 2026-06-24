@@ -5,6 +5,10 @@
 Type: `FEEDBACK_TYPE`  
 Received: `RECEIVED_AT` (`Europe/London`)
 
+## Feedback screenshot
+
+SCREENSHOT_MARKDOWN_OR_REMOVE_SECTION
+
 ## Code context
 
 - Likely affected area: `PATHS`
