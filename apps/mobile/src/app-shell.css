@@ -1658,6 +1658,129 @@ body.theme-dark .tt-players-row {
   border-top: 1px solid var(--border-hairline);
 }
 
+/* ── Leagues: activity and history ─────────────────────────────────── */
+
+.tt-league-subheading {
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin: 18px 0 8px;
+  text-transform: uppercase;
+}
+
+.tt-league-subheading:first-of-type {
+  margin-top: 6px;
+}
+
+.tt-score-badge {
+  align-items: center;
+  background: var(--accent-subtle);
+  border-radius: 10px;
+  color: var(--accent);
+  display: inline-flex;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  justify-content: center;
+  min-height: 34px;
+  min-width: 48px;
+  padding: 0 8px;
+}
+
+.tt-league-collection-stats {
+  border-top: 1px solid var(--border-hairline);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 16px;
+  padding-top: 14px;
+}
+
+.tt-league-collection-stats > div {
+  text-align: center;
+}
+
+.tt-league-collection-stats strong {
+  color: var(--ink);
+  display: block;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tt-league-collection-stats span {
+  color: var(--ink-muted);
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 5px;
+}
+
+.tt-league-history {
+  border-top: 1px solid var(--border-hairline);
+  margin-top: 14px;
+  padding: 16px 0 4px;
+}
+
+.tt-season-picker {
+  display: flex;
+  gap: 8px;
+  margin: 4px calc(var(--space-card-pad) * -1) 0;
+  overflow-x: auto;
+  padding: 4px var(--space-card-pad) 8px;
+  scrollbar-width: none;
+}
+
+.tt-season-picker::-webkit-scrollbar {
+  display: none;
+}
+
+.tt-season-picker__button {
+  background: transparent;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-pill);
+  color: var(--ink-muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 36px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.tt-season-picker__button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.tt-season-picker__button:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+.tt-league-history__header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.tt-league-history__header strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.tt-league-history > p {
+  color: var(--ink-muted);
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+
 .tt-home-leaders-row:hover {
   background-color: var(--accent-subtle);
 }

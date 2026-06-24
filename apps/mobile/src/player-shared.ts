@@ -96,6 +96,120 @@ export type LeagueSnapshot = {
   };
 };
 
+export type LeagueOverviewItem = {
+  id: string;
+  name: string;
+  season_id: string;
+  season: string;
+  divisions: number;
+  teams: number;
+  matches_played: number;
+  upcoming_fixtures: number;
+  last_scraped_at: string | null;
+  status: 'no_data' | 'in_progress';
+};
+
+export type LeagueOverviewResponse = {
+  data: LeagueOverviewItem[];
+};
+
+export type LeagueDashboard = {
+  league: {
+    id: string;
+    name: string;
+    season_id: string;
+    season: string;
+  };
+  recent_results: Array<{
+    fixture_id: string;
+    competition_id: string;
+    competition_name: string;
+    date_played: string | null;
+    home_team_id: string | null;
+    home_team_name: string | null;
+    away_team_id: string | null;
+    away_team_name: string | null;
+    home_score: number;
+    away_score: number;
+  }>;
+  upcoming_fixtures: Array<{
+    fixture_id: string;
+    competition_id: string;
+    competition_name: string;
+    date_played: string | null;
+    home_team_id: string | null;
+    home_team_name: string | null;
+    away_team_id: string | null;
+    away_team_name: string | null;
+  }>;
+  title_races: Array<{
+    competition_id: string;
+    competition_name: string;
+    leader_name: string;
+    leader_points: number;
+    points_gap: number | null;
+  }>;
+  history: Array<{
+    season_id: string;
+    season: string;
+    is_active: boolean;
+    divisions: number;
+    teams: number;
+    fixtures: number;
+    champions: Array<{
+      division_name: string;
+      team_name: string;
+    }>;
+  }>;
+};
+
+export type LeagueCollectionDashboard = {
+  totals: {
+    leagues: number;
+    divisions: number;
+    teams: number;
+    matches_played: number;
+    upcoming_fixtures: number;
+  };
+  recent_results: Array<{
+    fixture_id: string;
+    league_id: string;
+    league_name: string;
+    competition_id: string;
+    division_name: string;
+    date_played: string | null;
+    home_team_name: string | null;
+    away_team_name: string | null;
+    home_score: number;
+    away_score: number;
+  }>;
+  upcoming_fixtures: Array<{
+    fixture_id: string;
+    league_id: string;
+    league_name: string;
+    competition_id: string;
+    division_name: string;
+    date_played: string | null;
+    home_team_name: string | null;
+    away_team_name: string | null;
+  }>;
+  top_teams: Array<{
+    team_id: string;
+    team_name: string;
+    league_id: string;
+    league_name: string;
+    competition_id: string;
+    division_name: string;
+    position: number;
+    played: number;
+    won: number;
+    drawn: number;
+    lost: number;
+    points: number;
+    win_rate: number;
+  }>;
+};
+
 export type LeagueSeason = {
   id: string;
   name: string;
@@ -507,5 +621,3 @@ export function isValidFavouriteTournament(value: unknown): value is FavouriteTo
     && typeof item.platform_name === 'string'
     && typeof item.match_count === 'number';
 }
-
-
