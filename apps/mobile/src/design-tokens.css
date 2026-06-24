@@ -433,7 +433,7 @@ body.theme-dark .tt-hero { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04)
   padding: 6px 8px;
 }
 .tt-outcome--icon {
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-pill);
   color: var(--on-state);
   height: 40px;
   min-width: 40px;
