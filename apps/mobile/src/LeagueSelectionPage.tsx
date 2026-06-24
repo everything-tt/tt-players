@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { LeagueWithDivisions } from './player-shared';
-import { BottomSheet, Checkbox, EmptyState, ErrorState, List, ListItem, Pill, SegmentedToggle } from './ui/appkit';
+import { BottomSheet, Checkbox, EmptyState, ErrorState, List, ListItem, SegmentedToggle } from './ui/appkit';
 
 type RegionBucket = { id: string; label: string; leagueIds: string[] };
 type PickerTab = 'selected' | 'leagues' | 'areas';
@@ -111,7 +111,23 @@ export function LeagueSelectionPage({
           ) : (
             <List divider="hairline">
               {filteredSelected.map((league) => (
-                <ListItem key={league.id} title={league.name} subtitle={`${leagueSeasonLabel(league)} · ${leagueRegionLabels(league).join(' · ')} · ${league.divisions.length} divisions`} trailing={<Pill tone="danger">Remove</Pill>} onClick={() => onRemoveLeague(league.id)} hideChevron />
+                <ListItem
+                  key={league.id}
+                  title={league.name}
+                  subtitle={`${leagueSeasonLabel(league)} · ${leagueRegionLabels(league).join(' · ')} · ${league.divisions.length} divisions`}
+                  trailing={(
+                    <button
+                      type="button"
+                      className="tt-picker-remove"
+                      onClick={() => onRemoveLeague(league.id)}
+                      aria-label={`Remove ${league.name}`}
+                    >
+                      <i className="fa fa-times" aria-hidden="true" />
+                      <span>Remove</span>
+                    </button>
+                  )}
+                  hideChevron
+                />
               ))}
             </List>
           )

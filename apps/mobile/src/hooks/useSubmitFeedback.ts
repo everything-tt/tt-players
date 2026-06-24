@@ -8,6 +8,7 @@ export interface FeedbackPayload {
   email?: string | null;
   message_type: FeedbackType;
   message: string;
+  attachment?: File | null;
 }
 
 export interface UseSubmitFeedbackResult {
@@ -38,15 +39,26 @@ export function useSubmitFeedback(): UseSubmitFeedbackResult {
     setSubmitError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/feedback`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const body = payload.attachment
+        ? (() => {
+            const data = new FormData();
+            data.set('name', payload.name?.trim() || '');
+            data.set('email', payload.email?.trim() || '');
+            data.set('message_type', payload.message_type);
+            data.set('message', message);
+            data.set('attachment', payload.attachment);
+            return data;
+          })()
+        : JSON.stringify({
           name: payload.name?.trim() || null,
           email: payload.email?.trim() || null,
           message_type: payload.message_type,
           message,
-        }),
+        });
+      const response = await fetch(`${API_BASE_URL}/feedback`, {
+        method: 'POST',
+        headers: payload.attachment ? undefined : { 'Content-Type': 'application/json' },
+        body,
       });
 
       if (!response.ok) {
@@ -81,5 +93,6 @@ export function readFeedbackForm(event: FormEvent<HTMLFormElement>): FeedbackPay
     email: (data.get('email') as string | null) ?? null,
     message_type: ((data.get('message_type') as FeedbackType) || 'general'),
     message: (data.get('message') as string) || '',
+    attachment: (data.get('attachment') as File | null) ?? null,
   };
 }

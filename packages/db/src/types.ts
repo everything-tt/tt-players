@@ -337,12 +337,27 @@ export interface FeedbackTable {
     email: string | null;
     message_type: string;
     message: string;
+    github_issue_url: ColumnType<string | null, string | null | undefined, string | null>;
+    triaged_at: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
     created_at: Generated<Date>;
 }
 
 export type Feedback = Selectable<FeedbackTable>;
 export type NewFeedback = Insertable<FeedbackTable>;
 export type FeedbackUpdate = Updateable<FeedbackTable>;
+
+export interface FeedbackAttachmentTable {
+    id: Generated<string>;
+    feedback_id: string;
+    filename: string;
+    mime_type: string;
+    size_bytes: number;
+    content: Buffer;
+    created_at: Generated<Date>;
+}
+
+export type FeedbackAttachment = Selectable<FeedbackAttachmentTable>;
+export type NewFeedbackAttachment = Insertable<FeedbackAttachmentTable>;
 
 // ─── Database Interface ───────────────────────────────────────────────────────
 
@@ -372,6 +387,7 @@ export interface StagingDatabase {
     'staging.ranking_periods': RankingPeriodsTable;
     'staging.ranking_entries': RankingEntriesTable;
     'staging.feedback': FeedbackTable;
+    'staging.feedback_attachments': FeedbackAttachmentTable;
 
     // Backward-compatible unqualified aliases (resolved via search_path at runtime)
     raw_scrape_logs: RawScrapeLogsTable;
@@ -382,8 +398,8 @@ export interface StagingDatabase {
     ranking_periods: RankingPeriodsTable;
     ranking_entries: RankingEntriesTable;
     feedback: FeedbackTable;
+    feedback_attachments: FeedbackAttachmentTable;
 }
 
 /** Full database — used by worker (both schemas) */
 export interface Database extends ApiDatabase, StagingDatabase {}
-

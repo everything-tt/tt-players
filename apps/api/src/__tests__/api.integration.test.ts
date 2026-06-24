@@ -99,6 +99,48 @@ describe('POST /api/feedback', () => {
             })
             .expect(400);
     });
+
+    it('records feedback with an optional PNG attachment', async () => {
+        const png = Buffer.from([
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+            0x00, 0x00, 0x00, 0x0d,
+        ]);
+
+        const res = await request
+            .post('/api/feedback')
+            .field('message_type', 'bug')
+            .field('message', 'The screen is clipped.')
+            .attach('attachment', png, {
+                filename: 'screen.png',
+                contentType: 'image/png',
+            })
+            .expect(200);
+
+        const attachment = await db
+            .selectFrom('staging.feedback_attachments')
+            .selectAll()
+            .where('feedback_id', '=', res.body.id)
+            .executeTakeFirst();
+
+        expect(attachment).toMatchObject({
+            filename: 'screen.png',
+            mime_type: 'image/png',
+            size_bytes: png.length,
+        });
+        expect(Buffer.from(attachment?.content ?? [])).toEqual(png);
+    });
+
+    it('rejects attachments that are not supported images', async () => {
+        await request
+            .post('/api/feedback')
+            .field('message_type', 'bug')
+            .field('message', 'See the attachment.')
+            .attach('attachment', Buffer.from('not an image'), {
+                filename: 'notes.txt',
+                contentType: 'text/plain',
+            })
+            .expect(400);
+    });
 });
 
 // ─── /leagues/:id/snapshot ──────────────────────────────────────────────────

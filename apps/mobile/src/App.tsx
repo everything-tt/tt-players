@@ -155,9 +155,7 @@ function App() {
     setSelectedLeagueIds((previous) => {
       const validIdSet = new Set(allLeagueIds);
       const validPrevious = previous.filter((id) => validIdSet.has(id));
-      const baseline = validPrevious.length === 0 ? allLeagueIds.slice(0, MAX_SELECTED_LEAGUES) : validPrevious;
-      const next = baseline.filter((id) => id !== leagueId);
-      return next.length > 0 ? next : baseline;
+      return validPrevious.filter((id) => id !== leagueId);
     });
   };
 

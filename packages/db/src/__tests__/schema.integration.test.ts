@@ -28,6 +28,8 @@ import * as m021 from '../migrations/021_create_feedback_table.js';
 import * as m022 from '../migrations/022_add_updated_at_indexes.js';
 import * as m023 from '../migrations/023_add_expression_and_region_indexes.js';
 import * as m024 from '../migrations/024_add_recent_fixture_search_indexes.js';
+import * as m025 from '../migrations/025_add_feedback_github_issue_link.js';
+import * as m026 from '../migrations/026_create_feedback_attachments.js';
 
 const { Pool } = pg;
 
@@ -69,6 +71,8 @@ class StaticMigrationProvider implements MigrationProvider {
             '022_add_updated_at_indexes': m022,
             '023_add_expression_and_region_indexes': m023,
             '024_add_recent_fixture_search_indexes': m024,
+            '025_add_feedback_github_issue_link': m025,
+            '026_create_feedback_attachments': m026,
         };
     }
 }
@@ -338,6 +342,37 @@ describe('Database Schema Integration Tests', () => {
     });
 
     // ── Table Columns ─────────────────────────────────────────────────────────
+
+    describe('Table: feedback', () => {
+        let columns: ColumnInfo[];
+        beforeAll(async () => {
+            columns = await getTableColumns('feedback');
+        });
+
+        it('should store GitHub issue triage details', () => {
+            const colNames = columns.map((c) => c.column_name);
+            expect(colNames).toEqual(
+                expect.arrayContaining(['github_issue_url', 'triaged_at'])
+            );
+        });
+    });
+
+    describe('Table: feedback_attachments', () => {
+        let columns: ColumnInfo[];
+        beforeAll(async () => {
+            columns = await getTableColumns('feedback_attachments');
+        });
+
+        it('should store one validated image attachment per feedback entry', () => {
+            const colNames = columns.map((c) => c.column_name);
+            expect(colNames).toEqual(
+                expect.arrayContaining([
+                    'id', 'feedback_id', 'filename', 'mime_type',
+                    'size_bytes', 'content', 'created_at',
+                ])
+            );
+        });
+    });
 
     describe('Table: platforms', () => {
         let columns: ColumnInfo[];

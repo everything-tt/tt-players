@@ -1,0 +1,4 @@
+interface:
+  display_name: "Feedback Backlog Triage"
+  short_description: "Turn unlinked feedback into linked GitHub issues"
+  default_prompt: "Use $gather-daily-feedback to process all unlinked production feedback, create or update GitHub issues, link them in the database, and report the results."

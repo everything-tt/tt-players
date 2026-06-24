@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import compress from '@fastify/compress';
+import multipart from '@fastify/multipart';
 import {
     serializerCompiler,
     validatorCompiler,
@@ -36,6 +37,13 @@ export async function buildApp(db: Kysely<Database>) {
 
     // ── Compression (gzip/deflate) ───────────────────────────────────────────
     await app.register(compress, { global: true, threshold: 1024 });
+    await app.register(multipart, {
+        limits: {
+            files: 1,
+            fileSize: 1024 * 1024,
+            fields: 5,
+        },
+    });
 
     // ── Caching headers (Cache-Control) ─────────────────────────────────────
     const CACHE_STATIC = 'public, max-age=300, s-maxage=300, stale-while-revalidate=60';
