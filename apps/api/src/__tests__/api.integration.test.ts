@@ -428,6 +428,10 @@ describe('GET /fixtures/:id/rubbers', () => {
             .expect(200);
 
         expect(res.body.fixture).toHaveProperty('source_url');
+        expect(res.body.fixture).toMatchObject({
+            home_team_id: ids.homeTeamId,
+            away_team_id: ids.awayTeamId,
+        });
         const homeGamesWonOrder = res.body.data.map(
             (rubber: { home_games_won: number }) => rubber.home_games_won,
         );

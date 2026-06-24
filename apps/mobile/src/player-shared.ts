@@ -5,6 +5,25 @@ export type FavouritePlayer = {
   wins: number;
 };
 
+export type FavouriteTeam = {
+  id: string;
+  name: string;
+  leagueName: string | null;
+  divisionName: string | null;
+};
+
+export const FAVOURITE_TEAMS_STORAGE_KEY = 'tt_players_favourite_teams';
+export const FAVOURITE_TEAMS_UPDATED_EVENT = 'tt-players:favourite-teams-updated';
+
+export function isValidFavouriteTeam(value: unknown): value is FavouriteTeam {
+  if (!value || typeof value !== 'object') return false;
+  const item = value as Record<string, unknown>;
+  return typeof item.id === 'string'
+    && typeof item.name === 'string'
+    && (item.leagueName === null || typeof item.leagueName === 'string')
+    && (item.divisionName === null || typeof item.divisionName === 'string');
+}
+
 export type PlayerSearchItem = FavouritePlayer;
 
 export type PlayerSearchResponse = {
@@ -367,7 +386,9 @@ export interface FixtureMeta {
   played_at: string | null;
   league_name: string;
   division_name: string;
+  home_team_id: string | null;
   home_team_name: string | null;
+  away_team_id: string | null;
   away_team_name: string | null;
   source_url: string | null;
 }

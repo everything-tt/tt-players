@@ -7,10 +7,13 @@ import { TabShellPage } from './TabShellPage';
 import { EmptyState, ErrorState, HeroCard, IconCircle, List, ListItem, Pill, SectionHeader } from './ui/appkit';
 import { formatRecord, getQueryError } from './player-shared';
 import { useTabNavigation } from './navigation/tab-navigation';
+import { FavouriteButton } from './components/FavouriteButton';
+import { useFavouriteTeams } from './hooks/useFavouriteTeams';
 
 export function LeagueDetailPage() {
   const { leagueId = '' } = useParams<{ leagueId: string }>();
   const { navigateInTab } = useTabNavigation();
+  const { isFavourite: isFavouriteTeam, toggle: toggleFavouriteTeam } = useFavouriteTeams();
   const leaguesQuery = useLeaguesQuery();
   const dashboardQuery = useLeagueDashboardQuery(leagueId, Boolean(leagueId));
   const league = useMemo(
@@ -74,7 +77,21 @@ export function LeagueDetailPage() {
                       leading={<span className="tt-rank-badge">{row.position}</span>}
                       title={row.team_name}
                       subtitle={formatRecord({ wins: row.won, losses: row.lost, draws: row.drawn ?? 0, played: row.played })}
-                      trailing={<Pill tone="accent">{row.points} pts</Pill>}
+                      trailing={(
+                        <span className="tt-team-roster-trailing">
+                          <Pill tone="accent">{row.points} pts</Pill>
+                          <FavouriteButton
+                            size="icon"
+                            saved={isFavouriteTeam(row.team_id)}
+                            onToggle={() => toggleFavouriteTeam({
+                              id: row.team_id,
+                              name: row.team_name,
+                              leagueName: league.name,
+                              divisionName: league.divisions.find((division) => division.id === divisionId)?.name ?? null,
+                            })}
+                          />
+                        </span>
+                      )}
                       onClick={() => navigateInTab('leagues', `team/${row.team_id}`)}
                     />
                   ))}

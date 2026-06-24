@@ -2756,6 +2756,29 @@ body.theme-dark .tt-segmented-toggle {
   padding-top: 12px;
 }
 
+.tt-team-hero .tt-form-recent-list {
+  flex-wrap: wrap;
+}
+
+.tt-team-roster-controls {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin: 2px 0 10px;
+}
+
+.tt-team-roster-controls > span {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tt-team-roster-trailing {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
 .tt-team-row-action {
   align-items: center;
   color: var(--ink-muted);
@@ -2820,13 +2843,37 @@ body.theme-dark .tt-segmented-toggle {
 }
 
 .tt-fixture-score-value {
-  color: var(--accent);
+  color: var(--ink-muted);
   display: block;
   font-size: 40px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.04em;
   line-height: 1;
+}
+
+.tt-fixture-team {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  min-width: 0;
+  padding: 0;
+}
+
+.tt-fixture-team:disabled {
+  cursor: default;
+}
+
+.tt-fixture-team.is-winner .tt-fixture-score-value,
+.tt-fixture-team.is-winner .tt-fixture-score-label {
+  color: var(--accent);
+}
+
+.tt-fixture-team:focus-visible {
+  border-radius: var(--radius-md);
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 4px;
 }
 
 .tt-fixture-score-label {
@@ -2845,6 +2892,14 @@ body.theme-dark .tt-segmented-toggle {
   color: var(--ink-muted);
   font-size: 18px;
   font-weight: 600;
+}
+
+.tt-fixture-result-summary {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+  margin: 12px 0 0;
+  text-align: center;
 }
 
 .tt-rubber-list {
@@ -3075,30 +3130,28 @@ body.theme-dark .tt-segmented-toggle {
 
 .tt-rubber-item {
   border-bottom: 1px solid var(--border-hairline);
-  padding: 16px 0;
+  padding: 14px 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
 }
 
 .tt-rubber-item:last-child {
   border-bottom: 0;
 }
 
-.tt-rubber-type-badge {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-  letter-spacing: 0.05em;
-  margin-bottom: 8px;
-  background: rgba(15, 23, 42, 0.05);
-  padding: 2px 8px;
-  border-radius: 4px;
+.tt-rubber-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 9px;
 }
 
-body.theme-dark .tt-rubber-type-badge {
-  background: rgba(255, 255, 255, 0.08);
+.tt-rubber-heading span {
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .tt-rubber-scorecard {
@@ -3110,8 +3163,10 @@ body.theme-dark .tt-rubber-type-badge {
 }
 
 .tt-rubber-side {
+  color: var(--ink-muted);
   font-size: 14px;
   line-height: 1.3;
+  min-width: 0;
 }
 
 .tt-rubber-side.home {
@@ -3124,27 +3179,37 @@ body.theme-dark .tt-rubber-type-badge {
   font-weight: 500;
 }
 
+.tt-rubber-side.is-winner {
+  color: var(--ink);
+  font-weight: 650;
+}
+
 .tt-rubber-player-link-text {
   background: transparent;
   border: 0;
-  color: var(--accent);
+  color: inherit;
   cursor: pointer;
   font: inherit;
-  font-weight: 600;
+  font-weight: inherit;
   padding: 0;
   text-decoration: none;
-  transition: opacity 0.2s ease;
+  transition: color 0.15s ease;
 }
 
 .tt-rubber-player-link-text:hover,
 .tt-rubber-player-link-text:active {
-  opacity: 0.8;
-  text-decoration: underline;
+  color: var(--accent);
+}
+
+.tt-rubber-player-link-text:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
 }
 
 .tt-rubber-player-name {
-  color: var(--ink);
-  font-weight: 600;
+  color: inherit;
+  font-weight: inherit;
 }
 
 .tt-player-separator {
@@ -3156,8 +3221,8 @@ body.theme-dark .tt-rubber-type-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--accent-subtle);
-  color: var(--accent);
+  background: var(--surface-subtle);
+  color: var(--ink-muted);
   font-weight: 700;
   font-size: 13px;
   padding: 4px 10px;
@@ -3165,6 +3230,10 @@ body.theme-dark .tt-rubber-type-badge {
   min-width: 48px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+.tt-rubber-score-pill .is-winner {
+  color: var(--accent);
 }
 
 .tt-rubber-score-pill .score-divider {

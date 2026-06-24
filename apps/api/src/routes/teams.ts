@@ -207,8 +207,8 @@ export function teamsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                                 ])
                             )
                             .where('f.deleted_at', 'is', null)
-                            .orderBy('f.date_played', 'asc')
-                            .orderBy('f.id', 'asc')
+                            .orderBy('f.date_played', 'desc')
+                            .orderBy('f.id', 'desc')
                             .limit(limit)
                             .offset(offset)
                     )
@@ -261,8 +261,8 @@ export function teamsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         sql<number | null>`sbf.home_score`.as('home_score'),
                         sql<number | null>`sbf.away_score`.as('away_score'),
                     ])
-                    .orderBy('pf.date_played', 'asc')
-                    .orderBy('pf.id', 'asc')
+                    .orderBy('pf.date_played', 'desc')
+                    .orderBy('pf.id', 'desc')
                     .execute();
 
                 // Serialise dates to ISO strings
@@ -414,7 +414,6 @@ export function teamsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                           AND r.deleted_at IS NULL
                         GROUP BY f.id, f.date_played, f.home_team_id, f.away_team_id
                         ORDER BY f.date_played DESC
-                        LIMIT 5
                     `.execute(db),
                 ]);
 

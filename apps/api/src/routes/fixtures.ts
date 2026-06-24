@@ -36,7 +36,9 @@ const FixtureMetaSchema = z.object({
     played_at: z.string().nullable(),
     league_name: z.string(),
     division_name: z.string(),
+    home_team_id: z.string().uuid().nullable(),
     home_team_name: z.string().nullable(),
+    away_team_id: z.string().uuid().nullable(),
     away_team_name: z.string().nullable(),
     source_url: z.string().nullable(),
 });
@@ -92,7 +94,9 @@ export function fixturesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         'p.base_url as platform_base_url',
                         'l.name as league_name',
                         'c.name as division_name',
+                        'f.home_team_id',
                         'ht.name as home_team_name',
+                        'f.away_team_id',
                         'at.name as away_team_name',
                     ])
                     .where('f.id', '=', id)
@@ -178,7 +182,9 @@ export function fixturesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                                     : null,
                         league_name: fixture.league_name,
                         division_name: fixture.division_name,
+                        home_team_id: fixture.home_team_id,
                         home_team_name: fixture.home_team_name,
+                        away_team_id: fixture.away_team_id,
                         away_team_name: fixture.away_team_name,
                         source_url: sourceUrl,
                     },

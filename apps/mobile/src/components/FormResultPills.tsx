@@ -3,7 +3,7 @@ import { OutcomeBadge } from '../ui/appkit';
 
 interface FormResultPillsProps {
   results: FormResult[];
-  label?: string;
+  label?: string | null;
   loading?: boolean;
   loadingText?: string;
   emptyText?: string;
@@ -18,7 +18,7 @@ export function FormResultPills({
 }: FormResultPillsProps) {
   return (
     <div className="tt-form-recent mt-1">
-      <span className="tt-form-recent-label">{label}</span>
+      {label ? <span className="tt-form-recent-label">{label}</span> : null}
       {loading ? (
         <span className="tt-form-recent-empty">{loadingText}</span>
       ) : results.length === 0 ? (
