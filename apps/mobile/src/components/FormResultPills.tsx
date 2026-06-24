@@ -1,4 +1,5 @@
 import type { FormResult } from './types';
+import { OutcomeBadge } from '../ui/appkit';
 
 interface FormResultPillsProps {
   results: FormResult[];
@@ -25,21 +26,14 @@ export function FormResultPills({
       ) : (
         <div className="tt-form-recent-list">
           {results.map((result, index) => (
-            <span
+            <OutcomeBadge
               key={`${result}-${index}`}
-              className={`tt-form-result-pill ${getFormResultClass(result)}`}
-            >
-              {result}
-            </span>
+              result={result}
+              variant="pill"
+            />
           ))}
         </div>
       )}
     </div>
   );
-}
-
-function getFormResultClass(result: FormResult): string {
-  if (result === 'W') return 'tt-form-result-win';
-  if (result === 'L') return 'tt-form-result-loss';
-  return 'tt-form-result-draw';
 }

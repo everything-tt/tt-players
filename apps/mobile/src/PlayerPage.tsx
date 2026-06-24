@@ -21,10 +21,12 @@ import { SkeletonBlock, SkeletonList } from './components/Skeleton';
 import { TabShellPage } from './TabShellPage';
 import {
   AppButtonLink,
-  AppListGroup,
-  AppListItem,
   AppMessageCard,
   AppPageContent,
+  IconCircle,
+  List,
+  ListItem,
+  OutcomeBadge,
 } from './ui/appkit';
 import { DetailHeader } from './components/DetailHeader';
 import { FavouriteButton } from './components/FavouriteButton';
@@ -248,14 +250,6 @@ export function PlayerPage() {
       navigateInActiveTab(relativePath);
     };
 
-  const openInLeaguesTab =
-    (relativePath: string) =>
-    (event: MouseEvent<HTMLAnchorElement>) => {
-      event.preventDefault();
-      navigateInTab('leagues', relativePath);
-    };
-
-
   return (
     <TabShellPage>
       <DetailHeader title={stats?.player_name ?? 'Player'} />
@@ -367,18 +361,17 @@ export function PlayerPage() {
                 ) : affiliations.length === 0 ? (
                   <p className="tt-player-section-state">No active-season clubs found.</p>
                 ) : (
-                  <AppListGroup size="large" className="tt-player-list">
-                    {affiliations.map((affiliation: any, index: number) => (
-                      <AppListItem
+                  <List divider="hairline" size="lg" className="tt-player-list">
+                    {affiliations.map((affiliation: any) => (
+                      <ListItem
                         key={`${affiliation.team_id}-${affiliation.competition_name}-${affiliation.season_id}`}
-                        iconClassName="fa fa-table-tennis rounded-xl tt-icon-team"
+                        leading={<IconCircle iconClassName="fa fa-table-tennis" tone="accent" />}
                         title={affiliation.team_name}
                         subtitle={`${affiliation.league_name} · ${affiliation.competition_name} · ${affiliation.season_name}`}
-                        onClick={openInLeaguesTab(`team/${affiliation.team_id}`)}
-                        borderless={index === affiliations.length - 1}
+                        onClick={() => navigateInTab('leagues', `team/${affiliation.team_id}`)}
                       />
                     ))}
-                  </AppListGroup>
+                  </List>
                 )
               ) : tournamentMatchesLoading ? (
                 <SkeletonList rows={3} />
@@ -388,25 +381,21 @@ export function PlayerPage() {
                 <p className="tt-player-section-state">No tournament appearances found.</p>
               ) : (
                 <>
-                  <AppListGroup size="large" className="tt-player-list">
-                    {recentTournaments.map((event, index) => {
+                  <List divider="hairline" size="lg" className="tt-player-list">
+                    {recentTournaments.map((event) => {
                     const dateStr = formatDateOrUnknown(event.event_date);
                     const lossCount = event.played - event.wins;
                     return (
-                      <AppListItem
+                      <ListItem
                         key={event.event_id}
-                        iconClassName="fa fa-trophy rounded-xl tt-icon-tournament"
+                        leading={<IconCircle iconClassName="fa fa-trophy" tone="accent" />}
                         title={event.event_name}
                         subtitle={`${dateStr} · ${event.category ?? 'Tournament'} · ${event.wins}-${lossCount} from ${event.played}`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          navigateInActiveTab(`event/${event.event_id}`);
-                        }}
-                        borderless={index === recentTournaments.length - 1}
+                        onClick={() => navigateInActiveTab(`event/${event.event_id}`)}
                       />
                     );
                   })}
-                  </AppListGroup>
+                  </List>
                   {tournamentsPlayed.length > 0 ? (
                     <AppButtonLink
                       full
@@ -465,18 +454,17 @@ export function PlayerPage() {
                 <p className="tt-player-section-state">No recent league matches found.</p>
               ) : (
                 <>
-                  <AppListGroup size="large" className="tt-player-list">
-                    {recentMatches.map((match: any, index: number) => (
-                      <AppListItem
+                  <List divider="hairline" size="lg" className="tt-player-list">
+                    {recentMatches.map((match: any) => (
+                      <ListItem
                         key={match.id}
-                        iconClassName={`fa ${match.isWin ? 'fa-check' : 'fa-times'} rounded-xl tt-match-result-icon ${match.isWin ? 'tt-match-result-win' : 'tt-match-result-loss'}`}
-                        title={`${match.isWin ? 'Win' : 'Loss'} vs ${match.opponent} · ${match.result}`}
+                        leading={<OutcomeBadge result={match.isWin ? 'W' : 'L'} variant="icon" />}
+                        title={`${match.opponent} · ${match.result}`}
                         subtitle={`${formatMatchDate(match.date)} · ${match.league}`}
-                        onClick={openInLeaguesTab(`fixture/${match.fixture_id}`)}
-                        borderless={index === recentMatches.length - 1}
+                        onClick={() => navigateInTab('leagues', `fixture/${match.fixture_id}`)}
                       />
                     ))}
-                  </AppListGroup>
+                  </List>
                   <AppButtonLink
                     full
                     size="sm"

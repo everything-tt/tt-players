@@ -4,7 +4,6 @@ export type OutcomeResult = 'W' | 'L' | 'D';
 export type OutcomeVariant = 'pill' | 'icon' | 'badge';
 
 const resultLabel: Record<OutcomeResult, string> = { W: 'Win', L: 'Loss', D: 'Draw' };
-const resultTone: Record<OutcomeResult, string> = { W: 'success', L: 'danger', D: 'warning' };
 
 export interface OutcomeBadgeProps {
   result: OutcomeResult;
@@ -22,14 +21,18 @@ export interface OutcomeBadgeProps {
  * Win = green (success), Loss = red (danger), Draw = amber (warning).
  */
 export function OutcomeBadge({ result, variant = 'pill', className }: OutcomeBadgeProps) {
-  const tone = resultTone[result];
   const label = resultLabel[result];
+  const resultClass = result === 'W'
+    ? 'tt-outcome--win'
+    : result === 'L'
+      ? 'tt-outcome--loss'
+      : 'tt-outcome--draw';
 
   if (variant === 'icon') {
     const icon = result === 'W' ? 'fa-check' : result === 'L' ? 'fa-times' : 'fa-minus';
     return (
       <span
-        className={cx('rounded-xl', `tt-icon-${tone}`, className)}
+        className={cx('tt-outcome', 'tt-outcome--icon', resultClass, className)}
         aria-label={label}
       >
         <i className={`fa ${icon}`} />
@@ -40,7 +43,7 @@ export function OutcomeBadge({ result, variant = 'pill', className }: OutcomeBad
   if (variant === 'badge') {
     return (
       <span
-        className={cx('tt-pill', 'tt-pill-sm', `tt-pill-${tone}`, className)}
+        className={cx('tt-outcome', resultClass, className)}
         aria-label={label}
       >
         {result}
@@ -51,7 +54,7 @@ export function OutcomeBadge({ result, variant = 'pill', className }: OutcomeBad
   // pill variant
   return (
     <span
-      className={cx('tt-form-result-pill', result === 'W' ? 'tt-form-result-win' : result === 'L' ? 'tt-form-result-loss' : 'tt-form-result-draw', className)}
+      className={cx('tt-outcome', resultClass, className)}
       aria-label={label}
     >
       {result}
