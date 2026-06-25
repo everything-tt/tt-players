@@ -38,7 +38,7 @@ function formatDate(value: string | null): string {
 
 export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps) {
   const { navigateInTab } = useTabNavigation();
-  const { isFavourite: isFavouriteTeam, toggle: toggleFavouriteTeam } = useFavouriteTeams();
+  const { teams: favouriteTeams, toggle: toggleFavouriteTeam } = useFavouriteTeams();
   const leaguesQuery = useLeaguesQuery();
   const allLeagues: LeagueWithDivisions[] = leaguesQuery.data?.data ?? [];
   const [performanceMode, setPerformanceMode] = useState<PerformanceMode>('players');
@@ -93,6 +93,30 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
         <section className="tt-player-section"><ErrorState message={error} /></section>
       ) : (
         <>
+          {favouriteTeams.length > 0 ? (
+            <section className="tt-player-section" aria-labelledby="tt-favourite-teams-title">
+              <SectionHeader title="Favourite teams" note={`${favouriteTeams.length} saved`} />
+              <List divider="hairline">
+                {favouriteTeams.map((team) => (
+                  <ListItem
+                    key={team.id}
+                    leading={<IconCircle iconClassName="fa fa-shield-alt" tone="accent" />}
+                    title={team.name}
+                    subtitle={[team.leagueName, team.divisionName].filter(Boolean).join(' · ')}
+                    trailing={(
+                      <FavouriteButton
+                        size="icon"
+                        saved
+                        onToggle={() => toggleFavouriteTeam(team)}
+                      />
+                    )}
+                    onClick={() => navigateInTab('leagues', `team/${team.id}`)}
+                  />
+                ))}
+              </List>
+            </section>
+          ) : null}
+
           <section className="tt-player-section" aria-labelledby="tt-scope-performance-title">
             <SectionHeader title="Performance" note="Across selected leagues" />
             <div className="tt-home-leaders-header">
@@ -144,21 +168,7 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
                     leading={<RankBadge>{index + 1}</RankBadge>}
                     title={team.team_name}
                     subtitle={`${team.league_name} · ${team.division_name} · ${team.won}W ${team.drawn}D ${team.lost}L`}
-                    trailing={(
-                      <span className="tt-team-roster-trailing">
-                        <Pill tone="accent">{Math.round(team.win_rate)}%</Pill>
-                        <FavouriteButton
-                          size="icon"
-                          saved={isFavouriteTeam(team.team_id)}
-                          onToggle={() => toggleFavouriteTeam({
-                            id: team.team_id,
-                            name: team.team_name,
-                            leagueName: team.league_name,
-                            divisionName: team.division_name,
-                          })}
-                        />
-                      </span>
-                    )}
+                    trailing={<Pill tone="accent">{Math.round(team.win_rate)}%</Pill>}
                     onClick={() => navigateInTab('leagues', `team/${team.team_id}`)}
                   />
                 ))}

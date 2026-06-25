@@ -2779,6 +2779,46 @@ body.theme-dark .tt-segmented-toggle {
   gap: 8px;
 }
 
+.tt-team-match-filters {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin: 2px 0 10px;
+}
+
+.tt-team-match-filters > span {
+  color: var(--ink-muted);
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tt-team-match-filters__scroll {
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0 0 4px;
+  scrollbar-width: none;
+}
+
+.tt-team-match-filters__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.tt-team-match-filters__scroll .tt-segmented-toggle {
+  flex: 0 0 auto;
+  width: max-content;
+}
+
+.tt-team-match-filters__scroll .tt-segmented-toggle-btn {
+  font-size: 12px;
+  padding-left: 9px;
+  padding-right: 9px;
+}
+
 .tt-team-row-action {
   align-items: center;
   color: var(--ink-muted);

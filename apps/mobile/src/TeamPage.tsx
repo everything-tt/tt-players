@@ -31,6 +31,7 @@ import {
 } from './ui/appkit';
 
 type RosterSort = 'played' | 'winRate';
+type MatchFilter = 'all' | 'home' | 'away' | 'wins' | 'losses' | 'draws';
 
 function TeamPageSkeleton() {
   return (
@@ -55,6 +56,7 @@ export function TeamPage() {
   const { navigateInActiveTab, switchTab } = useTabNavigation();
   const { teamId = '' } = useParams<{ teamId: string }>();
   const [rosterSort, setRosterSort] = useState<RosterSort>('played');
+  const [matchFilter, setMatchFilter] = useState<MatchFilter>('all');
   const { isFavourite: isFavouritePlayer, toggle: toggleFavouritePlayer } = useFavouritePlayers();
   const { isFavourite: isFavouriteTeam, toggle: toggleFavouriteTeam } = useFavouriteTeams();
 
@@ -82,6 +84,23 @@ export function TeamPage() {
 
   const fixtures = fixturesQuery.data?.data ?? [];
   const fixtureTotal = fixturesQuery.data?.total ?? fixtures.length;
+  const fixturesWithContext = useMemo(() => fixtures.map((fixture) => {
+    const isHome = fixture.home_team_id === teamId;
+    const teamScore = isHome ? fixture.home_score : fixture.away_score;
+    const opponentScore = isHome ? fixture.away_score : fixture.home_score;
+    const result = fixture.status !== 'completed' || teamScore === null || opponentScore === null
+      ? null
+      : teamScore > opponentScore ? 'W' as const : teamScore < opponentScore ? 'L' as const : 'D' as const;
+    return { fixture, isHome, teamScore, opponentScore, result };
+  }), [fixtures, teamId]);
+  const filteredFixtures = useMemo(() => fixturesWithContext.filter(({ isHome, result }) => {
+    if (matchFilter === 'home') return isHome;
+    if (matchFilter === 'away') return !isHome;
+    if (matchFilter === 'wins') return result === 'W';
+    if (matchFilter === 'losses') return result === 'L';
+    if (matchFilter === 'draws') return result === 'D';
+    return true;
+  }), [fixturesWithContext, matchFilter]);
   const fixturesLoading = fixturesQuery.isLoading;
   const fixturesError = getQueryError(fixturesQuery.error);
   const shareTarget = summary
@@ -184,23 +203,37 @@ export function TeamPage() {
             </section>
 
             <section className="tt-player-section" aria-labelledby="tt-team-matches-title">
-              <SectionHeader title="Matches" note={`${fixtureTotal} this season`} />
+              <SectionHeader title="Matches" note={`${filteredFixtures.length} of ${fixtureTotal}`} />
+              <div className="tt-team-match-filters">
+                <span>Filter by</span>
+                <div className="tt-team-match-filters__scroll">
+                  <SegmentedToggle
+                    ariaLabel="Filter team matches"
+                    value={matchFilter}
+                    onChange={setMatchFilter}
+                  options={[
+                    { value: 'all', label: 'ALL' },
+                    { value: 'home', label: 'H' },
+                    { value: 'away', label: 'A' },
+                    { value: 'wins', label: 'W' },
+                    { value: 'draws', label: 'D' },
+                    { value: 'losses', label: 'L' },
+                  ]}
+                  />
+                </div>
+              </div>
               {fixturesLoading ? (
                 <SkeletonList rows={4} />
               ) : fixturesError ? (
                 <ErrorState message="Unable to load recent matches." />
               ) : fixtures.length === 0 ? (
                 <EmptyState iconClassName="fa fa-table-tennis" title="No recent matches" message="No recent matches found." />
+              ) : filteredFixtures.length === 0 ? (
+                <EmptyState iconClassName="fa fa-filter" title="No matching fixtures" message="No fixtures match this filter." />
               ) : (
                 <List divider="hairline">
-                  {fixtures.map((fixture) => {
-                    const isHome = fixture.home_team_id === teamId;
-                    const teamScore = isHome ? fixture.home_score : fixture.away_score;
-                    const opponentScore = isHome ? fixture.away_score : fixture.home_score;
+                  {filteredFixtures.map(({ fixture, isHome, teamScore, opponentScore, result }) => {
                     const opponent = isHome ? fixture.away_team_name : fixture.home_team_name;
-                    const result = fixture.status !== 'completed' || teamScore === null || opponentScore === null
-                      ? null
-                      : teamScore > opponentScore ? 'W' : teamScore < opponentScore ? 'L' : 'D';
                     const score = teamScore === null || opponentScore === null ? null : `${teamScore}–${opponentScore}`;
                     return (
                       <ListItem
@@ -208,7 +241,7 @@ export function TeamPage() {
                         leading={result
                           ? <OutcomeBadge result={result} variant="icon" />
                           : <IconCircle iconClassName="fa fa-calendar" tone="neutral" />}
-                        title={opponent ? `vs ${opponent}` : `${fixture.home_team_name} vs ${fixture.away_team_name}`}
+                        title={opponent ? `${isHome ? 'Home' : 'Away'} vs ${opponent}` : `${fixture.home_team_name} vs ${fixture.away_team_name}`}
                         subtitle={`${formatMatchDate(fixture.date_played)} · ${fixture.round_name ?? fixture.status}`}
                         trailing={score ? <Pill tone={result === 'W' ? 'accent' : 'neutral'}>{score}</Pill> : <Pill tone="neutral">{fixture.status}</Pill>}
                         onClick={() => navigateInActiveTab(`fixture/${fixture.id}`)}
