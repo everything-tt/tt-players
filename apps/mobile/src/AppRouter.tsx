@@ -8,6 +8,7 @@ import { PlayerTournamentsPage } from './PlayerTournamentsPage';
 import { PlayerPage } from './PlayerPage';
 import { TeamPage } from './TeamPage';
 import { EventDetailPage } from './EventDetailPage';
+import { H2HPage } from './H2HPage';
 import { LeagueDetailPage } from './LeagueDetailPage';
 import PWAReloadPrompt from './PWAReloadPrompt';
 import PWAInstallSheet from './PWAInstallSheet';
@@ -54,6 +55,9 @@ export function AppRouter() {
               <Route path="/players/:playerId/insights" element={<PlayerInsightsPage />} />
               <Route path="/players/:playerId/matches" element={<PlayerMatchesPage />} />
               <Route path="/players/:playerId/tournaments" element={<PlayerTournamentsPage />} />
+              <Route path="/teams/:teamId" element={<TeamPage />} />
+              <Route path="/tournaments/:eventId" element={<EventDetailPage />} />
+              <Route path="/h2h/:playerAId/:playerBId" element={<H2HPage />} />
 
               <Route path="*" element={<Navigate to="/tabs/home" replace />} />
             </Routes>

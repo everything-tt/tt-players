@@ -17,6 +17,7 @@ import { useLeaguesQuery, usePlayerSearchQuery } from './queries';
 import { usePWAInstallContext } from './PWAInstallContext';
 import { useTheme, List, ListItem, Avatar, EmptyState } from './ui/appkit';
 import { getQueryError, TAB_METADATA, type LeagueWithDivisions } from './player-shared';
+import { buildHomeShareTarget, buildWebShareLinks, shareTarget } from './share-target';
 
 type PlayerSearchScope = 'all' | 'selected';
 type MenuId = 'menu-main' | 'menu-share';
@@ -252,25 +253,14 @@ function App() {
     return () => { isActive = false; listenerHandle?.remove(); };
   }, [onSystemBackPressed]);
 
-  const pageHref = encodeURIComponent(window.location.href);
-  const pageTitle = encodeURIComponent(document.title || 'TT Players');
-  const shareLinks = {
-    facebook: `https://www.facebook.com/sharer/sharer.php?u=${pageHref}`,
-    linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${pageHref}`,
-    mail: `mailto:?subject=${pageTitle}&body=${pageHref}`,
-    twitter: `https://twitter.com/intent/tweet?url=${pageHref}&text=${pageTitle}`,
-    whatsapp: `https://wa.me/?text=${pageTitle}%20${pageHref}`,
-  };
+  const homeShareTarget = buildHomeShareTarget(window.location.origin);
+  const shareLinks = buildWebShareLinks(homeShareTarget);
   const onShareClick = async (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     closeActiveMenu();
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: document.title || 'TT Players', url: window.location.href });
-        return;
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
-      }
+    if (typeof navigator.share === 'function') {
+      await shareTarget(homeShareTarget);
+      return;
     }
     setActiveMenuId('menu-share');
   };
@@ -314,9 +304,11 @@ function App() {
               <a href="#" className="page-title-icon bg-theme color-theme" onClick={openFeedbackSheet} aria-label="Send feedback">
                 <i className="fa fa-comment-dots" />
               </a>
-              <a href="#" className="page-title-icon bg-theme color-theme" onClick={onShareClick} aria-label="Share TT Players">
-                <i className="fa fa-share-alt" />
-              </a>
+              {activeTab === 'home' ? (
+                <a href="#" className="page-title-icon bg-theme color-theme" onClick={onShareClick} aria-label="Share TT Players">
+                  <i className="fa fa-share-alt" />
+                </a>
+              ) : null}
               <a href="#" className="page-title-icon bg-theme color-theme tt-page-league-filter" onClick={onOpenLeagueSelector} aria-label="Select leagues">
                 <i className="fa fa-filter" />
                 <span className="tt-page-league-count">{selectedLeagueBadgeLabel}</span>
@@ -516,11 +508,13 @@ function App() {
 
           <h6 className="menu-divider mt-4">Links</h6>
           <div className="list-group list-custom-small list-menu">
-            <a href="#" onClick={onShareClick}>
-              <i className="fa fa-share-alt color-white" />
-              <span>Share TT Players</span>
-              <i className="fa fa-angle-right" />
-            </a>
+            {activeTab === 'home' ? (
+              <a href="#" onClick={onShareClick}>
+                <i className="fa fa-share-alt color-white" />
+                <span>Share TT Players</span>
+                <i className="fa fa-angle-right" />
+              </a>
+            ) : null}
             <a href="https://www.tournapilot.com/app" target="_blank" rel="noopener noreferrer" onClick={onCloseMenuClick}>
               <i className="fa fa-external-link-alt color-white" />
               <span>TournaPilot</span>

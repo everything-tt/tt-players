@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { AppHeader, AppHeaderSpacer, type AppHeaderProps } from '../ui/appkit';
 import { useTabNavigation } from '../navigation/tab-navigation';
+import { useShareTarget } from '../hooks/useShareTarget';
+import type { ShareTarget } from '../share-target';
 
 interface DetailHeaderProps {
   /** Page title shown in the header and on-title-click navigates home. */
@@ -15,6 +17,8 @@ interface DetailHeaderProps {
   backFallback?: string;
   /** Show home button. Default: true */
   showHome?: boolean;
+  /** Stable target for screens that are meaningful to share. */
+  shareTarget?: ShareTarget | null;
 }
 
 /**
@@ -30,8 +34,10 @@ export function DetailHeader({
   onBack,
   backFallback,
   showHome = true,
+  shareTarget = null,
 }: DetailHeaderProps) {
   const { goBackInActiveTab, switchTab } = useTabNavigation();
+  const { share, status } = useShareTarget(shareTarget);
 
   const handleBack = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -64,10 +70,19 @@ export function DetailHeader({
           position: 4,
           ariaLabel: 'Home',
         } : undefined}
-        actions={actions}
+        actions={[
+          ...(shareTarget ? [{
+            iconClassName: 'fas fa-share-alt',
+            onClick: share,
+            position: 3 as const,
+            ariaLabel: `Share ${shareTarget.title}`,
+          }] : []),
+          ...(actions ?? []),
+        ]}
         className={className}
       />
       <AppHeaderSpacer />
+      {status ? <span className="sr-only" aria-live="polite">{status}</span> : null}
     </>
   );
 }

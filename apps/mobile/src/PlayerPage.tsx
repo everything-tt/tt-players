@@ -31,14 +31,9 @@ import {
 import { DetailHeader } from './components/DetailHeader';
 import { FavouriteButton } from './components/FavouriteButton';
 import { FormResultPills } from './components/FormResultPills';
+import { buildPlayerShareTarget } from './share-target';
 
 const APP_NAME = 'TT Players';
-const PUBLIC_PATH = '/players';
-
-function getPlayerShareUrl(playerId: string): string {
-  return `${window.location.origin}${PUBLIC_PATH}/${playerId}`;
-}
-
 function setPageMeta(name: string, content: string): void {
   let tag = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
   if (!tag) {
@@ -183,59 +178,34 @@ export function PlayerPage() {
   const recentResults = useMemo(() => (insights?.form.recent_results ?? []).slice(0, 10), [insights]);
   const tournamentsPlayed = useMemo(() => groupTournamentMatches(tournamentMatches), [tournamentMatches]);
   const recentTournaments = useMemo(() => tournamentsPlayed.slice(0, 5), [tournamentsPlayed]);
-  const [shareStatus, setShareStatus] = useState<string | null>(null);
+  const shareTarget = useMemo(
+    () => stats ? buildPlayerShareTarget(window.location.origin, stats.player_id, stats.player_name) : null,
+    [stats],
+  );
 
   useEffect(() => {
-    if (!stats) return;
+    if (!stats || !shareTarget) return;
 
-    const title = `${stats.player_name} | ${APP_NAME}`;
+    const title = shareTarget.title;
     const description = `${stats.player_name}: ${stats.total} matches, ${stats.wins} wins, ${winRate}% win rate.`;
-    const shareUrl = getPlayerShareUrl(stats.player_id);
     const imageUrl = `${window.location.origin}/images/thumb-players.png`;
 
     document.title = title;
     setPageMeta('description', description);
     setPageMeta('robots', 'index,follow');
     setPageMeta('theme-color', '#0f172a');
-    setCanonicalLink(shareUrl);
+    setCanonicalLink(shareTarget.url);
     setPropertyMeta('og:type', 'profile');
     setPropertyMeta('og:site_name', APP_NAME);
     setPropertyMeta('og:title', title);
     setPropertyMeta('og:description', description);
-    setPropertyMeta('og:url', shareUrl);
+    setPropertyMeta('og:url', shareTarget.url);
     setPropertyMeta('og:image', imageUrl);
     setPropertyMeta('twitter:card', 'summary_large_image');
     setPropertyMeta('twitter:title', title);
     setPropertyMeta('twitter:description', description);
     setPropertyMeta('twitter:image', imageUrl);
-  }, [stats, winRate]);
-
-  const sharePlayerProfile = async () => {
-    if (!stats) return;
-
-    const title = `${stats.player_name} | ${APP_NAME}`;
-    const url = getPlayerShareUrl(stats.player_id);
-    const text = `${stats.player_name} on TT Players`;
-
-    try {
-      if (navigator.share) {
-        await navigator.share({ title, text, url });
-        setShareStatus('Shared profile link');
-        return;
-      }
-
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        setShareStatus('Profile link copied');
-        return;
-      }
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-    }
-
-    window.prompt('Copy this player profile link', url);
-    setShareStatus('Copy the profile link from the prompt');
-  };
+  }, [shareTarget, stats, winRate]);
 
   const goHome = (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
@@ -252,7 +222,7 @@ export function PlayerPage() {
 
   return (
     <TabShellPage>
-      <DetailHeader title={stats?.player_name ?? 'Player'} />
+      <DetailHeader title={stats?.player_name ?? 'Player'} shareTarget={shareTarget} />
 
       <AppPageContent>
         {statsLoading ? (
@@ -316,19 +286,7 @@ export function PlayerPage() {
                 >
                   Insights
                 </AppButtonLink>
-                <AppButtonLink
-                  size="sm"
-                  className="tt-player-action-pill"
-                  tone="outline"
-                  onClick={sharePlayerProfile}
-                >
-                  Share
-                </AppButtonLink>
               </div>
-
-              {shareStatus ? (
-                <p className="tt-player-section-note" aria-live="polite">{shareStatus}</p>
-              ) : null}
 
               <FormResultPills
                 results={recentResults}

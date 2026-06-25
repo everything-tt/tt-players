@@ -7,9 +7,11 @@ import {
 import { AppButtonLink, AppPlayerList } from './ui/appkit';
 import { PlayerSearchSheet } from './PlayerSearchSheet';
 import { useTabNavigation } from './navigation/tab-navigation';
-import { usePlayerH2HQuery } from './queries';
+import { usePlayerExtendedStatsQuery, usePlayerH2HQuery } from './queries';
 import { useFavouriteH2H } from './hooks/useFavouriteH2H';
 import { FavouriteButton } from './components/FavouriteButton';
+import { buildH2HShareTarget } from './share-target';
+import { useShareTarget } from './hooks/useShareTarget';
 
 function getWinRate(player: Pick<PlayerSearchItem, 'wins' | 'played'>): number {
   if (player.played <= 0) return 0;
@@ -43,6 +45,10 @@ function parseStoredActivePlayer(key: string): PlayerSearchItem | null {
 
 interface H2HTabContentProps {
   onOpenPlayer: (playerId: string) => void;
+  initialPlayerIds?: {
+    playerAId: string;
+    playerBId: string;
+  };
 }
 
 interface LeagueEncounterSummary {
@@ -54,11 +60,33 @@ interface LeagueEncounterSummary {
 }
 
 
-export function H2HTabContent({ onOpenPlayer }: H2HTabContentProps) {
+export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentProps) {
   const { navigateInTab } = useTabNavigation();
   const { items: favouriteH2Hs, isFavourite: isFavouriteMatchup, toggle: toggleFavouriteMatchup, remove: removeFavouriteMatchup } = useFavouriteH2H();
-  const [playerA, setPlayerA] = useState<PlayerSearchItem | null>(() => parseStoredActivePlayer(H2H_ACTIVE_PLAYER_A_KEY));
-  const [playerB, setPlayerB] = useState<PlayerSearchItem | null>(() => parseStoredActivePlayer(H2H_ACTIVE_PLAYER_B_KEY));
+  const [playerA, setPlayerA] = useState<PlayerSearchItem | null>(() =>
+    initialPlayerIds ? null : parseStoredActivePlayer(H2H_ACTIVE_PLAYER_A_KEY));
+  const [playerB, setPlayerB] = useState<PlayerSearchItem | null>(() =>
+    initialPlayerIds ? null : parseStoredActivePlayer(H2H_ACTIVE_PLAYER_B_KEY));
+  const initialPlayerAQuery = usePlayerExtendedStatsQuery(
+    initialPlayerIds?.playerAId ?? '',
+    Boolean(initialPlayerIds?.playerAId),
+  );
+  const initialPlayerBQuery = usePlayerExtendedStatsQuery(
+    initialPlayerIds?.playerBId ?? '',
+    Boolean(initialPlayerIds?.playerBId),
+  );
+
+  useEffect(() => {
+    const stats = initialPlayerAQuery.data;
+    if (!stats || playerA) return;
+    setPlayerA({ id: stats.player_id, name: stats.player_name, played: stats.total, wins: stats.wins });
+  }, [initialPlayerAQuery.data, playerA]);
+
+  useEffect(() => {
+    const stats = initialPlayerBQuery.data;
+    if (!stats || playerB) return;
+    setPlayerB({ id: stats.player_id, name: stats.player_name, played: stats.total, wins: stats.wins });
+  }, [initialPlayerBQuery.data, playerB]);
 
   useEffect(() => {
     if (playerA) {
@@ -77,6 +105,13 @@ export function H2HTabContent({ onOpenPlayer }: H2HTabContentProps) {
   }, [playerB]);
 
   const isFavourite = playerA && playerB ? isFavouriteMatchup(playerA.id, playerB.id) : false;
+  const shareTarget = useMemo(
+    () => playerA && playerB
+      ? buildH2HShareTarget(window.location.origin, playerA, playerB)
+      : null,
+    [playerA, playerB],
+  );
+  const { share, status: shareStatus } = useShareTarget(shareTarget);
 
 
 
@@ -164,7 +199,19 @@ export function H2HTabContent({ onOpenPlayer }: H2HTabContentProps) {
           </div>
           <div className="tt-h2h-actions">
             {playerA && playerB ? (
-              <FavouriteButton saved={Boolean(isFavourite)} onToggle={() => toggleFavouriteMatchup({ player1: playerA, player2: playerB })} />
+              <>
+                <FavouriteButton saved={Boolean(isFavourite)} onToggle={() => toggleFavouriteMatchup({ player1: playerA, player2: playerB })} />
+                <AppButtonLink
+                  size="sm"
+                  className="tt-player-action-pill"
+                  tone="outline-highlight"
+                  aria-label={`Share ${playerA.name} versus ${playerB.name}`}
+                  onClick={share}
+                >
+                  <i className="fa fa-share-alt" />
+                  <span>Share</span>
+                </AppButtonLink>
+              </>
             ) : null}
             {(playerA || playerB) && (
               <AppButtonLink
@@ -246,6 +293,7 @@ export function H2HTabContent({ onOpenPlayer }: H2HTabContentProps) {
               )}
             </div>
         </div>
+        {shareStatus ? <span className="sr-only" aria-live="polite">{shareStatus}</span> : null}
       </section>
 
       {!playerA || !playerB ? (
