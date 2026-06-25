@@ -74,7 +74,7 @@ describe('GET /api/teams/:id/fixtures - enriched team labels and score', () => {
             .execute();
 
         const res = await request
-            .get(`/api/teams/${ids.homeTeamId}/fixtures?limit=1&offset=1`)
+            .get(`/api/teams/${ids.homeTeamId}/fixtures?limit=1&offset=0`)
             .expect(200);
 
         expect(res.body.total).toBe(2);
@@ -84,5 +84,13 @@ describe('GET /api/teams/:id/fixtures - enriched team labels and score', () => {
             home_score: 0,
             away_score: 1,
         });
+    });
+
+    it('returns the full completed form for the season', async () => {
+        const res = await request
+            .get(`/api/teams/${ids.homeTeamId}/form`)
+            .expect(200);
+
+        expect(res.body.form).toEqual(['W', 'L']);
     });
 });

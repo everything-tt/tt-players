@@ -40,7 +40,7 @@ PostgreSQL. Cloudflare remains the DNS provider.
 ### Render Static Site
 
 - Service name: `tt-players`
-- Service ID: `srv-d8etg0cp3tds738vh8v0`
+- Service ID: `srv-d8pui8p194ac739nka20`
 - Type: Static Site
 - Repository: `https://github.com/wudong/tt-players`
 - Branch: `main`
@@ -60,7 +60,7 @@ apps/mobile/dist
 - Render URL:
 
 ```text
-https://tt-players.onrender.com
+https://tt-players-hcde.onrender.com
 ```
 
 - Custom domain:
@@ -69,7 +69,7 @@ https://tt-players.onrender.com
 https://tt-players.graceliu.uk
 ```
 
-- Custom domain status on 2026-06-02: `verified`
+- Custom domain status on 2026-06-24: `verified`
 - Auto deploy: enabled on commits to `main`
 
 Static service environment variables:
@@ -94,7 +94,7 @@ build and served directly by Render.
 ### Render API Service
 
 - Service name: `tt-players-api`
-- Service ID: `srv-d8etcqmq1p3s739nl6fg`
+- Service ID: `srv-d8puiavlk1mc739l5lu0`
 - Type: Web Service
 - Runtime: Node
 - Plan: Free
@@ -117,7 +117,7 @@ pnpm --filter @tt-players/api start
 - Direct Render URL:
 
 ```text
-https://tt-players-api.onrender.com
+https://tt-players-api-mji9.onrender.com
 ```
 
 - Auto deploy: enabled on commits to `main`
@@ -126,7 +126,7 @@ API service environment variables:
 
 ```text
 NODE_VERSION=20
-ALLOWED_ORIGIN=https://tt-players.onrender.com,https://tt-players.graceliu.uk
+ALLOWED_ORIGIN=https://tt-players.graceliu.uk
 DATABASE_URL=postgres://.../tt_players?sslmode=require
 NODE_TLS_REJECT_UNAUTHORIZED=0
 ```
@@ -156,9 +156,9 @@ The frontend service has two Render rewrite routes:
 
 ```text
 source: /api/*
-destination: https://tt-players-api.onrender.com/api/*
+destination: https://tt-players-api-mji9.onrender.com/api/*
 type: rewrite
-route_id: rdr-d8f8jp3bc2fs73efgo7g
+route_id: rdr-d8toaf8js32c73c0eof0
 ```
 
 ```text
@@ -168,6 +168,11 @@ type: rewrite
 ```
 
 The `/api/*` rule proxies browser API calls to the backend without exposing the API hostname in frontend code. The catch-all `/*` rule is required for the React SPA router so deep links such as `/players/:playerId` load the app shell directly on refresh or first visit.
+
+**Important:** When Render services are recreated, the API service gets a new
+`.onrender.com` hostname slug, and the static rewrite must be updated to match.
+Failing to do so will return `x-render-routing: no-server` for all API requests
+through the custom domain. See "2026-06-24 Outage" in Deployment History.
 
 ### Aiven PostgreSQL
 
@@ -252,10 +257,32 @@ aba66aa Run API service directly on Render
 
 The latest verified live Render deploys were:
 
-- API deploy: `dep-d8f8kcl53gjs739r3gd0`
-- Static deploy: `dep-d8f8kcuq1p3s73dmpth0`
-- Commit: `0233bf0cd5ac448f759fb18a3b1de04b290e9a61`
+- API deploy: `dep-d8sjabmq1p3s73bop1lg`
+- Static deploy: `dep-d8tg5t5aeets73ehq5f0`
+- Commit: `2ccb01af49f588d066e44b53a955209c5a4c3e0b`
 - Status: `live`
+
+### 2026-06-24 Outage — Stale Rewrite Route After Service Recreation
+
+On 2026-06-18, both Render services were recreated (new service IDs and URL
+slugs). The static site's `/api/*` rewrite route still pointed to the old API
+hostname (`tt-players-api.onrender.com`), which returned
+`x-render-routing: no-server` because no backend was associated with that
+hostname. The new API service was healthy at
+`tt-players-api-mji9.onrender.com` but unreachable through the custom domain.
+
+**Root cause:** Render static rewrite rules are not automatically updated when
+the target web service is deleted and recreated.
+
+**Fix applied 2026-06-24:** Deleted the stale rewrite route
+(`rdr-d8tg7h5aeets73ehs33g`) and recreated it pointing to the current API
+service URL (`tt-players-api-mji9.onrender.com`). New route ID:
+`rdr-d8toaf8js32c73c0eof0`.
+
+**Prevention:** After recreating a Render web service, always:
+1. Note the new `.onrender.com` hostname.
+2. Check the static site rewrite routes and update the `/api/*` destination.
+3. Run the full Post-Deploy Verification checklist.
 
 ## Local Database Safety And Migration
 
@@ -400,15 +427,15 @@ Set environment variables:
 ```text
 NODE_VERSION=20
 DATABASE_URL=postgres://.../tt_players?sslmode=require
-ALLOWED_ORIGIN=https://tt-players.onrender.com,https://tt-players.graceliu.uk
+ALLOWED_ORIGIN=https://tt-players.graceliu.uk
 NODE_TLS_REJECT_UNAUTHORIZED=0
 ```
 
 Deploy and verify:
 
 ```bash
-curl -fsS https://tt-players-api.onrender.com/api/leagues
-curl -fsS https://tt-players-api.onrender.com/api/health
+curl -fsS https://tt-players-api-mji9.onrender.com/api/leagues
+curl -fsS https://tt-players-api-mji9.onrender.com/api/health
 ```
 
 ### 4. Create The Render Static Site
@@ -434,15 +461,15 @@ Add this rewrite route to the static service:
 
 ```text
 source: /api/*
-destination: https://tt-players-api.onrender.com/api/*
+destination: https://tt-players-api-mji9.onrender.com/api/*
 type: rewrite
 ```
 
 Deploy and verify:
 
 ```bash
-curl -fsS https://tt-players.onrender.com/api/leagues
-curl -fsS https://tt-players.onrender.com/health.json
+curl -fsS https://tt-players-hcde.onrender.com/api/leagues
+curl -fsS https://tt-players-hcde.onrender.com/health.json
 ```
 
 ### 5. Register The Custom Domain
@@ -506,11 +533,11 @@ Run these checks after every deployment:
 ```bash
 for url in \
   https://tt-players.graceliu.uk/health.json \
-  https://tt-players-api.onrender.com/api/health \
-  https://tt-players.onrender.com/api/health \
+  https://tt-players-api-mji9.onrender.com/api/health \
+  https://tt-players-hcde.onrender.com/api/health \
   https://tt-players.graceliu.uk/api/health \
   https://tt-players.graceliu.uk/players/00000000-0000-0000-0000-000000000000 \
-  https://tt-players-api.onrender.com/api/leagues \
+  https://tt-players-api-mji9.onrender.com/api/leagues \
   https://tt-players.graceliu.uk/api/leagues
 do
   printf "%s " "$url"
@@ -538,7 +565,7 @@ let s='';
 process.stdin.on('data', d => s += d);
 process.stdin.on('end', () => {
   console.log({
-    hasApiSubdomain: s.includes('tt-players-api.onrender.com'),
+    hasApiSubdomain: s.includes('tt-players-api-mji9.onrender.com'),
     hasSlashApi: s.includes('/api'),
   });
 });
@@ -560,9 +587,9 @@ render services --output json
 
 API_KEY=$(awk '/key:/ {print $2; exit}' ~/.render/cli.yaml)
 curl -H "Authorization: Bearer $API_KEY" \
-  https://api.render.com/v1/services/srv-d8etg0cp3tds738vh8v0/routes
+  https://api.render.com/v1/services/srv-d8pui8p194ac739nka20/routes
 curl -H "Authorization: Bearer $API_KEY" \
-  https://api.render.com/v1/services/srv-d8etg0cp3tds738vh8v0/custom-domains
+  https://api.render.com/v1/services/srv-d8pui8p194ac739nka20/custom-domains
 ```
 
 Aiven:

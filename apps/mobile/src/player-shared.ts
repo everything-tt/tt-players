@@ -5,6 +5,25 @@ export type FavouritePlayer = {
   wins: number;
 };
 
+export type FavouriteTeam = {
+  id: string;
+  name: string;
+  leagueName: string | null;
+  divisionName: string | null;
+};
+
+export const FAVOURITE_TEAMS_STORAGE_KEY = 'tt_players_favourite_teams';
+export const FAVOURITE_TEAMS_UPDATED_EVENT = 'tt-players:favourite-teams-updated';
+
+export function isValidFavouriteTeam(value: unknown): value is FavouriteTeam {
+  if (!value || typeof value !== 'object') return false;
+  const item = value as Record<string, unknown>;
+  return typeof item.id === 'string'
+    && typeof item.name === 'string'
+    && (item.leagueName === null || typeof item.leagueName === 'string')
+    && (item.divisionName === null || typeof item.divisionName === 'string');
+}
+
 export type PlayerSearchItem = FavouritePlayer;
 
 export type PlayerSearchResponse = {
@@ -94,6 +113,120 @@ export type LeagueSnapshot = {
     players: number;
     matches: number;
   };
+};
+
+export type LeagueOverviewItem = {
+  id: string;
+  name: string;
+  season_id: string;
+  season: string;
+  divisions: number;
+  teams: number;
+  matches_played: number;
+  upcoming_fixtures: number;
+  last_scraped_at: string | null;
+  status: 'no_data' | 'in_progress';
+};
+
+export type LeagueOverviewResponse = {
+  data: LeagueOverviewItem[];
+};
+
+export type LeagueDashboard = {
+  league: {
+    id: string;
+    name: string;
+    season_id: string;
+    season: string;
+  };
+  recent_results: Array<{
+    fixture_id: string;
+    competition_id: string;
+    competition_name: string;
+    date_played: string | null;
+    home_team_id: string | null;
+    home_team_name: string | null;
+    away_team_id: string | null;
+    away_team_name: string | null;
+    home_score: number;
+    away_score: number;
+  }>;
+  upcoming_fixtures: Array<{
+    fixture_id: string;
+    competition_id: string;
+    competition_name: string;
+    date_played: string | null;
+    home_team_id: string | null;
+    home_team_name: string | null;
+    away_team_id: string | null;
+    away_team_name: string | null;
+  }>;
+  title_races: Array<{
+    competition_id: string;
+    competition_name: string;
+    leader_name: string;
+    leader_points: number;
+    points_gap: number | null;
+  }>;
+  history: Array<{
+    season_id: string;
+    season: string;
+    is_active: boolean;
+    divisions: number;
+    teams: number;
+    fixtures: number;
+    champions: Array<{
+      division_name: string;
+      team_name: string;
+    }>;
+  }>;
+};
+
+export type LeagueCollectionDashboard = {
+  totals: {
+    leagues: number;
+    divisions: number;
+    teams: number;
+    matches_played: number;
+    upcoming_fixtures: number;
+  };
+  recent_results: Array<{
+    fixture_id: string;
+    league_id: string;
+    league_name: string;
+    competition_id: string;
+    division_name: string;
+    date_played: string | null;
+    home_team_name: string | null;
+    away_team_name: string | null;
+    home_score: number;
+    away_score: number;
+  }>;
+  upcoming_fixtures: Array<{
+    fixture_id: string;
+    league_id: string;
+    league_name: string;
+    competition_id: string;
+    division_name: string;
+    date_played: string | null;
+    home_team_name: string | null;
+    away_team_name: string | null;
+  }>;
+  top_teams: Array<{
+    team_id: string;
+    team_name: string;
+    league_id: string;
+    league_name: string;
+    competition_id: string;
+    division_name: string;
+    position: number;
+    played: number;
+    won: number;
+    drawn: number;
+    lost: number;
+    points: number;
+    win_rate: number;
+  }>;
 };
 
 export type LeagueSeason = {
@@ -253,7 +386,9 @@ export interface FixtureMeta {
   played_at: string | null;
   league_name: string;
   division_name: string;
+  home_team_id: string | null;
   home_team_name: string | null;
+  away_team_id: string | null;
   away_team_name: string | null;
   source_url: string | null;
 }
@@ -507,5 +642,3 @@ export function isValidFavouriteTournament(value: unknown): value is FavouriteTo
     && typeof item.platform_name === 'string'
     && typeof item.match_count === 'number';
 }
-
-

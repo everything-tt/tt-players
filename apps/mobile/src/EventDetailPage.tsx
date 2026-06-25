@@ -20,6 +20,7 @@ import { useFavouriteTournaments } from './hooks/useFavouriteTournaments';
 import { useFavouritePlayers } from './hooks/useFavouritePlayers';
 import { DetailHeader } from './components/DetailHeader';
 import { FavouriteButton } from './components/FavouriteButton';
+import { buildTournamentShareTarget } from './share-target';
 
 type EventPlayerSummary = {
   key: string;
@@ -168,6 +169,9 @@ export function EventDetailPage() {
   const { isFavourite: isFavouriteTournament, toggle: toggleFavouriteTournament } = useFavouriteTournaments();
   const { isFavourite: isFavouritePlayer, toggle: toggleFavouritePlayer } = useFavouritePlayers();
   const isFavourite = event ? isFavouriteTournament(event.id) : false;
+  const shareTarget = event
+    ? buildTournamentShareTarget(window.location.origin, event.id, event.name)
+    : null;
 
   const selectPlayerFilter = (player: EventPlayerSummary | null) => (clickEvent?: React.MouseEvent<HTMLElement>) => {
     clickEvent?.preventDefault();
@@ -186,7 +190,7 @@ export function EventDetailPage() {
 
   return (
     <TabShellPage>
-      <DetailHeader title="Tournament" />
+      <DetailHeader title="Tournament" shareTarget={shareTarget} />
 
       <AppPageContent>
         {!eventId ? (

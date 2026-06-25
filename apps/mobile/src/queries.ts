@@ -7,6 +7,9 @@ import {
   type H2HResponse,
   type LeadersResponse,
   type LeagueSnapshot,
+  type LeagueDashboard,
+  type LeagueCollectionDashboard,
+  type LeagueOverviewResponse,
   type LeagueSeasonsResponse,
   type LeaguesResponse,
   type PlayerCountResponse,
@@ -201,6 +204,45 @@ export function useLeagueSnapshotQuery(leagueId: string, enabled = true) {
   });
 }
 
+export function useLeagueOverviewQuery(leagueIds: string[], enabled = true) {
+  const sortedLeagueIds = [...leagueIds].sort();
+  return useQuery({
+    queryKey: ['leagues', 'overview', sortedLeagueIds.join(',')],
+    queryFn: ({ signal }: { signal: AbortSignal }) => {
+      const params = new URLSearchParams();
+      if (sortedLeagueIds.length > 0) {
+        params.set('league_ids', sortedLeagueIds.join(','));
+      }
+      const query = params.toString();
+      return apiFetch<LeagueOverviewResponse>(`/leagues/overview${query ? `?${query}` : ''}`, signal);
+    },
+    enabled,
+  });
+}
+
+export function useLeagueDashboardQuery(leagueId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['leagues', leagueId, 'dashboard'],
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      apiFetch<LeagueDashboard>(`/leagues/${leagueId}/dashboard`, signal),
+    enabled: enabled && Boolean(leagueId),
+  });
+}
+
+export function useLeagueCollectionDashboardQuery(leagueIds: string[], enabled = true) {
+  const sortedLeagueIds = [...leagueIds].sort();
+  return useQuery({
+    queryKey: ['leagues', 'dashboard', sortedLeagueIds.join(',')],
+    queryFn: ({ signal }: { signal: AbortSignal }) => {
+      const params = new URLSearchParams();
+      if (sortedLeagueIds.length > 0) params.set('league_ids', sortedLeagueIds.join(','));
+      const query = params.toString();
+      return apiFetch<LeagueCollectionDashboard>(`/leagues/dashboard${query ? `?${query}` : ''}`, signal);
+    },
+    enabled,
+  });
+}
+
 export function useTeamSummaryQuery(teamId: string, enabled = true) {
   return useQuery({
     queryKey: ['teams', teamId, 'summary'],
@@ -273,5 +315,3 @@ export function usePlayerTournamentsQuery(playerId: string, enabled = true) {
     enabled: enabled && Boolean(playerId),
   });
 }
-
-
