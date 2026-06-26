@@ -18,6 +18,7 @@ import { usePWAInstallContext } from './PWAInstallContext';
 import { useTheme, List, ListItem, Avatar, EmptyState } from './ui/appkit';
 import { getQueryError, TAB_METADATA, type LeagueWithDivisions } from './player-shared';
 import { buildHomeShareTarget, buildWebShareLinks, shareTarget } from './share-target';
+import { LEAGUE_ONBOARDING_STORAGE_KEY, LEAGUES_STORAGE_KEY, restoreLocalDataBackup } from './local-persistence';
 
 type PlayerSearchScope = 'all' | 'selected';
 type MenuId = 'menu-main' | 'menu-share';
@@ -26,8 +27,6 @@ const SEARCH_DEBOUNCE_MS = 250;
 const MAX_SELECTED_LEAGUES = 15;
 const HEADER_SWITCH_SCROLL = 40;
 
-const LEAGUES_STORAGE_KEY = 'tt_players_selected_league_ids';
-const LEAGUE_ONBOARDING_STORAGE_KEY = 'tt_players_league_onboarding_complete';
 const APP_BUILD_TIME = formatBuildTime(import.meta.env.VITE_APP_BUILD_TIME);
 const APP_COMMIT = import.meta.env.VITE_APP_COMMIT || 'unknown';
 
@@ -67,6 +66,8 @@ function InstallAppMenuItem({ onClose }: { onClose: (e: MouseEvent<HTMLAnchorEle
 }
 
 function App() {
+  restoreLocalDataBackup();
+
   const { activeTab, handleSystemBack, navigateInActiveTab, switchTab } = useTabNavigation();
   const { players: favouritePlayers, isFavourite, toggle: toggleFavourite } = useFavouritePlayers();
   const { isDarkMode, toggleTheme } = useTheme();

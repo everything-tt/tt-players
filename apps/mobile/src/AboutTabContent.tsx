@@ -7,6 +7,7 @@ import {
   HeroCard,
   SectionHeader,
 } from './ui/appkit';
+import { clearLocalDataBackup } from './local-persistence';
 
 const ABOUT_TAGS = ['TT Leagues', 'Table Tennis 365', 'Sport80 Grand Prix'];
 
@@ -19,6 +20,7 @@ export function AboutTabContent() {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const handleResetData = async () => {
+    clearLocalDataBackup();
     localStorage.clear();
     sessionStorage.clear();
     if ('caches' in window) {
@@ -56,7 +58,7 @@ export function AboutTabContent() {
       <section className="tt-player-section" aria-labelledby="about-data-title">
         <SectionHeader title="Saved Data" note="Local to this device" />
         <p className="tt-about-description">
-          Your favourites, selected leagues, and active settings are stored locally on this device.
+          Your favourites, selected leagues, and active settings are stored locally on this device. Normal app updates keep this data; clearing browser or app storage will remove it.
         </p>
         <AppButton tone="danger" full onClick={() => setConfirmOpen(true)}>
           <i className="fa fa-trash me-2" />Clear Saved Data

@@ -315,6 +315,10 @@ export type RubberItem = {
   id: string;
   fixture_id: string;
   date: string;
+  source: 'league' | 'tournament';
+  source_label: string;
+  event_id: string | null;
+  event_name: string | null;
   league: string;
   opponent: string;
   opponent_id: string | null;

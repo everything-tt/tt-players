@@ -328,9 +328,21 @@ export function EventDetailPage() {
 
                     <List divider="hairline" size="lg" className="tt-tournament-results-list">
                       {matches.map((match) => {
-                        const isHomeWinner = match.winner_side === 'home';
-                        const homeOutcome = isHomeWinner ? 'W' : 'L';
-                        const actionLabel = isHomeWinner ? 'defeated' : 'lost to';
+                        const homeKey = match.home_player_resolved_id ?? `external:${match.home_player_external_id}`;
+                        const awayKey = match.away_player_resolved_id ?? `external:${match.away_player_external_id}`;
+                        const selectedSide = selectedPlayer?.key === awayKey
+                          ? 'away'
+                          : selectedPlayer?.key === homeKey
+                            ? 'home'
+                            : 'home';
+                        const primaryIsHome = selectedSide === 'home';
+                        const primaryName = primaryIsHome ? match.home_player_name : match.away_player_name;
+                        const primaryPlayerId = primaryIsHome ? match.home_player_resolved_id : match.away_player_resolved_id;
+                        const secondaryName = primaryIsHome ? match.away_player_name : match.home_player_name;
+                        const secondaryPlayerId = primaryIsHome ? match.away_player_resolved_id : match.home_player_resolved_id;
+                        const primaryWon = match.winner_side === selectedSide;
+                        const outcome = primaryWon ? 'W' : 'L';
+                        const actionLabel = primaryWon ? 'defeated' : 'lost to';
                         const timeLabel = match.played_at ? formatTime(match.played_at) : null;
 
                         return (
@@ -338,15 +350,15 @@ export function EventDetailPage() {
                             key={match.id}
                             hideChevron
                             className="tt-tournament-result-item"
-                            leading={<IconCircle iconClassName={isHomeWinner ? 'fa fa-check' : 'fa fa-times'} tone={isHomeWinner ? 'success' : 'danger'} />}
+                            leading={<IconCircle iconClassName={primaryWon ? 'fa fa-check' : 'fa fa-times'} tone={primaryWon ? 'success' : 'danger'} />}
                             title={(
                               <a
                                 href="#"
-                                className={`tt-tournament-result-name ${isHomeWinner ? 'is-winner' : 'is-loser'}`}
-                                onClick={selectPlayerById(match.home_player_resolved_id)}
-                                aria-disabled={!match.home_player_resolved_id}
+                                className={`tt-tournament-result-name ${primaryWon ? 'is-winner' : 'is-loser'}`}
+                                onClick={selectPlayerById(primaryPlayerId)}
+                                aria-disabled={!primaryPlayerId}
                               >
-                                {match.home_player_name}
+                                {primaryName}
                               </a>
                             )}
                             subtitle={(
@@ -354,16 +366,16 @@ export function EventDetailPage() {
                                 <span>{actionLabel}</span>
                                 <a
                                   href="#"
-                                  className={`tt-tournament-result-name ${isHomeWinner ? 'is-loser' : 'is-winner'}`}
-                                  onClick={selectPlayerById(match.away_player_resolved_id)}
-                                  aria-disabled={!match.away_player_resolved_id}
+                                  className={`tt-tournament-result-name ${primaryWon ? 'is-loser' : 'is-winner'}`}
+                                  onClick={selectPlayerById(secondaryPlayerId)}
+                                  aria-disabled={!secondaryPlayerId}
                                 >
-                                  {match.away_player_name}
+                                  {secondaryName}
                                 </a>
                                 {timeLabel ? <span>· Played {timeLabel}</span> : null}
                               </span>
                             )}
-                            trailing={<Pill size="xs" tone={isHomeWinner ? 'success' : 'danger'}>{homeOutcome}</Pill>}
+                            trailing={<Pill size="xs" tone={primaryWon ? 'success' : 'danger'}>{outcome}</Pill>}
                           />
                         );
                       })}

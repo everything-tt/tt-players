@@ -153,10 +153,16 @@ export function usePlayerCurrentSeasonAffiliationsQuery(playerId: string, enable
   });
 }
 
-export function usePlayerRubbersQuery(playerId: string, limit: number, offset: number, enabled = true) {
+export function usePlayerRubbersQuery(
+  playerId: string,
+  limit: number,
+  offset: number,
+  enabled = true,
+  source: 'league' | 'tournament' | 'all' = 'league',
+) {
   return useQuery({
-    queryKey: ['players', playerId, 'rubbers', limit, offset],
-    queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<RubbersResponse>(`/players/${playerId}/rubbers?limit=${limit}&offset=${offset}`, signal),
+    queryKey: ['players', playerId, 'rubbers', source, limit, offset],
+    queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<RubbersResponse>(`/players/${playerId}/rubbers?limit=${limit}&offset=${offset}&source=${source}`, signal),
     enabled: enabled && Boolean(playerId),
   });
 }

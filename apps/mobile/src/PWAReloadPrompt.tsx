@@ -1,6 +1,7 @@
 import React from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { AppButton, BottomSheet } from './ui/appkit';
+import { backupLocalData, requestPersistentStorage } from './local-persistence';
 
 const PWAReloadPrompt: React.FC = () => {
   const {
@@ -19,6 +20,12 @@ const PWAReloadPrompt: React.FC = () => {
     setNeedRefresh(false);
   };
 
+  const updateNow = async () => {
+    backupLocalData();
+    await requestPersistentStorage();
+    updateServiceWorker(true);
+  };
+
   return (
     <BottomSheet
       isOpen={needRefresh}
@@ -31,10 +38,10 @@ const PWAReloadPrompt: React.FC = () => {
       <div className="tt-pwa-sheet__content">
         <i className="fa fa-sync fa-spin tt-pwa-sheet__sync" aria-hidden="true" />
         <p className="tt-pwa-sheet__copy">
-          A newer version of TT Players is available. Update now to get the latest features and improvements.
+          A newer version of TT Players is available. Your selected leagues and saved items are kept on this device during the update.
         </p>
         <div className="tt-pwa-sheet__actions">
-          <AppButton onClick={() => updateServiceWorker(true)} full>
+          <AppButton onClick={updateNow} full>
             Update Now
           </AppButton>
           <AppButton onClick={close} tone="ghost" full>

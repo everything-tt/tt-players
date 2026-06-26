@@ -143,7 +143,7 @@ export function PlayerPage() {
 
   const statsQuery = usePlayerExtendedStatsQuery(playerId, Boolean(playerId));
   const affiliationsQuery = usePlayerCurrentSeasonAffiliationsQuery(playerId, Boolean(playerId));
-  const recentMatchesQuery = usePlayerRubbersQuery(playerId, 10, 0, Boolean(playerId));
+  const recentMatchesQuery = usePlayerRubbersQuery(playerId, 10, 0, Boolean(playerId), 'all');
   const insightsQuery = usePlayerInsightsQuery(playerId, Boolean(playerId));
   const tournamentsQuery = usePlayerTournamentsQuery(playerId, Boolean(playerId));
 
@@ -219,6 +219,14 @@ export function PlayerPage() {
       event.preventDefault();
       navigateInActiveTab(relativePath);
     };
+
+  const openMatch = (match: { source: 'league' | 'tournament'; fixture_id: string; event_id: string | null }) => () => {
+    if (match.source === 'tournament' && match.event_id) {
+      navigateInActiveTab(`event/${match.event_id}`);
+      return;
+    }
+    navigateInTab('leagues', `fixture/${match.fixture_id}`);
+  };
 
   return (
     <TabShellPage>
@@ -402,7 +410,7 @@ export function PlayerPage() {
 
             <section className="tt-player-section" aria-labelledby="tt-player-matches-title">
               <div className="tt-player-section-header">
-                <h2 id="tt-player-matches-title" className="tt-player-section-title">Last 10 League Matches</h2>
+                <h2 id="tt-player-matches-title" className="tt-player-section-title">Last 10 Matches</h2>
                 <span className="tt-player-section-note">{recentMatches.length} matches</span>
               </div>
               {recentMatchesLoading ? (
@@ -410,7 +418,7 @@ export function PlayerPage() {
               ) : recentMatchesError ? (
                 <p className="tt-player-section-state tt-player-section-error">Unable to load recent matches.</p>
               ) : recentMatches.length === 0 ? (
-                <p className="tt-player-section-state">No recent league matches found.</p>
+                <p className="tt-player-section-state">No recent matches found.</p>
               ) : (
                 <>
                   <List divider="hairline" size="lg" className="tt-player-list">
@@ -419,8 +427,8 @@ export function PlayerPage() {
                         key={match.id}
                         leading={<OutcomeBadge result={match.isWin ? 'W' : 'L'} variant="icon" />}
                         title={`${match.opponent} · ${match.result}`}
-                        subtitle={`${formatMatchDate(match.date)} · ${match.league}`}
-                        onClick={() => navigateInTab('leagues', `fixture/${match.fixture_id}`)}
+                        subtitle={`${formatMatchDate(match.date)} · ${match.source_label}`}
+                        onClick={openMatch(match)}
                       />
                     ))}
                   </List>

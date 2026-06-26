@@ -15,28 +15,37 @@ import {
   ErrorState,
   SectionHeader,
   MoreButton,
+  SegmentedToggle,
 } from './ui/appkit';
 
 const PAGE_SIZE = 20;
+type MatchSourceFilter = 'all' | 'league' | 'tournament';
 
 export function PlayerMatchesPage() {
-  const { goBackInActiveTab, navigateInTab } = useTabNavigation();
+  const { goBackInActiveTab, navigateInActiveTab, navigateInTab } = useTabNavigation();
   const { playerId = '' } = useParams<{ playerId: string }>();
 
   const [matches, setMatches] = useState<RubberItem[]>([]);
   const [matchesError, setMatchesError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [total, setTotal] = useState(0);
+  const [sourceFilter, setSourceFilter] = useState<MatchSourceFilter>('all');
 
   const statsQuery = usePlayerExtendedStatsQuery(playerId, Boolean(playerId));
-  const matchesQuery = usePlayerRubbersQuery(playerId, PAGE_SIZE, offset, Boolean(playerId));
+  const matchesQuery = usePlayerRubbersQuery(playerId, PAGE_SIZE, offset, Boolean(playerId), sourceFilter);
   const stats = statsQuery.data ?? null;
   const statsLoading = statsQuery.isLoading;
   const matchesLoading = matchesQuery.isLoading && offset === 0;
   const matchesLoadingMore = matchesQuery.isLoading && offset > 0;
   const hasMore = useMemo(() => matches.length < total, [matches.length, total]);
 
-  const openFixtureInLeaguesTab = (fixtureId: string) => () => navigateInTab('leagues', `fixture/${fixtureId}`);
+  const openMatch = (match: RubberItem) => () => {
+    if (match.source === 'tournament' && match.event_id) {
+      navigateInActiveTab(`event/${match.event_id}`);
+      return;
+    }
+    navigateInTab('leagues', `fixture/${match.fixture_id}`);
+  };
 
   useEffect(() => {
     if (!playerId) {
@@ -63,7 +72,7 @@ export function PlayerMatchesPage() {
 
   useEffect(() => {
     setOffset(0); setMatches([]); setTotal(0); setMatchesError(null);
-  }, [playerId]);
+  }, [playerId, sourceFilter]);
 
   return (
     <TabShellPage>
@@ -71,6 +80,19 @@ export function PlayerMatchesPage() {
       <div className="page-content app-shell-content">
         <section className="tt-player-section" aria-labelledby="tt-player-matches-full-title">
           <SectionHeader title="Player Matches" note="Full match list" />
+          <div className="mb-3">
+            <SegmentedToggle
+              ariaLabel="Choose match source"
+              value={sourceFilter}
+              onChange={setSourceFilter}
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'league', label: 'League' },
+                { value: 'tournament', label: 'Tournaments' },
+              ]}
+              full
+            />
+          </div>
           {matchesLoading && matches.length === 0 ? (
             <SkeletonList rows={6} />
           ) : matchesError && matches.length === 0 ? (
@@ -85,8 +107,8 @@ export function PlayerMatchesPage() {
                     key={match.id}
                     leading={<OutcomeBadge result={match.isWin ? 'W' : 'L'} variant="icon" />}
                     title={`${match.opponent} · ${match.result}`}
-                    subtitle={`${formatMatchDate(match.date)} · ${match.league}`}
-                    onClick={openFixtureInLeaguesTab(match.fixture_id)}
+                    subtitle={`${formatMatchDate(match.date)} · ${match.source_label}`}
+                    onClick={openMatch(match)}
                     hideChevron
                   />
                 ))}

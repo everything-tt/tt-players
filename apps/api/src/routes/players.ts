@@ -13,6 +13,7 @@ const PaginationQuerySchema = z.object({
     limit: z.coerce.number().int().min(1).max(100).default(20),
     offset: z.coerce.number().int().min(0).default(0),
     cursor: z.string().optional(),
+    source: z.enum(['league', 'tournament', 'all']).default('league'),
 });
 
 const CursorMetaSchema = z.object({
@@ -197,6 +198,10 @@ const RubberItemSchema = z.object({
     id: z.string().uuid(),
     fixture_id: z.string().uuid(),
     date: z.string(),
+    source: z.enum(['league', 'tournament']).optional(),
+    source_label: z.string().optional(),
+    event_id: z.string().uuid().nullable().optional(),
+    event_name: z.string().nullable().optional(),
     league: z.string(),
     opponent: z.string(),
     opponent_id: z.string().uuid().nullable(),
@@ -1648,7 +1653,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
             },
             async (request, reply) => {
                 const { id } = request.params;
-                const { limit, offset, cursor: cursorParam } = request.query;
+                const { limit, offset, cursor: cursorParam, source } = request.query;
                 const player = await resolvePlayerIdentity(db, id);
 
                 if (!player) {
@@ -1670,50 +1675,68 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
 
                 const pageLimit = cursor ? limit + 1 : limit;
                 const pageOffset = cursor ? 0 : offset;
+                const baseMatches = sql<any>`
+                    WITH player_matches AS (
+                        SELECT
+                            r.id,
+                            r.fixture_id,
+                            COALESCE(f.date_played::timestamp, r.played_at, c.event_date::timestamp, f.created_at) as date,
+                            CASE WHEN c.type = 'individual' THEN 'tournament' ELSE 'league' END as source,
+                            CASE
+                                WHEN c.type = 'individual' THEN COALESCE(c.display_name, c.name)
+                                ELSE CONCAT(l.name, ' · ', c.name)
+                            END as source_label,
+                            CASE WHEN c.type = 'individual' THEN c.id ELSE NULL END as event_id,
+                            CASE WHEN c.type = 'individual' THEN COALESCE(c.display_name, c.name) ELSE NULL END as event_name,
+                            CONCAT(l.name, ' · ', c.name) as league,
+                            COALESCE(opp_ep.canonical_player_id, opp_ep.id) as opponent_id,
+                            COALESCE(opp_cp.name, opp_ep.name) as opponent,
+                            CASE
+                                WHEN (r.home_player_1_id = ANY(${sourceIds}) AND r.home_games_won > r.away_games_won)
+                                  OR (r.away_player_1_id = ANY(${sourceIds}) AND r.away_games_won > r.home_games_won) THEN true
+                                ELSE false
+                            END as "isWin",
+                            CASE
+                                WHEN r.score_source = 'win_loss_only' THEN 'Won'
+                                WHEN r.home_player_1_id = ANY(${sourceIds}) THEN CONCAT('Won ', r.home_games_won, '-', r.away_games_won)
+                                WHEN r.away_player_1_id = ANY(${sourceIds}) THEN CONCAT('Won ', r.away_games_won, '-', r.home_games_won)
+                            END as result_win,
+                            CASE
+                                WHEN r.score_source = 'win_loss_only' THEN 'Lost'
+                                WHEN r.home_player_1_id = ANY(${sourceIds}) THEN CONCAT('Lost ', r.home_games_won, '-', r.away_games_won)
+                                WHEN r.away_player_1_id = ANY(${sourceIds}) THEN CONCAT('Lost ', r.away_games_won, '-', r.home_games_won)
+                            END as result_loss
+                        FROM rubbers r
+                        JOIN fixtures f ON f.id = r.fixture_id
+                        JOIN competitions c ON c.id = f.competition_id
+                        JOIN seasons s ON s.id = c.season_id
+                        JOIN leagues l ON l.id = s.league_id
+                        LEFT JOIN external_players opp_ep
+                          ON opp_ep.id = CASE
+                              WHEN r.home_player_1_id = ANY(${sourceIds}) THEN r.away_player_1_id
+                              ELSE r.home_player_1_id
+                          END
+                        LEFT JOIN external_players opp_cp ON opp_cp.id = COALESCE(opp_ep.canonical_player_id, opp_ep.id)
+                        WHERE (r.home_player_1_id = ANY(${sourceIds}) OR r.away_player_1_id = ANY(${sourceIds}))
+                          AND r.is_doubles = false
+                          AND r.deleted_at IS NULL
+                          AND r.outcome_type != 'walkover'
+                          AND f.deleted_at IS NULL
+                          AND c.deleted_at IS NULL
+                          AND s.deleted_at IS NULL
+                          AND l.deleted_at IS NULL
+                          AND (${source} = 'all' OR (${source} = 'league' AND c.type <> 'individual') OR (${source} = 'tournament' AND c.type = 'individual'))
+                          AND NULLIF(TRIM(COALESCE(opp_cp.name, opp_ep.name)), '') IS NOT NULL
+                          AND LOWER(TRIM(COALESCE(opp_cp.name, opp_ep.name))) <> 'unknown'
+                    )
+                `;
+
                 const matchesPromise = sql<any>`
-                    SELECT
-                        r.id,
-                        r.fixture_id,
-                        COALESCE(f.date_played::timestamp, f.created_at) as date,
-                        CONCAT(l.name, ' · ', c.name) as league,
-                        COALESCE(opp_ep.canonical_player_id, opp_ep.id) as opponent_id,
-                        COALESCE(opp_cp.name, opp_ep.name) as opponent,
-                        CASE
-                            WHEN (r.home_player_1_id = ANY(${sourceIds}) AND r.home_games_won > r.away_games_won)
-                              OR (r.away_player_1_id = ANY(${sourceIds}) AND r.away_games_won > r.home_games_won) THEN true
-                            ELSE false
-                        END as "isWin",
-                        CASE
-                            WHEN r.score_source = 'win_loss_only' THEN 'Won'
-                            WHEN r.home_player_1_id = ANY(${sourceIds}) THEN CONCAT('Won ', r.home_games_won, '-', r.away_games_won)
-                            WHEN r.away_player_1_id = ANY(${sourceIds}) THEN CONCAT('Won ', r.away_games_won, '-', r.home_games_won)
-                        END as result_win,
-                        CASE
-                            WHEN r.score_source = 'win_loss_only' THEN 'Lost'
-                            WHEN r.home_player_1_id = ANY(${sourceIds}) THEN CONCAT('Lost ', r.home_games_won, '-', r.away_games_won)
-                            WHEN r.away_player_1_id = ANY(${sourceIds}) THEN CONCAT('Lost ', r.away_games_won, '-', r.home_games_won)
-                        END as result_loss
-                    FROM rubbers r
-                    JOIN fixtures f ON f.id = r.fixture_id
-                    JOIN competitions c ON c.id = f.competition_id
-                    JOIN seasons s ON s.id = c.season_id
-                    JOIN leagues l ON l.id = s.league_id
-                    LEFT JOIN external_players opp_ep
-                      ON opp_ep.id = CASE
-                          WHEN r.home_player_1_id = ANY(${sourceIds}) THEN r.away_player_1_id
-                          ELSE r.home_player_1_id
-                      END
-                    LEFT JOIN external_players opp_cp ON opp_cp.id = COALESCE(opp_ep.canonical_player_id, opp_ep.id)
-                    WHERE (r.home_player_1_id = ANY(${sourceIds}) OR r.away_player_1_id = ANY(${sourceIds}))
-                      AND r.is_doubles = false
-                      AND r.deleted_at IS NULL
-                      AND f.deleted_at IS NULL
-                      AND c.deleted_at IS NULL
-                      AND s.deleted_at IS NULL
-                      AND l.deleted_at IS NULL
-                      AND c.type <> 'individual'
-                      AND (${cursor?.date ?? null}::timestamptz IS NULL OR (COALESCE(f.date_played::timestamp, f.created_at), r.id) < (${cursor?.date ?? null}::timestamptz, ${cursor?.id ?? null}::uuid))
-                    ORDER BY COALESCE(f.date_played::timestamp, f.created_at) DESC, r.id DESC
+                    ${baseMatches}
+                    SELECT *
+                    FROM player_matches
+                    WHERE (${cursor?.date ?? null}::timestamptz IS NULL OR (date, id) < (${cursor?.date ?? null}::timestamptz, ${cursor?.id ?? null}::uuid))
+                    ORDER BY date DESC, id DESC
                     LIMIT ${pageLimit}
                     OFFSET ${pageOffset}
                 `.execute(db);
@@ -1721,20 +1744,9 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 const countPromise = cursor && cursor.total !== undefined
                     ? Promise.resolve({ rows: [{ count: cursor.total }] })
                     : sql<{ count: number }>`
+                        ${baseMatches}
                         SELECT COUNT(*)::int as count
-                        FROM rubbers r
-                        JOIN fixtures f ON f.id = r.fixture_id
-                        JOIN competitions c ON c.id = f.competition_id
-                        JOIN seasons s ON s.id = c.season_id
-                        JOIN leagues l ON l.id = s.league_id
-                        WHERE (r.home_player_1_id = ANY(${sourceIds}) OR r.away_player_1_id = ANY(${sourceIds}))
-                          AND r.is_doubles = false
-                          AND r.deleted_at IS NULL
-                          AND f.deleted_at IS NULL
-                          AND c.deleted_at IS NULL
-                          AND s.deleted_at IS NULL
-                          AND l.deleted_at IS NULL
-                          AND c.type <> 'individual'
+                        FROM player_matches
                     `.execute(db);
 
                 const [matches, countRes] = await Promise.all([matchesPromise, countPromise]);
@@ -1746,6 +1758,10 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     id: m.id,
                     fixture_id: m.fixture_id,
                     date: String(m.date),
+                    source: m.source,
+                    source_label: m.source_label,
+                    event_id: m.event_id,
+                    event_name: m.event_name,
                     league: m.league,
                     opponent: m.opponent ?? 'Unknown',
                     opponent_id: m.opponent_id,

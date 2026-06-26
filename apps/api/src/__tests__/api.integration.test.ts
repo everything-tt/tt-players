@@ -927,6 +927,138 @@ describe('GET /players/:id/rubbers', () => {
         });
     });
 
+    it('excludes walkover rubbers from player match history', async () => {
+        const res = await request
+            .get(`/api/players/${ids.homePlayerId}/rubbers?limit=10&offset=0`)
+            .expect(200);
+
+        expect(res.body.data.map((row: { id: string }) => row.id)).not.toContain(ids.walkoverRubberId);
+        expect(res.body.data.some((row: { result: string }) => row.result.endsWith(' 0-0'))).toBe(false);
+    });
+
+    it('excludes placeholder Unknown opponents from player match history', async () => {
+        const [unknownPlayer] = await db
+            .insertInto('external_players')
+            .values({
+                platform_id: ids.platformId,
+                external_id: 'ext-player-unknown-placeholder',
+                name: 'Unknown',
+                updated_at: new Date(),
+            })
+            .returning('id')
+            .execute();
+
+        const [fixture] = await db
+            .insertInto('fixtures')
+            .values({
+                competition_id: ids.competitionId,
+                external_id: 'ext-fixture-unknown-opponent',
+                home_team_id: ids.homeTeamId,
+                away_team_id: ids.awayTeamId,
+                date_played: '2025-03-01',
+                status: 'completed',
+                updated_at: new Date(),
+            })
+            .returning('id')
+            .execute();
+
+        const [rubber] = await db
+            .insertInto('rubbers')
+            .values({
+                fixture_id: fixture!.id,
+                external_id: 'ext-rubber-unknown-opponent',
+                home_player_1_id: ids.homePlayerId,
+                away_player_1_id: unknownPlayer!.id,
+                home_games_won: 0,
+                away_games_won: 3,
+                outcome_type: 'normal',
+                updated_at: new Date(),
+            })
+            .returning('id')
+            .execute();
+
+        const res = await request
+            .get(`/api/players/${ids.homePlayerId}/rubbers?limit=10&offset=0`)
+            .expect(200);
+
+        expect(res.body.data.map((row: { id: string }) => row.id)).not.toContain(rubber!.id);
+        expect(res.body.data.some((row: { opponent: string }) => row.opponent === 'Unknown')).toBe(false);
+    });
+
+    it('can include tournament matches in unified player match history', async () => {
+        const [event] = await db
+            .insertInto('competitions')
+            .values({
+                season_id: ids.seasonId,
+                external_id: 'ext-event-player-history',
+                name: 'Player History Open - 2025-05-01: Singles',
+                display_name: 'Player History Open',
+                event_date: '2025-05-01',
+                category: 'Singles',
+                type: 'individual',
+                source: 'sport80',
+            })
+            .returning('id')
+            .execute();
+
+        const [fixture] = await db
+            .insertInto('fixtures')
+            .values({
+                competition_id: event!.id,
+                external_id: 'ext-event-player-history-fixture',
+                status: 'completed',
+                round_name: 'Final',
+                round_order: 1,
+                updated_at: new Date(),
+            })
+            .returning('id')
+            .execute();
+
+        const [rubber] = await db
+            .insertInto('rubbers')
+            .values({
+                fixture_id: fixture!.id,
+                external_id: 'ext-event-player-history-rubber',
+                home_player_1_id: ids.awayPlayerId,
+                away_player_1_id: ids.homePlayerId,
+                home_games_won: 1,
+                away_games_won: 3,
+                outcome_type: 'normal',
+                played_at: '2025-05-01 12:00:00',
+                updated_at: new Date(),
+            })
+            .returning('id')
+            .execute();
+
+        const leagueOnly = await request
+            .get(`/api/players/${ids.homePlayerId}/rubbers?limit=20&offset=0`)
+            .expect(200);
+        expect(leagueOnly.body.data.map((row: { id: string }) => row.id)).not.toContain(rubber!.id);
+
+        const allSources = await request
+            .get(`/api/players/${ids.homePlayerId}/rubbers?limit=20&offset=0&source=all`)
+            .expect(200);
+        const unifiedRow = allSources.body.data.find((row: { id: string }) => row.id === rubber!.id);
+        expect(unifiedRow).toMatchObject({
+            id: rubber!.id,
+            fixture_id: fixture!.id,
+            source: 'tournament',
+            source_label: 'Player History Open',
+            event_id: event!.id,
+            event_name: 'Player History Open',
+            opponent_id: ids.awayPlayerId,
+            opponent: 'Bob Jones',
+            result: 'Won 3-1',
+            isWin: true,
+        });
+
+        const tournamentsOnly = await request
+            .get(`/api/players/${ids.homePlayerId}/rubbers?limit=20&offset=0&source=tournament`)
+            .expect(200);
+        expect(tournamentsOnly.body.data.map((row: { id: string }) => row.id)).toContain(rubber!.id);
+        expect(tournamentsOnly.body.data.every((row: { source: string }) => row.source === 'tournament')).toBe(true);
+    });
+
     it('supports cursor pagination without duplicate rubbers', async () => {
         const [fixture] = await db
             .insertInto('fixtures')
