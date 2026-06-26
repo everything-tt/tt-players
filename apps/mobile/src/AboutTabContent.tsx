@@ -46,7 +46,7 @@ export function AboutTabContent() {
       </HeroCard>
 
       <section className="tt-player-section" aria-labelledby="about-feedback-title">
-        <SectionHeader title="Send Feedback" note="Bug · Feature · General" />
+        <SectionHeader title="Send Feedback" note="Bug · Feature · Data" />
         <p className="tt-about-description">
           Have a feature request, found a bug, or just want to say hi? Send us a message below.
         </p>

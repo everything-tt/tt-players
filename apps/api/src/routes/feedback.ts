@@ -5,13 +5,16 @@ import type { Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
 
 const MAX_ATTACHMENT_BYTES = 1024 * 1024;
+const MAX_ATTACHMENTS = 4;
 const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 const BodySchema = z.object({
     name: z.string().optional().nullable(),
     email: z.string().email().or(z.literal('')).optional().nullable(),
-    message_type: z.enum(['bug', 'feature', 'general']),
+    message_type: z.enum(['bug', 'feature', 'general', 'data_accuracy']),
     message: z.string().min(3),
+    page_path: z.string().max(500).optional().nullable(),
+    page_title: z.string().max(200).optional().nullable(),
 });
 
 const ResponseSchema = z.object({
@@ -51,15 +54,18 @@ function hasValidImageSignature(mimeType: string, content: Buffer): boolean {
 
 async function readMultipartFeedback(request: FastifyRequest): Promise<{
     body: z.infer<typeof BodySchema>;
-    attachment: FeedbackAttachment | null;
+    attachments: FeedbackAttachment[];
 }> {
     const fields: Record<string, string> = {};
-    let attachment: FeedbackAttachment | null = null;
+    const attachments: FeedbackAttachment[] = [];
 
     for await (const part of request.parts()) {
         if (part.type === 'file') {
-            if (part.fieldname !== 'attachment') {
+            if (part.fieldname !== 'attachment' && part.fieldname !== 'attachments') {
                 throw new Error('Unexpected file field');
+            }
+            if (attachments.length >= MAX_ATTACHMENTS) {
+                throw new Error(`Attach up to ${MAX_ATTACHMENTS} screenshots`);
             }
             if (!SUPPORTED_IMAGE_TYPES.has(part.mimetype)) {
                 throw new Error('Attachment must be a PNG, JPEG, or WebP image');
@@ -71,11 +77,11 @@ async function readMultipartFeedback(request: FastifyRequest): Promise<{
             if (!hasValidImageSignature(part.mimetype, content)) {
                 throw new Error('Attachment content does not match its image type');
             }
-            attachment = {
+            attachments.push({
                 filename: part.filename || 'feedback-image',
                 mimeType: part.mimetype,
                 content,
-            };
+            });
         } else {
             fields[part.fieldname] = String(part.value);
         }
@@ -87,8 +93,10 @@ async function readMultipartFeedback(request: FastifyRequest): Promise<{
             email: fields['email'] || null,
             message_type: fields['message_type'],
             message: fields['message'],
+            page_path: fields['page_path'] || null,
+            page_title: fields['page_title'] || null,
         }),
-        attachment,
+        attachments,
     };
 }
 
@@ -111,10 +119,12 @@ export function feedbackRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 try {
                     const parsed = request.isMultipart()
                         ? await readMultipartFeedback(request)
-                        : { body: BodySchema.parse(request.body), attachment: null };
-                    const { name, email, message_type, message } = parsed.body;
+                        : { body: BodySchema.parse(request.body), attachments: [] };
+                    const { name, email, message_type, message, page_path, page_title } = parsed.body;
                     const cleanEmail = email && email.trim() !== '' ? email.trim() : null;
                     const cleanName = name && name.trim() !== '' ? name.trim() : null;
+                    const cleanPagePath = page_path && page_path.trim() !== '' ? page_path.trim() : null;
+                    const cleanPageTitle = page_title && page_title.trim() !== '' ? page_title.trim() : null;
 
                     const id = await db.transaction().execute(async (trx) => {
                         const result = await trx
@@ -124,20 +134,22 @@ export function feedbackRoutes(db: Kysely<Database>): FastifyPluginAsync {
                                 email: cleanEmail,
                                 message_type,
                                 message: message.trim(),
+                                page_path: cleanPagePath,
+                                page_title: cleanPageTitle,
                             })
                             .returning('id')
                             .executeTakeFirstOrThrow();
 
-                        if (parsed.attachment) {
+                        if (parsed.attachments.length > 0) {
                             await trx
                                 .insertInto('staging.feedback_attachments')
-                                .values({
+                                .values(parsed.attachments.map((attachment) => ({
                                     feedback_id: result.id,
-                                    filename: parsed.attachment.filename,
-                                    mime_type: parsed.attachment.mimeType,
-                                    size_bytes: parsed.attachment.content.length,
-                                    content: parsed.attachment.content,
-                                })
+                                    filename: attachment.filename,
+                                    mime_type: attachment.mimeType,
+                                    size_bytes: attachment.content.length,
+                                    content: attachment.content,
+                                })))
                                 .execute();
                         }
 

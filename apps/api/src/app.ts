@@ -39,9 +39,9 @@ export async function buildApp(db: Kysely<Database>) {
     await app.register(compress, { global: true, threshold: 1024 });
     await app.register(multipart, {
         limits: {
-            files: 1,
+            files: 4,
             fileSize: 1024 * 1024,
-            fields: 5,
+            fields: 7,
         },
     });
 

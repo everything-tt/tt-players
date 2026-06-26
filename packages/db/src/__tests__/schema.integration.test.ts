@@ -30,6 +30,7 @@ import * as m023 from '../migrations/023_add_expression_and_region_indexes.js';
 import * as m024 from '../migrations/024_add_recent_fixture_search_indexes.js';
 import * as m025 from '../migrations/025_add_feedback_github_issue_link.js';
 import * as m026 from '../migrations/026_create_feedback_attachments.js';
+import * as m027 from '../migrations/027_expand_feedback_context_and_attachments.js';
 
 const { Pool } = pg;
 
@@ -73,6 +74,7 @@ class StaticMigrationProvider implements MigrationProvider {
             '024_add_recent_fixture_search_indexes': m024,
             '025_add_feedback_github_issue_link': m025,
             '026_create_feedback_attachments': m026,
+            '027_expand_feedback_context_and_attachments': m027,
         };
     }
 }
@@ -352,7 +354,7 @@ describe('Database Schema Integration Tests', () => {
         it('should store GitHub issue triage details', () => {
             const colNames = columns.map((c) => c.column_name);
             expect(colNames).toEqual(
-                expect.arrayContaining(['github_issue_url', 'triaged_at'])
+                expect.arrayContaining(['page_path', 'page_title', 'github_issue_url', 'triaged_at'])
             );
         });
     });
@@ -363,7 +365,7 @@ describe('Database Schema Integration Tests', () => {
             columns = await getTableColumns('feedback_attachments');
         });
 
-        it('should store one validated image attachment per feedback entry', () => {
+        it('should store validated image attachments per feedback entry', () => {
             const colNames = columns.map((c) => c.column_name);
             expect(colNames).toEqual(
                 expect.arrayContaining([

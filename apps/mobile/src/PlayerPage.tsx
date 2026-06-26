@@ -290,6 +290,7 @@ export function PlayerPage() {
 
               <FormResultPills
                 results={recentResults}
+                label={null}
                 loading={insightsLoading}
                 emptyText="No form yet"
               />

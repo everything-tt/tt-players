@@ -31,6 +31,7 @@ import * as m023 from '../../../../../packages/db/src/migrations/023_add_express
 import * as m024 from '../../../../../packages/db/src/migrations/024_add_recent_fixture_search_indexes.js';
 import * as m025 from '../../../../../packages/db/src/migrations/025_add_feedback_github_issue_link.js';
 import * as m026 from '../../../../../packages/db/src/migrations/026_create_feedback_attachments.js';
+import * as m027 from '../../../../../packages/db/src/migrations/027_expand_feedback_context_and_attachments.js';
 
 const { Pool } = pg;
 
@@ -67,6 +68,7 @@ class StaticMigrationProvider implements MigrationProvider {
             '024_add_recent_fixture_search_indexes': m024,
             '025_add_feedback_github_issue_link': m025,
             '026_create_feedback_attachments': m026,
+            '027_expand_feedback_context_and_attachments': m027,
         };
     }
 }

@@ -63,17 +63,36 @@ plan.
 
 ## 4. Decide Create vs Update
 
-Update an active issue only when it covers the same user-visible problem or the
-same feature outcome. Similar screens, shared components, or broad themes alone
-are not sufficient.
+Treat a GitHub issue as a unit of work, not as a one-to-one representation of a
+feedback row. Feedback rows are evidence for that work item.
+
+Start by clustering feedback into likely work items:
+
+- Group small, trivial, or clearly bounded polish feedback into one batch issue
+  even when the items touch different screens, as long as a coding agent can
+  plausibly implement and verify them in one pass without a product decision.
+- Prefer a themed batch when several small items share an area, but do not force
+  one issue per area for low-risk cleanup.
+- Keep feedback separate when it implies a larger feature, ambiguous product
+  direction, data-model/API work, higher release risk, or isolated investigation.
+- Create a standalone issue for a large change, ambiguous product direction, or
+  a bug that needs isolated investigation.
+
+Then compare each proposed work item with active issues. Update an active issue
+when it already covers the same user-visible problem, same feature outcome, or
+same implementation-sized unit of work. Similar screens, shared components, or
+broad themes alone are not sufficient.
 
 - **Update existing:** add a comment containing the feedback, code analysis,
   verification notes, screenshot when present, and
   `<!-- feedback-id: UUID -->`.
 - **Create new:** use a concise outcome-focused title and include the template
   from [references/issue-template.md](references/issue-template.md).
-- **Multiple feedback rows:** link several rows to one issue only when one code
-  change and one acceptance test can reasonably resolve all of them.
+- **Multiple feedback rows:** link several rows to one issue when one coherent
+  implementation pass can reasonably resolve all of them, including an
+  intentionally mixed "small polish batch". The issue body should list each
+  feedback row separately with its own acceptance note so none of the
+  user-visible details are lost.
 - **Retry safety:** search the issue body/comments for the feedback ID marker
   before writing. If found, reuse that issue without adding another comment.
 
@@ -105,17 +124,20 @@ verification fails, do not link the feedback row in the database. Report the
 item as failed and retain enough information to retry without creating a
 duplicate issue or comment.
 
-## 6. Confirm Writes
+## 6. Write Issues
 
-Before the first GitHub mutation, show the proposed mapping:
+Before the first GitHub mutation, record the proposed mapping in the working
+notes or progress update:
 
 ```text
 feedback ID -> create issue "<title>"
 feedback ID -> update issue #123
 ```
 
-Ask for confirmation unless the user explicitly requested an unattended or
-automatic run. After confirmation, create issues or add comments one at a time.
+This workflow is unattended by default. Do not ask for human confirmation before
+GitHub or database writes unless the mapping is ambiguous, the write would be
+destructive, or the user explicitly asks to review before writing. Create issues
+or add comments one at a time.
 
 If a GitHub write fails, do not update that feedback row.
 

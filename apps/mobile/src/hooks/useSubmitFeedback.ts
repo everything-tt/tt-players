@@ -1,14 +1,16 @@
 import { useState, type FormEvent } from 'react';
 import { API_BASE_URL } from '../player-shared';
 
-export type FeedbackType = 'bug' | 'feature' | 'general';
+export type FeedbackType = 'bug' | 'feature' | 'general' | 'data_accuracy';
 
 export interface FeedbackPayload {
   name?: string | null;
   email?: string | null;
   message_type: FeedbackType;
   message: string;
-  attachment?: File | null;
+  page_path?: string | null;
+  page_title?: string | null;
+  attachments?: File[];
 }
 
 export interface UseSubmitFeedbackResult {
@@ -39,14 +41,19 @@ export function useSubmitFeedback(): UseSubmitFeedbackResult {
     setSubmitError(null);
 
     try {
-      const body = payload.attachment
+      const attachments = payload.attachments ?? [];
+      const body = attachments.length > 0
         ? (() => {
             const data = new FormData();
             data.set('name', payload.name?.trim() || '');
             data.set('email', payload.email?.trim() || '');
             data.set('message_type', payload.message_type);
             data.set('message', message);
-            data.set('attachment', payload.attachment);
+            data.set('page_path', payload.page_path?.trim() || '');
+            data.set('page_title', payload.page_title?.trim() || '');
+            for (const attachment of attachments) {
+              data.append('attachments', attachment);
+            }
             return data;
           })()
         : JSON.stringify({
@@ -54,10 +61,12 @@ export function useSubmitFeedback(): UseSubmitFeedbackResult {
           email: payload.email?.trim() || null,
           message_type: payload.message_type,
           message,
+          page_path: payload.page_path?.trim() || null,
+          page_title: payload.page_title?.trim() || null,
         });
       const response = await fetch(`${API_BASE_URL}/feedback`, {
         method: 'POST',
-        headers: payload.attachment ? undefined : { 'Content-Type': 'application/json' },
+        headers: attachments.length > 0 ? undefined : { 'Content-Type': 'application/json' },
         body,
       });
 
@@ -93,6 +102,8 @@ export function readFeedbackForm(event: FormEvent<HTMLFormElement>): FeedbackPay
     email: (data.get('email') as string | null) ?? null,
     message_type: ((data.get('message_type') as FeedbackType) || 'general'),
     message: (data.get('message') as string) || '',
-    attachment: (data.get('attachment') as File | null) ?? null,
+    page_path: (data.get('page_path') as string | null) ?? null,
+    page_title: (data.get('page_title') as string | null) ?? null,
+    attachments: data.getAll('attachments').filter((item): item is File => item instanceof File && item.size > 0),
   };
 }

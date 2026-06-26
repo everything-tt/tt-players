@@ -1,8 +1,9 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { AppHeader, AppHeaderSpacer, type AppHeaderProps } from '../ui/appkit';
 import { useTabNavigation } from '../navigation/tab-navigation';
 import { useShareTarget } from '../hooks/useShareTarget';
 import type { ShareTarget } from '../share-target';
+import { QuickFeedbackSheet } from '../QuickFeedbackSheet';
 
 interface DetailHeaderProps {
   /** Page title shown in the header and on-title-click navigates home. */
@@ -38,6 +39,7 @@ export function DetailHeader({
 }: DetailHeaderProps) {
   const { goBackInActiveTab, switchTab } = useTabNavigation();
   const { share, status } = useShareTarget(shareTarget);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
 
   const handleBack = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -51,6 +53,11 @@ export function DetailHeader({
   const handleHome = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     switchTab('home', 'root');
+  };
+
+  const handleFeedback = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    setIsFeedbackOpen(true);
   };
 
   return (
@@ -71,6 +78,12 @@ export function DetailHeader({
           ariaLabel: 'Home',
         } : undefined}
         actions={[
+          {
+            iconClassName: 'fas fa-comment-dots',
+            onClick: handleFeedback,
+            position: 2 as const,
+            ariaLabel: 'Send feedback',
+          },
           ...(shareTarget ? [{
             iconClassName: 'fas fa-share-alt',
             onClick: share,
@@ -82,6 +95,7 @@ export function DetailHeader({
         className={className}
       />
       <AppHeaderSpacer />
+      {isFeedbackOpen ? <QuickFeedbackSheet onClose={() => setIsFeedbackOpen(false)} /> : null}
       {status ? <span className="sr-only" aria-live="polite">{status}</span> : null}
     </>
   );

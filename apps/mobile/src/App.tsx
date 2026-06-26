@@ -265,7 +265,7 @@ function App() {
     setActiveMenuId('menu-share');
   };
 
-  const menuTabs: AppTabId[] = ['home', 'players', 'leagues', 'events', 'h2h', 'about'];
+  const menuTabs: AppTabId[] = ['home', 'players', 'leagues', 'events', 'h2h'];
 
   return (
     <>
@@ -454,6 +454,14 @@ function App() {
         ) : null}
 
         {isFeedbackSheetOpen ? <QuickFeedbackSheet onClose={closeFeedbackSheet} /> : null}
+        {activeMenuId === 'menu-main' ? (
+          <button
+            type="button"
+            className="tt-main-menu-backdrop"
+            onClick={closeActiveMenu}
+            aria-label="Close menu"
+          />
+        ) : null}
 
         {/* ── Main menu (driven by TAB_METADATA) ── */}
         <div
@@ -504,6 +512,11 @@ function App() {
               </div>
             </a>
             <InstallAppMenuItem onClose={onCloseMenuClick} />
+            <a href="#" onClick={onMenuTabClick('about')}>
+              <i className={`${TAB_METADATA.about.icon} color-white`} />
+              <span>{TAB_METADATA.about.label}</span>
+              <i className="fa fa-angle-right" />
+            </a>
           </div>
 
           <h6 className="menu-divider mt-4">Links</h6>

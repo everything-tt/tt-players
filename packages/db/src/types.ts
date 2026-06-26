@@ -337,6 +337,8 @@ export interface FeedbackTable {
     email: string | null;
     message_type: string;
     message: string;
+    page_path: ColumnType<string | null, string | null | undefined, string | null>;
+    page_title: ColumnType<string | null, string | null | undefined, string | null>;
     github_issue_url: ColumnType<string | null, string | null | undefined, string | null>;
     triaged_at: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
     created_at: Generated<Date>;

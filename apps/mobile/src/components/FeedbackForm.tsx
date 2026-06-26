@@ -8,6 +8,16 @@ export interface FeedbackFormProps {
   onSubmitted?: () => void;
 }
 
+const MAX_ATTACHMENTS = 4;
+const MAX_ATTACHMENT_BYTES = 1024 * 1024;
+
+function getPageContext() {
+  return {
+    page_path: window.location.pathname + window.location.search + window.location.hash,
+    page_title: document.title || null,
+  };
+}
+
 /**
  * Single feedback form. Replaces the duplicated submit/success/error handling in
  * AboutTabContent (full) and QuickFeedbackSheet (quick).
@@ -15,20 +25,20 @@ export interface FeedbackFormProps {
 export function FeedbackForm({ variant = 'quick', onSubmitted }: FeedbackFormProps) {
   const { isSubmitting, submitError, submitSuccess, submit, reset } = useSubmitFeedback();
   const [type, setType] = useState<FeedbackType>('general');
-  const [attachment, setAttachment] = useState<File | null>(null);
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!attachment) {
-      setPreviewUrl(null);
+    if (attachments.length === 0) {
+      setPreviewUrls([]);
       return;
     }
-    const nextUrl = URL.createObjectURL(attachment);
-    setPreviewUrl(nextUrl);
-    return () => URL.revokeObjectURL(nextUrl);
-  }, [attachment]);
+    const nextUrls = attachments.map((file) => URL.createObjectURL(file));
+    setPreviewUrls(nextUrls);
+    return () => nextUrls.forEach((url) => URL.revokeObjectURL(url));
+  }, [attachments]);
 
   if (submitSuccess) {
     return (
@@ -43,7 +53,7 @@ export function FeedbackForm({ variant = 'quick', onSubmitted }: FeedbackFormPro
           }
           reset();
           setType('general');
-          setAttachment(null);
+          setAttachments([]);
         }} tone="primary">
           {variant === 'full' ? 'Send another message' : 'Done'}
         </AppButton>
@@ -55,40 +65,49 @@ export function FeedbackForm({ variant = 'quick', onSubmitted }: FeedbackFormPro
     event.preventDefault();
     const payload = readFeedbackForm(event);
     payload.message_type = type;
-    payload.attachment = attachment;
+    payload.attachments = attachments;
+    Object.assign(payload, getPageContext());
     await submit(payload);
   };
 
   const handleAttachment = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] ?? null;
+    const files = Array.from(event.target.files ?? []);
     setAttachmentError(null);
-    if (!file) {
-      setAttachment(null);
+    if (files.length === 0) {
       return;
     }
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
-      setAttachment(null);
-      setAttachmentError('Choose a PNG, JPEG, or WebP image.');
-      event.target.value = '';
-      return;
+    const nextFiles = [...attachments];
+    for (const file of files) {
+      if (nextFiles.length >= MAX_ATTACHMENTS) {
+        setAttachmentError(`Add up to ${MAX_ATTACHMENTS} screenshots.`);
+        break;
+      }
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+        setAttachmentError('Choose PNG, JPEG, or WebP images.');
+        continue;
+      }
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        setAttachmentError('Each image must be 1 MB or smaller.');
+        continue;
+      }
+      nextFiles.push(file);
     }
-    if (file.size > 1024 * 1024) {
-      setAttachment(null);
-      setAttachmentError('Image must be 1 MB or smaller.');
-      event.target.value = '';
-      return;
-    }
-    setAttachment(file);
+    setAttachments(nextFiles);
+    event.target.value = '';
   };
 
-  const removeAttachment = () => {
-    setAttachment(null);
+  const removeAttachment = (index: number) => {
+    setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index));
     setAttachmentError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const pageContext = getPageContext();
+
   return (
-    <form className="tt-feedback-form" onSubmit={handleSubmit}>
+    <form className={`tt-feedback-form tt-feedback-form--${variant}`} onSubmit={handleSubmit}>
+      <input type="hidden" name="page_path" value={pageContext.page_path} />
+      <input type="hidden" name="page_title" value={pageContext.page_title ?? ''} />
       <div className="tt-feedback-field">
         <label htmlFor={`feedback-type-${variant}`}>Type</label>
         <SegmentedToggle
@@ -99,6 +118,7 @@ export function FeedbackForm({ variant = 'quick', onSubmitted }: FeedbackFormPro
             { value: 'general', label: 'General' },
             { value: 'bug', label: 'Bug' },
             { value: 'feature', label: 'Feature' },
+            { value: 'data_accuracy', label: 'Data' },
           ]}
           full
         />
@@ -118,7 +138,7 @@ export function FeedbackForm({ variant = 'quick', onSubmitted }: FeedbackFormPro
           id={`feedback-message-${variant}`}
           name="message"
           placeholder={variant === 'quick' ? 'What should we fix or improve?' : 'Type your message here...'}
-          rows={4}
+          rows={variant === 'quick' ? 3 : 4}
           required
         />
       </div>
@@ -134,28 +154,32 @@ export function FeedbackForm({ variant = 'quick', onSubmitted }: FeedbackFormPro
           id={`feedback-attachment-${variant}`}
           className="tt-feedback-file-input"
           type="file"
-          name="attachment"
+          name="attachments"
           accept="image/png,image/jpeg,image/webp"
+          multiple
           onChange={handleAttachment}
         />
-        {attachment && previewUrl ? (
-          <div className="tt-feedback-attachment-preview">
-            <img src={previewUrl} alt="" />
-            <div>
-              <strong>{attachment.name}</strong>
-              <span>{Math.max(1, Math.round(attachment.size / 1024))} KB</span>
-            </div>
-            <button type="button" onClick={removeAttachment} aria-label={`Remove ${attachment.name}`}>
-              <i className="fa fa-times" aria-hidden="true" />
-            </button>
+        <label className="tt-feedback-attachment-button" htmlFor={`feedback-attachment-${variant}`}>
+          <i className="fa fa-paperclip" aria-hidden="true" />
+          <span>{attachments.length > 0 ? 'Add another screenshot' : 'Add screenshots'}</span>
+          <small>Up to {MAX_ATTACHMENTS}, PNG/JPEG/WebP, 1 MB each</small>
+        </label>
+        {attachments.length > 0 ? (
+          <div className="tt-feedback-attachment-list">
+            {attachments.map((attachment, index) => (
+              <div className="tt-feedback-attachment-preview" key={`${attachment.name}-${attachment.size}-${index}`}>
+                <img src={previewUrls[index]} alt="" />
+                <div>
+                  <strong>{attachment.name}</strong>
+                  <span>{Math.max(1, Math.round(attachment.size / 1024))} KB</span>
+                </div>
+                <button type="button" onClick={() => removeAttachment(index)} aria-label={`Remove ${attachment.name}`}>
+                  <i className="fa fa-times" aria-hidden="true" />
+                </button>
+              </div>
+            ))}
           </div>
-        ) : (
-          <label className="tt-feedback-attachment-button" htmlFor={`feedback-attachment-${variant}`}>
-            <i className="fa fa-paperclip" aria-hidden="true" />
-            <span>Add screenshot</span>
-            <small>PNG, JPEG or WebP, up to 1 MB</small>
-          </label>
-        )}
+        ) : null}
       </div>
 
       {attachmentError ? <p className="tt-feedback-error" role="alert">{attachmentError}</p> : null}

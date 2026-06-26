@@ -65,8 +65,10 @@ describe('POST /api/feedback', () => {
             .send({
                 name: 'John Doe',
                 email: 'john@example.com',
-                message_type: 'general',
+                message_type: 'data_accuracy',
                 message: 'Love the app!',
+                page_path: '/tabs/players/player/123',
+                page_title: 'Player profile',
             })
             .expect(200);
 
@@ -85,8 +87,10 @@ describe('POST /api/feedback', () => {
         expect(feedback).toBeDefined();
         expect(feedback?.name).toBe('John Doe');
         expect(feedback?.email).toBe('john@example.com');
-        expect(feedback?.message_type).toBe('general');
+        expect(feedback?.message_type).toBe('data_accuracy');
         expect(feedback?.message).toBe('Love the app!');
+        expect(feedback?.page_path).toBe('/tabs/players/player/123');
+        expect(feedback?.page_title).toBe('Player profile');
     });
 
     it('returns 400 for invalid body schema', async () => {
@@ -128,6 +132,41 @@ describe('POST /api/feedback', () => {
             size_bytes: png.length,
         });
         expect(Buffer.from(attachment?.content ?? [])).toEqual(png);
+    });
+
+    it('records feedback with multiple screenshot attachments', async () => {
+        const png = Buffer.from([
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+            0x00, 0x00, 0x00, 0x0d,
+        ]);
+        const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0x00]);
+
+        const res = await request
+            .post('/api/feedback')
+            .field('message_type', 'bug')
+            .field('message', 'Several screenshots explain this.')
+            .field('page_path', '/tabs/home')
+            .attach('attachments', png, {
+                filename: 'first.png',
+                contentType: 'image/png',
+            })
+            .attach('attachments', jpeg, {
+                filename: 'second.jpg',
+                contentType: 'image/jpeg',
+            })
+            .expect(200);
+
+        const attachments = await db
+            .selectFrom('staging.feedback_attachments')
+            .select(['filename', 'mime_type', 'size_bytes'])
+            .where('feedback_id', '=', res.body.id)
+            .orderBy('filename')
+            .execute();
+
+        expect(attachments).toEqual([
+            { filename: 'first.png', mime_type: 'image/png', size_bytes: png.length },
+            { filename: 'second.jpg', mime_type: 'image/jpeg', size_bytes: jpeg.length },
+        ]);
     });
 
     it('rejects attachments that are not supported images', async () => {
