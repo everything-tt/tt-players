@@ -445,10 +445,14 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 const versionRes = await sql<{ data_version: Date | null }>`
                     SELECT GREATEST(
                         COALESCE((
-                            SELECT MAX(GREATEST(r.updated_at, f.updated_at))
-                            FROM rubbers r
-                            JOIN fixtures f ON f.id = r.fixture_id
-                            WHERE r.deleted_at IS NULL
+                            SELECT MAX(updated_at)
+                            FROM rubbers
+                            WHERE deleted_at IS NULL
+                        ), '-infinity'::timestamp),
+                        COALESCE((
+                            SELECT MAX(updated_at)
+                            FROM fixtures
+                            WHERE deleted_at IS NULL
                         ), '-infinity'::timestamp),
                         COALESCE((
                             SELECT MAX(updated_at)
