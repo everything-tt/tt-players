@@ -241,4 +241,110 @@ describe('GET /api/players/leaders', () => {
             losses: 0,
         });
     });
+
+    it('ranks recent form, improvement, and new active-season players', async () => {
+        const insertResults = async (
+            playerName: string,
+            externalId: string,
+            dates: string[],
+            results: boolean[],
+        ) => {
+            const [player] = await db
+                .insertInto('external_players')
+                .values({
+                    platform_id: ids.platformId,
+                    external_id: externalId,
+                    name: playerName,
+                    updated_at: new Date(),
+                })
+                .returning('id')
+                .execute();
+
+            for (const [index, date] of dates.entries()) {
+                const [fixture] = await db
+                    .insertInto('fixtures')
+                    .values({
+                        competition_id: ids.competitionId,
+                        external_id: `${externalId}-fixture-${index}`,
+                        home_team_id: ids.homeTeamId,
+                        away_team_id: ids.awayTeamId,
+                        date_played: date,
+                        status: 'completed',
+                        round_name: `Round ${index + 1}`,
+                        round_order: index + 1,
+                        updated_at: new Date(),
+                    })
+                    .returning('id')
+                    .execute();
+
+                await db
+                    .insertInto('rubbers')
+                    .values({
+                        fixture_id: fixture!.id,
+                        external_id: `${externalId}-rubber-${index}`,
+                        home_player_1_id: player!.id,
+                        away_player_1_id: ids.awayPlayerId,
+                        home_games_won: results[index] ? 3 : 1,
+                        away_games_won: results[index] ? 1 : 3,
+                        outcome_type: 'normal',
+                        updated_at: new Date(),
+                    })
+                    .execute();
+            }
+
+            return player!;
+        };
+
+        const improvingPlayer = await insertResults(
+            'Improving Player',
+            'ext-player-improving',
+            Array.from({ length: 10 }, (_, index) => `2025-01-${String(index + 1).padStart(2, '0')}`),
+            [false, false, false, false, false, true, true, true, true, true],
+        );
+        const formPlayer = await insertResults(
+            'Form Player',
+            'ext-player-form',
+            Array.from({ length: 10 }, (_, index) => `2025-02-${String(index + 1).padStart(2, '0')}`),
+            [true, true, true, true, true, true, true, true, true, false],
+        );
+        const newPlayer = await insertResults(
+            'New Player',
+            'ext-player-new',
+            ['2025-03-01'],
+            [true],
+        );
+
+        await db.deleteFrom('cache_entries').where('type', '=', 'player-leaders').execute();
+
+        const form = await request
+            .get('/api/players/leaders?mode=form&limit=5&min_played=5')
+            .expect(200);
+        expect(form.body.data[0]).toMatchObject({
+            player_id: formPlayer.id,
+            played: 10,
+            wins: 9,
+            losses: 1,
+            win_rate: 90,
+        });
+
+        const improving = await request
+            .get('/api/players/leaders?mode=improving&limit=5&min_played=5')
+            .expect(200);
+        expect(improving.body.data[0]).toMatchObject({
+            player_id: improvingPlayer.id,
+            played: 5,
+            wins: 5,
+            losses: 0,
+            win_rate: 100,
+            score: 100,
+        });
+
+        const newFaces = await request
+            .get('/api/players/leaders?mode=new_faces&limit=5&min_played=1')
+            .expect(200);
+        expect(newFaces.body.data[0]).toMatchObject({
+            player_id: newPlayer.id,
+            first_match_date: '2025-03-01',
+        });
+    });
 });

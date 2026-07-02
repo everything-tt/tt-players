@@ -99,7 +99,7 @@ export function useStandingsQuery(competitionId: string, enabled: boolean) {
 }
 
 interface LeadersQueryOptions {
-  mode: 'win_pct' | 'most_played' | 'combined';
+  mode: 'win_pct' | 'most_played' | 'combined' | 'form' | 'improving' | 'new_faces';
   leagueIds: string[];
   limit: number;
   minPlayed: number;

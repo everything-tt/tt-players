@@ -1486,56 +1486,113 @@ body.theme-dark .tt-players-row {
 
 .tt-home-summary {
   margin: 16px 16px 0;
-  padding: 20px 16px 20px;
-  background: var(--accent);
+  padding: 16px;
+  background: var(--tt-home-surface);
+  border: 1px solid var(--panel-border);
   border-radius: 18px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.62);
+  color: var(--ink);
   position: relative;
   overflow: hidden;
 }
 
-.tt-home-summary::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(135deg, transparent 40%, rgba(255, 255, 255, 0.1) 100%);
-  pointer-events: none;
+.tt-home-summary-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.tt-home-summary-kicker {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+
+.tt-home-summary-title {
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.08;
+  margin: 0;
 }
 
 .tt-home-summary-sub {
-  color: rgba(255, 255, 255, 0.75);
-  font-size: 14px;
+  color: var(--ink-muted);
+  font-size: 13px;
   font-weight: 400;
   line-height: 1.4;
-  margin: 0 0 18px;
+  margin: 8px 0 0;
+  max-width: 32rem;
+}
+
+.tt-home-summary-action {
+  background: var(--accent);
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--on-accent);
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  min-height: 34px;
+  min-width: 58px;
+  padding: 0 13px;
+}
+
+.tt-home-summary-action:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
 }
 
 .tt-home-summary-stats {
-  display: flex;
+  border-top: 1px solid var(--border-hairline);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding-top: 14px;
 }
 
 .tt-home-summary-stat {
-  flex: 1;
   text-align: center;
+  min-width: 0;
 }
 
 .tt-home-summary-stat-value {
-  color: #fff;
+  color: var(--ink);
   display: block;
-  font-size: 22px;
-  font-weight: 600;
+  font-size: 21px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
   line-height: 1;
   margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tt-home-summary-stat-label {
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 12px;
+  color: var(--ink-muted);
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.tt-home-section {
+  background: var(--canvas-parchment);
+  border-bottom: 1px solid var(--border-hairline);
+  padding: 20px 16px 16px;
+}
+
+.tt-home-section + .tt-home-section {
+  padding-top: 18px;
 }
 
 /* ── Home: Leaders section ──────────────────────────────────────────── */
@@ -1552,6 +1609,29 @@ body.theme-dark .tt-players-row {
   display: flex;
   justify-content: space-between;
   margin-bottom: 14px;
+}
+
+.tt-home-watchlist-tabs {
+  justify-content: flex-start;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+
+.tt-home-watchlist-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tt-home-watchlist-tabs .tt-segmented {
+  flex: 0 0 auto;
+  width: max-content;
+}
+
+.tt-home-watchlist-tabs .tt-segmented__btn {
+  font-size: 12px;
+  padding-left: 10px;
+  padding-right: 10px;
 }
 
 .tt-home-leaders-desc {
