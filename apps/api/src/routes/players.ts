@@ -36,7 +36,7 @@ const H2HQuerySchema = z.object({
 });
 
 const LeadersQuerySchema = z.object({
-    mode: z.enum(['win_pct', 'most_played', 'combined']).default('combined'),
+    mode: z.enum(['win_pct', 'most_played', 'combined', 'form', 'improving', 'new_faces']).default('combined'),
     league_ids: z.string().optional(),
     season_id: z.string().uuid().optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -223,6 +223,7 @@ const LeaderItemSchema = z.object({
     losses: z.number().int(),
     win_rate: z.number(),
     score: z.number().nullable(),
+    first_match_date: z.string().nullable(),
 });
 
 const PLAYER_INSIGHTS_CACHE_TTL_MS = Number(
@@ -421,7 +422,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     querystring: LeadersQuerySchema,
                     response: {
                         200: z.object({
-                            mode: z.enum(['win_pct', 'most_played', 'combined']),
+                            mode: z.enum(['win_pct', 'most_played', 'combined', 'form', 'improving', 'new_faces']),
                             formula: z.string(),
                             min_played: z.number().int(),
                             data: z.array(LeaderItemSchema),
@@ -444,9 +445,10 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 const versionRes = await sql<{ data_version: Date | null }>`
                     SELECT GREATEST(
                         COALESCE((
-                            SELECT MAX(updated_at)
-                            FROM rubbers
-                            WHERE deleted_at IS NULL
+                            SELECT MAX(GREATEST(r.updated_at, f.updated_at))
+                            FROM rubbers r
+                            JOIN fixtures f ON f.id = r.fixture_id
+                            WHERE r.deleted_at IS NULL
                         ), '-infinity'::timestamp),
                         COALESCE((
                             SELECT MAX(updated_at)
@@ -474,11 +476,14 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     losses: number;
                     win_rate: number;
                     score: number | null;
+                    first_match_date: string | null;
                 }>`
                     WITH singles AS (
                         SELECT
                             COALESCE(ep.canonical_player_id, ep.id) AS player_id,
-                            CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END AS is_win
+                            CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END AS is_win,
+                            COALESCE(f.date_played::timestamp, r.played_at, f.created_at) AS played_at,
+                            r.id AS rubber_id
                         FROM rubbers r
                         JOIN external_players ep ON ep.id = r.home_player_1_id
                         JOIN fixtures f ON f.id = r.fixture_id
@@ -499,7 +504,9 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
 
                         SELECT
                             COALESCE(ep.canonical_player_id, ep.id) AS player_id,
-                            CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END AS is_win
+                            CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END AS is_win,
+                            COALESCE(f.date_played::timestamp, r.played_at, f.created_at) AS played_at,
+                            r.id AS rubber_id
                         FROM rubbers r
                         JOIN external_players ep ON ep.id = r.away_player_1_id
                         JOIN fixtures f ON f.id = r.fixture_id
@@ -516,28 +523,58 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                           )
                           AND (${leagueIds.length} = 0 OR s.league_id = ANY(${leagueIdArray}))
                     ),
+                    sequenced AS (
+                        SELECT
+                            player_id,
+                            is_win,
+                            played_at,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY player_id
+                                ORDER BY played_at DESC, rubber_id DESC
+                            ) AS recent_rank
+                        FROM singles
+                    ),
                     aggregated AS (
                         SELECT
                             player_id,
                             COUNT(*)::int AS played,
-                            SUM(is_win)::int AS wins
-                        FROM singles
+                            SUM(is_win)::int AS wins,
+                            COUNT(*) FILTER (WHERE recent_rank <= 10)::int AS recent_10_played,
+                            SUM(is_win) FILTER (WHERE recent_rank <= 10)::int AS recent_10_wins,
+                            COUNT(*) FILTER (WHERE recent_rank <= 5)::int AS recent_5_played,
+                            SUM(is_win) FILTER (WHERE recent_rank <= 5)::int AS recent_5_wins,
+                            COUNT(*) FILTER (WHERE recent_rank BETWEEN 6 AND 10)::int AS previous_5_played,
+                            SUM(is_win) FILTER (WHERE recent_rank BETWEEN 6 AND 10)::int AS previous_5_wins,
+                            MIN(played_at)::date AS first_match_date
+                        FROM sequenced
                         GROUP BY player_id
                     ),
                     ranked AS (
                         SELECT
                             canonical_ep.id AS player_id,
                             canonical_ep.name AS player_name,
-                            a.played,
-                            a.wins,
-                            (a.played - a.wins)::int AS losses,
-                            ROUND((a.wins::numeric / NULLIF(a.played, 0)) * 100, 2)::float8 AS win_rate,
+                            a.played AS season_played,
+                            a.wins AS season_wins,
+                            a.recent_10_played,
+                            a.recent_10_wins,
+                            a.recent_5_played,
+                            a.recent_5_wins,
+                            a.previous_5_played,
+                            a.previous_5_wins,
+                            a.first_match_date,
+                            ROUND((a.wins::numeric / NULLIF(a.played, 0)) * 100, 2)::float8 AS season_win_rate,
+                            ROUND((a.recent_10_wins::numeric / NULLIF(a.recent_10_played, 0)) * 100, 2)::float8 AS recent_10_win_rate,
+                            ROUND((a.recent_5_wins::numeric / NULLIF(a.recent_5_played, 0)) * 100, 2)::float8 AS recent_5_win_rate,
+                            ROUND((
+                                (a.recent_5_wins::numeric / NULLIF(a.recent_5_played, 0))
+                                - (a.previous_5_wins::numeric / NULLIF(a.previous_5_played, 0))
+                            ) * 100, 2)::float8 AS improvement_score,
                             ROUND((
                                 (
                                     ((a.wins::numeric / NULLIF(a.played, 0)) * 100) * 0.7
                                     + (LEAST(a.played, 30)::numeric / 30) * 100 * 0.3
                                 ) * 100
-                            )) / 100::numeric AS score
+                            )) / 100::numeric AS combined_score
                         FROM aggregated a
                         JOIN external_players canonical_ep ON canonical_ep.id = a.player_id
                         WHERE canonical_ep.deleted_at IS NULL
@@ -545,20 +582,54 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     SELECT
                         player_id,
                         player_name,
-                        played,
-                        wins,
-                        losses,
-                        win_rate,
-                        CASE WHEN ${mode} = 'combined' THEN score::float8 ELSE NULL END AS score
+                        CASE
+                            WHEN ${mode} = 'form' THEN recent_10_played
+                            WHEN ${mode} = 'improving' THEN recent_5_played
+                            ELSE season_played
+                        END::int AS played,
+                        CASE
+                            WHEN ${mode} = 'form' THEN recent_10_wins
+                            WHEN ${mode} = 'improving' THEN recent_5_wins
+                            ELSE season_wins
+                        END::int AS wins,
+                        CASE
+                            WHEN ${mode} = 'form' THEN recent_10_played - recent_10_wins
+                            WHEN ${mode} = 'improving' THEN recent_5_played - recent_5_wins
+                            ELSE season_played - season_wins
+                        END::int AS losses,
+                        CASE
+                            WHEN ${mode} = 'form' THEN recent_10_win_rate
+                            WHEN ${mode} = 'improving' THEN recent_5_win_rate
+                            ELSE season_win_rate
+                        END::float8 AS win_rate,
+                        CASE
+                            WHEN ${mode} = 'combined' THEN combined_score::float8
+                            WHEN ${mode} = 'improving' THEN improvement_score
+                            ELSE NULL
+                        END AS score,
+                        TO_CHAR(first_match_date, 'YYYY-MM-DD') AS first_match_date
                     FROM ranked
-                    WHERE (${mode} = 'most_played' OR played >= ${minPlayed})
+                    WHERE
+                        ${mode} = 'most_played'
+                        OR (${mode} IN ('combined', 'win_pct') AND season_played >= ${minPlayed})
+                        OR (${mode} = 'form' AND recent_10_played >= ${minPlayed})
+                        OR (
+                            ${mode} = 'improving'
+                            AND recent_5_played = 5
+                            AND previous_5_played = 5
+                            AND improvement_score > 0
+                        )
+                        OR ${mode} = 'new_faces'
                     ORDER BY
-                        CASE WHEN ${mode} = 'combined' THEN score END DESC NULLS LAST,
-                        CASE WHEN ${mode} = 'win_pct' THEN win_rate END DESC NULLS LAST,
-                        CASE WHEN ${mode} = 'most_played' THEN played END DESC NULLS LAST,
-                        played DESC,
-                        wins DESC,
-                        CASE WHEN ${mode} = 'most_played' THEN win_rate END DESC NULLS LAST,
+                        CASE WHEN ${mode} = 'combined' THEN combined_score END DESC NULLS LAST,
+                        CASE WHEN ${mode} = 'win_pct' THEN season_win_rate END DESC NULLS LAST,
+                        CASE WHEN ${mode} = 'most_played' THEN season_played END DESC NULLS LAST,
+                        CASE WHEN ${mode} = 'form' THEN recent_10_win_rate END DESC NULLS LAST,
+                        CASE WHEN ${mode} = 'improving' THEN improvement_score END DESC NULLS LAST,
+                        CASE WHEN ${mode} = 'new_faces' THEN first_match_date END DESC NULLS LAST,
+                        season_played DESC,
+                        season_wins DESC,
+                        CASE WHEN ${mode} = 'most_played' THEN season_win_rate END DESC NULLS LAST,
                         player_name ASC
                     LIMIT ${effectiveLimit}
                 `.execute(db);
@@ -572,6 +643,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     losses: Number(row.losses),
                     win_rate: Number(row.win_rate),
                     score: row.score === null ? null : Number(row.score),
+                    first_match_date: row.first_match_date,
                 }));
 
                 let formula = 'Ranked by combined score: 70% win rate + 30% match volume (capped at 30 matches).';
@@ -580,6 +652,12 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     formula = `Ranked by win rate, minimum ${minPlayed} matches, tie-breakers: played then wins.`;
                 } else if (mode === 'most_played') {
                     formula = 'Ranked by matches played, tie-breakers: wins then win rate.';
+                } else if (mode === 'form') {
+                    formula = `Ranked by win rate across each player's latest 10 singles, minimum ${minPlayed} recent matches.`;
+                } else if (mode === 'improving') {
+                    formula = 'Ranked by win-rate change from the previous 5 singles to the latest 5 singles.';
+                } else if (mode === 'new_faces') {
+                    formula = 'Ranked by most recent first singles appearance in the selected active-season scope.';
                 }
 
                 const payload = {

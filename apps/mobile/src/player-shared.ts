@@ -51,7 +51,7 @@ export type StandingsResponse = {
   data: StandingItem[];
 };
 
-export type LeaderboardMode = 'win_pct' | 'most_played' | 'combined';
+export type LeaderboardMode = 'win_pct' | 'most_played' | 'combined' | 'form' | 'improving' | 'new_faces';
 
 export type LeaderboardItem = {
   rank: number;
@@ -62,6 +62,7 @@ export type LeaderboardItem = {
   losses: number;
   win_rate: number;
   score: number | null;
+  first_match_date: string | null;
 };
 
 export type LeadersResponse = {
