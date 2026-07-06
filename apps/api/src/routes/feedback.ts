@@ -1,12 +1,12 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import type { Kysely } from 'kysely';
-import type { Database } from '@tt-players/db';
 
 const MAX_ATTACHMENT_BYTES = 1024 * 1024;
 const MAX_ATTACHMENTS = 4;
 const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const FEEDBACK_APP_ID = 'tt-players';
+const DEFAULT_FEEDBACK_SERVICE_URL = 'https://feedback.graceliu.uk';
 
 const BodySchema = z.object({
     name: z.string().optional().nullable(),
@@ -24,7 +24,7 @@ const ResponseSchema = z.object({
 
 const ErrorSchema = z.object({
     error: z.string(),
-    statusCode: z.number(),
+    statusCode: z.number().optional(),
 });
 
 interface FeedbackAttachment {
@@ -100,63 +100,41 @@ async function readMultipartFeedback(request: FastifyRequest): Promise<{
     };
 }
 
-export function feedbackRoutes(db: Kysely<Database>): FastifyPluginAsync {
+function forwardedFor(request: FastifyRequest): string {
+    const header = request.headers['x-forwarded-for'];
+    if (Array.isArray(header)) return header[0] ?? request.ip;
+    return header?.split(',')[0]?.trim() || request.ip;
+}
+
+export function feedbackRoutes(): FastifyPluginAsync {
     return async function (fastify) {
         const app = fastify.withTypeProvider<ZodTypeProvider>();
+        const serviceUrl = (process.env['FEEDBACK_SERVICE_URL'] || DEFAULT_FEEDBACK_SERVICE_URL)
+            .replace(/\/+$/, '');
 
         app.post(
             '/',
             {
                 schema: {
                     response: {
-                        200: ResponseSchema,
+                        201: ResponseSchema,
                         400: ErrorSchema,
+                        429: ErrorSchema,
+                        502: ErrorSchema,
                         500: ErrorSchema,
                     },
                 },
             },
             async (request, reply) => {
+                let parsed: {
+                    body: z.infer<typeof BodySchema>;
+                    attachments: FeedbackAttachment[];
+                };
+
                 try {
-                    const parsed = request.isMultipart()
+                    parsed = request.isMultipart()
                         ? await readMultipartFeedback(request)
                         : { body: BodySchema.parse(request.body), attachments: [] };
-                    const { name, email, message_type, message, page_path, page_title } = parsed.body;
-                    const cleanEmail = email && email.trim() !== '' ? email.trim() : null;
-                    const cleanName = name && name.trim() !== '' ? name.trim() : null;
-                    const cleanPagePath = page_path && page_path.trim() !== '' ? page_path.trim() : null;
-                    const cleanPageTitle = page_title && page_title.trim() !== '' ? page_title.trim() : null;
-
-                    const id = await db.transaction().execute(async (trx) => {
-                        const result = await trx
-                            .insertInto('staging.feedback')
-                            .values({
-                                name: cleanName,
-                                email: cleanEmail,
-                                message_type,
-                                message: message.trim(),
-                                page_path: cleanPagePath,
-                                page_title: cleanPageTitle,
-                            })
-                            .returning('id')
-                            .executeTakeFirstOrThrow();
-
-                        if (parsed.attachments.length > 0) {
-                            await trx
-                                .insertInto('staging.feedback_attachments')
-                                .values(parsed.attachments.map((attachment) => ({
-                                    feedback_id: result.id,
-                                    filename: attachment.filename,
-                                    mime_type: attachment.mimeType,
-                                    size_bytes: attachment.content.length,
-                                    content: attachment.content,
-                                })))
-                                .execute();
-                        }
-
-                        return result.id;
-                    });
-
-                    return reply.send({ success: true, id });
                 } catch (err) {
                     const message = err instanceof Error ? err.message : 'Invalid feedback submission';
                     const isValidationError = err instanceof z.ZodError
@@ -172,8 +150,90 @@ export function feedbackRoutes(db: Kysely<Database>): FastifyPluginAsync {
 
                     request.log.error(err);
                     return reply.status(500).send({
-                        error: 'Failed to save feedback entry',
+                        error: 'Failed to read feedback entry',
                         statusCode: 500,
+                    });
+                }
+
+                const { name, email, message_type, message, page_path, page_title } = parsed.body;
+                const cleanEmail = email?.trim() || null;
+                const cleanName = name?.trim() || null;
+                const cleanPagePath = page_path?.trim() || null;
+                const cleanPageTitle = page_title?.trim() || null;
+                const headers: Record<string, string> = {
+                    'X-Forwarded-For': forwardedFor(request),
+                };
+
+                let endpoint = `${serviceUrl}/feedback`;
+                let body: BodyInit;
+                if (parsed.attachments.length > 0) {
+                    endpoint += '/multipart';
+                    const form = new FormData();
+                    form.set('app_id', FEEDBACK_APP_ID);
+                    form.set('message_type', message_type);
+                    form.set('message', message.trim());
+                    form.set('metadata', '{}');
+                    if (cleanName) form.set('name', cleanName);
+                    if (cleanEmail) form.set('email', cleanEmail);
+                    if (cleanPagePath) form.set('page_path', cleanPagePath);
+                    if (cleanPageTitle) form.set('page_title', cleanPageTitle);
+                    for (const attachment of parsed.attachments) {
+                        form.append(
+                            'attachments',
+                            new Blob(
+                                [new Uint8Array(attachment.content)],
+                                { type: attachment.mimeType },
+                            ),
+                            attachment.filename,
+                        );
+                    }
+                    body = form;
+                } else {
+                    headers['Content-Type'] = 'application/json';
+                    body = JSON.stringify({
+                        app_id: FEEDBACK_APP_ID,
+                        name: cleanName,
+                        email: cleanEmail,
+                        message_type,
+                        message: message.trim(),
+                        page_path: cleanPagePath,
+                        page_title: cleanPageTitle,
+                        metadata: {},
+                    });
+                }
+
+                try {
+                    const upstream = await fetch(endpoint, {
+                        method: 'POST',
+                        headers,
+                        body,
+                        signal: AbortSignal.timeout(15_000),
+                    });
+                    const payload = await upstream.json().catch(() => ({
+                        error: 'Feedback service returned an invalid response',
+                    })) as { success?: boolean; id?: string; error?: string };
+
+                    if (upstream.status === 201) {
+                        const result = ResponseSchema.safeParse(payload);
+                        if (result.success) return reply.status(201).send(result.data);
+                        return reply.status(502).send({
+                            error: 'Feedback service returned an invalid response',
+                            statusCode: 502,
+                        });
+                    }
+
+                    const error = typeof payload.error === 'string'
+                        ? payload.error
+                        : 'Feedback service rejected the submission';
+                    if (upstream.status === 400) return reply.status(400).send({ error });
+                    if (upstream.status === 429) return reply.status(429).send({ error });
+                    if (upstream.status === 500) return reply.status(500).send({ error });
+                    return reply.status(502).send({ error, statusCode: 502 });
+                } catch (err) {
+                    request.log.error(err);
+                    return reply.status(502).send({
+                        error: 'Feedback service is unavailable',
+                        statusCode: 502,
                     });
                 }
             },

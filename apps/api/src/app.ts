@@ -105,7 +105,7 @@ export async function buildApp(db: Kysely<Database>) {
     await app.register(playersRoutes(db), { prefix: '/api/players' });
     await app.register(fixturesRoutes(db), { prefix: '/api/fixtures' });
     await app.register(eventsRoutes(db), { prefix: '/api/events' });
-    await app.register(feedbackRoutes(db), { prefix: '/api/feedback' });
+    await app.register(feedbackRoutes(), { prefix: '/api/feedback' });
 
     return app;
 }

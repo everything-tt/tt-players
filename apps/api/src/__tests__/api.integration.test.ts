@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import supertest from 'supertest';
 import type { Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
@@ -59,7 +59,23 @@ describe('GET /api/health/db', () => {
 });
 
 describe('POST /api/feedback', () => {
-    it('successfully records general feedback', async () => {
+    const feedbackId = 'e796f78c-fe48-43a2-b093-fcdfd4f8cccc';
+    const sharedFetch = vi.fn();
+
+    beforeEach(() => {
+        sharedFetch.mockReset();
+        sharedFetch.mockResolvedValue(new Response(
+            JSON.stringify({ success: true, id: feedbackId }),
+            { status: 201, headers: { 'Content-Type': 'application/json' } },
+        ));
+        vi.stubGlobal('fetch', sharedFetch);
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('proxies JSON feedback to the shared service with the tt-players app id', async () => {
         const res = await request
             .post('/api/feedback')
             .send({
@@ -70,27 +86,28 @@ describe('POST /api/feedback', () => {
                 page_path: '/tabs/players/player/123',
                 page_title: 'Player profile',
             })
-            .expect(200);
+            .expect(201);
 
         expect(res.body).toEqual({
             success: true,
-            id: expect.any(String),
+            id: feedbackId,
         });
 
-        // Verify it exists in database
-        const feedback = await db
-            .selectFrom('staging.feedback')
-            .selectAll()
-            .where('id', '=', res.body.id)
-            .executeTakeFirst();
-
-        expect(feedback).toBeDefined();
-        expect(feedback?.name).toBe('John Doe');
-        expect(feedback?.email).toBe('john@example.com');
-        expect(feedback?.message_type).toBe('data_accuracy');
-        expect(feedback?.message).toBe('Love the app!');
-        expect(feedback?.page_path).toBe('/tabs/players/player/123');
-        expect(feedback?.page_title).toBe('Player profile');
+        expect(sharedFetch).toHaveBeenCalledOnce();
+        const [url, init] = sharedFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe('https://feedback.graceliu.uk/feedback');
+        expect(init.method).toBe('POST');
+        expect(init.headers).toMatchObject({ 'Content-Type': 'application/json' });
+        expect(JSON.parse(String(init.body))).toEqual({
+            app_id: 'tt-players',
+            name: 'John Doe',
+            email: 'john@example.com',
+            message_type: 'data_accuracy',
+            message: 'Love the app!',
+            page_path: '/tabs/players/player/123',
+            page_title: 'Player profile',
+            metadata: {},
+        });
     });
 
     it('returns 400 for invalid body schema', async () => {
@@ -104,7 +121,7 @@ describe('POST /api/feedback', () => {
             .expect(400);
     });
 
-    it('records feedback with an optional PNG attachment', async () => {
+    it('proxies feedback with a PNG attachment to the multipart endpoint', async () => {
         const png = Buffer.from([
             0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
             0x00, 0x00, 0x00, 0x0d,
@@ -118,23 +135,22 @@ describe('POST /api/feedback', () => {
                 filename: 'screen.png',
                 contentType: 'image/png',
             })
-            .expect(200);
+            .expect(201);
 
-        const attachment = await db
-            .selectFrom('staging.feedback_attachments')
-            .selectAll()
-            .where('feedback_id', '=', res.body.id)
-            .executeTakeFirst();
-
-        expect(attachment).toMatchObject({
-            filename: 'screen.png',
-            mime_type: 'image/png',
-            size_bytes: png.length,
-        });
-        expect(Buffer.from(attachment?.content ?? [])).toEqual(png);
+        const [url, init] = sharedFetch.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe('https://feedback.graceliu.uk/feedback/multipart');
+        expect(init.method).toBe('POST');
+        expect(init.headers).not.toHaveProperty('Content-Type');
+        const body = init.body as FormData;
+        expect(body.get('app_id')).toBe('tt-players');
+        expect(body.get('message')).toBe('The screen is clipped.');
+        const attachment = body.get('attachments') as File;
+        expect(attachment.name).toBe('screen.png');
+        expect(attachment.type).toBe('image/png');
+        expect(attachment.size).toBe(png.length);
     });
 
-    it('records feedback with multiple screenshot attachments', async () => {
+    it('proxies multiple screenshot attachments', async () => {
         const png = Buffer.from([
             0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
             0x00, 0x00, 0x00, 0x0d,
@@ -154,18 +170,13 @@ describe('POST /api/feedback', () => {
                 filename: 'second.jpg',
                 contentType: 'image/jpeg',
             })
-            .expect(200);
+            .expect(201);
 
-        const attachments = await db
-            .selectFrom('staging.feedback_attachments')
-            .select(['filename', 'mime_type', 'size_bytes'])
-            .where('feedback_id', '=', res.body.id)
-            .orderBy('filename')
-            .execute();
-
-        expect(attachments).toEqual([
-            { filename: 'first.png', mime_type: 'image/png', size_bytes: png.length },
-            { filename: 'second.jpg', mime_type: 'image/jpeg', size_bytes: jpeg.length },
+        const [, init] = sharedFetch.mock.calls[0] as [string, RequestInit];
+        const attachments = (init.body as FormData).getAll('attachments') as File[];
+        expect(attachments.map(({ name, type, size }) => ({ name, type, size }))).toEqual([
+            { name: 'first.png', type: 'image/png', size: png.length },
+            { name: 'second.jpg', type: 'image/jpeg', size: jpeg.length },
         ]);
     });
 
@@ -179,6 +190,27 @@ describe('POST /api/feedback', () => {
                 contentType: 'text/plain',
             })
             .expect(400);
+
+        expect(sharedFetch).not.toHaveBeenCalled();
+    });
+
+    it('propagates shared-service rate-limit responses', async () => {
+        sharedFetch.mockResolvedValueOnce(new Response(
+            JSON.stringify({ error: 'Too many requests. Please slow down.' }),
+            { status: 429, headers: { 'Content-Type': 'application/json' } },
+        ));
+
+        const res = await request
+            .post('/api/feedback')
+            .send({
+                message_type: 'general',
+                message: 'Another feedback message',
+            })
+            .expect(429);
+
+        expect(res.body).toEqual({
+            error: 'Too many requests. Please slow down.',
+        });
     });
 });
 

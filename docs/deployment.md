@@ -128,6 +128,7 @@ API service environment variables:
 NODE_VERSION=20
 ALLOWED_ORIGIN=https://tt-players.graceliu.uk
 DATABASE_URL=postgres://.../tt_players?sslmode=require
+FEEDBACK_SERVICE_URL=https://feedback.graceliu.uk
 NODE_TLS_REJECT_UNAUTHORIZED=0
 ```
 
@@ -149,6 +150,36 @@ https://tt-players.graceliu.uk/api/health
 This endpoint is intentionally lightweight and does not query PostgreSQL. It is
 safe to use for frequent uptime pings whose purpose is keeping the free Render
 API service warm.
+
+### Shared Feedback Service
+
+`POST /api/feedback` remains the app-facing endpoint. The API validates the
+request and proxies POST submissions only to the shared service:
+
+```text
+JSON feedback        → POST https://feedback.graceliu.uk/feedback
+Feedback screenshots → POST https://feedback.graceliu.uk/feedback/multipart
+app_id                → tt-players
+```
+
+The shared service runs on Cloud Run in GCP project `wudong-agent-master`.
+Feedback administration is centralized at:
+
+```text
+https://feedback.graceliu.uk/admin
+```
+
+The admin Bearer token is stored in GCP Secret Manager as
+`feedback-admin-token`; it must never be exposed to the frontend or committed.
+`FEEDBACK_SERVICE_URL` is optional and defaults to the production URL above.
+Keeping the proxy means the frontend continues to use same-origin `/api`
+requests and only POST feedback traffic is sent to the shared service.
+
+On 2026-07-06, 22 existing feedback rows and 11 screenshot attachments were
+migrated from `staging.feedback` and `staging.feedback_attachments`. Original
+UUIDs, timestamps, contact fields, context, screenshots, and GitHub issue links
+were preserved. The old tables remain in place as a rollback/archive source but
+receive no new submissions after this proxy deployment.
 
 ### Render Static Rewrite
 
