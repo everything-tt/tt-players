@@ -114,13 +114,10 @@ export function BottomSheet({
 
   return createPortal(
     <div className="tt-modal-layer">
-      <button
-        type="button"
+      <div
         className="tt-backdrop"
         onClick={() => { if (!disableBackdropClose) onClose(); }}
-        aria-label={disableBackdropClose ? undefined : 'Close dialog'}
-        aria-hidden={disableBackdropClose ? true : undefined}
-        tabIndex={disableBackdropClose ? -1 : 0}
+        aria-hidden="true"
       />
       <div
         ref={sheetRef}
@@ -144,7 +141,7 @@ export function BottomSheet({
               onClick={onClose}
               aria-label="Close"
             >
-              <i className="fa fa-times" />
+              <i className="fa fa-times" aria-hidden="true" />
             </button>
           ) : null}
         </div>
