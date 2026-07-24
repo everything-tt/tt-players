@@ -10,7 +10,7 @@ import {
 } from 'react';
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 
-export const APP_TABS = ['home', 'players', 'leagues', 'events', 'h2h', 'about'] as const;
+export const APP_TABS = ['home', 'players', 'leagues', 'events', 'h2h'] as const;
 export type AppTabId = (typeof APP_TABS)[number];
 
 type TabStacks = Record<AppTabId, string[]>;
@@ -46,7 +46,6 @@ function getDefaultStacks(): TabStacks {
     leagues: ['/tabs/leagues'],
     h2h: ['/tabs/h2h'],
     events: ['/tabs/events'],
-    about: ['/tabs/about'],
   };
 }
 
