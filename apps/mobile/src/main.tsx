@@ -5,6 +5,9 @@ import './index.css';
 import './design-tokens.css';
 import './native-mobile.css';
 import { AppRouter } from './AppRouter';
+import { restoreLocalDataBackup } from './local-persistence';
+
+restoreLocalDataBackup();
 
 const rememberedTheme = window.localStorage.getItem('TTPlayers-Theme');
 if (rememberedTheme === 'dark-mode') {
