@@ -42,19 +42,16 @@ function EventDetailSkeleton() {
             <SkeletonBlock className="tt-skeleton-title" />
           </div>
         </div>
-
         <div className="tt-tournament-summary-meta">
           <SkeletonBlock className="tt-skeleton-text" />
           <SkeletonBlock className="tt-skeleton-text" />
           <SkeletonBlock className="tt-skeleton-text" />
         </div>
-
         <div className="tt-player-actions">
           <SkeletonBlock className="tt-skeleton-button" />
           <SkeletonBlock className="tt-skeleton-button" />
         </div>
       </section>
-
       <section className="tt-player-section" aria-label="Loading top players">
         <div className="tt-player-section-header">
           <SkeletonBlock className="tt-skeleton-text" />
@@ -66,7 +63,6 @@ function EventDetailSkeleton() {
           <SkeletonBlock className="tt-skeleton-event-card" />
         </div>
       </section>
-
       <SectionSkeleton rows={4} />
       <SectionSkeleton rows={4} />
     </>
@@ -75,7 +71,10 @@ function EventDetailSkeleton() {
 
 export function EventDetailPage() {
   const { switchTab } = useTabNavigation();
-  const goHome = (event: React.MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); switchTab('home', 'root'); };
+  const goHome = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    switchTab('home', 'root');
+  };
   const { eventId = '' } = useParams<{ eventId: string }>();
   const [playerQuery, setPlayerQuery] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState<EventPlayerSummary | null>(null);
@@ -98,9 +97,7 @@ export function EventDetailPage() {
     const groups: Record<string, typeof filteredResults> = {};
     for (const match of filteredResults) {
       const groupKey = match.round_name || 'General';
-      if (!groups[groupKey]) {
-        groups[groupKey] = [];
-      }
+      if (!groups[groupKey]) groups[groupKey] = [];
       groups[groupKey].push(match);
     }
     return Object.entries(groups).sort((a, b) => {
@@ -123,13 +120,9 @@ export function EventDetailPage() {
         losses: 0,
         winRate: 0,
       };
-
       existing.played += 1;
-      if (input.won) {
-        existing.wins += 1;
-      } else {
-        existing.losses += 1;
-      }
+      if (input.won) existing.wins += 1;
+      else existing.losses += 1;
       existing.winRate = existing.played > 0 ? Math.round((existing.wins / existing.played) * 100) : 0;
       players.set(input.key, existing);
     };
@@ -183,6 +176,7 @@ export function EventDetailPage() {
   const selectPlayerById = (playerId: string | null) => (clickEvent: React.MouseEvent<HTMLElement>) => {
     clickEvent.preventDefault();
     clickEvent.stopPropagation();
+    if (!playerId) return;
     const player = tournamentPlayers.find((item) => item.playerId === playerId) ?? null;
     setSelectedPlayer(player);
     if (player) setPlayerQuery('');
@@ -248,9 +242,9 @@ export function EventDetailPage() {
                 </div>
                 <div className="tt-event-top-player-grid">
                   {topPlayers.map((player, index) => (
-                    <a
+                    <button
                       key={player.key}
-                      href="#"
+                      type="button"
                       className={`tt-event-top-player-card${selectedPlayer?.key === player.key ? ' active' : ''}`}
                       onClick={selectPlayerFilter(player)}
                       aria-pressed={selectedPlayer?.key === player.key}
@@ -259,7 +253,7 @@ export function EventDetailPage() {
                       <span className="tt-event-top-player-name">{player.name}</span>
                       <span className="tt-event-top-player-record">{player.wins}-{player.losses}</span>
                       <span className="tt-event-top-player-meta">{player.winRate}% from {player.played}</span>
-                    </a>
+                    </button>
                   ))}
                 </div>
               </section>
@@ -268,7 +262,9 @@ export function EventDetailPage() {
             <section className="tt-player-section" aria-labelledby="tt-event-players-title">
               <div className="tt-player-section-header">
                 <h2 id="tt-event-players-title" className="tt-player-section-title">Players</h2>
-                <span className="tt-player-section-note">{selectedPlayer ? `Filtering ${selectedPlayer.name}` : `${tournamentPlayers.length} players`}</span>
+                <span className="tt-player-section-note">
+                  {selectedPlayer ? `Filtering ${selectedPlayer.name}` : `${tournamentPlayers.length} players`}
+                </span>
               </div>
               <AppSearchInput
                 placeholder="Search tournament players..."
@@ -299,7 +295,12 @@ export function EventDetailPage() {
                           <FavouriteButton
                             size="icon"
                             saved={saved}
-                            onToggle={() => toggleFavouritePlayer({ id: player.playerId!, name: player.name, played: player.played, wins: player.wins })}
+                            onToggle={() => toggleFavouritePlayer({
+                              id: player.playerId!,
+                              name: player.name,
+                              played: player.played,
+                              wins: player.wins,
+                            })}
                           />
                         ) : null}
                         hideChevron
@@ -313,11 +314,15 @@ export function EventDetailPage() {
             <section className="tt-player-section" aria-labelledby="tt-matches-list-title">
               <div className="tt-player-section-header">
                 <h2 id="tt-matches-list-title" className="tt-player-section-title">Tournament Results</h2>
-                <span className="tt-player-section-note">{filteredResults.length}{selectedPlayer ? ` of ${results.length}` : ''} matches</span>
+                <span className="tt-player-section-note">
+                  {filteredResults.length}{selectedPlayer ? ` of ${results.length}` : ''} matches
+                </span>
               </div>
 
               {groupedResults.length === 0 ? (
-                <p className="tt-player-section-state">{selectedPlayer ? 'No matches found for this player.' : 'No match results available for this tournament.'}</p>
+                <p className="tt-player-section-state">
+                  {selectedPlayer ? 'No matches found for this player.' : 'No match results available for this tournament.'}
+                </p>
               ) : (
                 groupedResults.map(([roundName, matches]) => (
                   <div key={roundName} className="tt-tournament-round">
@@ -350,28 +355,33 @@ export function EventDetailPage() {
                             key={match.id}
                             hideChevron
                             className="tt-tournament-result-item"
-                            leading={<IconCircle iconClassName={primaryWon ? 'fa fa-check' : 'fa fa-times'} tone={primaryWon ? 'success' : 'danger'} />}
+                            leading={(
+                              <IconCircle
+                                iconClassName={primaryWon ? 'fa fa-check' : 'fa fa-times'}
+                                tone={primaryWon ? 'success' : 'danger'}
+                              />
+                            )}
                             title={(
-                              <a
-                                href="#"
+                              <button
+                                type="button"
                                 className={`tt-tournament-result-name ${primaryWon ? 'is-winner' : 'is-loser'}`}
                                 onClick={selectPlayerById(primaryPlayerId)}
-                                aria-disabled={!primaryPlayerId}
+                                disabled={!primaryPlayerId}
                               >
                                 {primaryName}
-                              </a>
+                              </button>
                             )}
                             subtitle={(
                               <span className="tt-tournament-result-subtitle">
                                 <span>{actionLabel}</span>
-                                <a
-                                  href="#"
+                                <button
+                                  type="button"
                                   className={`tt-tournament-result-name ${primaryWon ? 'is-loser' : 'is-winner'}`}
                                   onClick={selectPlayerById(secondaryPlayerId)}
-                                  aria-disabled={!secondaryPlayerId}
+                                  disabled={!secondaryPlayerId}
                                 >
                                   {secondaryName}
-                                </a>
+                                </button>
                                 {timeLabel ? <span>· Played {timeLabel}</span> : null}
                               </span>
                             )}
