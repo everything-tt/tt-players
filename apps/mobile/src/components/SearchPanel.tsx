@@ -17,18 +17,11 @@ export interface SearchPanelProps<T extends string = string> {
     options: SegmentedToggleOption<T>[];
   };
   className?: string;
-  /** Children render BELOW the panel (the actual results + their state rows). */
+  /** Children render below the panel (the actual results and state rows). */
   children?: ReactNode;
 }
 
-/**
- * Presentational search panel: eyebrow/title + single input + clear button +
- * optional scope SegmentedToggle. Controlled — the parent owns the query via
- * `useSearch` and renders its own results/states as children.
- *
- * Replaces the 3 hand-rolled search containers (tt-players-search-panel +
- * custom input, AppSearchBox pill, bare AppSearchInput).
- */
+/** Shared search surface for root-tab search screens. */
 export function SearchPanel<T extends string = string>({
   eyebrow,
   title,
@@ -41,18 +34,25 @@ export function SearchPanel<T extends string = string>({
 }: SearchPanelProps<T>) {
   return (
     <>
-      <section className={cx('tt-search-panel', className)} aria-label={eyebrow ? `${eyebrow} search` : 'Search'}>
+      <section
+        className={cx('tt-search-panel', className)}
+        role="search"
+        aria-label={eyebrow ? `${eyebrow} search` : 'Search'}
+      >
         <div className="tt-search-panel__top">
           <div>
             {eyebrow ? <p className="tt-eyebrow">{eyebrow}</p> : null}
-            {title ? <h1 className="tt-hero-title">{title}</h1> : null}
+            {title ? <h2 className="tt-hero-title">{title}</h2> : null}
           </div>
         </div>
 
         <label className="tt-search-input">
           <i className="fa fa-search" aria-hidden="true" />
           <input
-            type="text"
+            type="search"
+            inputMode="search"
+            enterKeyHint="search"
+            autoComplete="off"
             placeholder={placeholder}
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
@@ -65,7 +65,7 @@ export function SearchPanel<T extends string = string>({
               onClick={() => onQueryChange('')}
               aria-label="Clear search"
             >
-              <i className="fa fa-times-circle" />
+              <i className="fa fa-times-circle" aria-hidden="true" />
             </button>
           ) : null}
         </label>
@@ -86,5 +86,4 @@ export function SearchPanel<T extends string = string>({
   );
 }
 
-// Re-export the state components so callers can build consistent result blocks.
 export { EmptyState, ErrorState };
