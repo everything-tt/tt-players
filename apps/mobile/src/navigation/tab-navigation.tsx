@@ -53,35 +53,25 @@ function getDefaultStacks(): TabStacks {
 function parseActiveTab(pathname: string): AppTabId {
   const matched = pathname.match(/^\/tabs\/([^/]+)(?:\/|$)/);
   const maybeTab = matched?.[1];
-  if (!maybeTab || !isAppTab(maybeTab)) {
-    return DEFAULT_TAB;
-  }
-  return maybeTab;
+  return maybeTab && isAppTab(maybeTab) ? maybeTab : DEFAULT_TAB;
 }
 
 function loadStacksFromStorage(): TabStacks {
   try {
     const raw = sessionStorage.getItem(TAB_STACKS_STORAGE_KEY);
-    if (!raw) {
-      return getDefaultStacks();
-    }
+    if (!raw) return getDefaultStacks();
     const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object') {
-      return getDefaultStacks();
-    }
+    if (!parsed || typeof parsed !== 'object') return getDefaultStacks();
 
-    const defaults = getDefaultStacks();
-    const next = { ...defaults };
-
+    const next = { ...getDefaultStacks() };
     for (const tab of APP_TABS) {
       const value = (parsed as Record<string, unknown>)[tab];
       if (!Array.isArray(value)) continue;
-      const cleaned = value.filter((item): item is string => typeof item === 'string' && item.startsWith('/tabs/'));
-      if (cleaned.length > 0) {
-        next[tab] = cleaned;
-      }
+      const cleaned = value.filter(
+        (item): item is string => typeof item === 'string' && item.startsWith('/tabs/'),
+      );
+      if (cleaned.length > 0) next[tab] = cleaned;
     }
-
     return next;
   } catch {
     return getDefaultStacks();
@@ -89,7 +79,11 @@ function loadStacksFromStorage(): TabStacks {
 }
 
 function persistStacks(stacks: TabStacks): void {
-  sessionStorage.setItem(TAB_STACKS_STORAGE_KEY, JSON.stringify(stacks));
+  try {
+    sessionStorage.setItem(TAB_STACKS_STORAGE_KEY, JSON.stringify(stacks));
+  } catch {
+    // Session storage can be unavailable in embedded or private contexts.
+  }
 }
 
 function loadScrollPositionsFromStorage(): ScrollPositions {
@@ -101,9 +95,7 @@ function loadScrollPositionsFromStorage(): ScrollPositions {
 
     const result: ScrollPositions = {};
     for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof key !== 'string') continue;
-      if (typeof value !== 'number') continue;
-      result[key] = value;
+      if (typeof value === 'number') result[key] = value;
     }
     return result;
   } catch {
@@ -112,13 +104,16 @@ function loadScrollPositionsFromStorage(): ScrollPositions {
 }
 
 function persistScrollPositions(scrollPositions: ScrollPositions): void {
-  sessionStorage.setItem(SCROLL_POSITIONS_STORAGE_KEY, JSON.stringify(scrollPositions));
+  try {
+    sessionStorage.setItem(SCROLL_POSITIONS_STORAGE_KEY, JSON.stringify(scrollPositions));
+  } catch {
+    // Session storage can be unavailable in embedded or private contexts.
+  }
 }
 
 function buildTabPath(tab: AppTabId, relativePath = ''): string {
   const cleanPath = relativePath.replace(/^\/+/, '');
-  if (!cleanPath) return `/tabs/${tab}`;
-  return `/tabs/${tab}/${cleanPath}`;
+  return cleanPath ? `/tabs/${tab}/${cleanPath}` : `/tabs/${tab}`;
 }
 
 function nextStackForLocation(
@@ -130,22 +125,16 @@ function nextStackForLocation(
   const top = stack[stack.length - 1];
 
   if (navigationType === 'PUSH') {
-    if (top === fullPath) return stack;
-    return [...stack, fullPath];
+    return top === fullPath ? stack : [...stack, fullPath];
   }
 
   if (navigationType === 'REPLACE') {
-    if (stack.length === 0) return [fullPath];
     return [...stack.slice(0, -1), fullPath];
   }
 
   const existingIndex = stack.lastIndexOf(fullPath);
-  if (existingIndex >= 0) {
-    return stack.slice(0, existingIndex + 1);
-  }
-
-  if (top === fullPath) return stack;
-  return [...stack, fullPath];
+  if (existingIndex >= 0) return stack.slice(0, existingIndex + 1);
+  return top === fullPath ? stack : [...stack, fullPath];
 }
 
 export function TabNavigationProvider({ children }: { children: ReactNode }) {
@@ -161,7 +150,6 @@ export function TabNavigationProvider({ children }: { children: ReactNode }) {
 
   const scheduleScrollPersist = useCallback(() => {
     if (scrollPersistTimerRef.current !== null) return;
-
     scrollPersistTimerRef.current = window.setTimeout(() => {
       scrollPersistTimerRef.current = null;
       persistScrollPositions(scrollPositionsRef.current);
@@ -176,13 +164,11 @@ export function TabNavigationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!location.pathname.startsWith('/tabs/')) return;
-
     setTabStacks((previous) => {
       const previousStack = previous[activeTab] ?? [buildTabPath(activeTab)];
-      const nextStack = nextStackForLocation(previousStack, fullPath, navigationType);
       const next = {
         ...previous,
-        [activeTab]: nextStack,
+        [activeTab]: nextStackForLocation(previousStack, fullPath, navigationType),
       };
       persistStacks(next);
       return next;
@@ -191,30 +177,28 @@ export function TabNavigationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!location.pathname.startsWith('/tabs/')) return;
-
-    const onScroll = () => {
-      saveScrollPositionForCurrentPath();
-    };
-
+    const onScroll = () => saveScrollPositionForCurrentPath();
     window.addEventListener('scroll', onScroll, { passive: true });
-    document.addEventListener('scroll', onScroll, { passive: true });
-
     return () => {
       window.removeEventListener('scroll', onScroll);
-      document.removeEventListener('scroll', onScroll);
       saveScrollPositionForCurrentPath();
     };
   }, [location.pathname, saveScrollPositionForCurrentPath]);
 
   useEffect(() => {
     if (!location.pathname.startsWith('/tabs/')) return;
-
     const savedScrollY = scrollPositionsRef.current[fullPath] ?? 0;
-    const rafId = window.requestAnimationFrame(() => {
+    let frame = 0;
+    let attempts = 0;
+    const restore = () => {
       window.scrollTo({ top: savedScrollY, left: 0, behavior: 'auto' });
-    });
-
-    return () => window.cancelAnimationFrame(rafId);
+      attempts += 1;
+      if (attempts < 4 && Math.abs(window.scrollY - savedScrollY) > 1) {
+        frame = window.requestAnimationFrame(restore);
+      }
+    };
+    frame = window.requestAnimationFrame(restore);
+    return () => window.cancelAnimationFrame(frame);
   }, [fullPath, location.pathname]);
 
   useEffect(() => () => {
@@ -227,10 +211,14 @@ export function TabNavigationProvider({ children }: { children: ReactNode }) {
 
   const switchTab = useCallback((tab: AppTabId, reselectBehavior: ReselectBehavior = 'noop') => {
     saveScrollPositionForCurrentPath();
-
     const tabRoot = buildTabPath(tab);
+
     if (tab === activeTab) {
       if (reselectBehavior === 'root') {
+        const next = { ...tabStacks, [tab]: [tabRoot] };
+        setTabStacks(next);
+        persistStacks(next);
+        scrollPositionsRef.current[tabRoot] = 0;
         navigate(tabRoot, { replace: true });
       }
       return;
@@ -253,20 +241,15 @@ export function TabNavigationProvider({ children }: { children: ReactNode }) {
 
   const goBackInActiveTab = useCallback((fallbackRelativePath = '') => {
     saveScrollPositionForCurrentPath();
-
     const stack = tabStacks[activeTab] ?? [buildTabPath(activeTab)];
     if (stack.length > 1) {
       const previousPath = stack[stack.length - 2];
-      const next = {
-        ...tabStacks,
-        [activeTab]: stack.slice(0, -1),
-      };
+      const next = { ...tabStacks, [activeTab]: stack.slice(0, -1) };
       setTabStacks(next);
       persistStacks(next);
       navigate(previousPath, { replace: true });
       return;
     }
-
     navigate(buildTabPath(activeTab, fallbackRelativePath), { replace: true });
   }, [activeTab, navigate, saveScrollPositionForCurrentPath, tabStacks]);
 
@@ -277,12 +260,10 @@ export function TabNavigationProvider({ children }: { children: ReactNode }) {
       goBackInActiveTab();
       return true;
     }
-
     if (activeTab !== DEFAULT_TAB) {
       switchTab(DEFAULT_TAB, 'root');
       return true;
     }
-
     return false;
   }, [activeTab, canGoBackInActiveTab, goBackInActiveTab, switchTab]);
 
