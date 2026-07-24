@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
 import App from './App';
+import { AboutPage } from './AboutPage';
 import { FixturePage } from './FixturePage';
 import { isAppTab, TabNavigationProvider } from './navigation/tab-navigation';
 import { PlayerInsightsPage } from './PlayerInsightsPage';
@@ -51,6 +52,7 @@ export function AppRouter() {
               <Route path="/tabs/:tabId/fixture/:fixtureId" element={<EnsureValidTab><FixturePage /></EnsureValidTab>} />
               <Route path="/tabs/:tabId/*" element={<TabRootRedirect />} />
 
+              <Route path="/about" element={<AboutPage />} />
               <Route path="/players/:playerId" element={<PlayerPage />} />
               <Route path="/players/:playerId/insights" element={<PlayerInsightsPage />} />
               <Route path="/players/:playerId/matches" element={<PlayerMatchesPage />} />
