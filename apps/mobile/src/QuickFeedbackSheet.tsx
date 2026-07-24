@@ -6,12 +6,19 @@ interface QuickFeedbackSheetProps {
 }
 
 /**
- * Quick feedback bottom sheet. Now built on the shared BottomSheet + FeedbackForm
- * primitives, replacing the hand-rolled tt-feedback-shell + duplicated submit logic.
+ * Quick feedback bottom sheet built on the shared modal and form primitives.
  */
 export function QuickFeedbackSheet({ onClose }: QuickFeedbackSheetProps) {
   return (
-    <BottomSheet isOpen onClose={onClose} title="Send a quick note" eyebrow="Feedback" height="min(680px, 92vh)" className="tt-feedback-quick-sheet">
+    <BottomSheet
+      isOpen
+      onClose={onClose}
+      title="Send a quick note"
+      eyebrow="Feedback"
+      height="min(680px, 92dvh)"
+      className="tt-feedback-quick-sheet"
+      autoFocus
+    >
       <FeedbackForm variant="quick" onSubmitted={onClose} />
     </BottomSheet>
   );
