@@ -10,6 +10,8 @@ export interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const THEME_STORAGE_KEY = 'TTPlayers-Theme';
+const LIGHT_THEME_COLOR = '#f1f8f2';
+const DARK_THEME_COLOR = '#17382f';
 
 function canUseDOM() {
   return typeof window !== 'undefined' && typeof document !== 'undefined';
@@ -22,6 +24,12 @@ function persistTheme(storageKey: string, value: 'dark-mode' | 'light-mode') {
   } catch {
     // Storage can be unavailable in private browsing or embedded contexts.
   }
+}
+
+function syncThemeColor(isDarkMode: boolean) {
+  if (!canUseDOM()) return;
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  meta?.setAttribute('content', isDarkMode ? DARK_THEME_COLOR : LIGHT_THEME_COLOR);
 }
 
 export interface ThemeProviderProps {
@@ -45,6 +53,7 @@ export function ThemeProvider({
     document.body.classList.add('theme-dark');
     document.body.classList.remove('theme-light', 'detect-theme');
     persistTheme(storageKey, 'dark-mode');
+    syncThemeColor(true);
     setIsDarkMode(true);
   };
 
@@ -53,6 +62,7 @@ export function ThemeProvider({
     document.body.classList.add('theme-light');
     document.body.classList.remove('theme-dark', 'detect-theme');
     persistTheme(storageKey, 'light-mode');
+    syncThemeColor(false);
     setIsDarkMode(false);
   };
 
@@ -72,7 +82,9 @@ export function ThemeProvider({
 
   useEffect(() => {
     if (!canUseDOM()) return;
-    setIsDarkMode(document.body.classList.contains('theme-dark'));
+    const nextDarkMode = document.body.classList.contains('theme-dark');
+    syncThemeColor(nextDarkMode);
+    setIsDarkMode(nextDarkMode);
   }, []);
 
   return (
