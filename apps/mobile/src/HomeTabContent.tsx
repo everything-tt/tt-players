@@ -67,7 +67,6 @@ export function HomeTabContent({
   const dashboardQuery = useLeagueCollectionDashboardQuery(scopedLeagueIds, hasLeagueScope);
   const dashboard = dashboardQuery.data ?? null;
 
-  // Only the visible mode loads (replaces the previous double-fire).
   const leadersQuery = useLeadersQuery({
     mode:
       watchListMode === 'active' ? 'most_played' :
@@ -89,7 +88,7 @@ export function HomeTabContent({
   const playerCount = countQuery.data?.players ?? null;
   const matchCount = countQuery.data?.matches ?? null;
   const leagueCount = allLeagues.length;
-  const divisionCount = allLeagues.reduce((s, l) => s + l.divisions.length, 0);
+  const divisionCount = allLeagues.reduce((sum, league) => sum + league.divisions.length, 0);
 
   const formatCount = (value: number | null | undefined, loading = false) => loading ? '…' : formatNumber(value);
 
@@ -137,7 +136,7 @@ export function HomeTabContent({
         <div className="tt-home-summary-header">
           <div>
             <p className="tt-home-summary-kicker">Active season</p>
-            <h1 id="tt-home-summary-title" className="tt-home-summary-title">Your leagues. Your game.</h1>
+            <h2 id="tt-home-summary-title" className="tt-home-summary-title">Your leagues. Your game.</h2>
             <p className="tt-home-summary-sub">{summaryLabel}</p>
           </div>
           <button type="button" className="tt-home-summary-action" onClick={onOpenLeagueSelector}>
@@ -183,14 +182,11 @@ export function HomeTabContent({
                 meta.description;
 
               return (
-                <a
+                <button
                   key={tabId}
-                  href="#"
+                  type="button"
                   className="tt-home-nav-row"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    onOpenTab(tabId);
-                  }}
+                  onClick={() => onOpenTab(tabId)}
                 >
                   <div className="tt-home-nav-icon">
                     <i className={meta.icon} />
@@ -200,7 +196,7 @@ export function HomeTabContent({
                     <span className="tt-home-nav-desc">{description}</span>
                   </div>
                   <i className="fa fa-angle-right tt-home-nav-chevron" />
-                </a>
+                </button>
               );
             })}
           </nav>
