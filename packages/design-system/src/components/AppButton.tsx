@@ -1,8 +1,8 @@
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from 'react';
 import { cx } from '../utils/cx';
 
-// Extended tone set. `primary`/`outline`/`ghost`/`danger` are the new canonical
-// names; `highlight`/`outline-highlight` kept as aliases for back-compat.
+// Extended tone set. `primary`/`outline`/`ghost`/`danger` are the canonical
+// names; `highlight`/`outline-highlight` remain aliases for compatibility.
 export type AppButtonTone =
   | 'highlight' | 'outline-highlight'
   | 'primary' | 'outline' | 'ghost' | 'danger';
@@ -18,7 +18,6 @@ const toneClassName: Record<AppButtonTone, string> = {
   ghost: 'tt-btn--ghost',
   danger: 'tt-btn--danger',
 };
-
 
 export interface AppButtonLinkProps extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'children'> {
   children: ReactNode;
@@ -79,10 +78,12 @@ export function AppButton({
   full = false,
   loading = false,
   disabled,
+  type = 'button',
   ...props
 }: AppButtonProps) {
   return (
     <button
+      type={type}
       className={cx(
         'tt-btn',
         `tt-btn--${size}`,
@@ -93,11 +94,12 @@ export function AppButton({
         className,
       )}
       disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
     >
       {loading ? (
         <>
-          <i className="fa fa-spinner fa-spin me-2" />
+          <i className="fa fa-spinner fa-spin me-2" aria-hidden="true" />
           {children}
         </>
       ) : (
