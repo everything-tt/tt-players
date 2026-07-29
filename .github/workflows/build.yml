@@ -46,6 +46,8 @@ jobs:
       - name: Build frontend
         env:
           VITE_API_URL: /api
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: pnpm --filter @tt-players/mobile build
 
       - name: Deploy to Netlify

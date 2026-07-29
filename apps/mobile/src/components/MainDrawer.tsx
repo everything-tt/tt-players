@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { TAB_METADATA } from '../player-shared';
 import type { AppTabId } from '../navigation/tab-navigation';
 import { AppSwitch } from '../ui/appkit';
+import { useAuth } from '../lib/auth';
 
 const DRAWER_TABS: AppTabId[] = ['home', 'players', 'leagues', 'events', 'h2h'];
 const FOCUSABLE_SELECTOR = [
@@ -43,6 +44,7 @@ export function MainDrawer({
   onShare,
   onThemeChange,
 }: MainDrawerProps) {
+  const auth = useAuth();
   const dialogRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -178,6 +180,41 @@ export function MainDrawer({
               <i className="fa fa-angle-right" aria-hidden="true" />
             </button>
           </div>
+
+          {auth.isConfigured ? (
+            <>
+              <h3 className="tt-drawer__section-title">Account</h3>
+              <div className="tt-drawer__list">
+                {auth.user ? (
+                  <>
+                    <div className="tt-drawer__row" aria-label="Signed in">
+                      <i className="fa fa-user-circle" aria-hidden="true" />
+                      <span>{auth.user.email ?? 'Signed in'}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="tt-drawer__row"
+                      onClick={() => { void auth.signOut(); }}
+                    >
+                      <i className="fa fa-sign-out-alt" aria-hidden="true" />
+                      <span>Sign out</span>
+                      <i className="fa fa-angle-right" aria-hidden="true" />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="tt-drawer__row"
+                    onClick={() => { void auth.signInWithGoogle(); }}
+                  >
+                    <i className="fa fa-sign-in-alt" aria-hidden="true" />
+                    <span>Sign in with Google</span>
+                    <i className="fa fa-angle-right" aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            </>
+          ) : null}
 
           <h3 className="tt-drawer__section-title">Links</h3>
           <div className="tt-drawer__list">
