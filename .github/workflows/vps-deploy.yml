@@ -102,7 +102,7 @@ jobs:
             chmod -R u+rwX,go+rX /opt/tt-players
             sudo -u postgres env DATABASE_URL=postgresql:///tt_players?host=/var/run/postgresql ./scripts/migrate-vps-postgres.sh
             systemctl restart ttp-api ttp-worker
-            sleep 5
+            sleep 10
             systemctl is-active --quiet ttp-api
             systemctl is-active --quiet ttp-worker
             curl -sf http://127.0.0.1:3005/api/health
