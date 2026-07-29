@@ -1,0 +1,24 @@
+[Unit]
+Description=TT Players Graphile Worker (ETL)
+After=network-online.target postgresql.service ttp-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ttp
+Group=ttp
+WorkingDirectory=/opt/tt-players/apps/worker
+EnvironmentFile=/etc/ttp/worker.env
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=HOME=/home/ttp
+ExecStart=/opt/tt-players/apps/worker/node_modules/.bin/tsx src/worker.ts
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/tt-players
+
+[Install]
+WantedBy=multi-user.target

@@ -1,654 +1,394 @@
-# TT Players Deployment
+# TT Players — Deployment
 
-This document records the deployment completed on 2026-06-01 and verified on
-2026-06-02. It is the authoritative reference for the current production
-deployment and replaces the old Netlify/Terraform deployment path.
+> Updated: 2026-07-29
 
-The current production stack is:
+This document is the production deployment runbook for TT Players. It records
+the migration from the previous Render + Aiven stack onto the self-hosted VPS
+used by the other TourneyPilot apps, using the same infrastructure pattern as
+TT Learning Library and TourneyPilot.
 
-- Frontend: Render Static Site, `tt-players`
-- Backend API: Render Web Service, `tt-players-api`
-- Database: Aiven PostgreSQL, `tt-players-db`
-- DNS: Cloudflare zone `graceliu.uk`
-- Custom domain: `tt-players.graceliu.uk`
+## Previous stack (retired)
 
-## Why This Stack
+Until 2026-07-29 the app ran on Render (static site + web service) with Aiven
+PostgreSQL. The Aiven `tt-players-db` free-tier service was deleted (its hostname
+no longer resolves), which took the Render API down. The full source-of-truth
+dataset lived in the local Docker database, so the migration copied that data
+verbatim onto the VPS. The old Render services and `tt-players.graceliu.uk`
+hostname are no longer part of this deployment.
 
-The original deployment split the app across Netlify and Aiven. That worked for
-static hosting, but it made same-domain API routing and regional placement less
-direct. We moved the frontend and backend to Render so the UI and API can be
-operated from one hosting platform, while keeping PostgreSQL on Aiven because
-Aiven provides a free PostgreSQL plan in Europe.
+## Production architecture
 
-The main selection criteria were:
+```text
+Browser
+  |
+  +-- https://ttp.tourneypilot.com
+  |     Netlify (apps/mobile PWA)
+  |       /api/* → https://ttp-api.tourneypilot.com/api/* (proxy, preserves POST)
+  |       /*     → /index.html (SPA fallback)
+  |
+  +-- https://ttp-api.tourneypilot.com
+        Cloudflare Tunnel
+          |
+          +-- http://127.0.0.1:3005
+                Fastify API (systemd: ttp-api)
+                  |
+                  +-- PostgreSQL on 127.0.0.1:5432
+                  |     Database: tt_players
+                  |
+                  +-- Graphile Worker (systemd: ttp-worker)
+                  |     ETL scraping + loading (cron schedule)
+                  |
+                  +-- feedback proxy → https://feedback.graceliu.uk
+```
 
-- Free tier where possible.
-- Backend and database in nearby European regions to reduce latency.
-- Simple custom-domain setup.
-- A same-origin frontend API path, `/api`, so browser code does not need to call
-  the API service hostname directly.
-- External keep-awake pings for the free Render backend, which can spin down
-  after inactivity.
-- CLI or API access for every hosted service so the deployment can be recreated
-  and checked without relying only on dashboards.
+## Public endpoints
 
-Render was selected for both frontend and backend. Aiven was selected for
-PostgreSQL. Cloudflare remains the DNS provider.
+| Endpoint | Purpose | Origin |
+| --- | --- | --- |
+| `https://ttp.tourneypilot.com/` | PWA | Netlify |
+| `https://ttp-api.tourneypilot.com/api/health` | API health (lightweight) | VPS through Cloudflare Tunnel |
+| `https://ttp-api.tourneypilot.com/api/health/db` | API + database health | VPS through Cloudflare Tunnel |
+| `https://ttp.tourneypilot.com/health.json` | Static frontend health | Netlify |
 
-## Current Services
+## Hetzner VPS (shared)
 
-### Render Static Site
+The app shares the `tt-domain` VPS with TT Learning Library and TourneyPilot.
 
-- Service name: `tt-players`
-- Service ID: `srv-d8pui8p194ac739nka20`
-- Type: Static Site
-- Repository: `https://github.com/wudong/tt-players`
-- Branch: `main`
-- Root directory: `.`
-- Build command:
+| Setting | Value |
+| --- | --- |
+| Provider | Hetzner Cloud |
+| Server | `tt-domain` |
+| Public IPv4 | `5.75.166.235` |
+| Operating system | Ubuntu 26.04 LTS, x86_64 |
+| PostgreSQL | 18 (loopback only, `127.0.0.1:5432`) |
+| Application directory | `/opt/tt-players` |
+| Runtime user | `ttp:ttp` |
+
+### Services
+
+Two systemd services run the app:
 
 ```bash
-corepack enable && pnpm install --frozen-lockfile && pnpm --filter @tt-players/mobile build
+systemctl status ttp-api ttp-worker cloudflared postgresql
+journalctl -u ttp-api -n 100 --no-pager
+journalctl -u ttp-worker -n 100 --no-pager
 ```
 
-- Publish path:
+The units are versioned in [`infra/systemd/`](../infra/systemd) and installed as
+`/etc/systemd/system/ttp-api.service` and `/etc/systemd/system/ttp-worker.service`.
 
-```text
-apps/mobile/dist
-```
+The deployed API has:
 
-- Render URL:
+- working directory: `/opt/tt-players/apps/api`
+- process: `tsx src/server.ts` (Node 22 via the workspace `tsx` bin)
+- bind address: `127.0.0.1:3005` (loopback only; `HOST` env)
+- environment file: `/etc/ttp/api.env`
+- restart policy: restart on failure after three seconds
 
-```text
-https://tt-players-hcde.onrender.com
-```
+The worker has:
 
-- Custom domain:
+- working directory: `/opt/tt-players/apps/worker`
+- process: `tsx src/worker.ts` (Graphile Worker, cron-scheduled ETL)
+- environment file: `/etc/ttp/worker.env`
+- restart policy: restart on failure after three seconds
 
-```text
-https://tt-players.graceliu.uk
-```
+PostgreSQL listens only on `127.0.0.1:5432` and `::1:5432`. The production
+database is `tt_players`. It is not exposed to the public internet.
 
-- Custom domain status on 2026-06-24: `verified`
-- Auto deploy: enabled on commits to `main`
+### API environment
 
-Static service environment variables:
+`/etc/ttp/api.env` is readable only by root (systemd reads it as root and passes
+it to the service). It contains:
 
-```text
-NODE_VERSION=20
-VITE_API_URL=/api
-```
-
-The frontend must use the relative API base URL `/api`. This keeps browser
-requests on the same public domain as the UI.
-
-Frontend health endpoint:
-
-```text
-https://tt-players.graceliu.uk/health.json
-```
-
-This is a static file at `apps/mobile/public/health.json`, copied into the Vite
-build and served directly by Render.
-
-### Render API Service
-
-- Service name: `tt-players-api`
-- Service ID: `srv-d8puiavlk1mc739l5lu0`
-- Type: Web Service
-- Runtime: Node
-- Plan: Free
-- Region: Frankfurt
-- Repository: `https://github.com/wudong/tt-players`
-- Branch: `main`
-- Root directory: `.`
-- Build command:
-
-```bash
-pnpm install --frozen-lockfile && pnpm --filter @tt-players/api... build
-```
-
-- Start command:
-
-```bash
-pnpm --filter @tt-players/api start
-```
-
-- Direct Render URL:
-
-```text
-https://tt-players-api-mji9.onrender.com
-```
-
-- Auto deploy: enabled on commits to `main`
-
-API service environment variables:
-
-```text
-NODE_VERSION=20
-ALLOWED_ORIGIN=https://tt-players.graceliu.uk
-DATABASE_URL=postgres://.../tt_players?sslmode=require
+```dotenv
+DATABASE_URL=postgresql://ttp_app:<password>@127.0.0.1:5432/tt_players
+HOST=127.0.0.1
+PORT=3005
+ALLOWED_ORIGIN=https://ttp.tourneypilot.com,https://tt-players.graceliu.uk
 FEEDBACK_SERVICE_URL=https://feedback.graceliu.uk
-NODE_TLS_REJECT_UNAUTHORIZED=0
 ```
 
-`DATABASE_URL` must point at the Aiven PostgreSQL service and must include
-`sslmode=require`. The app also handles this in `packages/db/src/database.ts` by
-enabling TLS for Postgres connection strings that contain `sslmode=require`.
+`/etc/ttp/worker.env` contains:
 
-`NODE_TLS_REJECT_UNAUTHORIZED=0` was added during deployment to work around TLS
-certificate validation against Aiven from Render. The preferred long-term
-hardening is to install and configure Aiven's CA certificate instead of disabling
-certificate verification globally.
-
-Backend health endpoint:
-
-```text
-https://tt-players.graceliu.uk/api/health
+```dotenv
+DATABASE_URL=postgresql://ttp_app:<password>@127.0.0.1:5432/tt_players
+SCRAPE_STARTUP_RECOVERY_ENABLED=true
 ```
 
-This endpoint is intentionally lightweight and does not query PostgreSQL. It is
-safe to use for frequent uptime pings whose purpose is keeping the free Render
-API service warm.
+The `SPORT80_API_TOKEN` has a built-in default; override it here only if needed.
 
-### Shared Feedback Service
+### SSH access
 
-`POST /api/feedback` remains the app-facing endpoint. The API validates the
-request and proxies POST submissions only to the shared service:
+The normal operator path uses the Cloudflare Tunnel (already configured for
+`vps.tourneypilot.com`). The local SSH alias is `tt-domain`:
 
-```text
-JSON feedback        → POST https://feedback.graceliu.uk/feedback
-Feedback screenshots → POST https://feedback.graceliu.uk/feedback/multipart
-app_id                → tt-players
+```sshconfig
+Host tt-domain vps.tourneypilot.com
+    HostName vps.tourneypilot.com
+    User root
+    IdentityFile ~/.ssh/tt-domain-rescue
+    IdentitiesOnly yes
+    ProxyCommand /opt/homebrew/bin/cloudflared access ssh --hostname %h
+    StrictHostKeyChecking accept-new
 ```
 
-The shared service runs on Cloud Run in GCP project `wudong-agent-master`.
-Feedback administration is centralized at:
+GitHub Actions connects directly to port 22 on `5.75.166.235` with the
+`VPS_HOST`, `VPS_USER`, and `VPS_SSH_KEY` secrets (a dedicated deploy key whose
+public key is in `/root/.ssh/authorized_keys`).
 
-```text
-https://feedback.graceliu.uk/admin
-```
+## Cloudflare
 
-The admin Bearer token is stored in GCP Secret Manager as
-`feedback-admin-token`; it must never be exposed to the frontend or committed.
-`FEEDBACK_SERVICE_URL` is optional and defaults to the production URL above.
-Keeping the proxy means the frontend continues to use same-origin `/api`
-requests and only POST feedback traffic is sent to the shared service.
+DNS and the tunnel live in the `tourneypilot.com` Cloudflare zone. The named
+tunnel `tt-domain` (tunnel ID `e0b3147c-983e-46bf-b5cf-e6f443e3ab63`) is shared
+with the other apps. The TT Players ingress rule added to the tunnel:
 
-On 2026-07-06, 22 existing feedback rows and 11 screenshot attachments were
-migrated from `staging.feedback` and `staging.feedback_attachments`. Original
-UUIDs, timestamps, contact fields, context, screenshots, and GitHub issue links
-were preserved. The old tables remain in place as a rollback/archive source but
-receive no new submissions after this proxy deployment.
+| Public hostname | Tunnel origin |
+| --- | --- |
+| `ttp-api.tourneypilot.com` | `http://127.0.0.1:3005` |
 
-### Render Static Rewrite
+`cloudflared` runs as a systemd service with a token file
+(`/etc/cloudflared/token`). Tunnel ingress is remote-managed via the Cloudflare
+API (token in GCP Secret Manager `ttlive-domain-cloudflare-tunnel-api-token`).
 
-The frontend service has two Render rewrite routes:
+### DNS records
 
-```text
-source: /api/*
-destination: https://tt-players-api-mji9.onrender.com/api/*
-type: rewrite
-route_id: rdr-d8toaf8js32c73c0eof0
-```
+| Hostname | Type | Target | Proxied | SSL |
+| --- | --- | --- | --- | --- |
+| `ttp.tourneypilot.com` | CNAME | `ttp-players.netlify.app` | No (DNS only) | Netlify (Let's Encrypt) |
+| `ttp-api.tourneypilot.com` | CNAME | `e0b3147c….cfargotunnel.com` | Yes | Cloudflare |
 
-```text
-source: /*
-destination: /index.html
-type: rewrite
-```
+The frontend CNAME is intentionally **unproxied (DNS only)** so Netlify
+provisions and renews its own Let's Encrypt certificate. Cloudflare Universal SSL
+does not cover deeper subdomains, so never proxy the Netlify CNAME through
+Cloudflare without an explicit SSL plan.
 
-The `/api/*` rule proxies browser API calls to the backend without exposing the API hostname in frontend code. The catch-all `/*` rule is required for the React SPA router so deep links such as `/players/:playerId` load the app shell directly on refresh or first visit.
+## Netlify frontend
 
-**Important:** When Render services are recreated, the API service gets a new
-`.onrender.com` hostname slug, and the static rewrite must be updated to match.
-Failing to do so will return `x-render-routing: no-server` for all API requests
-through the custom domain. See "2026-06-24 Outage" in Deployment History.
+Netlify serves the PWA built from `apps/mobile`. The build is produced by
+[`.github/workflows/build.yml`](../.github/workflows/build.yml) and
+`apps/mobile/dist` is deployed with the `nwtgck/actions-netlify` action.
 
-### Aiven PostgreSQL
+- Site name: `ttp-players` (`https://ttp-players.netlify.app`)
+- Site ID: `29f4fa3e-28d4-4b33-a3d4-5ee55ba07fb3`
+- Custom domain: `ttp.tourneypilot.com`
 
-- Service name: `tt-players-db`
-- Database name: `tt_players`
-- Plan: `free-1-5gb`
-- Cloud/region: `do-fra`
-- PostgreSQL version: 17
-- Public PostgreSQL access: enabled
+[`netlify.toml`](../netlify.toml) provides:
 
-The original Aiven database was in `do-nyc`. We replaced it with a new Aiven
-PostgreSQL service in `do-fra` so it is close to the Render API service in
-Frankfurt. The old remote database was empty before deletion. The local database
-was never deleted.
+- `/api/*` proxy to `https://ttp-api.tourneypilot.com/api/:splat` (force)
+- SPA fallback `/*` → `/index.html`
+- Immutable caching for hashed assets; no-cache for the service worker
 
-### Cloudflare DNS
+The frontend is built with `VITE_API_URL=/api` so browser calls are same-origin
+and proxied by Netlify to the VPS API. `apps/mobile/public/_redirects` mirrors
+the `netlify.toml` routing so the published artifact stays consistent.
 
-- Zone: `graceliu.uk`
-- Nameservers observed:
+## PostgreSQL and migrations
 
-```text
-elinore.ns.cloudflare.com
-piotr.ns.cloudflare.com
-```
+The application database runs on the VPS PostgreSQL instance. Schema and
+migrations are managed by Kysely in the `@tt-players/db` workspace package:
 
-- Production app hostname:
+- `packages/db/src/migrations/` — numbered incremental migrations.
+- `packages/db/src/migrate.ts` — the Kysely migration CLI.
 
-```text
-tt-players.graceliu.uk
-```
+[`scripts/migrate-vps-postgres.sh`](../scripts/migrate-vps-postgres.sh):
 
-The hostname is registered as a custom domain on the Render static service and
-verified by Render. DNS is managed in Cloudflare.
+1. runs the Kysely migrator as the PostgreSQL superuser (the app role
+   `ttp_app` is DML-only and cannot run DDL);
+2. applies [`infra/postgres/9999_application_grants.sql`](../infra/postgres/9999_application_grants.sql),
+   which grants `ttp_app` DML on `public`/`staging` and ownership/CREATE on the
+   `graphile_worker` schema (the worker self-manages it and bypasses its RLS).
 
-## Code Changes Made For Deployment
-
-The deployment required these repository changes:
-
-- Added API production scripts so Render can run the Fastify API directly:
-
-```json
-{
-  "build": "tsc -p tsconfig.json --noEmit",
-  "start": "tsx src/server.ts"
-}
-```
-
-- Pinned pnpm at the workspace root:
-
-```json
-{
-  "packageManager": "pnpm@10.24.0"
-}
-```
-
-- Excluded API tests from the production TypeScript build. Render builds on
-  Linux exposed a `supertest` type error from `src/__tests__`; production builds
-  should not compile tests.
-
-- Enabled Aiven TLS handling in the shared DB package when `sslmode=require` is
-  present in `DATABASE_URL`.
-
-- Changed API CORS to accept a comma-separated `ALLOWED_ORIGIN`, covering both
-  the Render default domain and the custom domain.
-
-- Changed the frontend API base URL to `/api` on Render.
-
-- Added a Render static rewrite from `/api/*` to the API service.
-
-## Deployment History
-
-Important commits from the migration:
-
-```text
-7bc87d1 Add Render API start scripts
-245adc7 Pin pnpm for Render builds
-aba66aa Run API service directly on Render
-44272f2 Exclude API tests from production build
-9372816 Allow Aiven TLS for Postgres connections
-0233bf0 Allow multiple API CORS origins
-```
-
-The latest verified live Render deploys were:
-
-- API deploy: `dep-d8sjabmq1p3s73bop1lg`
-- Static deploy: `dep-d8tg5t5aeets73ehq5f0`
-- Commit: `2ccb01af49f588d066e44b53a955209c5a4c3e0b`
-- Status: `live`
-
-### 2026-06-24 Outage — Stale Rewrite Route After Service Recreation
-
-On 2026-06-18, both Render services were recreated (new service IDs and URL
-slugs). The static site's `/api/*` rewrite route still pointed to the old API
-hostname (`tt-players-api.onrender.com`), which returned
-`x-render-routing: no-server` because no backend was associated with that
-hostname. The new API service was healthy at
-`tt-players-api-mji9.onrender.com` but unreachable through the custom domain.
-
-**Root cause:** Render static rewrite rules are not automatically updated when
-the target web service is deleted and recreated.
-
-**Fix applied 2026-06-24:** Deleted the stale rewrite route
-(`rdr-d8tg7h5aeets73ehs33g`) and recreated it pointing to the current API
-service URL (`tt-players-api-mji9.onrender.com`). New route ID:
-`rdr-d8toaf8js32c73c0eof0`.
-
-**Prevention:** After recreating a Render web service, always:
-1. Note the new `.onrender.com` hostname.
-2. Check the static site rewrite routes and update the `/api/*` destination.
-3. Run the full Post-Deploy Verification checklist.
-
-## Local Database Safety And Migration
-
-The local database contains the source data and must not be deleted.
-
-### Schema Segregation Recommendation
-As the scrape history grows, the local database size will exceed the free 1.5 GB limit of the Aiven PostgreSQL cluster (reaching over 2.2 GB with indexes). To operate within the limit, we recommend segregating the database tables:
-- **Scrape & Auxiliary Schema (Local only)**: Heavy logging and staging data (`raw_scrape_logs`, `ranking_entries`) that contain verbose JSON/HTML payloads. These are only needed locally for ETL processing and are never queried by the Fastify REST API. Excluding their data saves ~1.9 GB of database space.
-- **Canonical Schema (Production / API)**: Clean, structured tables required by the REST API (`leagues`, `competitions`, `teams`, `fixtures`, `rubbers`, `external_players`, `source_events`, `source_event_result_rows` with payloads excluded).
-
-### Pruned Backup Creation
-When backing up the local database for production upload, always run a pruned dump that excludes the raw audit and staging data using `--exclude-table-data`:
+The deploy workflow runs the migrator as the PostgreSQL operating-system user:
 
 ```bash
-mkdir -p backups
-backup_path="backups/tt_players_local_pruned_$(date -u +%Y%m%dT%H%M%SZ).dump"
-
-# Dump the full schema structure but exclude the massive raw scrape/ranking data payloads
-pg_dump --format=custom --no-owner --no-acl \
-  --exclude-table-data="raw_scrape_logs" \
-  --exclude-table-data="ranking_entries" \
-  --file "$backup_path" \
-  "$LOCAL_DATABASE_URL"
-
-shasum -a 256 "$backup_path" > "$backup_path.sha256"
-pg_restore --list "$backup_path" > /dev/null
-```
-This produces a compact dump (~219 MB) that safely fits on the Aiven free plan.
-
-### Recovering From Aiven Read-Only Lock
-If a full database upload is attempted, Aiven will hit its 1.5 GB threshold, fail the restore, and lock the cluster into a read-only transaction state (`cannot execute ALTER TABLE in a read-only transaction`). To recover:
-1. Log in to your Aiven web console.
-2. Under the `tt-players-db` service, go to **Databases** and delete the `tt_players` database.
-3. Re-create the `tt_players` database. This drops disk usage back to 0 and immediately deactivates the read-only lock.
-4. Restore the pruned dump to Aiven:
-
-```bash
-pg_restore --clean --if-exists --no-owner --no-acl \
-  --dbname "$REMOTE_DATABASE_URL" \
-  backups/tt_players_local_pruned_YYYYMMDDTHHMMSSZ.dump
+sudo -u postgres env DATABASE_URL=postgresql:///tt_players?host=/var/run/postgresql \
+  ./scripts/migrate-vps-postgres.sh
 ```
 
-Use a fresh remote database or an explicitly approved empty remote database for restore. Never point destructive restore commands at the local database.
+Migrations are forward-only. The migration table is `kysely_migration`.
 
-## Recreating The Deployment
+## Database provisioning and data copy
 
-### Prerequisites
+The production database was populated from the local Docker source-of-truth
+database (the Aiven production database had been deleted). The procedure below
+is the authoritative way to (re)seed the VPS database with no data loss.
 
-Install and authenticate these CLIs:
+1. Create the role and database on the VPS:
 
-```bash
-render --version
-avn --version
-wrangler --version
-```
+   ```bash
+   ssh tt-domain
+   useradd --system --create-home --shell /usr/sbin/nologin ttp
+   mkdir -p /opt/tt-players /etc/ttp && chmod 700 /etc/ttp
+   openssl rand -base64 30 > /etc/ttp/.db_password && chmod 600 /etc/ttp/.db_password
+   PW=$(cat /etc/ttp/.db_password)
+   sudo -u postgres psql -c "CREATE ROLE ttp_app LOGIN PASSWORD '$PW';"
+   sudo -u postgres createdb -O postgres tt_players
+   ```
 
-Render CLI was authenticated during verification. Aiven CLI and Wrangler were
-installed, but this shell did not have usable auth for them on 2026-06-02. For a
-fresh recreation, log in before running provider commands:
+2. Take a full dump from the source database (custom format, all schemas):
 
-```bash
-render login
-avn user login
-wrangler login
-```
+   ```bash
+   docker exec tt_players_postgres pg_dump -U postgres -d tt_players \
+     --format=custom --no-owner --no-acl > tt_players_full.dump
+   shasum -a 256 tt_players_full.dump
+   ```
 
-Also install local database tools:
+3. Transfer and verify the checksum, then restore:
 
-```bash
-psql --version
-pg_dump --version
-pg_restore --version
-```
+   ```bash
+   rsync -az tt_players_full.dump tt-domain:/tmp/tt_players_full.dump
+   ssh tt-domain 'sha256sum /tmp/tt_players_full.dump'   # must match source
+   ssh tt-domain 'sudo -u postgres pg_restore --no-owner --no-acl --exit-on-error \
+     --dbname "postgresql:///tt_players?host=/var/run/postgresql" \
+     /tmp/tt_players_full.dump'
+   ```
 
-### 1. Create The Aiven Database
+4. Apply grants and run pending migrations:
 
-Create a PostgreSQL service in Europe, preferably `do-fra`, on the free plan:
+   ```bash
+   ssh tt-domain 'sudo -u postgres psql -d tt_players \
+     --file /opt/tt-players/infra/postgres/9999_application_grants.sql'
+   ssh tt-domain 'sudo -u postgres env DATABASE_URL=postgresql:///tt_players?host=/var/run/postgresql \
+     /usr/local/bin/bun /opt/tt-players/packages/db/src/migrate.ts'
+   ```
 
-```bash
-avn service create tt-players-db \
-  --service-type pg \
-  --cloud do-fra \
-  --plan free-1-5gb \
-  --project "$AIVEN_PROJECT"
-```
+5. Write the env files (`/etc/ttp/api.env`, `/etc/ttp/worker.env`) using the
+   password from `/etc/ttp/.db_password`, install the systemd units, and start
+   the services.
 
-Create or confirm the application database:
+### Expected row counts (post-copy verification)
 
-```bash
-avn service database-create tt-players-db tt_players \
-  --project "$AIVEN_PROJECT"
-```
+The restored database must match the source exactly:
 
-Fetch the connection string and store it securely:
+| Table | Rows |
+| --- | --- |
+| `public.leagues` | 193 |
+| `public.seasons` | 1,126 |
+| `public.competitions` | 10,479 |
+| `public.teams` | 26,662 |
+| `public.fixtures` | 221,054 |
+| `public.rubbers` | 2,714,524 |
+| `public.external_players` | 140,454 |
+| `staging.raw_scrape_logs` | 127,905 |
+| `staging.ranking_entries` | 2,246,477 |
+| `staging.source_event_result_rows` | 807,828 |
 
-```bash
-avn service get tt-players-db --project "$AIVEN_PROJECT"
-avn service connection-info tt-players-db --project "$AIVEN_PROJECT"
-```
+## GitHub Actions
 
-The final `DATABASE_URL` used by Render must include:
+### Frontend: Build and Deploy
+
+Workflow: [`.github/workflows/build.yml`](../.github/workflows/build.yml)
+
+Triggers: pushes to `main` (frontend paths) and pull requests. Builds the PWA
+with Vite and deploys to Netlify. Pull requests receive preview deployments.
+
+### Backend: Deploy API and Database to VPS
+
+Workflow: [`.github/workflows/vps-deploy.yml`](../.github/workflows/vps-deploy.yml)
+
+Triggers: relevant API/worker/infra/migration/shared package changes pushed to
+`main`, plus manual `workflow_dispatch`. The production job:
+
+1. installs dependencies and typechecks;
+2. runs the database test suite against a Postgres service container;
+3. configures SSH from `VPS_*` secrets;
+4. `rsync --delete` updates `/opt/tt-players`;
+5. `pnpm install --frozen-lockfile` on the VPS and fixes ownership;
+6. applies PostgreSQL migrations;
+7. restarts `ttp-api` and `ttp-worker`;
+8. verifies the services and `https://ttp-api.tourneypilot.com/api/health`.
+
+Deployments are serialized by the `vps-production-ttp` concurrency group.
+
+## GitHub Actions secrets
+
+| Secret | Used for |
+| --- | --- |
+| `NETLIFY_AUTH_TOKEN` | Authenticate Netlify deployment |
+| `NETLIFY_SITE_ID` | Select the `ttp-players` Netlify site |
+| `VPS_HOST` | Deployment SSH host (`5.75.166.235`) |
+| `VPS_USER` | Deployment SSH user (`root`) |
+| `VPS_SSH_KEY` | Deployment private key (pubkey in VPS `/root/.ssh/authorized_keys`) |
+
+## Google Cloud Secret Manager
+
+Operational credentials are stored in Google Cloud Secret Manager project
+`wudong-agent-master`. Relevant secret IDs for this app:
 
 ```text
-?sslmode=require
+tt-players-hetzner-db-password
+tt-players-hetzner-vps-deploy-key
+tt-players-netlify-site-id
+ttlive-domain-cloudflare-tunnel-api-token   (shared tunnel/DNS management)
 ```
 
-### 2. Back Up And Restore Data
+The `ttlive-domain-cloudflare-tunnel-api-token` is shared with the other apps on
+this VPS; it grants Cloudflare Tunnel configuration and `tourneypilot.com` DNS
+edits.
 
-Back up local PostgreSQL first, then restore to the remote Aiven database. Use
-the commands in the "Local Database Safety And Migration" section.
-
-After restore, verify representative row counts:
+## Post-deploy verification
 
 ```bash
-psql "$REMOTE_DATABASE_URL" -c "
-select 'external_players' as table_name, count(*) from external_players
-union all select 'fixtures', count(*) from fixtures
-union all select 'leagues', count(*) from leagues
-union all select 'raw_scrape_logs', count(*) from raw_scrape_logs
-union all select 'rubbers', count(*) from rubbers
-order by table_name;
-"
+# Backend (through tunnel)
+curl --fail https://ttp-api.tourneypilot.com/api/health
+curl --fail https://ttp-api.tourneypilot.com/api/health/db
+curl -s https://ttp-api.tourneypilot.com/api/players/count
+curl -s https://ttp-api.tourneypilot.com/api/leagues | python3 -c "import sys,json;d=json.load(sys.stdin);print(len(d.get('data',d)),'leagues')"
+
+# Frontend (Netlify) + /api proxy
+curl --fail https://ttp.tourneypilot.com/health.json
+curl --fail https://ttp.tourneypilot.com/api/health
+curl -s https://ttp.tourneypilot.com/api/players/count
+
+# Services on the VPS
+ssh tt-domain 'systemctl is-active ttp-api ttp-worker cloudflared postgresql'
+ssh tt-domain 'curl -sf http://127.0.0.1:3005/api/health/db'
 ```
 
-### 3. Create The Render API Service
+Expected: health endpoints `200`, `192` leagues via the API, `138941` players.
 
-Create a Render Web Service from the GitHub repository:
+## Troubleshooting
 
-```text
-Repository: https://github.com/wudong/tt-players
-Branch: main
-Root directory: .
-Runtime: Node
-Region: Frankfurt
-Plan: Free
-Build command: pnpm install --frozen-lockfile && pnpm --filter @tt-players/api... build
-Start command: pnpm --filter @tt-players/api start
-```
-
-Set environment variables:
-
-```text
-NODE_VERSION=20
-DATABASE_URL=postgres://.../tt_players?sslmode=require
-ALLOWED_ORIGIN=https://tt-players.graceliu.uk
-NODE_TLS_REJECT_UNAUTHORIZED=0
-```
-
-Deploy and verify:
+### API returns 502 or is unavailable
 
 ```bash
-curl -fsS https://tt-players-api-mji9.onrender.com/api/leagues
-curl -fsS https://tt-players-api-mji9.onrender.com/api/health
+ssh tt-domain
+systemctl status ttp-api ttp-worker cloudflared
+journalctl -u ttp-api -n 200 --no-pager
+curl -sf http://127.0.0.1:3005/api/health
 ```
 
-### 4. Create The Render Static Site
+If the local check works but the public check fails, inspect `cloudflared` and
+the tunnel ingress rule for `ttp-api.tourneypilot.com`.
 
-Create a Render Static Site from the same GitHub repository:
+### Worker fails with row-level security errors
 
-```text
-Repository: https://github.com/wudong/tt-players
-Branch: main
-Root directory: .
-Build command: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @tt-players/mobile build
-Publish path: apps/mobile/dist
-```
-
-Set environment variables:
-
-```text
-NODE_VERSION=20
-VITE_API_URL=/api
-```
-
-Add this rewrite route to the static service:
-
-```text
-source: /api/*
-destination: https://tt-players-api-mji9.onrender.com/api/*
-type: rewrite
-```
-
-Deploy and verify:
+The worker must own the `graphile_worker` objects. Re-run the grants file, which
+transfers ownership to `ttp_app`:
 
 ```bash
-curl -fsS https://tt-players-hcde.onrender.com/api/leagues
-curl -fsS https://tt-players-hcde.onrender.com/health.json
+ssh tt-domain 'sudo -u postgres psql -d tt_players \
+  --file /opt/tt-players/infra/postgres/9999_application_grants.sql'
+systemctl restart ttp-worker
 ```
 
-### 5. Register The Custom Domain
-
-Register `tt-players.graceliu.uk` on the Render static service.
-
-In Cloudflare DNS, point the hostname to Render using the DNS target Render
-provides for the custom domain. After DNS propagates, Render should report the
-custom domain as verified.
-
-Verify:
+### Database errors
 
 ```bash
-dig tt-players.graceliu.uk
-curl -fsS https://tt-players.graceliu.uk
-curl -fsS https://tt-players.graceliu.uk/health.json
-curl -fsS https://tt-players.graceliu.uk/api/health
-curl -fsS https://tt-players.graceliu.uk/api/leagues
+ssh tt-domain
+systemctl status postgresql
+sudo -u postgres psql -d tt_players -c "select count(*) from kysely_migration;"
 ```
 
-### 6. Configure Keep-Awake Pings
-
-Render free web services can spin down after a period of inactivity. The next
-request wakes the service again, but that cold start is user-visible. To keep the
-API warm, configure an external cron ping.
-
-Use cron-job.org:
-
-```text
-Dashboard: https://console.cron-job.org/dashboard
-Job name: tt-players-api-health
-Job ID: 7721638
-URL: https://tt-players.graceliu.uk/api/health
-Method: GET
-Schedule: every 10 minutes
-Expected HTTP status: 200
-```
-
-The API health URL is the important keep-awake target because it reaches the
-Render web service. The frontend health URL can also be monitored, but it is a
-static site and does not need a keep-awake ping.
-
-Optional frontend monitor:
-
-```text
-Job name: tt-players-frontend-health
-URL: https://tt-players.graceliu.uk/health.json
-Method: GET
-Schedule: every 10 minutes
-Expected HTTP status: 200
-```
-
-Keep the interval below Render's idle timeout. Ten minutes was chosen because it
-is comfortably below the observed 15 minute spin-down window without creating
-meaningful load.
-
-## Post-Deploy Verification
-
-Run these checks after every deployment:
+## Local development
 
 ```bash
-for url in \
-  https://tt-players.graceliu.uk/health.json \
-  https://tt-players-api-mji9.onrender.com/api/health \
-  https://tt-players-hcde.onrender.com/api/health \
-  https://tt-players.graceliu.uk/api/health \
-  https://tt-players.graceliu.uk/players/00000000-0000-0000-0000-000000000000 \
-  https://tt-players-api-mji9.onrender.com/api/leagues \
-  https://tt-players.graceliu.uk/api/leagues
-do
-  printf "%s " "$url"
-  tmp=$(mktemp)
-  curl -sS -o "$tmp" -w "%{http_code} %{content_type}" --max-time 45 "$url"
-  node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); console.log(Array.isArray(x.data) ? ' items=' + x.data.length : ' status=' + x.status)" "$tmp"
-  rm -f "$tmp"
-done
+docker compose up -d
+pnpm install
+pnpm db:migrate
+pnpm db:seed
+pnpm dev
 ```
 
-Expected result:
-
-```text
-health URLs: 200
-league URLs: 200 application/json; charset=utf-8 items=192
-```
-
-Check that the frontend bundle does not hardcode the API service hostname:
-
-```bash
-html=$(curl -sS https://tt-players.graceliu.uk)
-js=$(printf '%s' "$html" | rg -o '/assets/index-[^" ]+\.js' | head -1)
-curl -sS "https://tt-players.graceliu.uk$js" | node -e "
-let s='';
-process.stdin.on('data', d => s += d);
-process.stdin.on('end', () => {
-  console.log({
-    hasApiSubdomain: s.includes('tt-players-api-mji9.onrender.com'),
-    hasSlashApi: s.includes('/api'),
-  });
-});
-"
-```
-
-Expected result:
-
-```text
-{ hasApiSubdomain: false, hasSlashApi: true }
-```
-
-## Provider Inspection Commands
-
-Render:
-
-```bash
-render services --output json
-
-API_KEY=$(awk '/key:/ {print $2; exit}' ~/.render/cli.yaml)
-curl -H "Authorization: Bearer $API_KEY" \
-  https://api.render.com/v1/services/srv-d8pui8p194ac739nka20/routes
-curl -H "Authorization: Bearer $API_KEY" \
-  https://api.render.com/v1/services/srv-d8pui8p194ac739nka20/custom-domains
-```
-
-Aiven:
-
-```bash
-avn service list --project "$AIVEN_PROJECT"
-avn service get tt-players-db --project "$AIVEN_PROJECT"
-avn service connection-info tt-players-db --project "$AIVEN_PROJECT"
-```
-
-Cloudflare:
-
-```bash
-wrangler whoami
-dig NS graceliu.uk
-dig tt-players.graceliu.uk
-```
-
-## Retired Deployment Files
-
-The old Netlify/Terraform deployment path has been removed because it no longer
-matches production:
-
-- `infra/terraform/`
-- `netlify.toml`
-- `netlify/functions/api.ts`
-
-The retired Terraform described a Netlify deployment and an older Aiven region
-and plan. Keeping it would make future deployment work error-prone. The current
-reference implementation is this document plus the Render/Aiven/Cloudflare
-provider configuration.
+The local web origin is `http://localhost:7474` and the API listens on
+`http://localhost:4003`. PostgreSQL is required.

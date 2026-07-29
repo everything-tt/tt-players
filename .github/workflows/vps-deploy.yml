@@ -1,0 +1,112 @@
+name: Deploy API and Database to VPS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'apps/worker/**'
+      - 'infra/**'
+      - 'scripts/migrate-vps-postgres.sh'
+      - 'packages/db/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/vps-deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: vps-production-ttp
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm --filter @tt-players/api... build
+
+      - name: Test
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+        run: pnpm test
+
+      - name: Configure SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload release
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          rsync -az --delete \
+            --exclude .git \
+            --exclude node_modules \
+            --exclude dist \
+            --exclude test-results \
+            --exclude .env \
+            --exclude docker-compose.yml \
+            --exclude backups \
+            --exclude .playwright-cli \
+            --exclude '*.dump' \
+            ./ "$VPS_USER@$VPS_HOST:/opt/tt-players/"
+
+      - name: Migrate and restart
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh "$VPS_USER@$VPS_HOST" '
+            set -eu
+            cd /opt/tt-players
+            pnpm install --frozen-lockfile
+            chown -R ttp:ttp /opt/tt-players
+            chmod -R u+rwX,go+rX /opt/tt-players
+            sudo -u postgres env DATABASE_URL=postgresql:///tt_players?host=/var/run/postgresql ./scripts/migrate-vps-postgres.sh
+            systemctl restart ttp-api ttp-worker
+            sleep 5
+            systemctl is-active --quiet ttp-api
+            systemctl is-active --quiet ttp-worker
+            curl -sf http://127.0.0.1:3005/api/health
+          '
+
+      - name: Verify production health
+        run: curl --fail --retry 10 --retry-delay 3 https://ttp-api.tourneypilot.com/api/health
