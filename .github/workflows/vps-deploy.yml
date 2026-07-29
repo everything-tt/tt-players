@@ -97,7 +97,7 @@ jobs:
           ssh "$VPS_USER@$VPS_HOST" '
             set -eu
             cd /opt/tt-players
-            pnpm install --frozen-lockfile
+            CI=true pnpm install --frozen-lockfile
             chown -R ttp:ttp /opt/tt-players
             chmod -R u+rwX,go+rX /opt/tt-players
             sudo -u postgres env DATABASE_URL=postgresql:///tt_players?host=/var/run/postgresql ./scripts/migrate-vps-postgres.sh
