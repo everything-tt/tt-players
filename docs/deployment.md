@@ -192,8 +192,12 @@ migrations are managed by Kysely in the `@tt-players/db` workspace package:
 
 [`scripts/migrate-vps-postgres.sh`](../scripts/migrate-vps-postgres.sh):
 
-1. runs the Kysely migrator as the PostgreSQL superuser (the app role
-   `ttp_app` is DML-only and cannot run DDL);
+1. runs the Kysely migrator (`packages/db/src/migrate.ts`) with **`bun`** as the
+   PostgreSQL superuser. `bun` is used (not `pnpm`) because the script runs as
+   the `postgres` OS user, which has only read access to `/opt/tt-players`; `bun`
+   runs the TypeScript directly without writing temp files into the project
+   directory, whereas `pnpm run` does. The app role `ttp_app` is DML-only and
+   cannot run DDL.
 2. applies [`infra/postgres/9999_application_grants.sql`](../infra/postgres/9999_application_grants.sql),
    which grants `ttp_app` DML on `public`/`staging` and ownership/CREATE on the
    `graphile_worker` schema (the worker self-manages it and bypasses its RLS).
@@ -256,9 +260,17 @@ is the authoritative way to (re)seed the VPS database with no data loss.
    password from `/etc/ttp/.db_password`, install the systemd units, and start
    the services.
 
+A copy of the full restore dump is kept on the VPS at
+`/root/tt_players_full_20260729.dump` (784 MB) as an on-VPS re-seed source; the
+original also lives in the repo's `backups/` directory.
+
 ### Expected row counts (post-copy verification)
 
-The restored database must match the source exactly:
+These are the **restore-time baselines** — the restored database must match the
+source exactly at the moment of restore. The `ttp-worker` keeps scraping, so
+`staging.raw_scrape_logs` and the ranking/source-event tables grow over time
+(e.g. `raw_scrape_logs` rose from 127,905 to 127,950 within minutes of the worker
+starting). The counts below are the post-restore snapshot:
 
 | Table | Rows |
 | --- | --- |
@@ -293,7 +305,10 @@ Triggers: relevant API/worker/infra/migration/shared package changes pushed to
 2. runs the database test suite against a Postgres service container;
 3. configures SSH from `VPS_*` secrets;
 4. `rsync --delete` updates `/opt/tt-players`;
-5. `pnpm install --frozen-lockfile` on the VPS and fixes ownership;
+5. `CI=true pnpm install --frozen-lockfile` on the VPS (the `CI=true` is
+   required so pnpm reconciles `node_modules` non-interactively, since the VPS
+   `pnpm` may differ from the corepack-pinned version that built the tree) and
+   fixes ownership;
 6. applies PostgreSQL migrations;
 7. restarts `ttp-api` and `ttp-worker`;
 8. verifies the services and `https://ttp-api.tourneypilot.com/api/health`.
