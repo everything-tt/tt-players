@@ -43,6 +43,16 @@ conservative_rating = rating - 2 * rating_deviation
 
 A player is provisional while they have fewer than 10 rated matches or a deviation above 110.
 
+## Historical corrections
+
+The v1 checkpoint is forward-only. If a rubber or fixture dated on or before the committed
+`last_processed_date` is inserted or corrected later, rebuild the model so all later periods are
+replayed from the corrected history:
+
+```bash
+pnpm --filter @tt-players/worker ratings:calculate -- --rebuild
+```
+
 ## Running the backfill
 
 After applying database migrations:
