@@ -224,19 +224,44 @@ async function processNextPeriod(
         );
 
         const nextDateResult = await sql<NextDateRow>`
-            SELECT MIN(COALESCE(r.played_at::date, f.date_played)) AS next_date
-            FROM rubbers r
-            JOIN fixtures f ON f.id = r.fixture_id
-            WHERE r.deleted_at IS NULL
-              AND f.deleted_at IS NULL
-              AND r.is_doubles = false
-              AND r.outcome_type = 'normal'
-              AND r.home_player_1_id IS NOT NULL
-              AND r.away_player_1_id IS NOT NULL
-              AND r.home_games_won <> r.away_games_won
-              AND COALESCE(r.played_at::date, f.date_played) IS NOT NULL
-              AND COALESCE(r.played_at::date, f.date_played)
-                    > COALESCE(${lastProcessedDate}::date, '-infinity'::date)
+            SELECT MIN(candidate_date) AS next_date
+            FROM (
+                (
+                    SELECT r.played_at::date AS candidate_date
+                    FROM rubbers r
+                    WHERE r.deleted_at IS NULL
+                      AND r.played_at IS NOT NULL
+                      AND r.played_at >= (COALESCE(${lastProcessedDate}::date, '-infinity'::date) + 1)::timestamp
+                      AND r.is_doubles = false
+                      AND r.outcome_type = 'normal'
+                      AND r.home_player_1_id IS NOT NULL
+                      AND r.away_player_1_id IS NOT NULL
+                      AND r.home_games_won <> r.away_games_won
+                    ORDER BY r.played_at ASC
+                    LIMIT 1
+                )
+                UNION ALL
+                (
+                    SELECT f.date_played AS candidate_date
+                    FROM fixtures f
+                    WHERE f.deleted_at IS NULL
+                      AND f.date_played > COALESCE(${lastProcessedDate}::date, '-infinity'::date)
+                      AND EXISTS (
+                          SELECT 1
+                          FROM rubbers r
+                          WHERE r.fixture_id = f.id
+                            AND r.deleted_at IS NULL
+                            AND r.played_at IS NULL
+                            AND r.is_doubles = false
+                            AND r.outcome_type = 'normal'
+                            AND r.home_player_1_id IS NOT NULL
+                            AND r.away_player_1_id IS NOT NULL
+                            AND r.home_games_won <> r.away_games_won
+                      )
+                    ORDER BY f.date_played ASC
+                    LIMIT 1
+                )
+            ) candidates
         `.execute(trx);
         const nextDate = toDateString(nextDateResult.rows[0]?.next_date ?? null);
 
@@ -253,23 +278,43 @@ async function processNextPeriod(
         }
 
         const matchResult = await sql<MatchRow>`
+            WITH period_rubbers AS (
+                SELECT r.*
+                FROM rubbers r
+                WHERE r.deleted_at IS NULL
+                  AND r.played_at >= ${nextDate}::date
+                  AND r.played_at < (${nextDate}::date + 1)
+                  AND r.is_doubles = false
+                  AND r.outcome_type = 'normal'
+                  AND r.home_player_1_id IS NOT NULL
+                  AND r.away_player_1_id IS NOT NULL
+                  AND r.home_games_won <> r.away_games_won
+
+                UNION ALL
+
+                SELECT r.*
+                FROM fixtures f
+                JOIN rubbers r ON r.fixture_id = f.id
+                WHERE f.deleted_at IS NULL
+                  AND f.date_played = ${nextDate}::date
+                  AND r.deleted_at IS NULL
+                  AND r.played_at IS NULL
+                  AND r.is_doubles = false
+                  AND r.outcome_type = 'normal'
+                  AND r.home_player_1_id IS NOT NULL
+                  AND r.away_player_1_id IS NOT NULL
+                  AND r.home_games_won <> r.away_games_won
+            )
             SELECT
                 r.id AS rubber_id,
                 COALESCE(home_player.canonical_player_id, home_player.id) AS home_player_id,
                 COALESCE(away_player.canonical_player_id, away_player.id) AS away_player_id,
                 r.home_games_won,
                 r.away_games_won
-            FROM rubbers r
-            JOIN fixtures f ON f.id = r.fixture_id
+            FROM period_rubbers r
             JOIN external_players home_player ON home_player.id = r.home_player_1_id
             JOIN external_players away_player ON away_player.id = r.away_player_1_id
-            WHERE r.deleted_at IS NULL
-              AND f.deleted_at IS NULL
-              AND r.is_doubles = false
-              AND r.outcome_type = 'normal'
-              AND r.home_games_won <> r.away_games_won
-              AND COALESCE(r.played_at::date, f.date_played) = ${nextDate}::date
-              AND COALESCE(home_player.canonical_player_id, home_player.id)
+            WHERE COALESCE(home_player.canonical_player_id, home_player.id)
                     <> COALESCE(away_player.canonical_player_id, away_player.id)
             ORDER BY r.id
         `.execute(trx);
