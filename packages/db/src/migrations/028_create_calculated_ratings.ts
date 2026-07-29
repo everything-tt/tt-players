@@ -48,6 +48,30 @@ export async function up(db: Kysely<any>): Promise<void> {
         .columns(['model_id', 'last_rated_at'])
         .execute();
 
+    await sql`
+        CREATE INDEX idx_rubbers_rating_played_at
+        ON rubbers (played_at, id)
+        WHERE deleted_at IS NULL
+          AND played_at IS NOT NULL
+          AND is_doubles = false
+          AND outcome_type = 'normal'
+          AND home_player_1_id IS NOT NULL
+          AND away_player_1_id IS NOT NULL
+          AND home_games_won <> away_games_won
+    `.execute(db);
+
+    await sql`
+        CREATE INDEX idx_rubbers_rating_fixture_fallback
+        ON rubbers (fixture_id, id)
+        WHERE deleted_at IS NULL
+          AND played_at IS NULL
+          AND is_doubles = false
+          AND outcome_type = 'normal'
+          AND home_player_1_id IS NOT NULL
+          AND away_player_1_id IS NOT NULL
+          AND home_games_won <> away_games_won
+    `.execute(db);
+
     await db.schema
         .createTable('rating_processing_state')
         .addColumn('model_id', 'uuid', (col) =>
@@ -86,6 +110,8 @@ export async function up(db: Kysely<any>): Promise<void> {
 }
 
 export async function down(db: Kysely<any>): Promise<void> {
+    await sql`DROP INDEX IF EXISTS idx_rubbers_rating_fixture_fallback`.execute(db);
+    await sql`DROP INDEX IF EXISTS idx_rubbers_rating_played_at`.execute(db);
     await db.schema.dropTable('rating_processing_state').ifExists().execute();
     await db.schema.dropTable('player_ratings').ifExists().execute();
     await db.schema.dropTable('rating_models').ifExists().execute();
