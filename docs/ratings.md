@@ -43,25 +43,70 @@ conservative_rating = rating - 2 * rating_deviation
 
 A player is provisional while they have fewer than 10 rated matches or a deviation above 110.
 
+## Weekly rating history
+
+`player_rating_weekly_history` stores at most one row per model, player and ISO week. The row is
+updated whenever another match date is processed in the same week, so it represents the latest
+calculated rating for that week. Inactive weeks do not create placeholder rows.
+
+The player profile reads this data from:
+
+```http
+GET /api/ratings/:playerId/history?range=1y
+```
+
+Supported ranges are `3m`, `1y`, `3y`, `10y` and `all`.
+
+## Ten-year history rebuild
+
+After applying database migrations, rebuild the current model and weekly history from a rolling
+ten-year cutoff:
+
+```bash
+pnpm --filter @tt-players/worker ratings:rebuild-history
+```
+
+The default cutoff is the Monday of the ISO week containing the date ten calendar years ago.
+Matches before that cutoff are not replayed. Current ratings and weekly history are therefore both
+based on the same ten-year window.
+
+Optional overrides:
+
+```bash
+pnpm --filter @tt-players/worker ratings:rebuild-history -- --years=8
+pnpm --filter @tt-players/worker ratings:rebuild-history -- --start-date=2018-01-01
+pnpm --filter @tt-players/worker ratings:rebuild-history -- --model=global-singles-glicko2-v1
+```
+
+The command clears the selected model's current ratings and weekly snapshots, sets the processing
+checkpoint to the day before the cutoff, and then reuses the normal low-memory date-by-date
+processor. It is safe to restart: after the reset has committed, the normal calculation checkpoint
+continues from the last completed date.
+
 ## Historical corrections
 
 The v1 checkpoint is forward-only. If a rubber or fixture dated on or before the committed
-`last_processed_date` is inserted or corrected later, rebuild the model so all later periods are
-replayed from the corrected history:
+`last_processed_date` is inserted or corrected later, rerun the ten-year history rebuild so all
+later periods inside the supported history window are replayed:
+
+```bash
+pnpm --filter @tt-players/worker ratings:rebuild-history
+```
+
+A complete all-archive rebuild remains available when deliberately required:
 
 ```bash
 pnpm --filter @tt-players/worker ratings:calculate -- --rebuild
 ```
 
-## Running the backfill
+## Running the normal processor
 
-After applying database migrations:
+Without a rebuild, the calculator continues from the last committed match date:
 
 ```bash
-pnpm --filter @tt-players/worker ratings:calculate -- --rebuild
+pnpm --filter @tt-players/worker ratings:calculate
 ```
 
-The command is resumable. Without `--rebuild`, it continues from the last committed match date.
 To limit a manual run:
 
 ```bash
@@ -69,4 +114,5 @@ pnpm --filter @tt-players/worker ratings:calculate -- --max-periods=30
 ```
 
 The normal worker also runs `calculateRatingsTask` daily at 04:00 UTC and processes up to 31
-outstanding match dates.
+outstanding match dates. Weekly history is maintained automatically by the database trigger during
+those normal incremental updates.
