@@ -11,6 +11,7 @@ on:
       - 'packages/db/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/vps-deploy.yml'
   workflow_dispatch:
 
@@ -25,7 +26,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15
+        image: postgres:18
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -48,19 +49,24 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck
-        run: pnpm --filter @tt-players/api... build
+        run: |
+          pnpm --filter @tt-players/api... build
+          pnpm --filter @tt-players/worker build
 
       - name: Test
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
-        run: pnpm test
+        run: |
+          pnpm --filter @tt-players/db test
+          pnpm --filter @tt-players/api test
+          pnpm --filter @tt-players/worker test -- --passWithNoTests
 
       - name: Configure SSH
         env:
