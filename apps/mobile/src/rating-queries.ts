@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { apiFetch } from './player-shared';
 
 export type RatingConfidence = 'high' | 'medium' | 'low';
@@ -44,6 +44,8 @@ export interface RatingsResponse {
 export interface LeagueRatingsResponse {
   data: PlayerRating[];
   total: number;
+  page: number;
+  page_size: number;
   model: string;
   league_ids: string[];
 }
@@ -96,18 +98,47 @@ export interface RatingPredictionResponse {
   player2: RatingPredictionPlayer;
 }
 
+function buildLeagueRatingsParams(leagueIds: string[], page: number, pageSize: number) {
+  return new URLSearchParams({
+    league_ids: leagueIds.join(','),
+    page: String(page),
+    page_size: String(pageSize),
+    include_provisional: 'false',
+  });
+}
+
 export function useTopRatingsQuery(leagueIds: string[], limit = 5, enabled = true) {
   const sortedLeagueIds = [...leagueIds].sort();
 
   return useQuery({
     queryKey: ['ratings', 'top', 'leagues', sortedLeagueIds.join(','), limit],
     queryFn: ({ signal }: { signal: AbortSignal }) => {
-      const params = new URLSearchParams({
-        league_ids: sortedLeagueIds.join(','),
-        page_size: String(limit),
-        include_provisional: 'false',
-      });
+      const params = buildLeagueRatingsParams(sortedLeagueIds, 1, limit);
       return apiFetch<LeagueRatingsResponse>(`/ratings/league?${params.toString()}`, signal);
+    },
+    enabled: enabled && sortedLeagueIds.length > 0,
+  });
+}
+
+export function useInfiniteLeagueRatingsQuery(
+  leagueIds: string[],
+  pageSize = 10,
+  maxResults = 100,
+  enabled = true,
+) {
+  const sortedLeagueIds = [...leagueIds].sort();
+
+  return useInfiniteQuery({
+    queryKey: ['ratings', 'top', 'leagues', sortedLeagueIds.join(','), 'infinite', pageSize, maxResults],
+    initialPageParam: 1,
+    queryFn: ({ pageParam, signal }: { pageParam: number; signal: AbortSignal }) => {
+      const params = buildLeagueRatingsParams(sortedLeagueIds, pageParam, pageSize);
+      return apiFetch<LeagueRatingsResponse>(`/ratings/league?${params.toString()}`, signal);
+    },
+    getNextPageParam: (lastPage, pages) => {
+      const loaded = pages.reduce((sum, page) => sum + page.data.length, 0);
+      const cappedTotal = Math.min(lastPage.total, maxResults);
+      return loaded < cappedTotal ? pages.length + 1 : undefined;
     },
     enabled: enabled && sortedLeagueIds.length > 0,
   });

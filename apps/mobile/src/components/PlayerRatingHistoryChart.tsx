@@ -34,6 +34,7 @@ const CHART_TOP = 12;
 const CHART_BOTTOM = 24;
 
 export function PlayerRatingHistoryChart({ playerId }: PlayerRatingHistoryChartProps) {
+  const [isOpen, setIsOpen] = useState(true);
   const [range, setRange] = useState<RatingHistoryRange>('1y');
   const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
   const historyQuery = usePlayerRatingHistoryQuery(playerId, range, Boolean(playerId));
@@ -42,6 +43,7 @@ export function PlayerRatingHistoryChart({ playerId }: PlayerRatingHistoryChartP
   const selected = history.find((point) => point.week_start === selectedWeek)
     ?? history[history.length - 1]
     ?? null;
+  const contentId = `tt-rating-history-content-${playerId}`;
 
   const selectPoint = (point: PlayerRatingHistoryPoint) => {
     setSelectedWeek(point.week_start);
@@ -57,125 +59,140 @@ export function PlayerRatingHistoryChart({ playerId }: PlayerRatingHistoryChartP
   };
 
   return (
-    <div className="tt-rating-history" aria-labelledby="tt-rating-history-title">
+    <section id="rating-history" className="tt-player-section tt-rating-history" aria-labelledby="tt-rating-history-title">
       <div className="tt-rating-history-header">
         <div>
-          <h3 id="tt-rating-history-title">Rating history</h3>
+          <h2 id="tt-rating-history-title">Rating History</h2>
           <p>Latest calculated rating in each active week</p>
         </div>
-        <div className="tt-rating-history-ranges" aria-label="Rating history range">
-          {RANGE_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={range === option.value ? 'is-active' : undefined}
-              aria-pressed={range === option.value}
-              onClick={() => {
-                setRange(option.value);
-                setSelectedWeek(null);
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+        <button
+          type="button"
+          className="tt-rating-history-toggle"
+          aria-expanded={isOpen}
+          aria-controls={contentId}
+          onClick={() => setIsOpen((open) => !open)}
+        >
+          <span>{isOpen ? 'Hide history' : 'Show history'}</span>
+          <i className={`fa fa-chevron-${isOpen ? 'up' : 'down'}`} aria-hidden="true" />
+        </button>
       </div>
 
-      {historyQuery.isLoading ? (
-        <div className="tt-rating-history-loading" aria-label="Loading rating history">
-          <SkeletonBlock className="tt-skeleton-chart" />
-        </div>
-      ) : historyQuery.error ? (
-        <div className="tt-rating-history-state">
-          <span>Unable to load rating history.</span>
-          <button type="button" onClick={() => historyQuery.refetch()}>Retry</button>
-        </div>
-      ) : history.length === 0 || !geometry ? (
-        <p className="tt-rating-history-state">
-          Weekly history will appear after the rating-history rebuild has processed this player.
-        </p>
-      ) : (
-        <>
-          <div className="tt-rating-history-chart-wrap">
-            <svg
-              className="tt-rating-history-chart"
-              viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-              role="img"
-              aria-label={`Weekly rating history with ${history.length} points`}
-            >
-              <line
-                className="tt-rating-history-gridline"
-                x1={CHART_LEFT}
-                x2={CHART_WIDTH - CHART_RIGHT}
-                y1={CHART_TOP}
-                y2={CHART_TOP}
-              />
-              <line
-                className="tt-rating-history-gridline"
-                x1={CHART_LEFT}
-                x2={CHART_WIDTH - CHART_RIGHT}
-                y1={CHART_HEIGHT - CHART_BOTTOM}
-                y2={CHART_HEIGHT - CHART_BOTTOM}
-              />
-              <polygon className="tt-rating-history-band" points={geometry.bandPoints} />
-              <polyline className="tt-rating-history-line" points={geometry.linePoints} />
-              {geometry.points.map((point) => (
-                <circle
-                  key={point.week_start}
-                  className={`tt-rating-history-point${selected?.week_start === point.week_start ? ' is-selected' : ''}`}
-                  cx={point.x}
-                  cy={point.y}
-                  r={selected?.week_start === point.week_start ? 4 : 2.5}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`${formatWeek(point.snapshot_date)}, rating ${Math.round(point.rating)}`}
-                  onClick={() => selectPoint(point)}
-                  onKeyDown={(event) => selectPointFromKeyboard(event, point)}
-                />
-              ))}
-              <text className="tt-rating-history-axis-label" x={CHART_LEFT} y={CHART_HEIGHT - 7}>
-                {formatShortDate(history[0]?.snapshot_date ?? '')}
-              </text>
-              <text
-                className="tt-rating-history-axis-label"
-                x={CHART_WIDTH - CHART_RIGHT}
-                y={CHART_HEIGHT - 7}
-                textAnchor="end"
+      {isOpen ? (
+        <div id={contentId} className="tt-rating-history-content">
+          <div className="tt-rating-history-ranges" aria-label="Rating history range">
+            {RANGE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={range === option.value ? 'is-active' : undefined}
+                aria-pressed={range === option.value}
+                onClick={() => {
+                  setRange(option.value);
+                  setSelectedWeek(null);
+                }}
               >
-                {formatShortDate(history[history.length - 1]?.snapshot_date ?? '')}
-              </text>
-            </svg>
+                {option.label}
+              </button>
+            ))}
           </div>
 
-          {selected ? (
-            <div className="tt-rating-history-detail" aria-live="polite">
-              <div>
-                <small>Week</small>
-                <strong>{formatWeek(selected.snapshot_date)}</strong>
-              </div>
-              <div>
-                <small>Rating</small>
-                <strong>{Math.round(selected.rating)}</strong>
-              </div>
-              <div>
-                <small>Change</small>
-                <strong className={changeClassName(selected.rating_change)}>
-                  {formatChange(selected.rating_change)}
-                </strong>
-              </div>
-              <div>
-                <small>Results</small>
-                <strong>{selected.week_wins}W · {selected.week_losses}L</strong>
-              </div>
-              <div>
-                <small>Confidence</small>
-                <strong>{ratingConfidenceLabel(selected.confidence)}</strong>
-              </div>
+          {historyQuery.isLoading ? (
+            <div className="tt-rating-history-loading" aria-label="Loading rating history">
+              <SkeletonBlock className="tt-skeleton-chart" />
             </div>
-          ) : null}
-        </>
-      )}
-    </div>
+          ) : historyQuery.error ? (
+            <div className="tt-rating-history-state">
+              <span>Unable to load rating history.</span>
+              <button type="button" onClick={() => historyQuery.refetch()}>Retry</button>
+            </div>
+          ) : history.length === 0 || !geometry ? (
+            <p className="tt-rating-history-state">
+              Weekly history will appear after the rating-history rebuild has processed this player.
+            </p>
+          ) : (
+            <>
+              <div className="tt-rating-history-chart-wrap">
+                <svg
+                  className="tt-rating-history-chart"
+                  viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+                  role="img"
+                  aria-label={`Weekly rating history with ${history.length} points`}
+                >
+                  <line
+                    className="tt-rating-history-gridline"
+                    x1={CHART_LEFT}
+                    x2={CHART_WIDTH - CHART_RIGHT}
+                    y1={CHART_TOP}
+                    y2={CHART_TOP}
+                  />
+                  <line
+                    className="tt-rating-history-gridline"
+                    x1={CHART_LEFT}
+                    x2={CHART_WIDTH - CHART_RIGHT}
+                    y1={CHART_HEIGHT - CHART_BOTTOM}
+                    y2={CHART_HEIGHT - CHART_BOTTOM}
+                  />
+                  <polygon className="tt-rating-history-band" points={geometry.bandPoints} />
+                  <polyline className="tt-rating-history-line" points={geometry.linePoints} />
+                  {geometry.points.map((point) => (
+                    <circle
+                      key={point.week_start}
+                      className={`tt-rating-history-point${selected?.week_start === point.week_start ? ' is-selected' : ''}`}
+                      cx={point.x}
+                      cy={point.y}
+                      r={selected?.week_start === point.week_start ? 4 : 2.5}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${formatWeek(point.snapshot_date)}, rating ${Math.round(point.rating)}`}
+                      onClick={() => selectPoint(point)}
+                      onKeyDown={(event) => selectPointFromKeyboard(event, point)}
+                    />
+                  ))}
+                  <text className="tt-rating-history-axis-label" x={CHART_LEFT} y={CHART_HEIGHT - 7}>
+                    {formatShortDate(history[0]?.snapshot_date ?? '')}
+                  </text>
+                  <text
+                    className="tt-rating-history-axis-label"
+                    x={CHART_WIDTH - CHART_RIGHT}
+                    y={CHART_HEIGHT - 7}
+                    textAnchor="end"
+                  >
+                    {formatShortDate(history[history.length - 1]?.snapshot_date ?? '')}
+                  </text>
+                </svg>
+              </div>
+
+              {selected ? (
+                <div className="tt-rating-history-detail" aria-live="polite">
+                  <div>
+                    <small>Week</small>
+                    <strong>{formatWeek(selected.snapshot_date)}</strong>
+                  </div>
+                  <div>
+                    <small>Rating</small>
+                    <strong>{Math.round(selected.rating)}</strong>
+                  </div>
+                  <div>
+                    <small>Change</small>
+                    <strong className={changeClassName(selected.rating_change)}>
+                      {formatChange(selected.rating_change)}
+                    </strong>
+                  </div>
+                  <div>
+                    <small>Results</small>
+                    <strong>{selected.week_wins}W · {selected.week_losses}L</strong>
+                  </div>
+                  <div>
+                    <small>Confidence</small>
+                    <strong>{ratingConfidenceLabel(selected.confidence)}</strong>
+                  </div>
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
