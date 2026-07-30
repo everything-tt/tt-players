@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FeedbackForm } from './components/FeedbackForm';
 import {
   AppButton,
@@ -16,6 +17,7 @@ const ABOUT_TAGS = ['TT Leagues', 'Table Tennis 365', 'Sport80 Grand Prix'];
  * uses AppCard/AppButton and the shared ConfirmDialog pattern for data reset.
  */
 export function AboutTabContent() {
+  const navigate = useNavigate();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const handleResetData = async () => {
@@ -45,6 +47,20 @@ export function AboutTabContent() {
           ))}
         </div>
       </HeroCard>
+
+      <section className="tt-player-section" aria-labelledby="about-coverage-title">
+        <SectionHeader title="Data Coverage" note="Live source quality" />
+        <p className="tt-about-description">
+          See which providers and leagues are covered, when data was last observed, and where scores, dates, identities, or source jobs need attention.
+        </p>
+        <AppButton
+          tone="primary"
+          full
+          onClick={() => navigate('/data-coverage', { state: { from: '/about' } })}
+        >
+          <i className="fa fa-database me-2" />View Data Coverage
+        </AppButton>
+      </section>
 
       <section className="tt-player-section" aria-labelledby="about-feedback-title">
         <SectionHeader title="Send Feedback" note="Bug · Feature · Data" />
