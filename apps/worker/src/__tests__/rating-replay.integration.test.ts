@@ -160,6 +160,11 @@ describe('incremental rating replay', () => {
             3,
         );
         januaryFixtureId = january.fixtureId;
+        await db
+            .updateTable('rubbers')
+            .set({ played_at: null })
+            .where('id', '=', january.rubberId)
+            .execute();
         const february = await seedMatch(
             competition.id,
             teams[0]!.id,
@@ -234,9 +239,9 @@ describe('incremental rating replay', () => {
             FROM player_ratings
             ORDER BY player_id
         `.execute(db);
-        expect(finalRatings).not.toEqual(initialRatings.rows);
-        const playerA = finalRatings.find((row) => row.player_id === playerAId)!;
-        const playerB = finalRatings.find((row) => row.player_id === playerBId)!;
+        expect(finalRatings.rows).not.toEqual(initialRatings.rows);
+        const playerA = finalRatings.rows.find((row) => row.player_id === playerAId)!;
+        const playerB = finalRatings.rows.find((row) => row.player_id === playerBId)!;
         expect(Number(playerA.rated_wins)).toBe(1);
         expect(Number(playerB.rated_wins)).toBe(2);
 
