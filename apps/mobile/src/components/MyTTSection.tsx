@@ -1,5 +1,6 @@
 import { useFavouritePlayers } from '../hooks/useFavouritePlayers';
 import { useMyPlayer } from '../hooks/useMyPlayer';
+import { useTabNavigation } from '../navigation/tab-navigation';
 import { usePlayerExtendedStatsQuery, usePlayerInsightsQuery } from '../queries';
 import {
   AppButton,
@@ -17,6 +18,7 @@ interface MyTTSectionProps {
 }
 
 export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
+  const { navigateInTab } = useTabNavigation();
   const { player: myPlayer, setMyPlayer } = useMyPlayer();
   const { players: favouritePlayers } = useFavouritePlayers();
   const statsQuery = usePlayerExtendedStatsQuery(myPlayer?.id ?? '', Boolean(myPlayer));
@@ -71,6 +73,19 @@ export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
             />
           </List>
         )
+      ) : null}
+
+      {myPlayer ? (
+        <div className="mt-3">
+          <AppButton
+            full
+            tone="primary"
+            onClick={() => navigateInTab('players', `player/${myPlayer.id}/journal`)}
+          >
+            <i className="fa fa-book-open" aria-hidden="true" />
+            Open Match Journal
+          </AppButton>
+        </div>
       ) : null}
 
       {followedPlayers.length > 0 ? (

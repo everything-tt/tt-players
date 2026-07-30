@@ -3,6 +3,7 @@ import App from './App';
 import { AboutPage } from './AboutPage';
 import { FixturePage } from './FixturePage';
 import { isAppTab, TabNavigationProvider } from './navigation/tab-navigation';
+import { MatchJournalPage } from './MatchJournalPage';
 import { PlayerInsightsPage } from './PlayerInsightsPage';
 import { PlayerMatchesPage } from './PlayerMatchesPage';
 import { PlayerTournamentsPage } from './PlayerTournamentsPage';
@@ -47,6 +48,7 @@ export function AppRouter() {
               <Route path="/tabs/:tabId/player/:playerId/insights" element={<EnsureValidTab><PlayerInsightsPage /></EnsureValidTab>} />
               <Route path="/tabs/:tabId/player/:playerId/matches" element={<EnsureValidTab><PlayerMatchesPage /></EnsureValidTab>} />
               <Route path="/tabs/:tabId/player/:playerId/tournaments" element={<EnsureValidTab><PlayerTournamentsPage /></EnsureValidTab>} />
+              <Route path="/tabs/:tabId/player/:playerId/journal" element={<EnsureValidTab><MatchJournalPage /></EnsureValidTab>} />
               <Route path="/tabs/:tabId/team/:teamId" element={<EnsureValidTab><TeamPage /></EnsureValidTab>} />
               <Route path="/tabs/:tabId/league/:leagueId" element={<EnsureValidTab><LeagueDetailPage /></EnsureValidTab>} />
               <Route path="/tabs/:tabId/fixture/:fixtureId" element={<EnsureValidTab><FixturePage /></EnsureValidTab>} />
@@ -57,6 +59,7 @@ export function AppRouter() {
               <Route path="/players/:playerId/insights" element={<PlayerInsightsPage />} />
               <Route path="/players/:playerId/matches" element={<PlayerMatchesPage />} />
               <Route path="/players/:playerId/tournaments" element={<PlayerTournamentsPage />} />
+              <Route path="/players/:playerId/journal" element={<MatchJournalPage />} />
               <Route path="/teams/:teamId" element={<TeamPage />} />
               <Route path="/tournaments/:eventId" element={<EventDetailPage />} />
               <Route path="/h2h/:playerAId/:playerBId" element={<H2HPage />} />
