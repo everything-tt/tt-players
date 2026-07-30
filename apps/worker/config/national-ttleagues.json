@@ -1,0 +1,22 @@
+[
+    {
+        "leagueName": "British Clubs Leagues",
+        "externalId": "british-clubs-leagues",
+        "baseUrl": "https://british.ttleagues.com",
+        "regions": [
+            "United Kingdom",
+            "National"
+        ],
+        "historyMaxCompetitions": 6
+    },
+    {
+        "leagueName": "County Championships",
+        "externalId": "county-championships",
+        "baseUrl": "https://countychampionships.ttleagues.com",
+        "regions": [
+            "United Kingdom",
+            "National"
+        ],
+        "historyMaxCompetitions": 6
+    }
+]
