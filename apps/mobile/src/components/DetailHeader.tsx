@@ -8,7 +8,7 @@ import { QuickFeedbackSheet } from '../QuickFeedbackSheet';
 interface DetailHeaderProps {
   /** Page title shown in the header and on-title-click navigates home. */
   title?: ReactNode;
-  /** Extra actions rendered after the back/home pair. */
+  /** Extra actions rendered after the standard actions. */
   actions?: AppHeaderProps['actions'];
   /** Extra class name forwarded to AppHeader. */
   className?: string;
@@ -23,10 +23,8 @@ interface DetailHeaderProps {
 }
 
 /**
- * Standard detail-page header with back/home navigation.
- * Replaces the duplicated goBack/goHome + AppHeader pattern found on
- * PlayerPage, TeamPage, FixturePage, EventDetailPage, PlayerInsightsPage,
- * PlayerMatchesPage, and PlayerTournamentsPage.
+ * Standard detail-page header with back navigation on the left and all other
+ * actions grouped on the right.
  */
 export function DetailHeader({
   title,
@@ -83,6 +81,7 @@ export function DetailHeader({
             onClick: handleFeedback,
             position: 2 as const,
             ariaLabel: 'Send feedback',
+            className: 'tt-detail-header-action--feedback',
           },
           ...(shareTarget ? [{
             iconClassName: 'fas fa-share-alt',
