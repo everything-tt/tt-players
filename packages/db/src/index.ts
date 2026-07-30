@@ -1,5 +1,15 @@
 export { db, createDb } from './database.js';
-export type { Database, ApiDatabase, StagingDatabase } from './types.js';
+export type { ApiDatabase, StagingDatabase } from './types.js';
+export type {
+    Database,
+    SourceRegistryDatabase,
+    SourceInstance,
+    NewSourceInstance,
+    SourceInstanceUpdate,
+    SourceResource,
+    NewSourceResource,
+    SourceResourceUpdate,
+} from './source-registry-types.js';
 export type {
     // Enum types
     CompetitionType,
