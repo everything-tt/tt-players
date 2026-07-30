@@ -31,6 +31,7 @@ import {
 import { DetailHeader } from './components/DetailHeader';
 import { FavouriteButton } from './components/FavouriteButton';
 import { FormResultPills } from './components/FormResultPills';
+import { PlayerRatingPanel } from './components/PlayerRatingPanel';
 import { buildPlayerShareTarget } from './share-target';
 
 const APP_NAME = 'TT Players';
@@ -303,6 +304,8 @@ export function PlayerPage() {
                 emptyText="No form yet"
               />
             </section>
+
+            <PlayerRatingPanel playerId={stats.player_id} />
 
             <section className="tt-player-section" aria-label="Current season clubs and tournaments">
               <div className="tt-home-leaders-header">
