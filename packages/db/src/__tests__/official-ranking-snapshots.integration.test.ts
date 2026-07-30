@@ -5,7 +5,7 @@ import * as m001 from '../migrations/001_create_enums.js';
 import * as m002 from '../migrations/002_create_core_tables.js';
 import * as m003 from '../migrations/003_create_match_tables.js';
 import * as m014 from '../migrations/014_create_ranking_history_tables.js';
-import * as m033 from '../migrations/033_create_official_ranking_snapshots.js';
+import * as m034 from '../migrations/034_create_official_ranking_snapshots.js';
 
 const { Pool } = pg;
 const TEST_DB_NAME = 'tt_players_official_rankings_test';
@@ -93,7 +93,7 @@ describe('official ranking snapshot migration', () => {
         await sql`ALTER TABLE ranking_entries SET SCHEMA staging`.execute(db);
         await sql`ALTER TABLE ranking_periods SET SCHEMA staging`.execute(db);
         await sql`ALTER TABLE ranking_categories SET SCHEMA staging`.execute(db);
-        await m033.up(db);
+        await m034.up(db);
     }, 30_000);
 
     afterAll(async () => {
