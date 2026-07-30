@@ -178,7 +178,7 @@ export async function upsertSport80SourceEvent(
                 category: (eb: any) => eb.ref('excluded.category'),
                 public_url: (eb: any) => eb.ref('excluded.public_url'),
                 raw_payload: (eb: any) => eb.ref('excluded.raw_payload'),
-                canonical_competition_id: sql`coalesce(excluded.canonical_competition_id, "staging.source_events".canonical_competition_id)`,
+                canonical_competition_id: sql`coalesce(excluded.canonical_competition_id, source_events.canonical_competition_id)`,
                 last_seen_at: now,
                 updated_at: now,
             }),
