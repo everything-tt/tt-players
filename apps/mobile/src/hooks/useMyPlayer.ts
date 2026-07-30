@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
+import { MY_PLAYER_STORAGE_KEY, MY_PLAYER_UPDATED_EVENT } from '../local-persistence';
 
 export interface MyPlayer {
   id: string;
   name: string;
 }
-
-const MY_PLAYER_STORAGE_KEY = 'tt_players_my_player';
-const MY_PLAYER_UPDATED_EVENT = 'tt-players:my-player-updated';
 
 function isMyPlayerValue(value: unknown): value is MyPlayer {
   if (!value || typeof value !== 'object') return false;

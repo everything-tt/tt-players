@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { MATCH_JOURNAL_STORAGE_KEY, MATCH_JOURNAL_UPDATED_EVENT } from '../local-persistence';
 
 export type JournalOutcome = 'win' | 'loss' | 'practice';
 
@@ -14,9 +15,6 @@ export interface MatchJournalEntry {
 }
 
 export type NewMatchJournalEntry = Omit<MatchJournalEntry, 'id' | 'createdAt'>;
-
-const JOURNAL_STORAGE_KEY = 'tt_players_match_journal';
-const JOURNAL_UPDATED_EVENT = 'tt-players:match-journal-updated';
 
 type StoredJournals = Record<string, MatchJournalEntry[]>;
 
@@ -35,7 +33,7 @@ function isJournalEntry(value: unknown): value is MatchJournalEntry {
 
 function readJournals(): StoredJournals {
   try {
-    const raw = localStorage.getItem(JOURNAL_STORAGE_KEY);
+    const raw = localStorage.getItem(MATCH_JOURNAL_STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
@@ -64,10 +62,10 @@ export function useMatchJournal(playerId: string) {
   useEffect(() => {
     const sync = () => setEntries(readJournals()[playerId] ?? []);
     window.addEventListener('storage', sync);
-    window.addEventListener(JOURNAL_UPDATED_EVENT, sync);
+    window.addEventListener(MATCH_JOURNAL_UPDATED_EVENT, sync);
     return () => {
       window.removeEventListener('storage', sync);
-      window.removeEventListener(JOURNAL_UPDATED_EVENT, sync);
+      window.removeEventListener(MATCH_JOURNAL_UPDATED_EVENT, sync);
     };
   }, [playerId]);
 
@@ -75,8 +73,8 @@ export function useMatchJournal(playerId: string) {
     const all = readJournals();
     if (nextEntries.length > 0) all[playerId] = nextEntries;
     else delete all[playerId];
-    localStorage.setItem(JOURNAL_STORAGE_KEY, JSON.stringify(all));
-    window.dispatchEvent(new Event(JOURNAL_UPDATED_EVENT));
+    localStorage.setItem(MATCH_JOURNAL_STORAGE_KEY, JSON.stringify(all));
+    window.dispatchEvent(new Event(MATCH_JOURNAL_UPDATED_EVENT));
   }, [playerId]);
 
   const add = useCallback((entry: NewMatchJournalEntry) => {

@@ -7,26 +7,81 @@ import {
 
 export const LEAGUES_STORAGE_KEY = 'tt_players_selected_league_ids';
 export const LEAGUE_ONBOARDING_STORAGE_KEY = 'tt_players_league_onboarding_complete';
+export const MY_PLAYER_STORAGE_KEY = 'tt_players_my_player';
+export const MY_PLAYER_UPDATED_EVENT = 'tt-players:my-player-updated';
+export const MATCH_JOURNAL_STORAGE_KEY = 'tt_players_match_journal';
+export const MATCH_JOURNAL_UPDATED_EVENT = 'tt-players:match-journal-updated';
+export const THEME_STORAGE_KEY = 'TTPlayers-Theme';
 export const LOCAL_DATA_BACKUP_KEY = 'tt_players_local_data_backup_v1';
 
-const LOCAL_DATA_KEYS = [
+export const SYNCED_LOCAL_DATA_KEYS = [
   LEAGUES_STORAGE_KEY,
   LEAGUE_ONBOARDING_STORAGE_KEY,
   FAVOURITES_STORAGE_KEY,
   H2H_FAVOURITES_STORAGE_KEY,
   FAVOURITE_TEAMS_STORAGE_KEY,
   FAVOURITE_TOURNAMENTS_STORAGE_KEY,
+  THEME_STORAGE_KEY,
+  MY_PLAYER_STORAGE_KEY,
+  MATCH_JOURNAL_STORAGE_KEY,
+] as const;
+
+const LOCAL_DATA_KEYS = [
+  ...SYNCED_LOCAL_DATA_KEYS,
   'tt_players_h2h_active_player_a',
   'tt_players_h2h_active_player_b',
-  'TTPlayers-Theme',
 ] as const;
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+export interface UserDataSnapshot {
+  version: 1;
+  entries: Record<string, string>;
+}
 
 export interface LocalDataBackup {
   version: 1;
   created_at: string;
   entries: Record<string, string>;
+}
+
+export function createUserDataSnapshot(local: StorageLike = localStorage): UserDataSnapshot {
+  const entries: Record<string, string> = {};
+  for (const key of SYNCED_LOCAL_DATA_KEYS) {
+    const value = local.getItem(key);
+    if (value !== null) entries[key] = value;
+  }
+  return { version: 1, entries };
+}
+
+export function applyUserDataSnapshot(
+  snapshot: UserDataSnapshot,
+  local: StorageLike = localStorage,
+): boolean {
+  if (snapshot.version !== 1 || !snapshot.entries || typeof snapshot.entries !== 'object') {
+    return false;
+  }
+
+  let changed = false;
+  for (const key of SYNCED_LOCAL_DATA_KEYS) {
+    const current = local.getItem(key);
+    const next = snapshot.entries[key] ?? null;
+    if (current === next) continue;
+
+    changed = true;
+    if (next === null) local.removeItem(key);
+    else local.setItem(key, next);
+  }
+  return changed;
+}
+
+export function serializeUserDataSnapshot(snapshot: UserDataSnapshot): string {
+  const orderedEntries: Record<string, string> = {};
+  for (const key of SYNCED_LOCAL_DATA_KEYS) {
+    const value = snapshot.entries[key];
+    if (value !== undefined) orderedEntries[key] = value;
+  }
+  return JSON.stringify({ version: 1, entries: orderedEntries });
 }
 
 export function backupLocalData(local: StorageLike = localStorage, session: StorageLike = sessionStorage): LocalDataBackup {
