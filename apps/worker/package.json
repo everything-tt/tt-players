@@ -10,6 +10,7 @@
         "worker:start": "tsx src/worker.ts",
         "worker:scrape": "tsx src/scrape-once.ts",
         "ratings:calculate": "tsx src/calculate-ratings-once.ts",
+        "ratings:rebuild-history": "tsx src/rebuild-weekly-rating-history.ts",
         "sport80:scrape": "tsx src/scrape-sport80-once.ts",
         "sport80:rankings": "tsx src/scrape-sport80-rankings-once.ts",
         "sport80:backfill-played-at": "tsx src/backfill-sport80-rubber-played-at.ts",
