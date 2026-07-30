@@ -9,6 +9,8 @@ import { upsertSourceInstance, upsertSourceResource } from './sources/registry.j
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TTL_API_BASE = 'https://ttleagues-api.azurewebsites.net/api';
 const CONFIG_PATH = resolve(__dirname, '../config/national-ttleagues.json');
+const CURRENT_SEASON_EXTERNAL_ID = 'current-national-competitions';
+const CURRENT_SEASON_NAME = 'Current national competitions';
 
 export interface NationalTTLeaguesSource {
     leagueName: string;
@@ -75,12 +77,12 @@ async function upsertPlatform(db: Kysely<Database>): Promise<string> {
         .executeTakeFirst();
     if (existing) return existing.id;
 
-    return db
+    const row = await db
         .insertInto('platforms')
         .values({ name: 'TT Leagues', base_url: TTL_API_BASE })
         .returning('id')
-        .executeTakeFirstOrThrow()
-        .then((row) => row.id);
+        .executeTakeFirstOrThrow();
+    return row.id;
 }
 
 async function upsertLeague(
@@ -105,7 +107,7 @@ async function upsertLeague(
         return existing.id;
     }
 
-    return db
+    const row = await db
         .insertInto('leagues')
         .values({
             platform_id: platformId,
@@ -113,8 +115,8 @@ async function upsertLeague(
             name: source.leagueName,
         })
         .returning('id')
-        .executeTakeFirstOrThrow()
-        .then((row) => row.id);
+        .executeTakeFirstOrThrow();
+    return row.id;
 }
 
 async function syncRegions(
@@ -154,10 +156,10 @@ async function syncRegions(
 async function upsertSeason(
     db: Kysely<Database>,
     leagueId: string,
-    competition: TTLeaguesCompetition,
+    externalId: string,
+    name: string,
     isActive: boolean,
 ): Promise<string> {
-    const externalId = `competition-${competition.id}`;
     const existing = await db
         .selectFrom('seasons')
         .select(['id', 'name', 'is_active'])
@@ -165,59 +167,105 @@ async function upsertSeason(
         .where('external_id', '=', externalId)
         .executeTakeFirst();
     if (existing) {
-        if (existing.name !== competition.name || existing.is_active !== isActive) {
+        if (existing.name !== name || existing.is_active !== isActive) {
             await db
                 .updateTable('seasons')
-                .set({ name: competition.name, is_active: isActive, deleted_at: null })
+                .set({ name, is_active: isActive, deleted_at: null })
                 .where('id', '=', existing.id)
                 .execute();
         }
         return existing.id;
     }
 
-    return db
+    const row = await db
         .insertInto('seasons')
-        .values({
-            league_id: leagueId,
-            external_id: externalId,
-            name: competition.name,
-            is_active: isActive,
-        })
+        .values({ league_id: leagueId, external_id: externalId, name, is_active: isActive })
         .returning('id')
-        .executeTakeFirstOrThrow()
-        .then((row) => row.id);
+        .executeTakeFirstOrThrow();
+    return row.id;
 }
 
 async function upsertDivision(
     db: Kysely<Database>,
+    leagueId: string,
     seasonId: string,
+    upstreamCompetition: TTLeaguesCompetition,
     division: TTLeaguesDivision,
 ): Promise<string> {
-    const externalId = String(division.id);
-    const name = division.name || `Division ${division.id}`;
+    const externalId = `${upstreamCompetition.id}:${division.id}`;
+    const divisionName = division.name || `Division ${division.id}`;
+    const name = `${upstreamCompetition.name} — ${divisionName}`;
     const existing = await db
-        .selectFrom('competitions')
-        .select(['id', 'name'])
-        .where('season_id', '=', seasonId)
-        .where('external_id', '=', externalId)
+        .selectFrom('competitions as competition')
+        .innerJoin('seasons as season', 'season.id', 'competition.season_id')
+        .select(['competition.id', 'competition.name', 'competition.season_id'])
+        .where('season.league_id', '=', leagueId)
+        .where('competition.external_id', '=', externalId)
         .executeTakeFirst();
+
     if (existing) {
-        if (existing.name !== name) {
+        if (existing.name !== name || existing.season_id !== seasonId) {
             await db
                 .updateTable('competitions')
-                .set({ name, deleted_at: null })
+                .set({ season_id: seasonId, name, deleted_at: null })
+                .where('id', '=', existing.id)
+                .execute();
+        } else {
+            await db
+                .updateTable('competitions')
+                .set({ deleted_at: null })
                 .where('id', '=', existing.id)
                 .execute();
         }
         return existing.id;
     }
 
-    return db
+    const row = await db
         .insertInto('competitions')
         .values({ season_id: seasonId, external_id: externalId, name, type: 'league' })
         .returning('id')
-        .executeTakeFirstOrThrow()
-        .then((row) => row.id);
+        .executeTakeFirstOrThrow();
+    return row.id;
+}
+
+async function registerDivisionResources(
+    db: Kysely<Database>,
+    sourceInstanceId: string,
+    source: NationalTTLeaguesSource,
+    leagueId: string,
+    seasonId: string,
+    canonicalCompetitionId: string,
+    upstreamCompetition: TTLeaguesCompetition,
+    division: TTLeaguesDivision,
+    isHistorical: boolean,
+): Promise<void> {
+    const divisionName = division.name || `Division ${division.id}`;
+    const shared = {
+        sourceInstanceId,
+        adapterVersion: 'ttleagues-v1',
+        publicUrl: source.baseUrl,
+        refreshPolicy: {
+            cadence: isHistorical ? 'historical' : 'daily',
+            isHistorical,
+        },
+        leagueId,
+        seasonId,
+        competitionId: canonicalCompetitionId,
+        enabled: true,
+    } as const;
+
+    await upsertSourceResource(db, {
+        ...shared,
+        resourceType: 'standings',
+        externalId: `${upstreamCompetition.id}:${division.id}:standings`,
+        name: `${upstreamCompetition.name} / ${divisionName} standings`,
+    });
+    await upsertSourceResource(db, {
+        ...shared,
+        resourceType: 'fixtures',
+        externalId: `${upstreamCompetition.id}:${division.id}:matches`,
+        name: `${upstreamCompetition.name} / ${divisionName} matches`,
+    });
 }
 
 async function buildSourceTargets(
@@ -239,11 +287,25 @@ async function buildSourceTargets(
         config: { nationalBridge: true },
     });
 
+    const currentSeasonId = await upsertSeason(
+        db,
+        leagueId,
+        CURRENT_SEASON_EXTERNAL_ID,
+        CURRENT_SEASON_NAME,
+        true,
+    );
+    await db
+        .updateTable('seasons')
+        .set({ is_active: false })
+        .where('league_id', '=', leagueId)
+        .where('id', '!=', currentSeasonId)
+        .execute();
+
     const activeCompetitions = await fetchJson<TTLeaguesCompetition[]>(
         `${TTL_API_BASE}/competitions`,
         tenantHost,
     );
-    const activeById = new Map(activeCompetitions.map((competition) => [competition.id, competition]));
+    const activeById = new Set(activeCompetitions.map((competition) => competition.id));
 
     let historicalCompetitions: TTLeaguesCompetition[] = [];
     if (includeHistory && source.historyMaxCompetitions > 0) {
@@ -258,71 +320,121 @@ async function buildSourceTargets(
     }
 
     const targets: ScrapeTarget[] = [];
-    const activeSeasonIds: string[] = [];
-    for (const { competition, isActive } of [
-        ...activeCompetitions.map((competition) => ({ competition, isActive: true })),
-        ...historicalCompetitions.map((competition) => ({ competition, isActive: false })),
-    ]) {
-        const seasonId = await upsertSeason(db, leagueId, competition, isActive);
-        if (isActive) activeSeasonIds.push(seasonId);
+    const activeCanonicalCompetitionIds: string[] = [];
+
+    for (const upstreamCompetition of activeCompetitions) {
         const divisions = await fetchJson<TTLeaguesDivision[]>(
-            `${TTL_API_BASE}/competitions/${competition.id}/divisions`,
+            `${TTL_API_BASE}/competitions/${upstreamCompetition.id}/divisions`,
             tenantHost,
         );
-
         for (const division of divisions) {
-            const canonicalCompetitionId = await upsertDivision(db, seasonId, division);
-            const divisionId = String(division.id);
-            const divisionName = division.name || `Division ${division.id}`;
-            const standingsUrl = `${TTL_API_BASE}/divisions/${division.id}/standings`;
-
-            await upsertSourceResource(db, {
-                sourceInstanceId: sourceInstance.id,
-                resourceType: 'standings',
-                externalId: `${competition.id}:${division.id}:standings`,
-                adapterVersion: 'ttleagues-v1',
-                name: `${competition.name} / ${divisionName} standings`,
-                publicUrl: source.baseUrl,
-                refreshPolicy: { cadence: isActive ? 'daily' : 'historical', isHistorical: !isActive },
+            const canonicalCompetitionId = await upsertDivision(
+                db,
                 leagueId,
-                seasonId,
-                competitionId: canonicalCompetitionId,
-            });
-            await upsertSourceResource(db, {
-                sourceInstanceId: sourceInstance.id,
-                resourceType: 'fixtures',
-                externalId: `${competition.id}:${division.id}:matches`,
-                adapterVersion: 'ttleagues-v1',
-                name: `${competition.name} / ${divisionName} matches`,
-                publicUrl: source.baseUrl,
-                refreshPolicy: { cadence: isActive ? 'daily' : 'historical', isHistorical: !isActive },
+                currentSeasonId,
+                upstreamCompetition,
+                division,
+            );
+            activeCanonicalCompetitionIds.push(canonicalCompetitionId);
+            await registerDivisionResources(
+                db,
+                sourceInstance.id,
+                source,
                 leagueId,
-                seasonId,
-                competitionId: canonicalCompetitionId,
-            });
-
+                currentSeasonId,
+                canonicalCompetitionId,
+                upstreamCompetition,
+                division,
+                false,
+            );
             targets.push({
-                url: standingsUrl,
+                url: `${TTL_API_BASE}/divisions/${division.id}/standings`,
                 fixturesUrl: null,
                 tenantHost,
                 platformId,
                 platformType: 'ttleagues',
                 competitionId: canonicalCompetitionId,
-                divisionExtId: divisionId,
-                divisionName,
+                divisionExtId: String(division.id),
+                divisionName: `${upstreamCompetition.name} — ${division.name || `Division ${division.id}`}`,
                 leagueName: source.leagueName,
-                isHistorical: !isActive,
+                isHistorical: false,
             });
         }
     }
 
-    if (activeSeasonIds.length > 0) {
-        await db
-            .updateTable('seasons')
-            .set({ is_active: false })
-            .where('league_id', '=', leagueId)
-            .where('id', 'not in', activeSeasonIds)
+    const staleCurrent = activeCanonicalCompetitionIds.length === 0
+        ? await db
+            .selectFrom('competitions')
+            .select('id')
+            .where('season_id', '=', currentSeasonId)
+            .where('deleted_at', 'is', null)
+            .execute()
+        : await db
+            .selectFrom('competitions')
+            .select('id')
+            .where('season_id', '=', currentSeasonId)
+            .where('deleted_at', 'is', null)
+            .where('id', 'not in', activeCanonicalCompetitionIds)
             .execute();
+    if (staleCurrent.length > 0) {
+        const staleIds = staleCurrent.map((row) => row.id);
+        await db
+            .updateTable('competitions')
+            .set({ deleted_at: new Date() })
+            .where('id', 'in', staleIds)
+            .execute();
+        await db
+            .updateTable('source_resources')
+            .set({ enabled: false, updated_at: new Date() })
+            .where('source_instance_id', '=', sourceInstance.id)
+            .where('competition_id', 'in', staleIds)
+            .execute();
+    }
+
+    for (const upstreamCompetition of historicalCompetitions) {
+        const historicalSeasonId = await upsertSeason(
+            db,
+            leagueId,
+            `competition-${upstreamCompetition.id}`,
+            upstreamCompetition.name,
+            false,
+        );
+        const divisions = await fetchJson<TTLeaguesDivision[]>(
+            `${TTL_API_BASE}/competitions/${upstreamCompetition.id}/divisions`,
+            tenantHost,
+        );
+        for (const division of divisions) {
+            const canonicalCompetitionId = await upsertDivision(
+                db,
+                leagueId,
+                historicalSeasonId,
+                upstreamCompetition,
+                division,
+            );
+            await registerDivisionResources(
+                db,
+                sourceInstance.id,
+                source,
+                leagueId,
+                historicalSeasonId,
+                canonicalCompetitionId,
+                upstreamCompetition,
+                division,
+                true,
+            );
+            targets.push({
+                url: `${TTL_API_BASE}/divisions/${division.id}/standings`,
+                fixturesUrl: null,
+                tenantHost,
+                platformId,
+                platformType: 'ttleagues',
+                competitionId: canonicalCompetitionId,
+                divisionExtId: String(division.id),
+                divisionName: `${upstreamCompetition.name} — ${division.name || `Division ${division.id}`}`,
+                leagueName: source.leagueName,
+                isHistorical: true,
+            });
+        }
     }
 
     return targets;
