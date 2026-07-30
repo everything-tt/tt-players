@@ -202,7 +202,10 @@ describe('evidence-based player identity reconciliation', () => {
             .select(['id', 'canonical_player_id'])
             .where('name', '=', 'Andrew Jessop')
             .execute();
-        expect(players.every((player) => player.canonical_player_id === player.id)).toBe(true);
+        const effectiveCanonicalIds = new Set(
+            players.map((player) => player.canonical_player_id ?? player.id),
+        );
+        expect(effectiveCanonicalIds.size).toBe(2);
 
         const decision = await db
             .selectFrom('player_identity_decisions')
