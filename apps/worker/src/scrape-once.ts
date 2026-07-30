@@ -1,6 +1,7 @@
 import { quickAddJob, runMigrations, runOnce } from 'graphile-worker';
 import { db } from '@tt-players/db';
-import { bootstrap, type ScrapeTarget } from './bootstrap.js';
+import type { ScrapeTarget } from './bootstrap.js';
+import { resolveAllScrapeTargets } from './all-scrape-targets.js';
 import { taskList } from './task-list.js';
 import dotenv from 'dotenv';
 import { sql } from 'kysely';
@@ -18,11 +19,11 @@ async function applyHistoricalCooldown(
 ): Promise<ScrapeTarget[]> {
     if (cooldownDays <= 0) return targets;
 
-    const historicalTargets = targets.filter((t) => t.isHistorical);
+    const historicalTargets = targets.filter((target) => target.isHistorical);
     if (historicalTargets.length === 0) return targets;
 
     const competitionIds = Array.from(
-        new Set(historicalTargets.map((t) => t.competitionId)),
+        new Set(historicalTargets.map((target) => target.competitionId)),
     );
     const competitions = await db
         .selectFrom('competitions')
@@ -31,7 +32,7 @@ async function applyHistoricalCooldown(
         .execute();
 
     const byCompetitionId = new Map(
-        competitions.map((c) => [c.id, c.last_scraped_at]),
+        competitions.map((competition) => [competition.id, competition.last_scraped_at]),
     );
     const cutoffMs = Date.now() - (cooldownDays * DAY_MS);
 
@@ -97,25 +98,29 @@ async function main() {
         `⏱️ Deferred retries: ${waitForDeferredRetries ? 'wait until runnable' : 'do not wait'}`,
     );
 
-    // 1. Run migrations for graphile-worker
     await runMigrations({ connectionString: DATABASE_URL });
     await runStartupRecovery(db, (message) => console.log(message));
 
-    // 2. Bootstrap targets from config
-    const targets = await bootstrap(db, { includeHistory });
+    const targets = await resolveAllScrapeTargets(db, {
+        includeHistory,
+        logger: {
+            info: (message) => console.log(message),
+            warn: (message) => console.warn(message),
+        },
+    });
     const eligibleTargets = includeHistory
         ? await applyHistoricalCooldown(targets, historyCooldownDays)
-        : targets.filter((t) => !t.isHistorical);
+        : targets.filter((target) => !target.isHistorical);
 
     console.log(
         `✅ Bootstrapped ${targets.length} targets. Eligible for this run: ${eligibleTargets.length}`,
     );
 
-    // 3. Add initial jobs to the queue
     for (const target of eligibleTargets) {
         console.log(`  → Queuing standings: ${target.leagueName} - ${target.divisionName}`);
         await quickAddJob({ connectionString: DATABASE_URL }, 'scrapeUrlTask', {
             url: target.url,
+            tenantHost: target.tenantHost,
             platformId: target.platformId,
             platformType: target.platformType,
             competitionId: target.competitionId,
@@ -146,12 +151,6 @@ async function main() {
     }
 
     console.log('✨ Jobs queued. Starting worker to process all jobs...');
-
-    // 4. Run worker until queue is empty
-    // Note: runOnce will process all jobs currently in the queue.
-    // Since our tasks add more jobs (scrapeUrlTask -> processLogTask),
-    // we might need to call runOnce in a loop until no more jobs are found,
-    // or use a runner that we stop when idle.
 
     while (true) {
         const status = await getQueueStatus();
@@ -205,7 +204,7 @@ async function main() {
     process.exit(0);
 }
 
-main().catch(err => {
-    console.error('❌ Scrape failed:', err);
+main().catch((error) => {
+    console.error('❌ Scrape failed:', error);
     process.exit(1);
 });
