@@ -20,6 +20,7 @@ import { useTabNavigation } from './navigation/tab-navigation';
 import { usePlayerExtendedStatsQuery, usePlayerH2HQuery } from './queries';
 import { useFavouriteH2H } from './hooks/useFavouriteH2H';
 import { FavouriteButton } from './components/FavouriteButton';
+import { RatingPredictionPanel } from './components/RatingPredictionPanel';
 import { buildH2HShareTarget } from './share-target';
 import { useShareTarget } from './hooks/useShareTarget';
 
@@ -379,6 +380,13 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
             onRetry={() => h2hQuery.refetch()}
           />
         </section>
+      ) : null}
+
+      {playerA && playerB ? (
+        <RatingPredictionPanel
+          playerA={{ id: playerA.id, name: playerA.name }}
+          playerB={{ id: playerB.id, name: playerB.name }}
+        />
       ) : null}
 
       {h2h && playerA && playerB ? (
