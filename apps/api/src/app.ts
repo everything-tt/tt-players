@@ -22,6 +22,7 @@ import { officialRankingHistoryRoutes } from './routes/official-ranking-history.
 import { ratingHistoryRoutes } from './routes/rating-history.js';
 import { ratingsRoutes } from './routes/ratings.js';
 import { sourceQualityRoutes } from './routes/source-quality.js';
+import { userSyncRoutes } from './routes/user-sync.js';
 
 export async function buildApp(db: Kysely<Database>) {
     const app = Fastify({ logger: false }).withTypeProvider<ZodTypeProvider>();
@@ -37,7 +38,7 @@ export async function buildApp(db: Kysely<Database>) {
         .filter(Boolean);
     await app.register(cors, {
         origin: allowedOrigins,
-        methods: ['GET', 'OPTIONS'],
+        methods: ['GET', 'POST', 'PUT', 'OPTIONS'],
     });
 
     // ── Compression (gzip/deflate) ───────────────────────────────────────────
@@ -65,6 +66,7 @@ export async function buildApp(db: Kysely<Database>) {
         [/^\/api\/teams\/[\w-]+\/(summary|roster|form)(\/|$)/, CACHE_STATIC],
         [/^\/api\/fixtures\/[\w-]+\/rubbers(\/|$)/, CACHE_DYNAMIC],
         [/^\/api\/sources\/quality(\/|$)/, CACHE_STATIC],
+        [/^\/api\/me(\/|$)/, 'private, no-store'],
         [/^\/api\/health(\/|$)/, 'no-cache'],
     ];
 
@@ -117,6 +119,7 @@ export async function buildApp(db: Kysely<Database>) {
     await app.register(ratingHistoryRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingsRoutes(db), { prefix: '/api/ratings' });
     await app.register(sourceQualityRoutes(db), { prefix: '/api/sources' });
+    await app.register(userSyncRoutes(db), { prefix: '/api/me' });
     await app.register(feedbackRoutes(), { prefix: '/api/feedback' });
 
     return app;
