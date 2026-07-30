@@ -8,11 +8,14 @@ on:
       - 'apps/worker/**'
       - 'infra/**'
       - 'scripts/migrate-vps-postgres.sh'
+      - 'scripts/deploy-vps-release.sh'
+      - 'scripts/rollback-vps-release.sh'
       - 'packages/db/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/vps-deploy.yml'
+      - '.github/workflows/vps-rollback.yml'
   workflow_dispatch:
 
 concurrency:
@@ -22,7 +25,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     services:
       postgres:
@@ -42,6 +45,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -68,6 +73,11 @@ jobs:
           pnpm --filter @tt-players/api test
           pnpm --filter @tt-players/worker test -- --passWithNoTests
 
+      - name: Validate deployment scripts
+        run: |
+          bash -n scripts/deploy-vps-release.sh
+          bash -n scripts/rollback-vps-release.sh
+
       - name: Configure SSH
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
@@ -78,11 +88,51 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
-      - name: Upload release
+      - name: Determine database compatibility boundary
+        id: database
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
+          set -euo pipefail
+
+          current_sha=$(ssh "$VPS_USER@$VPS_HOST" \
+            "sed -n 's/^commit_sha=//p' /opt/tt-players/current/.release-metadata 2>/dev/null | head -n 1" || true)
+
+          database_changed=true
+          if [[ -n "$current_sha" ]] && git cat-file -e "$current_sha^{commit}" 2>/dev/null; then
+            if git diff --quiet "$current_sha" "$GITHUB_SHA" -- \
+              packages/db \
+              scripts/migrate-vps-postgres.sh \
+              infra/postgres; then
+              database_changed=false
+            fi
+          fi
+
+          db_fingerprint=$(git ls-tree -r "$GITHUB_SHA" -- \
+            packages/db \
+            scripts/migrate-vps-postgres.sh \
+            infra/postgres | sha256sum | awk '{print $1}')
+
+          echo "current_sha=$current_sha" >> "$GITHUB_OUTPUT"
+          echo "database_changed=$database_changed" >> "$GITHUB_OUTPUT"
+          echo "db_fingerprint=$db_fingerprint" >> "$GITHUB_OUTPUT"
+
+          if [[ "$database_changed" == true ]]; then
+            echo "::warning::Database files changed. This deployment creates a forward-only boundary and cannot be rolled back."
+          else
+            echo "Database fingerprint is unchanged; a manual rollback to a compatible deployed release will remain available."
+          fi
+
+      - name: Upload versioned release
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          ssh "$VPS_USER@$VPS_HOST" \
+            "mkdir -p /opt/tt-players/releases/$RELEASE_SHA"
+
           rsync -az --delete \
             --exclude .git \
             --exclude node_modules \
@@ -93,26 +143,41 @@ jobs:
             --exclude backups \
             --exclude .playwright-cli \
             --exclude '*.dump' \
-            ./ "$VPS_USER@$VPS_HOST:/opt/tt-players/"
+            ./ "$VPS_USER@$VPS_HOST:/opt/tt-players/releases/$RELEASE_SHA/"
 
-      - name: Migrate and restart
+      - name: Activate release
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
+          RELEASE_SHA: ${{ github.sha }}
+          DATABASE_CHANGED: ${{ steps.database.outputs.database_changed }}
+          DB_FINGERPRINT: ${{ steps.database.outputs.db_fingerprint }}
         run: |
-          ssh "$VPS_USER@$VPS_HOST" '
-            set -eu
-            cd /opt/tt-players
-            CI=true pnpm install --frozen-lockfile
-            chown -R ttp:ttp /opt/tt-players
-            chmod -R u+rwX,go+rX /opt/tt-players
-            sudo -u postgres env DATABASE_URL=postgresql:///tt_players?host=/var/run/postgresql ./scripts/migrate-vps-postgres.sh
-            systemctl restart ttp-api ttp-worker
-            sleep 10
-            systemctl is-active --quiet ttp-api
-            systemctl is-active --quiet ttp-worker
-            curl -sf http://127.0.0.1:3005/api/health
-          '
+          ssh "$VPS_USER@$VPS_HOST" \
+            "bash /opt/tt-players/releases/$RELEASE_SHA/scripts/deploy-vps-release.sh \
+              /opt/tt-players/releases/$RELEASE_SHA \
+              '$RELEASE_SHA' \
+              '$DB_FINGERPRINT' \
+              '$DATABASE_CHANGED'"
 
       - name: Verify production health
-        run: curl --fail --retry 10 --retry-delay 3 https://ttp-api.tourneypilot.com/api/health
+        run: |
+          curl --fail --retry 10 --retry-delay 3 https://ttp-api.tourneypilot.com/api/health
+          curl --fail --retry 10 --retry-delay 3 https://ttp-api.tourneypilot.com/api/health/db
+
+      - name: Deployment summary
+        env:
+          DATABASE_CHANGED: ${{ steps.database.outputs.database_changed }}
+          DB_FINGERPRINT: ${{ steps.database.outputs.db_fingerprint }}
+        run: |
+          {
+            echo "### VPS release"
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Database changed: \`$DATABASE_CHANGED\`"
+            echo "- Database fingerprint: \`$DB_FINGERPRINT\`"
+            if [[ "$DATABASE_CHANGED" == true ]]; then
+              echo "- Rollback: **disabled**; recovery is forward-only"
+            else
+              echo "- Rollback: available through the manual VPS rollback workflow for compatible releases"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
