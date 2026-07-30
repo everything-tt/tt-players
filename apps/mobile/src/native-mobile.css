@@ -32,6 +32,12 @@ h6 {
   min-width: var(--tap-min);
 }
 
+/* Keep Back as the only left-side detail action. */
+.header .header-icon.tt-detail-header-action--feedback {
+  left: auto !important;
+  right: 80px !important;
+}
+
 /* Semantic footer buttons replace the legacy fake links. */
 #footer-bar {
   align-items: stretch;
@@ -129,6 +135,95 @@ button.tt-backdrop {
   overscroll-behavior: contain;
 }
 
+/* PWA prompts grow to fit their content while remaining usable on short screens. */
+.tt-pwa-sheet {
+  display: flex;
+  flex-direction: column;
+  max-height: min(560px, calc(100dvh - max(16px, env(safe-area-inset-top))));
+}
+
+.tt-pwa-sheet .tt-sheet__body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.tt-pwa-sheet__content {
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+/* Replace the oversized legacy switch treatment in the drawer. */
+.tt-drawer-switch.custom-control {
+  display: block;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  position: relative;
+  width: 52px;
+}
+
+.tt-drawer-switch .ios-input {
+  cursor: pointer;
+  height: 100% !important;
+  inset: 0;
+  margin: 0 !important;
+  opacity: 0;
+  position: absolute;
+  width: 100% !important;
+  z-index: 2;
+}
+
+.tt-drawer-switch .custom-control-label {
+  background: var(--surface-subtle-strong) !important;
+  border: 1px solid var(--border-hairline) !important;
+  border-radius: var(--radius-pill) !important;
+  cursor: pointer;
+  height: 32px !important;
+  inset: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  position: absolute !important;
+  transition: background-color 160ms ease, border-color 160ms ease;
+  width: 52px !important;
+}
+
+.tt-drawer-switch .custom-control-label::before {
+  background: var(--surface-strong) !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+  content: '' !important;
+  height: 26px !important;
+  left: 2px !important;
+  position: absolute !important;
+  top: 2px !important;
+  transform: translateX(0) !important;
+  transition: transform 160ms ease;
+  width: 26px !important;
+}
+
+.tt-drawer-switch .custom-control-label::after {
+  display: none !important;
+}
+
+.tt-drawer-switch .ios-input:checked + .custom-control-label {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+
+.tt-drawer-switch .ios-input:checked + .custom-control-label::before {
+  background: var(--on-accent) !important;
+  transform: translateX(20px) !important;
+}
+
+.tt-drawer-switch .ios-input:focus-visible + .custom-control-label {
+  outline: 3px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+.tt-player-metric-grid--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 @keyframes tt-sheet-enter {
   from {
     opacity: 0;
@@ -161,5 +256,10 @@ button.tt-backdrop {
 @media (prefers-reduced-motion: reduce) {
   .tt-sheet {
     animation: none;
+  }
+
+  .tt-drawer-switch .custom-control-label,
+  .tt-drawer-switch .custom-control-label::before {
+    transition: none;
   }
 }

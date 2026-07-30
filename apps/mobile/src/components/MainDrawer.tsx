@@ -1,9 +1,10 @@
-import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { TAB_METADATA } from '../player-shared';
 import type { AppTabId } from '../navigation/tab-navigation';
 import { AppSwitch } from '../ui/appkit';
 import { useAuth } from '../lib/auth';
+import { usePWAInstallContext } from '../PWAInstallContext';
 
 const DRAWER_TABS: AppTabId[] = ['home', 'players', 'leagues', 'events', 'h2h'];
 const FOCUSABLE_SELECTOR = [
@@ -45,6 +46,7 @@ export function MainDrawer({
   onThemeChange,
 }: MainDrawerProps) {
   const auth = useAuth();
+  const { canUpdate, updateApp } = usePWAInstallContext();
   const dialogRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -103,11 +105,9 @@ export function MainDrawer({
     onSelectTab(tab);
   };
 
-  const handleSwitchKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      onThemeChange(!isDarkMode);
-    }
+  const handleUpdate = () => {
+    onClose();
+    void updateApp();
   };
 
   return createPortal(
@@ -152,22 +152,24 @@ export function MainDrawer({
 
           <h3 className="tt-drawer__section-title">Settings</h3>
           <div className="tt-drawer__list">
-            <div
-              className="tt-drawer__row tt-drawer__row--switch"
-              role="group"
-              tabIndex={0}
-              onKeyDown={handleSwitchKeyDown}
-            >
+            <div className="tt-drawer__row tt-drawer__row--switch">
               <i className="fa fa-moon" aria-hidden="true" />
               <label htmlFor="tt-drawer-theme-switch">Dark Mode</label>
               <AppSwitch
                 id="tt-drawer-theme-switch"
+                containerClassName="tt-drawer-switch"
                 checked={isDarkMode}
                 onChange={(event) => onThemeChange(event.target.checked)}
                 aria-label="Dark mode"
               />
             </div>
-            {canInstall ? (
+            {canUpdate ? (
+              <button type="button" className="tt-drawer__row" onClick={handleUpdate}>
+                <i className="fa fa-sync-alt" aria-hidden="true" />
+                <span>Update App</span>
+                <i className="fa fa-angle-right" aria-hidden="true" />
+              </button>
+            ) : canInstall ? (
               <button type="button" className="tt-drawer__row" onClick={() => { onClose(); onInstall(); }}>
                 <i className="fa fa-download" aria-hidden="true" />
                 <span>Install App</span>

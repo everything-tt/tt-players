@@ -33,17 +33,17 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
         </p>
       ) : (
         <>
-          <div className="tt-player-metric-grid">
+          <div className={`tt-player-metric-grid${rating.rank == null ? ' tt-player-metric-grid--two' : ''}`}>
             <div className="tt-player-metric">
               <span className="tt-player-metric-value">{Math.round(rating.rating)}</span>
               <span className="tt-player-metric-label">Rating</span>
             </div>
-            <div className="tt-player-metric">
-              <span className="tt-player-metric-value">
-                {rating.rank ? `#${rating.rank}` : '—'}
-              </span>
-              <span className="tt-player-metric-label">Global Rank</span>
-            </div>
+            {rating.rank != null ? (
+              <div className="tt-player-metric">
+                <span className="tt-player-metric-value">#{rating.rank}</span>
+                <span className="tt-player-metric-label">Global Rank</span>
+              </div>
+            ) : null}
             <div className="tt-player-metric">
               <span className="tt-player-metric-value text-capitalize">
                 {ratingConfidenceLabel(rating.confidence)}
@@ -92,7 +92,7 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
 
           {rating.provisional ? (
             <p className="tt-rating-note">
-              Provisional rating: more results are needed before a global rank is shown.
+              Provisional rating: a global rank will appear once the rating confidence is high enough.
             </p>
           ) : null}
         </>

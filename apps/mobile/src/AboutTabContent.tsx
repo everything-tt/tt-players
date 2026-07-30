@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { API_BASE_URL } from './player-shared';
 import { FeedbackForm } from './components/FeedbackForm';
 import {
   AppButton,
@@ -81,10 +80,6 @@ export function AboutTabContent() {
           <AppButton tone="danger" full onClick={handleResetData}>Clear</AppButton>
         </div>
       </BottomSheet>
-
-      <p className="tt-about-build" aria-label="API endpoint">
-        <span>Data: <a href={API_BASE_URL} target="_blank" rel="noopener noreferrer">{API_BASE_URL}</a></span>
-      </p>
     </>
   );
 }
