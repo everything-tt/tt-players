@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ratingConfidenceLabel, usePlayerRatingQuery } from '../rating-queries';
 import { SkeletonBlock } from './Skeleton';
 import '../ratings-ui.css';
@@ -7,6 +8,7 @@ interface PlayerRatingPanelProps {
 }
 
 export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
+  const [isRangeOpen, setIsRangeOpen] = useState(false);
   const ratingQuery = usePlayerRatingQuery(playerId, Boolean(playerId));
   const rating = ratingQuery.data?.data ?? null;
 
@@ -51,11 +53,41 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
           </div>
 
           <div className="tt-rating-range" aria-label="Estimated rating range">
-            <div>
-              <span className="tt-rating-range-label">Likely rating range</span>
-              <strong>{Math.round(rating.rating_low)}–{Math.round(rating.rating_high)}</strong>
-            </div>
-            <span>{rating.rated_matches} rated matches</span>
+            <button
+              type="button"
+              className="tt-rating-range-summary"
+              aria-expanded={isRangeOpen}
+              onClick={() => setIsRangeOpen((open) => !open)}
+            >
+              <span>
+                <small>Likely range</small>
+                <strong>{Math.round(rating.rating_low)}-{Math.round(rating.rating_high)}</strong>
+              </span>
+              <span>{rating.rated_matches} rated matches</span>
+              <i className={`fa fa-chevron-${isRangeOpen ? 'up' : 'down'}`} aria-hidden="true" />
+            </button>
+
+            {isRangeOpen ? (
+              <div className="tt-rating-range-detail">
+                <div className="tt-rating-range-track" aria-hidden="true">
+                  <span />
+                </div>
+                <div className="tt-rating-range-values">
+                  <span>
+                    <small>Low</small>
+                    {Math.round(rating.rating_low)}
+                  </span>
+                  <strong>
+                    <small>Estimate</small>
+                    {Math.round(rating.rating)}
+                  </strong>
+                  <span>
+                    <small>High</small>
+                    {Math.round(rating.rating_high)}
+                  </span>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {rating.provisional ? (
