@@ -7,11 +7,11 @@ Wants=network-online.target
 Type=simple
 User=ttp
 Group=ttp
-WorkingDirectory=/opt/tt-players/apps/worker
+WorkingDirectory=/opt/tt-players/current/apps/worker
 EnvironmentFile=/etc/ttp/worker.env
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=HOME=/home/ttp
-ExecStart=/opt/tt-players/apps/worker/node_modules/.bin/tsx src/worker.ts
+ExecStart=/opt/tt-players/current/apps/worker/node_modules/.bin/tsx src/worker.ts
 Restart=on-failure
 RestartSec=3
 NoNewPrivileges=true
