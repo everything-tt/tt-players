@@ -60,7 +60,7 @@ describe('source registry migration', () => {
         const columns = new Set(
             result.rows.map((row) => `${row.table_name}.${row.column_name}`),
         );
-        expect(columns).toEqual(expect.arrayContaining([
+        const requiredColumns = [
             'source_instances.adapter_key',
             'source_instances.config',
             'source_instances.last_seen_at',
@@ -70,7 +70,10 @@ describe('source registry migration', () => {
             'source_resources.last_succeeded_at',
             'source_resources.last_error',
             'source_resources.consecutive_failures',
-        ]));
+        ];
+        for (const column of requiredColumns) {
+            expect(columns).toContain(column);
+        }
     });
 
     it('enforces stable instance and resource identities', async () => {
