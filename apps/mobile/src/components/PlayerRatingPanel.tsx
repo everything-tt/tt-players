@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTabNavigation } from '../navigation/tab-navigation';
 import { ratingConfidenceLabel, usePlayerRatingQuery } from '../rating-queries';
 import { AppButtonLink } from '../ui/appkit';
 import { SkeletonBlock } from './Skeleton';
@@ -6,10 +7,10 @@ import '../ratings-ui.css';
 
 interface PlayerRatingPanelProps {
   playerId: string;
-  onOpenHistory?: () => void;
 }
 
-export function PlayerRatingPanel({ playerId, onOpenHistory }: PlayerRatingPanelProps) {
+export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
+  const { navigateInActiveTab } = useTabNavigation();
   const [isRangeOpen, setIsRangeOpen] = useState(false);
   const ratingQuery = usePlayerRatingQuery(playerId, Boolean(playerId));
   const rating = ratingQuery.data?.data ?? null;
@@ -98,21 +99,19 @@ export function PlayerRatingPanel({ playerId, onOpenHistory }: PlayerRatingPanel
             </p>
           ) : null}
 
-          {onOpenHistory ? (
-            <AppButtonLink
-              full
-              size="sm"
-              tone="outline"
-              className="tt-rating-history-link"
-              onClick={(event) => {
-                event.preventDefault();
-                onOpenHistory();
-              }}
-            >
-              <i className="fa fa-chart-line" aria-hidden="true" />
-              View Rating History
-            </AppButtonLink>
-          ) : null}
+          <AppButtonLink
+            full
+            size="sm"
+            tone="outline"
+            className="tt-rating-history-link"
+            onClick={(event) => {
+              event.preventDefault();
+              navigateInActiveTab(`player/${playerId}/insights#rating-history`);
+            }}
+          >
+            <i className="fa fa-chart-line" aria-hidden="true" />
+            View Rating History
+          </AppButtonLink>
         </>
       )}
     </section>
