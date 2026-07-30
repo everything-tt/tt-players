@@ -236,6 +236,200 @@
   margin-top: 8px;
 }
 
+.tt-rating-history {
+  border-top: 1px solid var(--border-hairline);
+  margin-top: 16px;
+  padding-top: 14px;
+}
+
+.tt-rating-history-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.tt-rating-history-header h3 {
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.tt-rating-history-header p {
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  margin: 3px 0 0;
+}
+
+.tt-rating-history-ranges {
+  background: var(--surface-subtle);
+  border-radius: 9px;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 2px;
+}
+
+.tt-rating-history-ranges button {
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  min-height: 28px;
+  padding: 0 7px;
+}
+
+.tt-rating-history-ranges button.is-active {
+  background: var(--surface-strong);
+  box-shadow: 0 1px 3px var(--shadow-soft);
+  color: var(--accent);
+}
+
+.tt-rating-history-loading {
+  padding: 16px 0 2px;
+}
+
+.tt-skeleton-chart {
+  border-radius: 12px;
+  height: 156px;
+  width: 100%;
+}
+
+.tt-rating-history-state {
+  align-items: center;
+  color: var(--ink-muted);
+  display: flex;
+  font-size: 12px;
+  gap: 10px;
+  justify-content: space-between;
+  line-height: 1.45;
+  margin: 14px 0 2px;
+}
+
+.tt-rating-history-state button {
+  background: transparent;
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  min-height: 30px;
+  padding: 0 11px;
+}
+
+.tt-rating-history-chart-wrap {
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+.tt-rating-history-chart {
+  color: var(--accent);
+  display: block;
+  height: auto;
+  overflow: visible;
+  width: 100%;
+}
+
+.tt-rating-history-gridline {
+  stroke: var(--border-hairline);
+  stroke-width: 1;
+}
+
+.tt-rating-history-band {
+  fill: color-mix(in oklch, var(--accent) 12%, transparent);
+  stroke: none;
+}
+
+.tt-rating-history-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.tt-rating-history-point {
+  cursor: pointer;
+  fill: var(--surface-strong);
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.tt-rating-history-point.is-selected {
+  fill: currentColor;
+  stroke: var(--surface-strong);
+  stroke-width: 2;
+}
+
+.tt-rating-history-axis-label {
+  fill: var(--ink-muted);
+  font-size: 9px;
+}
+
+.tt-rating-history-detail {
+  background: var(--surface-subtle);
+  border-radius: 12px;
+  display: grid;
+  gap: 7px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-top: 4px;
+  padding: 10px;
+}
+
+.tt-rating-history-detail > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tt-rating-history-detail small {
+  color: var(--ink-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tt-rating-history-detail strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tt-rating-history-detail strong.is-positive {
+  color: var(--accent);
+}
+
+.tt-rating-history-detail strong.is-negative {
+  color: var(--state-danger);
+}
+
+@media (max-width: 520px) {
+  .tt-rating-history-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tt-rating-history-ranges {
+    align-self: flex-start;
+  }
+
+  .tt-rating-history-detail {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 420px) {
   .tt-rating-prediction-meta {
     align-items: flex-start;
@@ -245,5 +439,13 @@
 
   .tt-rating-prediction-player strong {
     font-size: 26px;
+  }
+
+  .tt-rating-history-ranges button {
+    padding: 0 6px;
+  }
+
+  .tt-rating-history-detail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
