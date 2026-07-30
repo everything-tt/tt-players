@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 import { db } from '@tt-players/db';
-import { calculateRatings } from './ratings/calculate-ratings.js';
+import { calculateRatingsWithReplay } from './ratings/calculate-ratings-with-replay.js';
 
 dotenv.config();
 
@@ -13,7 +13,7 @@ const maxPeriods = maxPeriodsArg
 const modelKey = modelArg?.split('=')[1];
 
 try {
-    const result = await calculateRatings(
+    const result = await calculateRatingsWithReplay(
         db,
         {
             rebuild,
