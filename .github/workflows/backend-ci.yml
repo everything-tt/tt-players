@@ -8,12 +8,15 @@ on:
       - 'apps/worker/**'
       - 'infra/**'
       - 'scripts/migrate-vps-postgres.sh'
+      - 'scripts/deploy-vps-release.sh'
+      - 'scripts/rollback-vps-release.sh'
       - 'packages/db/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/backend-ci.yml'
       - '.github/workflows/vps-deploy.yml'
+      - '.github/workflows/vps-rollback.yml'
 
 permissions:
   contents: read
@@ -66,3 +69,8 @@ jobs:
           pnpm --filter @tt-players/db test
           pnpm --filter @tt-players/api test
           pnpm --filter @tt-players/worker test -- --passWithNoTests
+
+      - name: Validate VPS scripts
+        run: |
+          bash -n scripts/deploy-vps-release.sh
+          bash -n scripts/rollback-vps-release.sh
