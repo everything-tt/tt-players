@@ -51,7 +51,7 @@ export async function up(db: Kysely<any>): Promise<void> {
                 SELECT MIN(rubber.played_at::date) AS candidate_date
                 FROM rubbers rubber
                 WHERE rubber.deleted_at IS NULL
-                  AND rubber.played_at > NEW.last_processed_date
+                  AND rubber.played_at::date > NEW.last_processed_date
                   AND rubber.is_doubles = false
                   AND rubber.outcome_type = 'normal'
                   AND rubber.home_player_1_id IS NOT NULL
