@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
 import App from './App';
 import { AboutPage } from './AboutPage';
+import { DataCoveragePage } from './DataCoveragePage';
 import { FixturePage } from './FixturePage';
 import { isAppTab, TabNavigationProvider } from './navigation/tab-navigation';
 import { MatchJournalPage } from './MatchJournalPage';
@@ -55,6 +56,7 @@ export function AppRouter() {
               <Route path="/tabs/:tabId/*" element={<TabRootRedirect />} />
 
               <Route path="/about" element={<AboutPage />} />
+              <Route path="/data-coverage" element={<DataCoveragePage />} />
               <Route path="/players/:playerId" element={<PlayerPage />} />
               <Route path="/players/:playerId/insights" element={<PlayerInsightsPage />} />
               <Route path="/players/:playerId/matches" element={<PlayerMatchesPage />} />
