@@ -88,8 +88,7 @@ describe('source registry migration', () => {
                 name: 'Example tenant',
                 base_url: 'https://tenant.example.test',
                 adapter_key: 'example',
-                adapter_version: undefined,
-            } as any)
+            })
             .returning('id')
             .executeTakeFirstOrThrow();
 
