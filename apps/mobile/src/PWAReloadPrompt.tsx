@@ -1,50 +1,33 @@
 import React from 'react';
-import { useRegisterSW } from 'virtual:pwa-register/react';
 import { AppButton, BottomSheet } from './ui/appkit';
-import { backupLocalData, requestPersistentStorage } from './local-persistence';
+import { usePWAInstallContext } from './PWAInstallContext';
 
 const PWAReloadPrompt: React.FC = () => {
-  const {
-    needRefresh: [needRefresh, setNeedRefresh],
-    updateServiceWorker,
-  } = useRegisterSW({
-    onRegistered() {
-      // Registered successfully.
-    },
-    onRegisterError() {
-      // Ignore registration errors in the UI; the app still works without SW.
-    },
-  });
+  const { showUpdateSheet, updateApp, dismissUpdate } = usePWAInstallContext();
 
-  const close = () => {
-    setNeedRefresh(false);
-  };
-
-  const updateNow = async () => {
-    backupLocalData();
-    await requestPersistentStorage();
-    updateServiceWorker(true);
+  const handleUpdate = () => {
+    void updateApp();
   };
 
   return (
     <BottomSheet
-      isOpen={needRefresh}
-      onClose={close}
+      isOpen={showUpdateSheet}
+      onClose={dismissUpdate}
       title="Update available"
       eyebrow="App update"
-      height="300px"
+      height="auto"
       className="tt-pwa-sheet"
     >
       <div className="tt-pwa-sheet__content">
-        <i className="fa fa-sync fa-spin tt-pwa-sheet__sync" aria-hidden="true" />
+        <i className="fa fa-sync tt-pwa-sheet__sync" aria-hidden="true" />
         <p className="tt-pwa-sheet__copy">
           A newer version of TT Players is available. Your selected leagues and saved items are kept on this device during the update.
         </p>
         <div className="tt-pwa-sheet__actions">
-          <AppButton onClick={updateNow} full>
+          <AppButton onClick={handleUpdate} full>
             Update Now
           </AppButton>
-          <AppButton onClick={close} tone="ghost" full>
+          <AppButton onClick={dismissUpdate} tone="ghost" full>
             Maybe later
           </AppButton>
         </div>
