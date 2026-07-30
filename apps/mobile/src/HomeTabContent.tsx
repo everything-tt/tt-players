@@ -157,7 +157,12 @@ export function HomeTabContent({
         </div>
       </section>
 
-      <TopRatingsSection onOpenPlayer={(playerId) => navigateInTab('players', `player/${playerId}`)} />
+      {hasLeagueScope ? (
+        <TopRatingsSection
+          leagueIds={selectedLeagueIds}
+          onOpenPlayer={(playerId) => navigateInTab('players', `player/${playerId}`)}
+        />
+      ) : null}
 
       {!hasLeagueScope ? (
         <>

@@ -40,6 +40,13 @@ export interface RatingsResponse {
   } | null;
 }
 
+export interface LeagueRatingsResponse {
+  data: PlayerRating[];
+  total: number;
+  model: string;
+  league_ids: string[];
+}
+
 export interface PlayerRatingResponse {
   data: PlayerRating;
 }
@@ -61,18 +68,20 @@ export interface RatingPredictionResponse {
   player2: RatingPredictionPlayer;
 }
 
-export function useTopRatingsQuery(limit = 5, enabled = true) {
+export function useTopRatingsQuery(leagueIds: string[], limit = 5, enabled = true) {
+  const sortedLeagueIds = [...leagueIds].sort();
+
   return useQuery({
-    queryKey: ['ratings', 'top', limit],
+    queryKey: ['ratings', 'top', 'leagues', sortedLeagueIds.join(','), limit],
     queryFn: ({ signal }: { signal: AbortSignal }) => {
       const params = new URLSearchParams({
-        page: '1',
+        league_ids: sortedLeagueIds.join(','),
         page_size: String(limit),
         include_provisional: 'false',
       });
-      return apiFetch<RatingsResponse>(`/ratings?${params.toString()}`, signal);
+      return apiFetch<LeagueRatingsResponse>(`/ratings/league?${params.toString()}`, signal);
     },
-    enabled,
+    enabled: enabled && sortedLeagueIds.length > 0,
   });
 }
 

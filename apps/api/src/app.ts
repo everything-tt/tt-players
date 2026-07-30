@@ -17,6 +17,7 @@ import { playersRoutes } from './routes/players.js';
 import { fixturesRoutes } from './routes/fixtures.js';
 import { eventsRoutes } from './routes/events.js';
 import { feedbackRoutes } from './routes/feedback.js';
+import { leagueRatingsRoutes } from './routes/league-ratings.js';
 import { ratingsRoutes } from './routes/ratings.js';
 
 export async function buildApp(db: Kysely<Database>) {
@@ -107,6 +108,7 @@ export async function buildApp(db: Kysely<Database>) {
     await app.register(playersRoutes(db), { prefix: '/api/players' });
     await app.register(fixturesRoutes(db), { prefix: '/api/fixtures' });
     await app.register(eventsRoutes(db), { prefix: '/api/events' });
+    await app.register(leagueRatingsRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingsRoutes(db), { prefix: '/api/ratings' });
     await app.register(feedbackRoutes(), { prefix: '/api/feedback' });
 
