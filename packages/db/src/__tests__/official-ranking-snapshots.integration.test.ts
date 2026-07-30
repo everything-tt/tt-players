@@ -34,6 +34,11 @@ async function dropDatabase(): Promise<void> {
     await admin.end();
 }
 
+function dateOnly(value: string | Date | null): string | null {
+    if (!value) return null;
+    return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+}
+
 describe('official ranking snapshot migration', () => {
     beforeAll(async () => {
         await recreateDatabase();
@@ -121,7 +126,7 @@ describe('official ranking snapshot migration', () => {
             inactive_periods: 0,
             is_initial_rating: false,
         });
-        expect(String(rows[0].period_end_date).slice(0, 10)).toBe('2026-07-31');
+        expect(dateOnly(rows[0].period_end_date)).toBe('2026-07-31');
     });
 
     it('enforces one player snapshot per provider, category, period and list kind', async () => {
