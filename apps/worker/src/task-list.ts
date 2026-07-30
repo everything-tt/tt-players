@@ -29,6 +29,7 @@ const scheduleScrapeTasks = async (
     for (const target of activeTargets) {
         await helpers.addJob('scrapeUrlTask', {
             url: target.url,
+            tenantHost: target.tenantHost,
             platformId: target.platformId,
             platformType: target.platformType,
             competitionId: target.competitionId,
