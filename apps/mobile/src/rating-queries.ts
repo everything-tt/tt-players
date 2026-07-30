@@ -3,6 +3,7 @@ import { apiFetch } from './player-shared';
 
 export type RatingConfidence = 'high' | 'medium' | 'low';
 export type RatingHistoryRange = '3m' | '1y' | '3y' | '10y' | 'all';
+export type OfficialRankingListKind = 'ranking' | 'rating';
 
 export interface PlayerRating {
   rank: number | null;
@@ -79,6 +80,27 @@ export interface PlayerRatingHistoryResponse {
   data: PlayerRatingHistoryPoint[];
 }
 
+export interface OfficialRankingPoint {
+  source_name: string;
+  source_url: string;
+  category_name: string;
+  list_kind: OfficialRankingListKind;
+  period_label: string;
+  period_end_date: string | null;
+  rank: number | null;
+  points: number | null;
+  county_country: string | null;
+  inactive_periods: number | null;
+  is_initial_rating: boolean;
+}
+
+export interface PlayerOfficialRankingHistoryResponse {
+  player_id: string;
+  player_name: string;
+  latest: OfficialRankingPoint[];
+  history: OfficialRankingPoint[];
+}
+
 export interface RatingPredictionPlayer {
   player_id: string;
   player_name: string;
@@ -135,6 +157,17 @@ export function usePlayerRatingHistoryQuery(
       return apiFetch<PlayerRatingHistoryResponse>(`/ratings/${playerId}/history?${params.toString()}`, signal);
     },
     enabled: enabled && Boolean(playerId),
+    retry: false,
+  });
+}
+
+export function usePlayerOfficialRankingHistoryQuery(playerId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['ratings', 'player', playerId, 'official-history'],
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      apiFetch<PlayerOfficialRankingHistoryResponse>(`/ratings/${playerId}/official-history`, signal),
+    enabled: enabled && Boolean(playerId),
+    staleTime: 5 * 60 * 1000,
     retry: false,
   });
 }
