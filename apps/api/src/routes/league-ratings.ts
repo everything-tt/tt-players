@@ -11,6 +11,7 @@ type RatingConfidence = 'high' | 'medium' | 'low';
 const QuerySchema = z.object({
     model: z.string().min(1).default(DEFAULT_MODEL_KEY),
     league_ids: z.string().min(1),
+    page: z.coerce.number().int().min(1).default(1),
     page_size: z.coerce.number().int().min(1).max(100).default(5),
     include_provisional: z.enum(['true', 'false']).default('false').transform((value: string) => value === 'true'),
 });
@@ -63,6 +64,8 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         200: z.object({
                             data: z.array(RatingSchema),
                             total: z.number().int(),
+                            page: z.number().int(),
+                            page_size: z.number().int(),
                             model: z.string(),
                             league_ids: z.array(z.string().uuid()),
                         }),
@@ -84,7 +87,13 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 }
 
                 const leagueIdArray = uuidArray([...new Set(leagueIds)]);
-                const { model, page_size: pageSize, include_provisional: includeProvisional } = request.query;
+                const {
+                    model,
+                    page,
+                    page_size: pageSize,
+                    include_provisional: includeProvisional,
+                } = request.query;
+                const offset = (page - 1) * pageSize;
 
                 const result = await sql<RatingRow>`
                     WITH eligible_players AS (
@@ -143,11 +152,14 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     FROM ranked
                     ORDER BY rank
                     LIMIT ${pageSize}
+                    OFFSET ${offset}
                 `.execute(db);
 
                 return reply.send({
                     data: result.rows.map(presentRating),
                     total: Number(result.rows[0]?.total ?? 0),
+                    page,
+                    page_size: pageSize,
                     model,
                     league_ids: [...new Set(leagueIds)],
                 });
