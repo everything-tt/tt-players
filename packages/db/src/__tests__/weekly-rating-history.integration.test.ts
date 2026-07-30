@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Kysely, PostgresDialect, sql } from 'kysely';
 import pg from 'pg';
-import * as weeklyHistoryMigration from '../migrations/029_create_weekly_rating_history.js';
+import * as weeklyHistoryMigration from '../migrations/031_create_weekly_rating_history.js';
 
 const { Pool } = pg;
 const TEST_DB_NAME = 'tt_players_weekly_rating_history_test';
@@ -70,7 +70,13 @@ async function createPrerequisiteTables(): Promise<void> {
 }
 
 function dateOnly(value: string | Date): string {
-    return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+    if (!(value instanceof Date)) {
+        return String(value).slice(0, 10);
+    }
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 describe('weekly rating history migration', () => {

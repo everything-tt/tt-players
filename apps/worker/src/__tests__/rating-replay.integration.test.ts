@@ -10,9 +10,9 @@ import * as m006 from '@tt-players/db/src/migrations/006_add_canonical_player_id
 import * as m013 from '@tt-players/db/src/migrations/013_add_rubber_score_source.js';
 import * as m015 from '@tt-players/db/src/migrations/015_add_rubber_played_at.js';
 import * as m028 from '@tt-players/db/src/migrations/028_create_calculated_ratings.js';
-import * as m029History from '@tt-players/db/src/migrations/029_create_weekly_rating_history.js';
-import * as m031 from '@tt-players/db/src/migrations/031_create_rating_replay_checkpoints.js';
-import * as m032 from '@tt-players/db/src/migrations/032_capture_monthly_rating_checkpoints.js';
+import * as m031History from '@tt-players/db/src/migrations/031_create_weekly_rating_history.js';
+import * as m032 from '@tt-players/db/src/migrations/032_create_rating_replay_checkpoints.js';
+import * as m033 from '@tt-players/db/src/migrations/033_capture_monthly_rating_checkpoints.js';
 import { calculateRatingsWithReplay } from '../ratings/calculate-ratings-with-replay.js';
 
 const { Pool } = pg;
@@ -106,9 +106,9 @@ describe('incremental rating replay', () => {
         await m013.up(db);
         await m015.up(db);
         await m028.up(db);
-        await m029History.up(db);
-        await m031.up(db);
+        await m031History.up(db);
         await m032.up(db);
+        await m033.up(db);
 
         const platform = await db
             .insertInto('platforms')

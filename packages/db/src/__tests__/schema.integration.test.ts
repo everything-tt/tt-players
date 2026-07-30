@@ -31,6 +31,13 @@ import * as m024 from '../migrations/024_add_recent_fixture_search_indexes.js';
 import * as m025 from '../migrations/025_add_feedback_github_issue_link.js';
 import * as m026 from '../migrations/026_create_feedback_attachments.js';
 import * as m027 from '../migrations/027_expand_feedback_context_and_attachments.js';
+import * as m028 from '../migrations/028_create_calculated_ratings.js';
+import * as m029 from '../migrations/029_create_source_registry.js';
+import * as m030 from '../migrations/030_create_player_identity_decisions.js';
+import * as m031 from '../migrations/031_create_weekly_rating_history.js';
+import * as m032 from '../migrations/032_create_rating_replay_checkpoints.js';
+import * as m033 from '../migrations/033_capture_monthly_rating_checkpoints.js';
+import * as m034 from '../migrations/034_create_user_sync_states.js';
 
 const { Pool } = pg;
 
@@ -75,6 +82,13 @@ class StaticMigrationProvider implements MigrationProvider {
             '025_add_feedback_github_issue_link': m025,
             '026_create_feedback_attachments': m026,
             '027_expand_feedback_context_and_attachments': m027,
+            '028_create_calculated_ratings': m028,
+            '029_create_source_registry': m029,
+            '030_create_player_identity_decisions': m030,
+            '031_create_weekly_rating_history': m031,
+            '032_create_rating_replay_checkpoints': m032,
+            '033_capture_monthly_rating_checkpoints': m033,
+            '034_create_user_sync_states': m034,
         };
     }
 }
@@ -861,7 +875,7 @@ describe('Database Schema Integration Tests', () => {
 
             // Roll back all migrations one by one
             let rolledBack = 0;
-            const maxRollbacks = 30; // Safety limit
+            const maxRollbacks = 40; // Safety limit
 
             while (rolledBack < maxRollbacks) {
                 const { error, results } = await migrator.migrateDown();

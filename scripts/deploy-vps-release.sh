@@ -23,6 +23,7 @@ root_dir=/opt/tt-players
 current_link="$root_dir/current"
 previous_link="$root_dir/previous"
 metadata_file="$release_dir/.release-metadata"
+bun_bin="${BUN_BIN:-/usr/local/bin/bun}"
 
 case "$database_changed" in
   true|false) ;;
@@ -63,6 +64,12 @@ EOF_METADATA
 (cd "$release_dir" && CI=true pnpm install --frozen-lockfile)
 chown -R ttp:ttp "$release_dir"
 chmod -R u+rwX,go+rX "$release_dir"
+
+if [[ "$database_changed" == true ]]; then
+  sudo -u postgres env \
+    DATABASE_URL='postgresql:///tt_players?host=/var/run/postgresql' \
+    "$bun_bin" "$release_dir/packages/db/src/migration-preflight.ts"
+fi
 
 install -m 0644 "$release_dir/infra/systemd/ttp-api.service" /etc/systemd/system/ttp-api.service
 install -m 0644 "$release_dir/infra/systemd/ttp-worker.service" /etc/systemd/system/ttp-worker.service
