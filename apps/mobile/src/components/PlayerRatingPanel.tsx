@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ratingConfidenceLabel, usePlayerRatingQuery } from '../rating-queries';
+import { PlayerRatingHistoryChart } from './PlayerRatingHistoryChart';
 import { SkeletonBlock } from './Skeleton';
 import '../ratings-ui.css';
 
@@ -95,6 +96,8 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
               Provisional rating: a global rank will appear once the rating confidence is high enough.
             </p>
           ) : null}
+
+          <PlayerRatingHistoryChart playerId={playerId} />
         </>
       )}
     </section>
