@@ -43,20 +43,16 @@ export async function extractAndStore(
     url: string,
     platformId: string,
     db: Kysely<Database>,
+    requestInit: RequestInit = {},
 ): Promise<string> {
-    // 1. Fetch the URL (let network errors propagate naturally)
-    const response = await fetchWithTT365Policy(url);
+    const response = await fetchWithTT365Policy(url, requestInit);
 
-    // 2. Handle HTTP errors — throw so the job can be retried
     if (!response.ok) {
         throw new Error(
             `HTTP ${response.status} ${response.statusText} when fetching ${url}`,
         );
     }
 
-    // 3. Read body
     const body = await response.text();
-
-    // 4. UPSERT into raw_scrape_logs
     return storeScrapePayload(url, platformId, body, db);
 }

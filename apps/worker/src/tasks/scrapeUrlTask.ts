@@ -5,6 +5,7 @@ import { fetchWithTT365Policy } from '../tt365-http.js';
 
 export interface ScrapeUrlPayload {
     url: string;
+    tenantHost?: string | null;
     platformId: string;
     platformType: 'tt365' | 'ttleagues';
     competitionId: string;
@@ -105,6 +106,7 @@ async function extractAndStoreTT365MatchCard(url: string, platformId: string): P
 export const scrapeUrlTask: Task = async (payload, helpers) => {
     const {
         url,
+        tenantHost,
         platformId,
         platformType,
         competitionId,
@@ -117,14 +119,21 @@ export const scrapeUrlTask: Task = async (payload, helpers) => {
 
     const isTT365MatchCard =
         platformType === 'tt365' && tt365DataType === 'matchcard';
+    const requestInit: RequestInit = platformType === 'ttleagues' && tenantHost
+        ? {
+            headers: {
+                Tenant: tenantHost,
+                Entry: '1',
+            },
+        }
+        : {};
 
     const extractOnce = async (): Promise<string> => (
         isTT365MatchCard
             ? extractAndStoreTT365MatchCard(url, platformId)
-            : extractAndStore(url, platformId, db)
+            : extractAndStore(url, platformId, db, requestInit)
     );
 
-    // One local retry after a short delay to absorb transient upstream failures.
     let logId: string;
     try {
         logId = await extractOnce();
@@ -138,7 +147,6 @@ export const scrapeUrlTask: Task = async (payload, helpers) => {
 
     helpers.logger.info(`scrapeUrlTask: stored log ${logId}, queuing processLogTask`);
 
-    // Chain: immediately queue a Phase 2 (transform + load) task
     await helpers.addJob('processLogTask', {
         logId,
         competitionId,
