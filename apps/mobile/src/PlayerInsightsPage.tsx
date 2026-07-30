@@ -1,5 +1,6 @@
 import './app-shell.css';
 import { useParams } from 'react-router-dom';
+import { PlayerRatingHistoryChart } from './components/PlayerRatingHistoryChart';
 import { SectionSkeleton, SkeletonBlock } from './components/Skeleton';
 import { useTabNavigation } from './navigation/tab-navigation';
 import { calcWinRate, getInitials, getQueryError } from './player-shared';
@@ -29,6 +30,7 @@ function PlayerInsightsSkeleton() {
           <SkeletonBlock className="tt-skeleton-avatar" />
         </div>
       </section>
+      <SectionSkeleton rows={3} />
       <SectionSkeleton rows={3} />
       <SectionSkeleton rows={3} />
     </>
@@ -79,6 +81,8 @@ export function PlayerInsightsPage() {
                 </div>
               </div>
             </HeroCard>
+
+            <PlayerRatingHistoryChart playerId={playerId} />
 
             <section className="tt-player-section" aria-labelledby="tt-insights-rivals-title">
               <SectionHeader title="Rival Intelligence" note="Trends" />
