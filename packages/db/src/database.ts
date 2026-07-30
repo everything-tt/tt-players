@@ -1,7 +1,7 @@
 import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
 import dotenv from 'dotenv';
-import type { Database } from './identity-resolution-types.js';
+import type { Database } from './official-ranking-types.js';
 
 const { Pool } = pg;
 
