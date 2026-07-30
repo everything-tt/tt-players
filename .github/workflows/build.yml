@@ -9,6 +9,7 @@ on:
       - 'netlify.toml'
       - 'package.json'
       - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/build.yml'
   pull_request:
     branches: [main]
@@ -45,7 +46,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Install dependencies

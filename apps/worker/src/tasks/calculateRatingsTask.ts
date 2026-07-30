@@ -1,3 +1,4 @@
+import type { Task } from 'graphile-worker';
 import { db } from '@tt-players/db';
 import { calculateRatings } from '../ratings/calculate-ratings.js';
 
@@ -7,16 +8,14 @@ interface CalculateRatingsPayload {
     rebuild?: boolean;
 }
 
-export async function calculateRatingsTask(
-    payload: CalculateRatingsPayload,
-    helpers: { logger: { info: (message: string) => void } },
-): Promise<void> {
+export const calculateRatingsTask: Task = async (payload, helpers): Promise<void> => {
+    const options = payload as CalculateRatingsPayload | null | undefined;
     const result = await calculateRatings(
         db,
         {
-            modelKey: payload?.modelKey,
-            maxPeriods: payload?.maxPeriods,
-            rebuild: payload?.rebuild === true,
+            modelKey: options?.modelKey,
+            maxPeriods: options?.maxPeriods,
+            rebuild: options?.rebuild === true,
         },
         (message) => helpers.logger.info(message),
     );
@@ -25,4 +24,4 @@ export async function calculateRatingsTask(
         `ratings: processed ${result.processedPeriods} periods and ${result.processedMatches} matches`
         + ` (complete=${result.complete}, busy=${result.busy})`,
     );
-}
+};

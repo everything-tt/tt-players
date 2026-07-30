@@ -4,6 +4,7 @@
     "private": true,
     "type": "module",
     "scripts": {
+        "build": "tsc -p tsconfig.json --noEmit",
         "test": "vitest run",
         "test:watch": "vitest",
         "worker:start": "tsx src/worker.ts",
