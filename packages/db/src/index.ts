@@ -10,7 +10,6 @@ export type {
     SourceResourceUpdate,
 } from './source-registry-types.js';
 export type {
-    Database,
     IdentityResolutionDatabase,
     PlayerIdentityDecisionStatus,
     PlayerIdentityDecisionCreator,
@@ -18,6 +17,13 @@ export type {
     NewPlayerIdentityDecision,
     PlayerIdentityDecisionUpdate,
 } from './identity-resolution-types.js';
+export type {
+    Database,
+    OfficialRankingDatabase,
+    OfficialRankingSnapshot,
+    NewOfficialRankingSnapshot,
+    OfficialRankingSnapshotUpdate,
+} from './official-ranking-types.js';
 export type {
     // Enum types
     CompetitionType,
