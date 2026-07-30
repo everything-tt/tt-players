@@ -198,14 +198,14 @@ function buildChartGeometry(history: PlayerRatingHistoryPoint[]) {
 
   const plotWidth = CHART_WIDTH - CHART_LEFT - CHART_RIGHT;
   const plotHeight = CHART_HEIGHT - CHART_TOP - CHART_BOTTOM;
-  const xFor = (date: number, index: number) => maxDate === minDate
+  const xFor = (date: number) => maxDate === minDate
     ? CHART_LEFT + plotWidth / 2
     : CHART_LEFT + ((date - minDate) / (maxDate - minDate)) * plotWidth;
   const yFor = (rating: number) => CHART_TOP + ((maxRating - rating) / (maxRating - minRating)) * plotHeight;
 
   const points: ChartPoint[] = history.map((point, index) => ({
     ...point,
-    x: xFor(dates[index] ?? minDate, index),
+    x: xFor(dates[index] ?? minDate),
     y: yFor(point.rating),
     lowY: yFor(point.rating_low),
     highY: yFor(point.rating_high),
