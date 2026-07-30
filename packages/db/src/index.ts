@@ -10,6 +10,12 @@ export type {
     SourceResourceUpdate,
 } from './source-registry-types.js';
 export type {
+    UserSyncDatabase,
+    UserSyncState,
+    NewUserSyncState,
+    UserSyncStateUpdate,
+} from './user-sync-types.js';
+export type {
     Database,
     IdentityResolutionDatabase,
     PlayerIdentityDecisionStatus,
