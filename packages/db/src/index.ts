@@ -1,7 +1,6 @@
 export { db, createDb } from './database.js';
 export type { ApiDatabase, StagingDatabase } from './types.js';
 export type {
-    Database,
     SourceRegistryDatabase,
     SourceInstance,
     NewSourceInstance,
@@ -10,6 +9,15 @@ export type {
     NewSourceResource,
     SourceResourceUpdate,
 } from './source-registry-types.js';
+export type {
+    Database,
+    IdentityResolutionDatabase,
+    PlayerIdentityDecisionStatus,
+    PlayerIdentityDecisionCreator,
+    PlayerIdentityDecision,
+    NewPlayerIdentityDecision,
+    PlayerIdentityDecisionUpdate,
+} from './identity-resolution-types.js';
 export type {
     // Enum types
     CompetitionType,
