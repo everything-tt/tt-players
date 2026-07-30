@@ -2,6 +2,7 @@ import { useFavouritePlayers } from '../hooks/useFavouritePlayers';
 import { useMyPlayer } from '../hooks/useMyPlayer';
 import { usePlayerExtendedStatsQuery, usePlayerInsightsQuery } from '../queries';
 import {
+  AppButton,
   Avatar,
   EmptyState,
   List,
@@ -16,7 +17,7 @@ interface MyTTSectionProps {
 }
 
 export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
-  const { player: myPlayer } = useMyPlayer();
+  const { player: myPlayer, setMyPlayer } = useMyPlayer();
   const { players: favouritePlayers } = useFavouritePlayers();
   const statsQuery = usePlayerExtendedStatsQuery(myPlayer?.id ?? '', Boolean(myPlayer));
   const insightsQuery = usePlayerInsightsQuery(myPlayer?.id ?? '', Boolean(myPlayer));
@@ -26,24 +27,24 @@ export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
     .slice(0, 4);
   const rollingWinRate = insightsQuery.data?.form.rolling_10_win_rate ?? null;
 
-  if (!myPlayer && followedPlayers.length === 0) {
+  if (!myPlayer && favouritePlayers.length === 0) {
     return (
-      <section className="tt-home-section" aria-labelledby="tt-my-tt-title">
+      <section className="tt-home-section">
         <SectionHeader title="My TT" note="Personalise your dashboard" />
         <EmptyState
           iconClassName="fa fa-user-circle"
           title="Make TT Players yours"
-          message="Open your player profile and tap the player badge in the header. Follow other players to keep them close at hand."
+          message="Search for your player profile and save it. Return here to mark it as you and build a personal dashboard."
         />
       </section>
     );
   }
 
   return (
-    <section className="tt-home-section" aria-labelledby="tt-my-tt-title">
+    <section className="tt-home-section">
       <SectionHeader
         title="My TT"
-        note={myPlayer ? 'Your personal dashboard' : `${followedPlayers.length} followed`}
+        note={myPlayer ? 'Your personal dashboard' : 'Choose your player below'}
       />
 
       {myPlayer ? (
@@ -54,8 +55,8 @@ export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
             <ListItem
               leading={<Avatar text={initials(statsQuery.data.player_name)} />}
               title={statsQuery.data.player_name}
-              subtitle={`${statsQuery.data.wins}W · ${statsQuery.data.losses}L · ${statsQuery.data.total} played`}
-              trailing={rollingWinRate == null ? undefined : <Pill tone="accent">Last 10: {rollingWinRate}%</Pill>}
+              subtitle={`${statsQuery.data.wins}W · ${statsQuery.data.losses}L · ${statsQuery.data.total} played${rollingWinRate == null ? '' : ` · Last 10: ${rollingWinRate}%`}`}
+              trailing={<Pill tone="accent">You</Pill>}
               onClick={() => onOpenPlayer(statsQuery.data!.player_id)}
             />
           </List>
@@ -65,6 +66,7 @@ export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
               leading={<Avatar text={initials(myPlayer.name)} />}
               title={myPlayer.name}
               subtitle="Your player profile is temporarily unavailable."
+              trailing={<Pill tone="accent">You</Pill>}
               onClick={() => onOpenPlayer(myPlayer.id)}
             />
           </List>
@@ -82,6 +84,19 @@ export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
                 title={player.name}
                 subtitle={`${player.wins}W · ${player.played} played`}
                 onClick={() => onOpenPlayer(player.id)}
+                trailing={(
+                  <AppButton
+                    size="sm"
+                    tone="outline"
+                    aria-label={`Set ${player.name} as my player`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setMyPlayer({ id: player.id, name: player.name });
+                    }}
+                  >
+                    This is me
+                  </AppButton>
+                )}
               />
             ))}
           </List>
