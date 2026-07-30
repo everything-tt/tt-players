@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from 'react';
-import { useParams } from 'react-router-dom';
 import {
   AppHeader,
   AppHeaderSpacer,
@@ -8,11 +7,8 @@ import {
 } from '../ui/appkit';
 import { useTabNavigation } from '../navigation/tab-navigation';
 import { useShareTarget } from '../hooks/useShareTarget';
-import { useMyPlayer } from '../hooks/useMyPlayer';
 import type { ShareTarget } from '../share-target';
 import { QuickFeedbackSheet } from '../QuickFeedbackSheet';
-
-const GENERIC_PLAYER_TITLES = new Set(['Player', 'Insights', 'Matches', 'Tournaments']);
 
 interface DetailHeaderProps {
   /** Page title shown in the header and on-title-click navigates home. */
@@ -45,30 +41,11 @@ export function DetailHeader({
   shareTarget = null,
 }: DetailHeaderProps) {
   const { goBackInActiveTab, switchTab } = useTabNavigation();
-  const { playerId = '' } = useParams<{ playerId: string }>();
-  const { isMyPlayer, setMyPlayer, clear } = useMyPlayer();
   const { share, status } = useShareTarget(shareTarget);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const sharePosition: HeaderIconPosition = showHome ? 3 : 4;
   const feedbackPosition: HeaderIconPosition = showHome && shareTarget ? 2 : (showHome || shareTarget ? 3 : 4);
   const feedbackClassName = showHome && shareTarget ? 'tt-detail-header-action--feedback' : undefined;
-  const playerName = typeof title === 'string' ? title.trim() : '';
-  const canSetPlayerIdentity = Boolean(
-    playerId
-    && playerName
-    && !GENERIC_PLAYER_TITLES.has(playerName),
-  );
-  const isCurrentPlayer = Boolean(playerId && isMyPlayer(playerId));
-  const identityActions: AppHeaderProps['actions'] = canSetPlayerIdentity ? [{
-    iconClassName: isCurrentPlayer ? 'fas fa-user-check' : 'fas fa-user-plus',
-    onClick: (event) => {
-      event.preventDefault();
-      if (isCurrentPlayer) clear();
-      else setMyPlayer({ id: playerId, name: playerName });
-    },
-    position: 1,
-    ariaLabel: isCurrentPlayer ? `Remove ${playerName} as my player` : `Set ${playerName} as my player`,
-  }] : [];
 
   const handleBack = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -107,7 +84,6 @@ export function DetailHeader({
           ariaLabel: 'Home',
         } : undefined}
         actions={[
-          ...identityActions,
           {
             iconClassName: 'fas fa-comment-dots',
             onClick: handleFeedback,
