@@ -128,4 +128,47 @@ export const scrapeSport80RankingTableTask: Task = async (payload, helpers) => {
             }),
         )
         .execute();
+
+    await db
+        .insertInto('official_ranking_snapshots')
+        .values(entries.map((entry) => ({
+            platform_id: platformId,
+            player_id: entry.player_id,
+            source_category_external_id: subcategoryId,
+            category_name: subcategoryName,
+            source_period_external_id: periodId,
+            period_label: periodLabel,
+            period_end_date: periodEndDate,
+            list_kind: entry.list_kind,
+            ranking_row_external_id: entry.ranking_row_external_id,
+            athlete_external_id: entry.athlete_external_id,
+            rank: entry.rank,
+            points: entry.points,
+            county_country: entry.county_country,
+            inactive_periods: entry.inactive_periods,
+            is_initial_rating: entry.is_initial_rating,
+            updated_at: entry.updated_at,
+        })))
+        .onConflict((oc) =>
+            oc.columns([
+                'platform_id',
+                'source_category_external_id',
+                'source_period_external_id',
+                'player_id',
+                'list_kind',
+            ]).doUpdateSet({
+                category_name: (eb) => eb.ref('excluded.category_name'),
+                period_label: (eb) => eb.ref('excluded.period_label'),
+                period_end_date: (eb) => eb.ref('excluded.period_end_date'),
+                ranking_row_external_id: (eb) => eb.ref('excluded.ranking_row_external_id'),
+                athlete_external_id: (eb) => eb.ref('excluded.athlete_external_id'),
+                rank: (eb) => eb.ref('excluded.rank'),
+                points: (eb) => eb.ref('excluded.points'),
+                county_country: (eb) => eb.ref('excluded.county_country'),
+                inactive_periods: (eb) => eb.ref('excluded.inactive_periods'),
+                is_initial_rating: (eb) => eb.ref('excluded.is_initial_rating'),
+                updated_at: new Date(),
+            }),
+        )
+        .execute();
 };
