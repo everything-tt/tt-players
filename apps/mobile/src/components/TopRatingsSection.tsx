@@ -1,6 +1,7 @@
 import { SkeletonList } from './Skeleton';
 import { getQueryError } from '../player-shared';
 import { ratingConfidenceLabel, useTopRatingsQuery } from '../rating-queries';
+import { useTabNavigation } from '../navigation/tab-navigation';
 import {
   EmptyState,
   ErrorState,
@@ -20,14 +21,26 @@ interface TopRatingsSectionProps {
 const TOP_RATINGS_LIMIT = 5;
 
 export function TopRatingsSection({ leagueIds, onOpenPlayer }: TopRatingsSectionProps) {
+  const { navigateInTab } = useTabNavigation();
   const ratingsQuery = useTopRatingsQuery(leagueIds, TOP_RATINGS_LIMIT);
   const ratings = ratingsQuery.data?.data ?? [];
   const error = getQueryError(ratingsQuery.error);
-  const scopeNote = leagueIds.length === 1 ? 'Selected league players' : `${leagueIds.length} selected leagues`;
+  const scopeNote = leagueIds.length === 1 ? 'Selected league' : `${leagueIds.length} selected leagues`;
 
   return (
     <section className="tt-home-section" aria-labelledby="tt-top-ratings-title">
-      <SectionHeader title="Top Rated Players" note={scopeNote} />
+      <SectionHeader
+        title={<span id="tt-top-ratings-title">Top Rated Players</span>}
+        action={(
+          <div className="tt-top-ratings-heading-actions">
+            <span>{scopeNote}</span>
+            <button type="button" onClick={() => navigateInTab('home', 'ratings')}>
+              View all
+              <i className="fa fa-angle-right" aria-hidden="true" />
+            </button>
+          </div>
+        )}
+      />
       {ratingsQuery.isLoading ? (
         <SkeletonList rows={TOP_RATINGS_LIMIT} />
       ) : error ? (
