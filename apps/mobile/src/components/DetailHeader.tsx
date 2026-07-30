@@ -38,6 +38,9 @@ export function DetailHeader({
   const { goBackInActiveTab, switchTab } = useTabNavigation();
   const { share, status } = useShareTarget(shareTarget);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const sharePosition = showHome ? 3 : 4;
+  const feedbackPosition = showHome && shareTarget ? 2 : (showHome || shareTarget ? 3 : 4);
+  const feedbackClassName = showHome && shareTarget ? 'tt-detail-header-action--feedback' : undefined;
 
   const handleBack = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -79,14 +82,14 @@ export function DetailHeader({
           {
             iconClassName: 'fas fa-comment-dots',
             onClick: handleFeedback,
-            position: 2 as const,
+            position: feedbackPosition,
             ariaLabel: 'Send feedback',
-            className: 'tt-detail-header-action--feedback',
+            className: feedbackClassName,
           },
           ...(shareTarget ? [{
             iconClassName: 'fas fa-share-alt',
             onClick: share,
-            position: 3 as const,
+            position: sharePosition,
             ariaLabel: `Share ${shareTarget.title}`,
           }] : []),
           ...(actions ?? []),
