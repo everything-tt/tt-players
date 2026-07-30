@@ -1,6 +1,23 @@
 name: Backend CI
 
 on:
+  push:
+    branches:
+      - 'agent/**'
+    paths:
+      - 'apps/api/**'
+      - 'apps/worker/**'
+      - 'infra/**'
+      - 'scripts/migrate-vps-postgres.sh'
+      - 'scripts/deploy-vps-release.sh'
+      - 'scripts/rollback-vps-release.sh'
+      - 'packages/db/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/backend-ci.yml'
+      - '.github/workflows/vps-deploy.yml'
+      - '.github/workflows/vps-rollback.yml'
   pull_request:
     branches: [main]
     paths:
