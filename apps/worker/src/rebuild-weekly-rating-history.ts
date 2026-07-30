@@ -78,6 +78,10 @@ async function resetFromDate(modelKey: string, startDate: string): Promise<void>
         if (!model) throw new Error(`Unknown rating model: ${modelKey}`);
 
         await sql`
+            DELETE FROM rating_checkpoints
+            WHERE model_id = ${model.id}::uuid
+        `.execute(trx);
+        await sql`
             DELETE FROM player_rating_weekly_history
             WHERE model_id = ${model.id}::uuid
         `.execute(trx);
@@ -89,6 +93,7 @@ async function resetFromDate(modelKey: string, startDate: string): Promise<void>
             INSERT INTO rating_processing_state (
                 model_id,
                 last_processed_date,
+                dirty_from_date,
                 status,
                 processed_periods,
                 processed_matches,
@@ -99,6 +104,7 @@ async function resetFromDate(modelKey: string, startDate: string): Promise<void>
             ) VALUES (
                 ${model.id}::uuid,
                 (${startDate}::date - 1),
+                NULL,
                 'running',
                 0,
                 0,
@@ -109,6 +115,7 @@ async function resetFromDate(modelKey: string, startDate: string): Promise<void>
             )
             ON CONFLICT (model_id) DO UPDATE SET
                 last_processed_date = EXCLUDED.last_processed_date,
+                dirty_from_date = NULL,
                 status = 'running',
                 processed_periods = 0,
                 processed_matches = 0,
@@ -127,7 +134,7 @@ async function rebuild(): Promise<void> {
     const startDate = parseStartDate(readArg('start-date'), years);
 
     console.log(`ratings history: rebuilding ${modelKey} from ${startDate}`);
-    console.log('ratings history: existing current ratings and weekly history for this model will be replaced');
+    console.log('ratings history: existing ratings, checkpoints, and weekly history for this model will be replaced');
     await resetFromDate(modelKey, startDate);
 
     let totalPeriods = 0;

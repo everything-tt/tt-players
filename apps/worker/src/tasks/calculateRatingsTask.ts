@@ -1,6 +1,6 @@
 import type { Task } from 'graphile-worker';
 import { db } from '@tt-players/db';
-import { calculateRatings } from '../ratings/calculate-ratings.js';
+import { calculateRatingsWithReplay } from '../ratings/calculate-ratings-with-replay.js';
 
 interface CalculateRatingsPayload {
     modelKey?: string;
@@ -10,7 +10,7 @@ interface CalculateRatingsPayload {
 
 export const calculateRatingsTask: Task = async (payload, helpers): Promise<void> => {
     const options = payload as CalculateRatingsPayload | null | undefined;
-    const result = await calculateRatings(
+    const result = await calculateRatingsWithReplay(
         db,
         {
             modelKey: options?.modelKey,
@@ -22,6 +22,6 @@ export const calculateRatingsTask: Task = async (payload, helpers): Promise<void
 
     helpers.logger.info(
         `ratings: processed ${result.processedPeriods} periods and ${result.processedMatches} matches`
-        + ` (complete=${result.complete}, busy=${result.busy})`,
+        + ` (complete=${result.complete}, busy=${result.busy}, replayed=${result.replayed})`,
     );
 };
