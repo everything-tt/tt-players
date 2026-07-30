@@ -12,7 +12,7 @@ const PWAInstallSheet: React.FC = () => {
       onClose={dismiss}
       title="TT Players on Home Screen"
       eyebrow="Install app"
-      height={showAndroidSheet ? '380px' : '350px'}
+      height="auto"
       className="tt-pwa-sheet"
     >
       <div className="tt-pwa-sheet__content">
