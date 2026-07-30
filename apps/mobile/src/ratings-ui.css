@@ -1,0 +1,144 @@
+.tt-rating-panel {
+  border-color: var(--accent-border-strong);
+}
+
+.tt-rating-range {
+  align-items: center;
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent-border);
+  border-radius: 12px;
+  color: var(--ink-muted);
+  display: flex;
+  font-size: 12px;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding: 11px 12px;
+}
+
+.tt-rating-range > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tt-rating-range-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tt-rating-range strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tt-rating-note {
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 9px 2px 0;
+}
+
+.tt-rating-prediction-grid {
+  align-items: stretch;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  margin-top: 10px;
+}
+
+.tt-rating-prediction-player {
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent-border);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 12px 10px;
+  text-align: center;
+}
+
+.tt-rating-prediction-player-b {
+  background: color-mix(in oklch, var(--surface-strong) 80%, var(--state-warning-soft));
+}
+
+.tt-rating-prediction-name {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tt-rating-prediction-player strong {
+  color: var(--accent);
+  font-size: 30px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin: 7px 0 5px;
+}
+
+.tt-rating-prediction-player-b strong {
+  color: var(--state-warning-text);
+}
+
+.tt-rating-prediction-player > span:last-child {
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+.tt-rating-prediction-vs {
+  align-self: center;
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.tt-rating-probability-bar {
+  background: var(--border-hairline);
+  border-radius: 999px;
+  display: flex;
+  height: 10px;
+  margin-top: 12px;
+  overflow: hidden;
+}
+
+.tt-rating-probability-a {
+  background: var(--accent);
+  min-width: 2px;
+}
+
+.tt-rating-probability-b {
+  background: var(--state-warning);
+  min-width: 2px;
+}
+
+.tt-rating-prediction-meta {
+  color: var(--ink-muted);
+  display: flex;
+  font-size: 11px;
+  gap: 10px;
+  justify-content: space-between;
+  line-height: 1.35;
+  margin-top: 8px;
+}
+
+@media (max-width: 420px) {
+  .tt-rating-range,
+  .tt-rating-prediction-meta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .tt-rating-prediction-player strong {
+    font-size: 26px;
+  }
+}

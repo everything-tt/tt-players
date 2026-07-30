@@ -14,6 +14,7 @@ import {
   SegmentedToggle,
 } from './ui/appkit';
 import { SkeletonList } from './components/Skeleton';
+import { TopRatingsSection } from './components/TopRatingsSection';
 
 interface HomeTabContentProps {
   allLeagues: LeagueWithDivisions[];
@@ -155,6 +156,8 @@ export function HomeTabContent({
           ))}
         </div>
       </section>
+
+      <TopRatingsSection onOpenPlayer={(playerId) => navigateInTab('players', `player/${playerId}`)} />
 
       {!hasLeagueScope ? (
         <>

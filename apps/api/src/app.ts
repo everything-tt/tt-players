@@ -17,6 +17,7 @@ import { playersRoutes } from './routes/players.js';
 import { fixturesRoutes } from './routes/fixtures.js';
 import { eventsRoutes } from './routes/events.js';
 import { feedbackRoutes } from './routes/feedback.js';
+import { ratingsRoutes } from './routes/ratings.js';
 
 export async function buildApp(db: Kysely<Database>) {
     const app = Fastify({ logger: false }).withTypeProvider<ZodTypeProvider>();
@@ -54,6 +55,7 @@ export async function buildApp(db: Kysely<Database>) {
         [/^\/api\/leagues(\/|$)/, CACHE_STATIC],
         [/^\/api\/competitions\/[\w-]+\/standings(\/|$)/, CACHE_STATIC],
         [/^\/api\/players\/leaders(\/|$)/, CACHE_LEADERBOARD],
+        [/^\/api\/ratings(\/|$)/, CACHE_LEADERBOARD],
         [/^\/api\/players\/count(\/|$)/, CACHE_STATIC],
         [/^\/api\/players\/search(\/|$)/, CACHE_DYNAMIC],
         [/^\/api\/teams\/[\w-]+\/(summary|roster|form)(\/|$)/, CACHE_STATIC],
@@ -105,6 +107,7 @@ export async function buildApp(db: Kysely<Database>) {
     await app.register(playersRoutes(db), { prefix: '/api/players' });
     await app.register(fixturesRoutes(db), { prefix: '/api/fixtures' });
     await app.register(eventsRoutes(db), { prefix: '/api/events' });
+    await app.register(ratingsRoutes(db), { prefix: '/api/ratings' });
     await app.register(feedbackRoutes(), { prefix: '/api/feedback' });
 
     return app;
