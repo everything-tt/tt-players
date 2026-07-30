@@ -14,6 +14,7 @@ import {
   SegmentedToggle,
 } from './ui/appkit';
 import { SkeletonList } from './components/Skeleton';
+import { MyTTSection } from './components/MyTTSection';
 import { TopRatingsSection } from './components/TopRatingsSection';
 
 interface HomeTabContentProps {
@@ -156,6 +157,8 @@ export function HomeTabContent({
           ))}
         </div>
       </section>
+
+      <MyTTSection onOpenPlayer={(playerId) => navigateInTab('players', `player/${playerId}`)} />
 
       {hasLeagueScope ? (
         <TopRatingsSection
