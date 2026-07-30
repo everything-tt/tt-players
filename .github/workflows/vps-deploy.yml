@@ -88,6 +88,31 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
+      - name: Configure API authentication
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_PUBLISHABLE_KEY"
+          url_b64=$(printf '%s' "$SUPABASE_URL" | base64 -w 0)
+          key_b64=$(printf '%s' "$SUPABASE_PUBLISHABLE_KEY" | base64 -w 0)
+
+          ssh "$VPS_USER@$VPS_HOST" \
+            "SUPABASE_URL_B64='$url_b64' SUPABASE_KEY_B64='$key_b64' bash -s" <<'REMOTE'
+          set -euo pipefail
+          env_file=/etc/ttp/api.env
+          temp_file=$(mktemp)
+          grep -v -E '^SUPABASE_(URL|PUBLISHABLE_KEY)=' "$env_file" > "$temp_file" || true
+          printf 'SUPABASE_URL=%s\n' "$(printf '%s' "$SUPABASE_URL_B64" | base64 -d)" >> "$temp_file"
+          printf 'SUPABASE_PUBLISHABLE_KEY=%s\n' "$(printf '%s' "$SUPABASE_KEY_B64" | base64 -d)" >> "$temp_file"
+          install -m 600 "$temp_file" "$env_file"
+          rm -f "$temp_file"
+          REMOTE
+
       - name: Determine database compatibility boundary
         id: database
         env:
