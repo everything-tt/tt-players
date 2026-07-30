@@ -151,6 +151,11 @@ describe('national TT Leagues bridge discovery', () => {
             target.platformType === 'ttleagues'
             && target.tenantHost === 'british.ttleagues.com'
         )).toBe(true);
+        expect(firstTargets.map((target) => target.divisionName)).toEqual(expect.arrayContaining([
+            'Senior BCL 2025/26 — Premier',
+            'Women BCL 2025/26 — Women Premier',
+            'Senior BCL 2024/25 — Premier',
+        ]));
 
         for (const request of requests) {
             expect(request.headers.get('Tenant')).toBe('british.ttleagues.com');
@@ -162,8 +167,10 @@ describe('national TT Leagues bridge discovery', () => {
             .select(['name', 'is_active'])
             .orderBy('name')
             .execute();
-        expect(seasons).toHaveLength(3);
-        expect(seasons.filter((season) => season.is_active)).toHaveLength(2);
+        expect(seasons).toHaveLength(2);
+        expect(seasons.filter((season) => season.is_active)).toEqual([
+            { name: 'Current national competitions', is_active: true },
+        ]);
         expect(seasons).toContainEqual({ name: 'Senior BCL 2024/25', is_active: false });
 
         expect(await db.selectFrom('leagues').selectAll().execute()).toHaveLength(1);
@@ -180,7 +187,7 @@ describe('national TT Leagues bridge discovery', () => {
         });
         expect(secondTargets).toHaveLength(4);
         expect(await db.selectFrom('leagues').selectAll().execute()).toHaveLength(1);
-        expect(await db.selectFrom('seasons').selectAll().execute()).toHaveLength(3);
+        expect(await db.selectFrom('seasons').selectAll().execute()).toHaveLength(2);
         expect(await db.selectFrom('competitions').selectAll().execute()).toHaveLength(4);
         expect(await db.selectFrom('source_instances').selectAll().execute()).toHaveLength(1);
         expect(await db.selectFrom('source_resources').selectAll().execute()).toHaveLength(8);
