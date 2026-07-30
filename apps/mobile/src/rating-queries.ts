@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from './player-shared';
 
 export type RatingConfidence = 'high' | 'medium' | 'low';
+export type RatingHistoryRange = '3m' | '1y' | '3y' | '10y' | 'all';
 
 export interface PlayerRating {
   rank: number | null;
@@ -51,6 +52,33 @@ export interface PlayerRatingResponse {
   data: PlayerRating;
 }
 
+export interface PlayerRatingHistoryPoint {
+  week_start: string;
+  snapshot_date: string;
+  rating: number;
+  rating_deviation: number;
+  conservative_rating: number;
+  rating_low: number;
+  rating_high: number;
+  rating_change: number | null;
+  confidence: RatingConfidence;
+  rated_matches: number;
+  rated_wins: number;
+  rated_losses: number;
+  week_matches: number;
+  week_wins: number;
+  week_losses: number;
+  provisional: boolean;
+}
+
+export interface PlayerRatingHistoryResponse {
+  player_id: string;
+  player_name: string;
+  model: string;
+  range: RatingHistoryRange;
+  data: PlayerRatingHistoryPoint[];
+}
+
 export interface RatingPredictionPlayer {
   player_id: string;
   player_name: string;
@@ -90,6 +118,22 @@ export function usePlayerRatingQuery(playerId: string, enabled = true) {
     queryKey: ['ratings', 'player', playerId],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
       apiFetch<PlayerRatingResponse>(`/ratings/${playerId}`, signal),
+    enabled: enabled && Boolean(playerId),
+    retry: false,
+  });
+}
+
+export function usePlayerRatingHistoryQuery(
+  playerId: string,
+  range: RatingHistoryRange = '1y',
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ['ratings', 'player', playerId, 'history', range],
+    queryFn: ({ signal }: { signal: AbortSignal }) => {
+      const params = new URLSearchParams({ range });
+      return apiFetch<PlayerRatingHistoryResponse>(`/ratings/${playerId}/history?${params.toString()}`, signal);
+    },
     enabled: enabled && Boolean(playerId),
     retry: false,
   });
