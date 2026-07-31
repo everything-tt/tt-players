@@ -85,7 +85,7 @@ a {
 .tt-app-header__title {
   top: env(safe-area-inset-top) !important;
   height: var(--header-height) !important;
-  max-width: calc(100% - 152px);
+  max-width: calc(100% - 200px);
   overflow: hidden;
   color: var(--ink) !important;
   font-size: 17px !important;
@@ -202,7 +202,7 @@ body.theme-dark #footer-bar.tt-tab-bar {
   padding: var(--space-4) !important;
 }
 
-.tt-card--message h3,
+.tt-card--message h4,
 .tt-card--message p {
   color: var(--ink);
 }
