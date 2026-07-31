@@ -1,9 +1,8 @@
 /*
  * TT Players mobile polish foundations.
  *
- * This layer is intentionally loaded after the existing AppKit-compatible
- * styles. It provides the final branded/native treatment while the app is
- * progressively migrated to canonical design-system classes.
+ * This layer is intentionally conservative: it normalises shared primitives
+ * without adding a second page gutter to product screens that already own one.
  */
 
 :root {
@@ -14,14 +13,15 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
-  --page-gutter: clamp(14px, 4vw, 20px);
+  --page-gutter: clamp(14px, 4vw, 18px);
   --content-max: 760px;
   --header-height: 56px;
-  --tab-bar-height: 62px;
+  --root-header-height: 72px;
+  --tab-bar-height: 64px;
   --surface-raised: color-mix(in oklch, var(--surface-strong) 94%, var(--canvas-parchment));
   --surface-overlay: color-mix(in oklch, var(--surface-strong) 88%, transparent);
-  --shadow-card: 0 1px 2px oklch(21% 0.034 158 / 0.05), 0 10px 28px oklch(21% 0.034 158 / 0.06);
-  --shadow-header: 0 8px 24px oklch(21% 0.034 158 / 0.07);
+  --shadow-card: 0 1px 2px oklch(21% 0.034 158 / 0.04), 0 8px 22px oklch(21% 0.034 158 / 0.05);
+  --shadow-header: 0 5px 18px oklch(21% 0.034 158 / 0.06);
   --motion-fast: 120ms;
   --motion-standard: 180ms;
   --ease-native: cubic-bezier(0.2, 0, 0, 1);
@@ -30,16 +30,16 @@
 body.theme-dark {
   --surface-raised: color-mix(in oklch, var(--surface-strong) 92%, var(--canvas-parchment));
   --surface-overlay: color-mix(in oklch, var(--surface-strong) 90%, transparent);
-  --shadow-card: 0 1px 2px oklch(0% 0 0 / 0.18), 0 14px 34px oklch(0% 0 0 / 0.2);
-  --shadow-header: 0 8px 26px oklch(0% 0 0 / 0.22);
+  --shadow-card: 0 1px 2px oklch(0% 0 0 / 0.16), 0 10px 28px oklch(0% 0 0 / 0.18);
+  --shadow-header: 0 6px 22px oklch(0% 0 0 / 0.2);
 }
 
-html {
+html,
+body {
   background: var(--canvas-parchment);
 }
 
 body {
-  background: var(--canvas-parchment);
   color: var(--ink);
   overscroll-behavior-y: contain;
 }
@@ -68,24 +68,24 @@ a {
   width: 100%;
   max-width: var(--content-max);
   margin-inline: auto;
-  padding-bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom) + var(--space-8));
+  padding-bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom) + var(--space-6));
 }
 
-/* Detail header: retain AppKit positioning while normalising native geometry. */
+/* Detail header */
 .tt-app-header {
   min-height: calc(var(--header-height) + env(safe-area-inset-top));
   padding-top: env(safe-area-inset-top);
   background: var(--surface-overlay) !important;
   border-bottom: 1px solid var(--border-hairline) !important;
   box-shadow: var(--shadow-header);
-  backdrop-filter: blur(18px) saturate(1.15);
-  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  backdrop-filter: blur(18px) saturate(1.12);
+  -webkit-backdrop-filter: blur(18px) saturate(1.12);
 }
 
 .tt-app-header__title {
   top: env(safe-area-inset-top) !important;
   height: var(--header-height) !important;
-  max-width: calc(100% - 200px);
+  max-width: calc(100% - 196px);
   overflow: hidden;
   color: var(--ink) !important;
   font-size: 17px !important;
@@ -104,11 +104,11 @@ button.tt-app-header__title {
 
 .tt-app-header__action {
   top: env(safe-area-inset-top) !important;
-  width: var(--tap-min) !important;
-  min-width: var(--tap-min) !important;
+  width: 44px !important;
+  min-width: 44px !important;
   height: var(--header-height) !important;
-  min-height: var(--tap-min) !important;
-  border-radius: var(--radius-pill);
+  min-height: 44px !important;
+  border-radius: 999px;
   color: var(--ink) !important;
   line-height: var(--header-height) !important;
   transition: background-color var(--motion-fast) var(--ease-native), transform var(--motion-fast) var(--ease-native);
@@ -124,28 +124,48 @@ button.tt-app-header__title:active {
   height: calc(var(--header-height) + env(safe-area-inset-top)) !important;
 }
 
-/* Shared bottom navigation. */
+/* Bottom navigation. Explicit layout resets legacy absolute-position rules. */
 #footer-bar.tt-tab-bar {
+  position: fixed !important;
+  inset: auto 0 0 !important;
+  z-index: 98;
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  align-items: stretch;
+  width: 100% !important;
   min-height: calc(var(--tab-bar-height) + env(safe-area-inset-bottom));
-  padding: var(--space-1) var(--space-1) env(safe-area-inset-bottom);
+  padding: 2px 4px env(safe-area-inset-bottom) !important;
   background: var(--surface-overlay) !important;
   border-top: 1px solid var(--border-hairline) !important;
-  box-shadow: 0 -8px 26px oklch(21% 0.034 158 / 0.07);
-  backdrop-filter: blur(20px) saturate(1.15);
-  -webkit-backdrop-filter: blur(20px) saturate(1.15);
+  box-shadow: 0 -5px 20px oklch(21% 0.034 158 / 0.06);
+  backdrop-filter: blur(20px) saturate(1.12);
+  -webkit-backdrop-filter: blur(20px) saturate(1.12);
 }
 
 body.theme-dark #footer-bar.tt-tab-bar {
-  box-shadow: 0 -8px 26px oklch(0% 0 0 / 0.22);
+  box-shadow: 0 -6px 22px oklch(0% 0 0 / 0.2);
 }
 
 #footer-bar.tt-tab-bar > .tt-tab-bar__item {
-  min-width: 0;
-  min-height: 54px;
-  padding: 5px 2px 4px;
+  position: static !important;
+  inset: auto !important;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 1px;
-  border-radius: var(--radius-md);
+  width: auto !important;
+  min-width: 0;
+  min-height: 58px;
+  margin: 0 !important;
+  padding: 4px 2px 3px !important;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
   color: var(--ink-muted) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none;
   transition: color var(--motion-fast) var(--ease-native), background-color var(--motion-fast) var(--ease-native), transform var(--motion-fast) var(--ease-native);
 }
 
@@ -153,8 +173,8 @@ body.theme-dark #footer-bar.tt-tab-bar {
   display: grid;
   place-items: center;
   width: 34px;
-  height: 28px;
-  border-radius: var(--radius-pill);
+  height: 27px;
+  border-radius: 999px;
   transition: background-color var(--motion-standard) var(--ease-native), transform var(--motion-standard) var(--ease-native);
 }
 
@@ -164,6 +184,7 @@ body.theme-dark #footer-bar.tt-tab-bar {
 }
 
 #footer-bar.tt-tab-bar .tt-tab-bar__label {
+  display: block !important;
   max-width: 100%;
   overflow: hidden;
   font-size: 10px;
@@ -179,7 +200,6 @@ body.theme-dark #footer-bar.tt-tab-bar {
 
 #footer-bar.tt-tab-bar > .tt-tab-bar__item--active .tt-tab-bar__icon {
   background: var(--accent-subtle);
-  transform: translateY(-1px);
 }
 
 #footer-bar.tt-tab-bar > .tt-tab-bar__item:active {
@@ -187,13 +207,13 @@ body.theme-dark #footer-bar.tt-tab-bar {
   transform: scale(0.97);
 }
 
-/* Canonical raised surface while preserving legacy card markup. */
+/* Shared raised surfaces. The parent screen owns horizontal placement. */
 .tt-card {
-  overflow: hidden;
-  margin-inline: var(--page-gutter);
+  box-sizing: border-box;
+  max-width: 100%;
   background: var(--surface-raised) !important;
   border: 1px solid var(--border-hairline);
-  border-radius: var(--radius-lg) !important;
+  border-radius: 16px !important;
   box-shadow: var(--shadow-card);
 }
 
@@ -211,15 +231,15 @@ body.theme-dark #footer-bar.tt-tab-bar {
   border-color: color-mix(in oklch, var(--state-danger) 30%, var(--border-hairline));
 }
 
-/* Empty/error states share one rhythm and action treatment. */
+/* Empty/error states */
 .tt-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: 180px;
-  padding: var(--space-8) var(--space-4);
+  min-height: 150px;
+  padding: var(--space-6) var(--space-4);
   color: var(--ink);
   text-align: center;
 }
@@ -227,13 +247,13 @@ body.theme-dark #footer-bar.tt-tab-bar {
 .tt-state__icon {
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   margin: 0 0 var(--space-1);
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   background: var(--accent-subtle);
   color: var(--accent);
-  font-size: 20px;
+  font-size: 19px;
 }
 
 .tt-state--error .tt-state__icon {
@@ -247,7 +267,6 @@ body.theme-dark #footer-bar.tt-tab-bar {
   font-size: 18px;
   font-weight: 650;
   line-height: 1.25;
-  letter-spacing: -0.015em;
 }
 
 .tt-state__message {
@@ -258,23 +277,29 @@ body.theme-dark #footer-bar.tt-tab-bar {
   line-height: 1.45;
 }
 
-/* Root screens keep their recognisable large collapsing header, now sharing tokens. */
-.tt-root-header {
+/* Root screens: keep the large-title identity without a 96px blank toolbar. */
+.tt-root-header,
+.tt-root-header--compact {
+  min-height: calc(var(--root-header-height) + env(safe-area-inset-top)) !important;
   background: var(--surface-overlay);
   border-bottom-color: var(--border-hairline);
   box-shadow: var(--shadow-header);
-  backdrop-filter: blur(20px) saturate(1.15);
-  -webkit-backdrop-filter: blur(20px) saturate(1.15);
-  transition: min-height var(--motion-standard) var(--ease-native), box-shadow var(--motion-standard) var(--ease-native);
+  backdrop-filter: blur(20px) saturate(1.12);
+  -webkit-backdrop-filter: blur(20px) saturate(1.12);
 }
 
-.tt-root-header__bar {
-  padding-inline: var(--space-2);
-  transition: min-height var(--motion-standard) var(--ease-native);
+.tt-root-header__bar,
+.tt-root-header--compact .tt-root-header__bar {
+  min-height: var(--root-header-height) !important;
+  padding-inline: 8px;
 }
 
-.tt-root-header__title {
-  transition: font-size var(--motion-standard) var(--ease-native), letter-spacing var(--motion-standard) var(--ease-native);
+.tt-root-header__title,
+.tt-root-header--compact .tt-root-header__title {
+  margin-inline: 8px;
+  font-size: clamp(24px, 7vw, 30px) !important;
+  line-height: 1.05;
+  letter-spacing: -0.03em !important;
 }
 
 .tt-root-header__action {
@@ -286,18 +311,118 @@ body.theme-dark #footer-bar.tt-tab-bar {
   transform: scale(0.96);
 }
 
-/* Existing prominent surfaces align to the final gutter/radius system. */
-.tt-hero,
-.tt-players-search-panel {
-  margin-inline: var(--page-gutter);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
+.tt-root-header__badge {
+  inset: 0 0 auto auto;
+  min-width: 17px;
+  height: 17px;
+  padding-inline: 4px;
+  font-size: 9px;
 }
 
-.tt-player-section,
-.tt-home-section,
-.tt-ratings-section {
-  margin-inline: var(--page-gutter);
+.tt-root-content {
+  padding-top: calc(var(--root-header-height) + env(safe-area-inset-top) + 8px) !important;
+}
+
+/* Lists are operational surfaces: wide, flat and compact. */
+.tt-list {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+}
+
+.tt-list-item {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 72px;
+}
+
+.tt-list-item__clickable {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 72px;
+  padding-block: 10px !important;
+}
+
+.tt-list-item__content {
+  min-width: 0;
+}
+
+.tt-list-item__title,
+.tt-list-item__subtitle {
+  min-width: 0;
+}
+
+.tt-avatar--md {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+}
+
+/* Player sections own one and only one gutter. Width:auto prevents 100% + margins overflow. */
+.tt-player-section {
+  box-sizing: border-box;
+  width: auto !important;
+  max-width: calc(100% - (2 * var(--page-gutter))) !important;
+  margin-inline: var(--page-gutter) !important;
+}
+
+.tt-player-section-header,
+.tt-section-header,
+.tt-home-leaders-header {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+}
+
+.tt-player-section-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  align-items: baseline;
+  gap: 8px 12px;
+}
+
+.tt-player-section-title {
+  min-width: 0;
+}
+
+.tt-player-section-note {
+  min-width: 0;
+  max-width: 45vw;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.tt-player-metric-grid,
+.tt-rating-range,
+.tt-rating-history-link {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+}
+
+.tt-player-metric-grid {
+  gap: 8px !important;
+}
+
+/* Preserve existing hero/search placement; only reduce excessive vertical rhythm. */
+.tt-player-hero,
+.tt-hero,
+.tt-players-search-panel {
+  box-sizing: border-box;
+  max-width: calc(100% - (2 * var(--page-gutter)));
+}
+
+.tt-players-search-panel {
+  padding: 16px !important;
+}
+
+.tt-players-search-title {
+  font-size: clamp(28px, 8vw, 36px) !important;
+}
+
+.tt-search-toolbar .search-box,
+.tt-players-search-panel .search-box {
+  min-height: 52px;
 }
 
 .tt-btn {
@@ -316,18 +441,36 @@ body.theme-dark #footer-bar.tt-tab-bar {
   }
 }
 
+@media (max-width: 420px) {
+  .tt-app-header__title {
+    max-width: calc(100% - 176px);
+  }
+
+  .tt-player-section-header {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 3px;
+  }
+
+  .tt-player-section-note {
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .tt-player-metric-grid {
+    gap: 6px !important;
+  }
+}
+
 @media (max-width: 360px) {
   :root {
     --page-gutter: 12px;
   }
 
-  .tt-root-header__title {
-    margin-inline: var(--space-1);
-    font-size: 27px;
-  }
-
-  .tt-root-header__actions {
-    gap: 0;
+  .tt-root-header__title,
+  .tt-root-header--compact .tt-root-header__title {
+    margin-inline: 4px;
+    font-size: 25px !important;
   }
 
   #footer-bar.tt-tab-bar .tt-tab-bar__label {
@@ -354,7 +497,6 @@ body.theme-dark #footer-bar.tt-tab-bar {
   .tt-app-header__action:active,
   button.tt-app-header__title:active,
   #footer-bar.tt-tab-bar > .tt-tab-bar__item:active,
-  #footer-bar.tt-tab-bar > .tt-tab-bar__item--active .tt-tab-bar__icon,
   .tt-root-header__action:active,
   .tt-btn:active {
     transform: none !important;
