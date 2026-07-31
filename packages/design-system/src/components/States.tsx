@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AppButtonLink } from './AppButton';
+import { AppButton } from './AppButton';
 import { cx } from '../utils/cx';
 
 export interface EmptyStateProps {
@@ -13,16 +13,16 @@ export interface EmptyStateProps {
 /** Single empty-state treatment. Replaces ~20 bare `<p>No X found</p>` sentences. */
 export function EmptyState({ iconClassName = 'fa fa-inbox', title, message, action, className }: EmptyStateProps) {
   return (
-    <div className={cx('tt-empty-state', className)} role="status">
-      <span className="tt-empty-state__icon" aria-hidden="true">
+    <div className={cx('tt-empty-state', 'tt-state tt-state--empty', className)} role="status">
+      <span className="tt-empty-state__icon tt-state__icon" aria-hidden="true">
         <i className={iconClassName} />
       </span>
-      <h3 className="tt-empty-state__title">{title}</h3>
-      {message ? <p className="tt-empty-state__message">{message}</p> : null}
+      <h3 className="tt-empty-state__title tt-state__title">{title}</h3>
+      {message ? <p className="tt-empty-state__message tt-state__message">{message}</p> : null}
       {action ? (
-        <AppButtonLink onClick={(e) => { e.preventDefault(); action.onClick(); }} tone="primary" size="sm">
+        <AppButton onClick={action.onClick} tone="primary" size="sm">
           {action.label}
-        </AppButtonLink>
+        </AppButton>
       ) : null}
     </div>
   );
@@ -38,16 +38,16 @@ export interface ErrorStateProps {
 /** Single error-state treatment. Replaces inline `tt-player-section-error` + raw exceptions. */
 export function ErrorState({ title = 'Something went wrong', message, onRetry, className }: ErrorStateProps) {
   return (
-    <div className={cx('tt-error-state', className)} role="alert">
-      <span className="tt-error-state__icon" aria-hidden="true">
+    <div className={cx('tt-error-state', 'tt-state tt-state--error', className)} role="alert">
+      <span className="tt-error-state__icon tt-state__icon" aria-hidden="true">
         <i className="fa fa-exclamation-triangle" />
       </span>
-      <h3 className="tt-error-state__title">{title}</h3>
-      <p className="tt-error-state__message">{message}</p>
+      <h3 className="tt-error-state__title tt-state__title">{title}</h3>
+      <p className="tt-error-state__message tt-state__message">{message}</p>
       {onRetry ? (
-        <AppButtonLink onClick={(e) => { e.preventDefault(); onRetry(); }} tone="outline" size="sm">
-          <i className="fa fa-redo me-2" />Retry
-        </AppButtonLink>
+        <AppButton onClick={onRetry} tone="outline" size="sm">
+          <i className="fa fa-redo me-2" aria-hidden="true" />Retry
+        </AppButton>
       ) : null}
     </div>
   );

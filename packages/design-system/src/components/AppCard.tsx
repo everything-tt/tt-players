@@ -1,5 +1,5 @@
-import type { MouseEventHandler, ReactNode } from 'react';
-import { AppButtonLink } from './AppButton';
+import type { MouseEvent as ReactMouseEvent, MouseEventHandler, ReactNode } from 'react';
+import { AppButton } from './AppButton';
 import { cx } from '../utils/cx';
 
 export interface AppCardProps {
@@ -34,19 +34,19 @@ export interface AppMessageCardProps {
 
 export function AppCard({ children, className, cardHeight }: AppCardProps) {
   return (
-    <div className={cx('card card-style', className)} data-card-height={cardHeight}>
+    <div className={cx('card card-style', 'tt-card', className)} data-card-height={cardHeight}>
       {children}
     </div>
   );
 }
 
 export function AppCardContent({ children, className }: AppCardContentProps) {
-  return <div className={cx('content', className)}>{children}</div>;
+  return <div className={cx('content', 'tt-card__content', className)}>{children}</div>;
 }
 
 export function AppLoadingCard({ message, className }: AppLoadingCardProps) {
   return (
-    <AppCard className={cx('app-loading-card', className)}>
+    <AppCard className={cx('app-loading-card', 'tt-card--loading', className)}>
       <AppCardContent>
         <div className="app-loading-card-body" role="status" aria-live="polite">
           <span className="app-loading-dot" aria-hidden="true" />
@@ -64,14 +64,18 @@ export function AppLoadingCard({ message, className }: AppLoadingCardProps) {
 
 export function AppMessageCard({ title, message, tone = 'neutral', action, className }: AppMessageCardProps) {
   return (
-    <AppCard className={className}>
+    <AppCard className={cx('tt-card--message', tone === 'danger' && 'tt-card--danger', className)}>
       <AppCardContent>
         {title ? <h4 className="mb-2">{title}</h4> : null}
         <p className={cx('mb-3', tone === 'danger' && 'color-red-dark')}>{message}</p>
         {action ? (
-          <AppButtonLink onClick={action.onClick} tone={action.tone ?? 'highlight'}>
+          <AppButton
+            onClick={(event) => action.onClick(event as unknown as ReactMouseEvent<HTMLAnchorElement>)}
+            tone={action.tone ?? 'highlight'}
+            full
+          >
             {action.label}
-          </AppButtonLink>
+          </AppButton>
         ) : null}
       </AppCardContent>
     </AppCard>

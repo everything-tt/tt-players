@@ -11,7 +11,7 @@ import type { ShareTarget } from '../share-target';
 import { QuickFeedbackSheet } from '../QuickFeedbackSheet';
 
 interface DetailHeaderProps {
-  /** Page title shown in the header and on-title-click navigates home. */
+  /** Page title shown in the header and optionally navigates home. */
   title?: ReactNode;
   /** Extra actions rendered after the standard actions. */
   actions?: AppHeaderProps['actions'];
@@ -21,15 +21,16 @@ interface DetailHeaderProps {
   onBack?: () => void;
   /** Fallback path for back when no history exists. */
   backFallback?: string;
-  /** Show home button. Default: true */
+  /** Show the redundant home action for exceptional screens. Default: false. */
   showHome?: boolean;
   /** Stable target for screens that are meaningful to share. */
   shareTarget?: ShareTarget | null;
 }
 
 /**
- * Standard detail-page header with back navigation on the left and all other
- * actions grouped on the right.
+ * Standard detail-page header with back navigation on the left and no more
+ * than two routine actions on the right. The tab bar remains the normal path
+ * back to a root screen.
  */
 export function DetailHeader({
   title,
@@ -37,7 +38,7 @@ export function DetailHeader({
   className,
   onBack,
   backFallback,
-  showHome = true,
+  showHome = false,
   shareTarget = null,
 }: DetailHeaderProps) {
   const { goBackInActiveTab, switchTab } = useTabNavigation();

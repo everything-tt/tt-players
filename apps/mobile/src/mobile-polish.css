@@ -1,0 +1,504 @@
+/*
+ * TT Players mobile polish foundations.
+ *
+ * This layer is intentionally conservative: it normalises shared primitives
+ * without adding a second page gutter to product screens that already own one.
+ */
+
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --page-gutter: clamp(14px, 4vw, 18px);
+  --content-max: 760px;
+  --header-height: 56px;
+  --root-header-height: 72px;
+  --tab-bar-height: 64px;
+  --surface-raised: color-mix(in oklch, var(--surface-strong) 94%, var(--canvas-parchment));
+  --surface-overlay: color-mix(in oklch, var(--surface-strong) 88%, transparent);
+  --shadow-card: 0 1px 2px oklch(21% 0.034 158 / 0.04), 0 8px 22px oklch(21% 0.034 158 / 0.05);
+  --shadow-header: 0 5px 18px oklch(21% 0.034 158 / 0.06);
+  --motion-fast: 120ms;
+  --motion-standard: 180ms;
+  --ease-native: cubic-bezier(0.2, 0, 0, 1);
+}
+
+body.theme-dark {
+  --surface-raised: color-mix(in oklch, var(--surface-strong) 92%, var(--canvas-parchment));
+  --surface-overlay: color-mix(in oklch, var(--surface-strong) 90%, transparent);
+  --shadow-card: 0 1px 2px oklch(0% 0 0 / 0.16), 0 10px 28px oklch(0% 0 0 / 0.18);
+  --shadow-header: 0 6px 22px oklch(0% 0 0 / 0.2);
+}
+
+html,
+body {
+  background: var(--canvas-parchment);
+}
+
+body {
+  color: var(--ink);
+  overscroll-behavior-y: contain;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+.tt-app-shell {
+  min-height: 100dvh;
+  background: var(--canvas-parchment);
+  color: var(--ink);
+}
+
+.tt-page-content {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--content-max);
+  margin-inline: auto;
+  padding-bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom) + var(--space-6));
+}
+
+/* Detail header */
+.tt-app-header {
+  min-height: calc(var(--header-height) + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+  background: var(--surface-overlay) !important;
+  border-bottom: 1px solid var(--border-hairline) !important;
+  box-shadow: var(--shadow-header);
+  backdrop-filter: blur(18px) saturate(1.12);
+  -webkit-backdrop-filter: blur(18px) saturate(1.12);
+}
+
+.tt-app-header__title {
+  top: env(safe-area-inset-top) !important;
+  height: var(--header-height) !important;
+  max-width: calc(100% - 196px);
+  overflow: hidden;
+  color: var(--ink) !important;
+  font-size: 17px !important;
+  font-weight: 650 !important;
+  line-height: var(--header-height) !important;
+  letter-spacing: -0.015em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.tt-app-header__title {
+  padding: 0 var(--space-2);
+  border: 0;
+  background: transparent;
+}
+
+.tt-app-header__action {
+  top: env(safe-area-inset-top) !important;
+  width: 44px !important;
+  min-width: 44px !important;
+  height: var(--header-height) !important;
+  min-height: 44px !important;
+  border-radius: 999px;
+  color: var(--ink) !important;
+  line-height: var(--header-height) !important;
+  transition: background-color var(--motion-fast) var(--ease-native), transform var(--motion-fast) var(--ease-native);
+}
+
+.tt-app-header__action:active,
+button.tt-app-header__title:active {
+  background: var(--accent-subtle) !important;
+  transform: scale(0.96);
+}
+
+.tt-app-header-spacer {
+  height: calc(var(--header-height) + env(safe-area-inset-top)) !important;
+}
+
+/* Bottom navigation. Explicit layout resets legacy absolute-position rules. */
+#footer-bar.tt-tab-bar {
+  position: fixed !important;
+  inset: auto 0 0 !important;
+  z-index: 98;
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  align-items: stretch;
+  width: 100% !important;
+  min-height: calc(var(--tab-bar-height) + env(safe-area-inset-bottom));
+  padding: 2px 4px env(safe-area-inset-bottom) !important;
+  background: var(--surface-overlay) !important;
+  border-top: 1px solid var(--border-hairline) !important;
+  box-shadow: 0 -5px 20px oklch(21% 0.034 158 / 0.06);
+  backdrop-filter: blur(20px) saturate(1.12);
+  -webkit-backdrop-filter: blur(20px) saturate(1.12);
+}
+
+body.theme-dark #footer-bar.tt-tab-bar {
+  box-shadow: 0 -6px 22px oklch(0% 0 0 / 0.2);
+}
+
+#footer-bar.tt-tab-bar > .tt-tab-bar__item {
+  position: static !important;
+  inset: auto !important;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: auto !important;
+  min-width: 0;
+  min-height: 58px;
+  margin: 0 !important;
+  padding: 4px 2px 3px !important;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink-muted) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none;
+  transition: color var(--motion-fast) var(--ease-native), background-color var(--motion-fast) var(--ease-native), transform var(--motion-fast) var(--ease-native);
+}
+
+.tt-tab-bar__icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 27px;
+  border-radius: 999px;
+  transition: background-color var(--motion-standard) var(--ease-native), transform var(--motion-standard) var(--ease-native);
+}
+
+#footer-bar.tt-tab-bar .tt-tab-bar__icon i {
+  font-size: 17px;
+  line-height: 1;
+}
+
+#footer-bar.tt-tab-bar .tt-tab-bar__label {
+  display: block !important;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#footer-bar.tt-tab-bar > .tt-tab-bar__item--active {
+  color: var(--accent) !important;
+}
+
+#footer-bar.tt-tab-bar > .tt-tab-bar__item--active .tt-tab-bar__icon {
+  background: var(--accent-subtle);
+}
+
+#footer-bar.tt-tab-bar > .tt-tab-bar__item:active {
+  background: var(--surface-subtle);
+  transform: scale(0.97);
+}
+
+/* Shared raised surfaces. The parent screen owns horizontal placement. */
+.tt-card {
+  box-sizing: border-box;
+  max-width: 100%;
+  background: var(--surface-raised) !important;
+  border: 1px solid var(--border-hairline);
+  border-radius: 16px !important;
+  box-shadow: var(--shadow-card);
+}
+
+.tt-card__content {
+  margin: 0 !important;
+  padding: var(--space-4) !important;
+}
+
+.tt-card--message h4,
+.tt-card--message p {
+  color: var(--ink);
+}
+
+.tt-card--danger {
+  border-color: color-mix(in oklch, var(--state-danger) 30%, var(--border-hairline));
+}
+
+/* Empty/error states */
+.tt-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 150px;
+  padding: var(--space-6) var(--space-4);
+  color: var(--ink);
+  text-align: center;
+}
+
+.tt-state__icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin: 0 0 var(--space-1);
+  border-radius: 999px;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-size: 19px;
+}
+
+.tt-state--error .tt-state__icon {
+  background: var(--state-danger-soft);
+  color: var(--state-danger-text);
+}
+
+.tt-state__title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.tt-state__message {
+  max-width: 34rem;
+  margin: 0 0 var(--space-3);
+  color: var(--ink-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* Root screens: keep the large-title identity without a 96px blank toolbar. */
+.tt-root-header,
+.tt-root-header--compact {
+  min-height: calc(var(--root-header-height) + env(safe-area-inset-top)) !important;
+  background: var(--surface-overlay);
+  border-bottom-color: var(--border-hairline);
+  box-shadow: var(--shadow-header);
+  backdrop-filter: blur(20px) saturate(1.12);
+  -webkit-backdrop-filter: blur(20px) saturate(1.12);
+}
+
+.tt-root-header__bar,
+.tt-root-header--compact .tt-root-header__bar {
+  min-height: var(--root-header-height) !important;
+  padding-inline: 8px;
+}
+
+.tt-root-header__title,
+.tt-root-header--compact .tt-root-header__title {
+  margin-inline: 8px;
+  font-size: clamp(24px, 7vw, 30px) !important;
+  line-height: 1.05;
+  letter-spacing: -0.03em !important;
+}
+
+.tt-root-header__action {
+  transition: background-color var(--motion-fast) var(--ease-native), transform var(--motion-fast) var(--ease-native);
+}
+
+.tt-root-header__action:active {
+  background: var(--accent-subtle);
+  transform: scale(0.96);
+}
+
+.tt-root-header__badge {
+  inset: 0 0 auto auto;
+  min-width: 17px;
+  height: 17px;
+  padding-inline: 4px;
+  font-size: 9px;
+}
+
+.tt-root-content {
+  padding-top: calc(var(--root-header-height) + env(safe-area-inset-top) + 8px) !important;
+}
+
+/* Lists are operational surfaces: wide, flat and compact. */
+.tt-list {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+}
+
+.tt-list-item {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 72px;
+}
+
+.tt-list-item__clickable {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 72px;
+  padding-block: 10px !important;
+}
+
+.tt-list-item__content {
+  min-width: 0;
+}
+
+.tt-list-item__title,
+.tt-list-item__subtitle {
+  min-width: 0;
+}
+
+.tt-avatar--md {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+}
+
+/* Player sections own one and only one gutter. Width:auto prevents 100% + margins overflow. */
+.tt-player-section {
+  box-sizing: border-box;
+  width: auto !important;
+  max-width: calc(100% - (2 * var(--page-gutter))) !important;
+  margin-inline: var(--page-gutter) !important;
+}
+
+.tt-player-section-header,
+.tt-section-header,
+.tt-home-leaders-header {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+}
+
+.tt-player-section-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  align-items: baseline;
+  gap: 8px 12px;
+}
+
+.tt-player-section-title {
+  min-width: 0;
+}
+
+.tt-player-section-note {
+  min-width: 0;
+  max-width: 45vw;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.tt-player-metric-grid,
+.tt-rating-range,
+.tt-rating-history-link {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+}
+
+.tt-player-metric-grid {
+  gap: 8px !important;
+}
+
+/* Preserve existing hero/search placement; only reduce excessive vertical rhythm. */
+.tt-player-hero,
+.tt-hero,
+.tt-players-search-panel {
+  box-sizing: border-box;
+  max-width: calc(100% - (2 * var(--page-gutter)));
+}
+
+.tt-players-search-panel {
+  padding: 16px !important;
+}
+
+.tt-players-search-title {
+  font-size: clamp(28px, 8vw, 36px) !important;
+}
+
+.tt-search-toolbar .search-box,
+.tt-players-search-panel .search-box {
+  min-height: 52px;
+}
+
+.tt-btn {
+  transition: background-color var(--motion-fast) var(--ease-native), color var(--motion-fast) var(--ease-native), border-color var(--motion-fast) var(--ease-native), transform var(--motion-fast) var(--ease-native), opacity var(--motion-fast) var(--ease-native);
+}
+
+.tt-btn:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) {
+  .tt-app-header__action:hover,
+  #footer-bar.tt-tab-bar > .tt-tab-bar__item:hover,
+  .tt-root-header__action:hover {
+    background: var(--surface-subtle);
+  }
+}
+
+@media (max-width: 420px) {
+  .tt-app-header__title {
+    max-width: calc(100% - 176px);
+  }
+
+  .tt-player-section-header {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 3px;
+  }
+
+  .tt-player-section-note {
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .tt-player-metric-grid {
+    gap: 6px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  :root {
+    --page-gutter: 12px;
+  }
+
+  .tt-root-header__title,
+  .tt-root-header--compact .tt-root-header__title {
+    margin-inline: 4px;
+    font-size: 25px !important;
+  }
+
+  #footer-bar.tt-tab-bar .tt-tab-bar__label {
+    font-size: 9px;
+  }
+
+  .tt-card__content {
+    padding: var(--space-3) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tt-app-header__action,
+  .tt-tab-bar__item,
+  .tt-tab-bar__icon,
+  .tt-root-header,
+  .tt-root-header__bar,
+  .tt-root-header__title,
+  .tt-root-header__action,
+  .tt-btn {
+    transition: none !important;
+  }
+
+  .tt-app-header__action:active,
+  button.tt-app-header__title:active,
+  #footer-bar.tt-tab-bar > .tt-tab-bar__item:active,
+  .tt-root-header__action:active,
+  .tt-btn:active {
+    transform: none !important;
+  }
+}
