@@ -4,6 +4,7 @@ import { chunkItems } from '../batches.js';
 import { storeScrapePayload } from '../extractor.js';
 import { RETRYABLE_JOB_SPEC, stableJobKey } from '../job-policy.js';
 import { selectMatchesNeedingResults } from '../match-batch-planner.js';
+import type { ScrapeMatchSetPayload } from './scrapeMatchSetsBatchTask.js';
 import { MatchesResponseSchema } from '../zod-schemas.js';
 
 export interface ScrapeMatchesPayload {
@@ -100,13 +101,14 @@ export const scrapeMatchesTask: Task = async (payload, helpers) => {
 
     for (const batch of batches) {
         const matchIds = batch.map((match) => match.id);
-        await helpers.addJob('scrapeMatchSetsBatchTask', {
+        const batchPayload: ScrapeMatchSetPayload[] = batch.map((match) => ({
             divisionId,
             tenantHost,
             platformId,
             competitionId,
-            matches: batch,
-        }, {
+            match,
+        }));
+        await helpers.addJob('scrapeMatchSetsBatchTask', batchPayload, {
             ...RETRYABLE_JOB_SPEC,
             jobKey: stableJobKey('ttleagues-set-batch', competitionId, ...matchIds),
         });
