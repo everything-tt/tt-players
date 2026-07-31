@@ -92,13 +92,12 @@ export const scrapeMatchSetsBatchTask: Task = async (payload, helpers) => {
     helpers.logger.info(
         `scrapeMatchSetsBatchTask: stored ${Object.keys(sets).length} match results in log ${logId}`,
     );
-    await helpers.addJob('processLogTask', {
+    await helpers.addJob('processMatchSetsBatchTask', {
         logId,
         competitionId,
         platformId,
-        platformType: 'ttleagues-bundle',
     }, {
         ...RETRYABLE_JOB_SPEC,
-        jobKey: stableJobKey('process-log', logId),
+        jobKey: stableJobKey('process-match-sets-batch', logId),
     });
 };
