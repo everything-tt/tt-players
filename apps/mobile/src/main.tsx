@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './index.css';
 import './design-tokens.css';
+import '../../../packages/design-system/src/styles/tokens.css';
+import '../../../packages/design-system/src/styles/primitives.css';
 import './native-mobile.css';
 import './density-pass.css';
 import './uncarded-density.css';
