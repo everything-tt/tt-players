@@ -4,6 +4,7 @@ dist/
 .env.*
 *.tsbuildinfo
 backups/
+artifacts/backend-*.json
 
 # Terraform
 .terraform/
