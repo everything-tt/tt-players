@@ -1,6 +1,9 @@
 // Theme
 export { ThemeProvider, useTheme, type ThemeContextType, type ThemeProviderProps } from './theme/ThemeContext';
 
+// Navigation behaviour
+export { getCollapsibleHeaderState, useCollapsibleHeader } from './navigation/collapsible-header';
+
 // Components
 export {
   AppHeader,
