@@ -1,6 +1,7 @@
 import type { ColumnType, Generated, Insertable, Selectable, Updateable } from 'kysely';
 import type { Database as SourceRegistryDatabase } from './source-registry-types.js';
 import type { UserSyncDatabase } from './user-sync-types.js';
+import type { ReadModelDatabase } from './read-model-types.js';
 
 export type PlayerIdentityDecisionStatus = 'suggested' | 'confirmed' | 'rejected';
 export type PlayerIdentityDecisionCreator = 'automatic' | 'manual' | 'user';
@@ -26,4 +27,4 @@ export interface IdentityResolutionDatabase {
     player_identity_decisions: PlayerIdentityDecisionsTable;
 }
 
-export interface Database extends SourceRegistryDatabase, IdentityResolutionDatabase, UserSyncDatabase {}
+export interface Database extends SourceRegistryDatabase, IdentityResolutionDatabase, UserSyncDatabase, ReadModelDatabase {}

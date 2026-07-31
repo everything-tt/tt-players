@@ -86,7 +86,8 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     });
                 }
 
-                const leagueIdArray = uuidArray([...new Set(leagueIds)]);
+                const uniqueLeagueIds = [...new Set(leagueIds)];
+                const leagueIdArray = uuidArray(uniqueLeagueIds);
                 const {
                     model,
                     page,
@@ -96,34 +97,7 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 const offset = (page - 1) * pageSize;
 
                 const result = await sql<RatingRow>`
-                    WITH eligible_players AS (
-                        SELECT COALESCE(player.canonical_player_id, player.id) AS player_id
-                        FROM rubbers rubber
-                        JOIN external_players player ON player.id = rubber.home_player_1_id
-                        JOIN fixtures fixture ON fixture.id = rubber.fixture_id
-                        JOIN competitions competition ON competition.id = fixture.competition_id
-                        JOIN seasons season ON season.id = competition.season_id
-                        WHERE rubber.deleted_at IS NULL
-                          AND rubber.is_doubles = false
-                          AND player.deleted_at IS NULL
-                          AND season.is_active = true
-                          AND season.league_id = ANY(${leagueIdArray})
-
-                        UNION
-
-                        SELECT COALESCE(player.canonical_player_id, player.id) AS player_id
-                        FROM rubbers rubber
-                        JOIN external_players player ON player.id = rubber.away_player_1_id
-                        JOIN fixtures fixture ON fixture.id = rubber.fixture_id
-                        JOIN competitions competition ON competition.id = fixture.competition_id
-                        JOIN seasons season ON season.id = competition.season_id
-                        WHERE rubber.deleted_at IS NULL
-                          AND rubber.is_doubles = false
-                          AND player.deleted_at IS NULL
-                          AND season.is_active = true
-                          AND season.league_id = ANY(${leagueIdArray})
-                    ),
-                    ranked AS (
+                    WITH ranked AS (
                         SELECT
                             ROW_NUMBER() OVER (
                                 ORDER BY rating.conservative_rating DESC, rating.rated_matches DESC, player.name ASC
@@ -143,10 +117,15 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         FROM player_ratings rating
                         JOIN rating_models model_row ON model_row.id = rating.model_id
                         JOIN external_players player ON player.id = rating.player_id
-                        JOIN eligible_players eligible ON eligible.player_id = rating.player_id
                         WHERE model_row.key = ${model}
                           AND player.deleted_at IS NULL
                           AND (${includeProvisional} OR rating.provisional = false)
+                          AND EXISTS (
+                              SELECT 1
+                              FROM player_active_leagues membership
+                              WHERE membership.player_id = rating.player_id
+                                AND membership.league_id = ANY(${leagueIdArray})
+                          )
                     )
                     SELECT *
                     FROM ranked
@@ -161,7 +140,7 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     page,
                     page_size: pageSize,
                     model,
-                    league_ids: [...new Set(leagueIds)],
+                    league_ids: uniqueLeagueIds,
                 });
             },
         );
