@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTabNavigation } from '../navigation/tab-navigation';
 import { ratingConfidenceLabel, usePlayerRatingQuery } from '../rating-queries';
-import { AppButtonLink } from '../ui/appkit';
+import { AppButtonLink, MetricGrid, PageSection, Surface } from '../ui/appkit';
 import { SkeletonBlock } from './Skeleton';
 import '../ratings-ui.css';
 
@@ -15,47 +15,37 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
   const ratingQuery = usePlayerRatingQuery(playerId, Boolean(playerId));
   const rating = ratingQuery.data?.data ?? null;
 
-  return (
-    <section className="tt-player-section tt-rating-panel" aria-labelledby="tt-player-rating-title">
-      <div className="tt-player-section-header">
-        <h2 id="tt-player-rating-title" className="tt-player-section-title">Ability Rating</h2>
-        <span className="tt-player-section-note">
-          {rating ? `${ratingConfidenceLabel(rating.confidence)} confidence` : 'Glicko-2'}
-        </span>
-      </div>
+  const metrics = rating ? [
+    { label: 'Rating', value: Math.round(rating.rating) },
+    ...(rating.rank != null ? [{ label: 'Global Rank', value: `#${rating.rank}` }] : []),
+    { label: 'Confidence', value: ratingConfidenceLabel(rating.confidence) },
+  ] : [];
 
+  return (
+    <PageSection
+      surface="flat"
+      density="compact"
+      title="Ability Rating"
+      note={rating ? `${ratingConfidenceLabel(rating.confidence)} confidence` : 'Glicko-2'}
+      className="tt-rating-panel"
+    >
       {ratingQuery.isLoading ? (
-        <div className="tt-player-metric-grid" aria-label="Loading player rating">
-          <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
-          <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
-          <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
-        </div>
+        <MetricGrid
+          density="compact"
+          ariaLabel="Loading player rating"
+          metrics={[
+            { label: 'Rating', value: <SkeletonBlock className="tt-skeleton-stat" /> },
+            { label: 'Rank', value: <SkeletonBlock className="tt-skeleton-stat" /> },
+            { label: 'Confidence', value: <SkeletonBlock className="tt-skeleton-stat" /> },
+          ]}
+        />
       ) : !rating ? (
-        <p className="tt-player-section-state">
-          A calculated rating is not available for this player yet.
-        </p>
+        <p className="tt-player-section-state">A calculated rating is not available for this player yet.</p>
       ) : (
         <>
-          <div className={`tt-player-metric-grid${rating.rank == null ? ' tt-player-metric-grid--two' : ''}`}>
-            <div className="tt-player-metric">
-              <span className="tt-player-metric-value">{Math.round(rating.rating)}</span>
-              <span className="tt-player-metric-label">Rating</span>
-            </div>
-            {rating.rank != null ? (
-              <div className="tt-player-metric">
-                <span className="tt-player-metric-value">#{rating.rank}</span>
-                <span className="tt-player-metric-label">Global Rank</span>
-              </div>
-            ) : null}
-            <div className="tt-player-metric">
-              <span className="tt-player-metric-value text-capitalize">
-                {ratingConfidenceLabel(rating.confidence)}
-              </span>
-              <span className="tt-player-metric-label">Confidence</span>
-            </div>
-          </div>
+          <MetricGrid density="compact" metrics={metrics} />
 
-          <div className="tt-rating-range" aria-label="Estimated rating range">
+          <Surface variant="subtle" padding="none" className="tt-rating-range" aria-label="Estimated rating range">
             <button
               type="button"
               className="tt-rating-range-summary"
@@ -72,31 +62,18 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
 
             {isRangeOpen ? (
               <div className="tt-rating-range-detail">
-                <div className="tt-rating-range-track" aria-hidden="true">
-                  <span />
-                </div>
+                <div className="tt-rating-range-track" aria-hidden="true"><span /></div>
                 <div className="tt-rating-range-values">
-                  <span>
-                    <small>Low</small>
-                    {Math.round(rating.rating_low)}
-                  </span>
-                  <strong>
-                    <small>Estimate</small>
-                    {Math.round(rating.rating)}
-                  </strong>
-                  <span>
-                    <small>High</small>
-                    {Math.round(rating.rating_high)}
-                  </span>
+                  <span><small>Low</small>{Math.round(rating.rating_low)}</span>
+                  <strong><small>Estimate</small>{Math.round(rating.rating)}</strong>
+                  <span><small>High</small>{Math.round(rating.rating_high)}</span>
                 </div>
               </div>
             ) : null}
-          </div>
+          </Surface>
 
           {rating.provisional ? (
-            <p className="tt-rating-note">
-              Provisional rating: a global rank will appear once the rating confidence is high enough.
-            </p>
+            <p className="tt-rating-note">Provisional rating: a global rank will appear once the rating confidence is high enough.</p>
           ) : null}
 
           <AppButtonLink
@@ -114,6 +91,6 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
           </AppButtonLink>
         </>
       )}
-    </section>
+    </PageSection>
   );
 }

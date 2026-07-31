@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AppShellPage } from './ui/appkit';
+import { DetailPage } from './ui/appkit';
 import { TabFooterBar } from './TabFooterBar';
 
 interface TabShellPageProps {
@@ -8,9 +8,8 @@ interface TabShellPageProps {
 
 export function TabShellPage({ children }: TabShellPageProps) {
   return (
-    <AppShellPage>
+    <DetailPage footer={<TabFooterBar reselectBehavior="root" />}>
       {children}
-      <TabFooterBar reselectBehavior="root" />
-    </AppShellPage>
+    </DetailPage>
   );
 }

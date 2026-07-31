@@ -5,6 +5,7 @@ import {
   type RatingHistoryRange,
   usePlayerRatingHistoryQuery,
 } from '../rating-queries';
+import { FilterBar, PageSection } from '../ui/appkit';
 import { SkeletonBlock } from './Skeleton';
 
 interface PlayerRatingHistoryChartProps {
@@ -45,26 +46,21 @@ export function PlayerRatingHistoryChart({ playerId }: PlayerRatingHistoryChartP
     ?? null;
   const contentId = `tt-rating-history-content-${playerId}`;
 
-  const selectPoint = (point: PlayerRatingHistoryPoint) => {
-    setSelectedWeek(point.week_start);
-  };
-
-  const selectPointFromKeyboard = (
-    event: KeyboardEvent<SVGCircleElement>,
-    point: PlayerRatingHistoryPoint,
-  ) => {
+  const selectPoint = (point: PlayerRatingHistoryPoint) => setSelectedWeek(point.week_start);
+  const selectPointFromKeyboard = (event: KeyboardEvent<SVGCircleElement>, point: PlayerRatingHistoryPoint) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
     selectPoint(point);
   };
 
   return (
-    <section id="rating-history" className="tt-player-section tt-rating-history" aria-labelledby="tt-rating-history-title">
-      <div className="tt-rating-history-header">
-        <div>
-          <h2 id="tt-rating-history-title">Rating History</h2>
-          <p>Latest calculated rating in each active week</p>
-        </div>
+    <PageSection
+      surface="flat"
+      density="compact"
+      className="tt-rating-history"
+      title="Rating History"
+      note="Latest calculated rating in each active week"
+      action={(
         <button
           type="button"
           className="tt-rating-history-toggle"
@@ -75,11 +71,11 @@ export function PlayerRatingHistoryChart({ playerId }: PlayerRatingHistoryChartP
           <span>{isOpen ? 'Hide history' : 'Show history'}</span>
           <i className={`fa fa-chevron-${isOpen ? 'up' : 'down'}`} aria-hidden="true" />
         </button>
-      </div>
-
+      )}
+    >
       {isOpen ? (
         <div id={contentId} className="tt-rating-history-content">
-          <div className="tt-rating-history-ranges" aria-label="Rating history range">
+          <FilterBar ariaLabel="Rating history range" className="tt-rating-history-ranges">
             {RANGE_OPTIONS.map((option) => (
               <button
                 key={option.value}
@@ -94,7 +90,7 @@ export function PlayerRatingHistoryChart({ playerId }: PlayerRatingHistoryChartP
                 {option.label}
               </button>
             ))}
-          </div>
+          </FilterBar>
 
           {historyQuery.isLoading ? (
             <div className="tt-rating-history-loading" aria-label="Loading rating history">
@@ -106,32 +102,13 @@ export function PlayerRatingHistoryChart({ playerId }: PlayerRatingHistoryChartP
               <button type="button" onClick={() => historyQuery.refetch()}>Retry</button>
             </div>
           ) : history.length === 0 || !geometry ? (
-            <p className="tt-rating-history-state">
-              Weekly history will appear after the rating-history rebuild has processed this player.
-            </p>
+            <p className="tt-rating-history-state">Weekly history will appear after the rating-history rebuild has processed this player.</p>
           ) : (
             <>
               <div className="tt-rating-history-chart-wrap">
-                <svg
-                  className="tt-rating-history-chart"
-                  viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-                  role="img"
-                  aria-label={`Weekly rating history with ${history.length} points`}
-                >
-                  <line
-                    className="tt-rating-history-gridline"
-                    x1={CHART_LEFT}
-                    x2={CHART_WIDTH - CHART_RIGHT}
-                    y1={CHART_TOP}
-                    y2={CHART_TOP}
-                  />
-                  <line
-                    className="tt-rating-history-gridline"
-                    x1={CHART_LEFT}
-                    x2={CHART_WIDTH - CHART_RIGHT}
-                    y1={CHART_HEIGHT - CHART_BOTTOM}
-                    y2={CHART_HEIGHT - CHART_BOTTOM}
-                  />
+                <svg className="tt-rating-history-chart" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} role="img" aria-label={`Weekly rating history with ${history.length} points`}>
+                  <line className="tt-rating-history-gridline" x1={CHART_LEFT} x2={CHART_WIDTH - CHART_RIGHT} y1={CHART_TOP} y2={CHART_TOP} />
+                  <line className="tt-rating-history-gridline" x1={CHART_LEFT} x2={CHART_WIDTH - CHART_RIGHT} y1={CHART_HEIGHT - CHART_BOTTOM} y2={CHART_HEIGHT - CHART_BOTTOM} />
                   <polygon className="tt-rating-history-band" points={geometry.bandPoints} />
                   <polyline className="tt-rating-history-line" points={geometry.linePoints} />
                   {geometry.points.map((point) => (
@@ -148,121 +125,63 @@ export function PlayerRatingHistoryChart({ playerId }: PlayerRatingHistoryChartP
                       onKeyDown={(event) => selectPointFromKeyboard(event, point)}
                     />
                   ))}
-                  <text className="tt-rating-history-axis-label" x={CHART_LEFT} y={CHART_HEIGHT - 7}>
-                    {formatShortDate(history[0]?.snapshot_date ?? '')}
-                  </text>
-                  <text
-                    className="tt-rating-history-axis-label"
-                    x={CHART_WIDTH - CHART_RIGHT}
-                    y={CHART_HEIGHT - 7}
-                    textAnchor="end"
-                  >
-                    {formatShortDate(history[history.length - 1]?.snapshot_date ?? '')}
-                  </text>
+                  <text className="tt-rating-history-axis-label" x={CHART_LEFT} y={CHART_HEIGHT - 7}>{formatShortDate(history[0]?.snapshot_date ?? '')}</text>
+                  <text className="tt-rating-history-axis-label" x={CHART_WIDTH - CHART_RIGHT} y={CHART_HEIGHT - 7} textAnchor="end">{formatShortDate(history[history.length - 1]?.snapshot_date ?? '')}</text>
                 </svg>
               </div>
 
               {selected ? (
                 <div className="tt-rating-history-detail" aria-live="polite">
-                  <div>
-                    <small>Week</small>
-                    <strong>{formatWeek(selected.snapshot_date)}</strong>
-                  </div>
-                  <div>
-                    <small>Rating</small>
-                    <strong>{Math.round(selected.rating)}</strong>
-                  </div>
-                  <div>
-                    <small>Change</small>
-                    <strong className={changeClassName(selected.rating_change)}>
-                      {formatChange(selected.rating_change)}
-                    </strong>
-                  </div>
-                  <div>
-                    <small>Results</small>
-                    <strong>{selected.week_wins}W · {selected.week_losses}L</strong>
-                  </div>
-                  <div>
-                    <small>Confidence</small>
-                    <strong>{ratingConfidenceLabel(selected.confidence)}</strong>
-                  </div>
+                  <div><small>Week</small><strong>{formatWeek(selected.snapshot_date)}</strong></div>
+                  <div><small>Rating</small><strong>{Math.round(selected.rating)}</strong></div>
+                  <div><small>Change</small><strong className={changeClassName(selected.rating_change)}>{formatChange(selected.rating_change)}</strong></div>
+                  <div><small>Results</small><strong>{selected.week_wins}W · {selected.week_losses}L</strong></div>
+                  <div><small>Confidence</small><strong>{ratingConfidenceLabel(selected.confidence)}</strong></div>
                 </div>
               ) : null}
             </>
           )}
         </div>
       ) : null}
-    </section>
+    </PageSection>
   );
 }
 
 function buildChartGeometry(history: PlayerRatingHistoryPoint[]) {
   if (history.length === 0) return null;
-
   const dates = history.map((point) => new Date(`${point.snapshot_date}T12:00:00Z`).getTime());
   const minDate = Math.min(...dates);
   const maxDate = Math.max(...dates);
   const ratings = history.flatMap((point) => [point.rating_low, point.rating_high]);
   let minRating = Math.min(...ratings);
   let maxRating = Math.max(...ratings);
-  if (minRating === maxRating) {
-    minRating -= 25;
-    maxRating += 25;
-  }
+  if (minRating === maxRating) { minRating -= 25; maxRating += 25; }
   const verticalPadding = Math.max(10, (maxRating - minRating) * 0.08);
   minRating -= verticalPadding;
   maxRating += verticalPadding;
-
   const plotWidth = CHART_WIDTH - CHART_LEFT - CHART_RIGHT;
   const plotHeight = CHART_HEIGHT - CHART_TOP - CHART_BOTTOM;
-  const xFor = (date: number) => maxDate === minDate
-    ? CHART_LEFT + plotWidth / 2
-    : CHART_LEFT + ((date - minDate) / (maxDate - minDate)) * plotWidth;
+  const xFor = (date: number) => maxDate === minDate ? CHART_LEFT + plotWidth / 2 : CHART_LEFT + ((date - minDate) / (maxDate - minDate)) * plotWidth;
   const yFor = (rating: number) => CHART_TOP + ((maxRating - rating) / (maxRating - minRating)) * plotHeight;
-
-  const points: ChartPoint[] = history.map((point, index) => ({
-    ...point,
-    x: xFor(dates[index] ?? minDate),
-    y: yFor(point.rating),
-    lowY: yFor(point.rating_low),
-    highY: yFor(point.rating_high),
-  }));
-
+  const points: ChartPoint[] = history.map((point, index) => ({ ...point, x: xFor(dates[index] ?? minDate), y: yFor(point.rating), lowY: yFor(point.rating_low), highY: yFor(point.rating_high) }));
   const highPoints = points.map((point) => `${point.x.toFixed(2)},${point.highY.toFixed(2)}`);
-  const lowPoints = [...points]
-    .reverse()
-    .map((point) => `${point.x.toFixed(2)},${point.lowY.toFixed(2)}`);
-
-  return {
-    points,
-    linePoints: points.map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' '),
-    bandPoints: [...highPoints, ...lowPoints].join(' '),
-  };
+  const lowPoints = [...points].reverse().map((point) => `${point.x.toFixed(2)},${point.lowY.toFixed(2)}`);
+  return { points, linePoints: points.map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' '), bandPoints: [...highPoints, ...lowPoints].join(' ') };
 }
 
 function formatWeek(value: string): string {
   if (!value) return 'Unknown week';
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(`${value}T12:00:00Z`));
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${value}T12:00:00Z`));
 }
-
 function formatShortDate(value: string): string {
   if (!value) return '';
-  return new Intl.DateTimeFormat('en-GB', {
-    month: 'short',
-    year: '2-digit',
-  }).format(new Date(`${value}T12:00:00Z`));
+  return new Intl.DateTimeFormat('en-GB', { month: 'short', year: '2-digit' }).format(new Date(`${value}T12:00:00Z`));
 }
-
 function formatChange(value: number | null): string {
   if (value === null) return '—';
   const rounded = Math.round(value);
   return `${rounded > 0 ? '+' : ''}${rounded}`;
 }
-
 function changeClassName(value: number | null): string | undefined {
   if (value === null || Math.round(value) === 0) return undefined;
   return value > 0 ? 'is-positive' : 'is-negative';

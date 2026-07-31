@@ -13,6 +13,7 @@
     "test:performance-tools": "node --test scripts/__tests__/performance-tools.test.mjs",
     "typecheck:backend": "pnpm --filter @tt-players/api... build && pnpm --filter @tt-players/worker build",
     "check:backend": "pnpm run typecheck:backend && pnpm run test:backend",
+    "check:design-system": "node scripts/check-design-system-usage.mjs",
     "perf:api": "node scripts/benchmark-api.mjs",
     "perf:plans": "node scripts/capture-query-plans.mjs",
     "api:test": "pnpm --filter @tt-players/api run test",

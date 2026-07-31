@@ -4,12 +4,7 @@ import { FormResultPills } from './components/FormResultPills';
 import { SectionSkeleton, SkeletonBlock, SkeletonList } from './components/Skeleton';
 import { useTabNavigation } from './navigation/tab-navigation';
 import { formatMatchDate, getInitials, getQueryError } from './player-shared';
-import {
-  useTeamFixturesQuery,
-  useTeamFormQuery,
-  useTeamRosterQuery,
-  useTeamSummaryQuery,
-} from './queries';
+import { useTeamFixturesQuery, useTeamFormQuery, useTeamRosterQuery, useTeamSummaryQuery } from './queries';
 import { TabShellPage } from './TabShellPage';
 import { DetailHeader } from './components/DetailHeader';
 import { buildTeamShareTarget } from './share-target';
@@ -17,15 +12,17 @@ import { FavouriteButton } from './components/FavouriteButton';
 import { useFavouritePlayers } from './hooks/useFavouritePlayers';
 import { useFavouriteTeams } from './hooks/useFavouriteTeams';
 import {
-  List,
-  ListItem,
-  IconCircle,
-  Avatar,
+  DesignAvatar,
+  DesignList,
   EmptyState,
+  EntityHero,
   ErrorState,
-  SectionHeader,
-  HeroCard,
+  FilterBar,
+  IconCircle,
+  ListItem,
+  MetricGrid,
   OutcomeBadge,
+  PageSection,
   Pill,
   SegmentedToggle,
 } from './ui/appkit';
@@ -36,16 +33,12 @@ type MatchFilter = 'all' | 'home' | 'away' | 'wins' | 'losses' | 'draws';
 function TeamPageSkeleton() {
   return (
     <>
-      <section className="tt-hero" aria-label="Loading team profile">
-        <div className="tt-hero__top">
-          <div className="tt-hero__copy">
-            <SkeletonBlock className="tt-skeleton-eyebrow" />
-            <SkeletonBlock className="tt-skeleton-title" />
-            <SkeletonBlock className="tt-skeleton-text mt-2" />
-          </div>
-          <SkeletonBlock className="tt-skeleton-avatar" />
-        </div>
-      </section>
+      <EntityHero
+        eyebrow="Team"
+        title={<SkeletonBlock className="tt-skeleton-title" />}
+        subtitle={<SkeletonBlock className="tt-skeleton-text" />}
+        leading={<SkeletonBlock className="tt-skeleton-avatar" />}
+      />
       <SectionSkeleton rows={4} />
       <SectionSkeleton rows={4} />
     </>
@@ -66,12 +59,7 @@ export function TeamPage() {
   const fixturesQuery = useTeamFixturesQuery(teamId, 100, 0, Boolean(teamId));
 
   const summary = summaryQuery.data ?? null;
-  const summaryError = teamId ? getQueryError(summaryQuery.error) : 'Missing team id';
-  const summaryLoading = summaryQuery.isLoading;
-
   const form = formQuery.data ?? null;
-  const formLoading = formQuery.isLoading;
-
   const roster = rosterQuery.data?.data ?? [];
   const sortedRoster = useMemo(
     () => [...roster].sort((a, b) => rosterSort === 'played'
@@ -79,8 +67,6 @@ export function TeamPage() {
       : b.winRate - a.winRate || b.played - a.played || a.name.localeCompare(b.name)),
     [roster, rosterSort],
   );
-  const rosterLoading = rosterQuery.isLoading;
-  const rosterError = getQueryError(rosterQuery.error);
 
   const fixtures = fixturesQuery.data?.data ?? [];
   const fixtureTotal = fixturesQuery.data?.total ?? fixtures.length;
@@ -101,116 +87,90 @@ export function TeamPage() {
     if (matchFilter === 'draws') return result === 'D';
     return true;
   }), [fixturesWithContext, matchFilter]);
-  const fixturesLoading = fixturesQuery.isLoading;
-  const fixturesError = getQueryError(fixturesQuery.error);
-  const shareTarget = summary
-    ? buildTeamShareTarget(window.location.origin, summary.id, summary.name)
-    : null;
+
+  const shareTarget = summary ? buildTeamShareTarget(window.location.origin, summary.id, summary.name) : null;
 
   return (
     <TabShellPage>
       <DetailHeader title={summary?.name ?? 'Team'} shareTarget={shareTarget} />
       <div className="page-content app-shell-content">
-        {summaryLoading ? (
+        {summaryQuery.isLoading ? (
           <TeamPageSkeleton />
         ) : !summary ? (
-          <ErrorState title="Team not available" message={summaryError || 'Failed to load this team profile.'} onRetry={() => switchTab('home', 'root')} />
+          <ErrorState title="Team not available" message={getQueryError(summaryQuery.error) || 'Failed to load this team profile.'} onRetry={() => switchTab('home', 'root')} />
         ) : (
           <>
-            <HeroCard
-              className="tt-team-hero"
+            <EntityHero
               eyebrow="Team"
               title={summary.name}
-              summary={`${summary.league_name ?? '—'} · ${summary.competition_name ?? '—'} · ${summary.season_name ?? '—'}`}
+              subtitle={`${summary.league_name ?? '—'} · ${summary.competition_name ?? '—'} · ${summary.season_name ?? '—'}`}
               actions={(
                 <FavouriteButton
                   saved={isFavouriteTeam(summary.id)}
-                  onToggle={() => toggleFavouriteTeam({
-                    id: summary.id,
-                    name: summary.name,
-                    leagueName: summary.league_name,
-                    divisionName: summary.competition_name,
-                  })}
+                  onToggle={() => toggleFavouriteTeam({ id: summary.id, name: summary.name, leagueName: summary.league_name, divisionName: summary.competition_name })}
                 />
               )}
-            >
-              {form ? (
-                <div className="tt-team-spotlight">
-                  <div className="tt-team-metric">
-                    <span className="tt-team-metric-value">{form.position ?? '-'}</span>
-                    <span className="tt-team-metric-label">Position</span>
-                  </div>
-                  <div className="tt-team-metric">
-                    <span className="tt-team-metric-value">{form.points ?? '-'}</span>
-                    <span className="tt-team-metric-label">Points</span>
-                  </div>
-                </div>
-              ) : null}
-              {form && form.form && form.form.length > 0 ? (
-                <FormResultPills results={form.form} label={null} loading={formLoading} />
-              ) : null}
-            </HeroCard>
+              highlights={(
+                <>
+                  {form ? (
+                    <MetricGrid
+                      density="compact"
+                      metrics={[
+                        { label: 'Position', value: form.position ?? '-' },
+                        { label: 'Points', value: form.points ?? '-' },
+                      ]}
+                    />
+                  ) : null}
+                  {form?.form?.length ? <FormResultPills results={form.form} label={null} loading={formQuery.isLoading} /> : null}
+                </>
+              )}
+            />
 
-            <section className="tt-player-section" aria-labelledby="tt-team-roster-title">
-              <SectionHeader title="Squad roster" note={`${roster.length} players`} />
-              <div className="tt-team-roster-controls">
+            <PageSection surface="flat" density="compact" title="Squad roster" note={`${roster.length} players`}>
+              <FilterBar ariaLabel="Roster sort">
                 <span>Sort by</span>
                 <SegmentedToggle
                   ariaLabel="Sort squad roster"
                   value={rosterSort}
                   onChange={setRosterSort}
-                  options={[
-                    { value: 'played', label: 'Played' },
-                    { value: 'winRate', label: 'Win rate' },
-                  ]}
+                  options={[{ value: 'played', label: 'Played' }, { value: 'winRate', label: 'Win rate' }]}
                 />
-              </div>
-              {rosterLoading ? (
+              </FilterBar>
+              {rosterQuery.isLoading ? (
                 <SkeletonList rows={4} />
-              ) : rosterError ? (
+              ) : getQueryError(rosterQuery.error) ? (
                 <ErrorState message="Unable to load squad roster." />
               ) : roster.length === 0 ? (
                 <EmptyState iconClassName="fa fa-users" title="No players" message="No players found for this team yet." />
               ) : (
-                <List divider="hairline">
+                <DesignList density="compact" divider="hairline" paginate={false}>
                   {sortedRoster.map((player) => (
                     <ListItem
                       key={player.id}
-                      leading={<Avatar text={getInitials(player.name)} />}
+                      leading={<DesignAvatar size="compact" text={getInitials(player.name)} />}
                       title={player.name}
                       subtitle={`${player.wins} wins · ${player.played} played`}
                       trailing={(
                         <span className="tt-team-roster-trailing">
                           <Pill tone="accent">{player.winRate ?? 0}%</Pill>
-                          <FavouriteButton
-                            size="icon"
-                            saved={isFavouritePlayer(player.id)}
-                            onToggle={() => toggleFavouritePlayer({
-                              id: player.id,
-                              name: player.name,
-                              played: player.played,
-                              wins: player.wins,
-                            })}
-                          />
+                          <FavouriteButton size="icon" saved={isFavouritePlayer(player.id)} onToggle={() => toggleFavouritePlayer({ id: player.id, name: player.name, played: player.played, wins: player.wins })} />
                         </span>
                       )}
                       onClick={() => navigateInActiveTab(`player/${player.id}`)}
                       hideChevron
                     />
                   ))}
-                </List>
+                </DesignList>
               )}
-            </section>
+            </PageSection>
 
-            <section className="tt-player-section" aria-labelledby="tt-team-matches-title">
-              <SectionHeader title="Matches" note={`${filteredFixtures.length} of ${fixtureTotal}`} />
-              <div className="tt-team-match-filters">
+            <PageSection surface="flat" density="compact" title="Matches" note={`${filteredFixtures.length} of ${fixtureTotal}`}>
+              <FilterBar ariaLabel="Team match filters">
                 <span>Filter by</span>
-                <div className="tt-team-match-filters__scroll">
-                  <SegmentedToggle
-                    ariaLabel="Filter team matches"
-                    value={matchFilter}
-                    onChange={setMatchFilter}
+                <SegmentedToggle
+                  ariaLabel="Filter team matches"
+                  value={matchFilter}
+                  onChange={setMatchFilter}
                   options={[
                     { value: 'all', label: 'ALL' },
                     { value: 'home', label: 'H' },
@@ -219,28 +179,25 @@ export function TeamPage() {
                     { value: 'draws', label: 'D' },
                     { value: 'losses', label: 'L' },
                   ]}
-                  />
-                </div>
-              </div>
-              {fixturesLoading ? (
+                />
+              </FilterBar>
+              {fixturesQuery.isLoading ? (
                 <SkeletonList rows={4} />
-              ) : fixturesError ? (
+              ) : getQueryError(fixturesQuery.error) ? (
                 <ErrorState message="Unable to load recent matches." />
               ) : fixtures.length === 0 ? (
                 <EmptyState iconClassName="fa fa-table-tennis" title="No recent matches" message="No recent matches found." />
               ) : filteredFixtures.length === 0 ? (
                 <EmptyState iconClassName="fa fa-filter" title="No matching fixtures" message="No fixtures match this filter." />
               ) : (
-                <List divider="hairline">
+                <DesignList density="compact" divider="hairline" paginate={false}>
                   {filteredFixtures.map(({ fixture, isHome, teamScore, opponentScore, result }) => {
                     const opponent = isHome ? fixture.away_team_name : fixture.home_team_name;
                     const score = teamScore === null || opponentScore === null ? null : `${teamScore}–${opponentScore}`;
                     return (
                       <ListItem
                         key={fixture.id}
-                        leading={result
-                          ? <OutcomeBadge result={result} variant="icon" />
-                          : <IconCircle iconClassName="fa fa-calendar" tone="neutral" />}
+                        leading={result ? <OutcomeBadge result={result} variant="icon" /> : <IconCircle iconClassName="fa fa-calendar" tone="neutral" />}
                         title={opponent ? `${isHome ? 'Home' : 'Away'} vs ${opponent}` : `${fixture.home_team_name} vs ${fixture.away_team_name}`}
                         subtitle={`${formatMatchDate(fixture.date_played)} · ${fixture.round_name ?? fixture.status}`}
                         trailing={score ? <Pill tone={result === 'W' ? 'accent' : 'neutral'}>{score}</Pill> : <Pill tone="neutral">{fixture.status}</Pill>}
@@ -248,9 +205,9 @@ export function TeamPage() {
                       />
                     );
                   })}
-                </List>
+                </DesignList>
               )}
-            </section>
+            </PageSection>
           </>
         )}
       </div>

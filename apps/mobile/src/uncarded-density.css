@@ -11,8 +11,8 @@
 
 /* Direct page sections should own one modest gutter rather than inheriting
  * page + section + child insets. Premium hero/card surfaces are excluded. */
-.tt-page-content > section:not(.tt-player-hero):not(.tt-hero):not(.tt-card),
-.tt-root-content > section:not(.tt-player-hero):not(.tt-hero):not(.tt-card),
+.tt-page-content > section:not(.tt-player-hero):not(.tt-hero):not(.tt-card):not(.tt-home-summary):not(.tt-players-search-panel):not(.tt-entity-hero):not(.tt-section--raised):not(.tt-section--hero),
+.tt-root-content > section:not(.tt-player-hero):not(.tt-hero):not(.tt-card):not(.tt-home-summary):not(.tt-players-search-panel):not(.tt-entity-hero):not(.tt-section--raised):not(.tt-section--hero),
 .tt-player-section {
   box-sizing: border-box;
   width: auto !important;
@@ -21,8 +21,8 @@
   padding-inline: 0 !important;
 }
 
-.tt-page-content > section:not(.tt-player-hero):not(.tt-hero):not(.tt-card) + section,
-.tt-root-content > section:not(.tt-player-hero):not(.tt-hero):not(.tt-card) + section,
+.tt-page-content > section:not(.tt-player-hero):not(.tt-hero):not(.tt-card):not(.tt-home-summary):not(.tt-players-search-panel):not(.tt-entity-hero):not(.tt-section--raised):not(.tt-section--hero) + section,
+.tt-root-content > section:not(.tt-player-hero):not(.tt-hero):not(.tt-card):not(.tt-home-summary):not(.tt-players-search-panel):not(.tt-entity-hero):not(.tt-section--raised):not(.tt-section--hero) + section,
 .tt-player-section + .tt-player-section {
   margin-top: var(--tt-uncarded-section-gap) !important;
 }
@@ -128,7 +128,11 @@
 .tt-card,
 .tt-player-hero,
 .tt-hero,
-.tt-players-search-panel {
+.tt-home-summary,
+.tt-players-search-panel,
+.tt-entity-hero,
+.tt-section--raised,
+.tt-section--hero {
   --tt-uncarded-gutter: var(--page-gutter);
 }
 

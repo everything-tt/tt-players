@@ -5,6 +5,7 @@ on:
     paths:
       - 'apps/mobile/**'
       - 'packages/design-system/**'
+      - 'scripts/check-design-system-usage.mjs'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -14,6 +15,7 @@ on:
     paths:
       - 'apps/mobile/**'
       - 'packages/design-system/**'
+      - 'scripts/check-design-system-usage.mjs'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -42,6 +44,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Check design-system usage
+        run: pnpm check:design-system
 
       - name: Build mobile app
         run: pnpm mobile:build

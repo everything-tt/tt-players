@@ -4,7 +4,17 @@ import { DetailHeader } from './components/DetailHeader';
 import { SkeletonList } from './components/Skeleton';
 import { useLeagueDashboardQuery, useLeaguesQuery, useStandingsQuery } from './queries';
 import { TabShellPage } from './TabShellPage';
-import { EmptyState, ErrorState, HeroCard, IconCircle, List, ListItem, Pill, SectionHeader } from './ui/appkit';
+import {
+  DesignList,
+  EmptyState,
+  EntityHero,
+  ErrorState,
+  FilterBar,
+  IconCircle,
+  ListItem,
+  PageSection,
+  Pill,
+} from './ui/appkit';
 import { formatRecord, getQueryError } from './player-shared';
 import { useTabNavigation } from './navigation/tab-navigation';
 import { FavouriteButton } from './components/FavouriteButton';
@@ -23,15 +33,11 @@ export function LeagueDetailPage() {
   const [divisionId, setDivisionId] = useState('');
   const [historySeasonId, setHistorySeasonId] = useState('');
 
-  useEffect(() => {
-    setDivisionId(league?.divisions[0]?.id ?? '');
-  }, [league]);
+  useEffect(() => setDivisionId(league?.divisions[0]?.id ?? ''), [league]);
 
   const standingsQuery = useStandingsQuery(divisionId, Boolean(divisionId));
   const dashboard = dashboardQuery.data ?? null;
-  const selectedSeason = dashboard?.history.find((season) => season.season_id === historySeasonId)
-    ?? dashboard?.history[0]
-    ?? null;
+  const selectedSeason = dashboard?.history.find((season) => season.season_id === historySeasonId) ?? dashboard?.history[0] ?? null;
   const error = getQueryError(dashboardQuery.error) || getQueryError(leaguesQuery.error);
 
   return (
@@ -39,20 +45,19 @@ export function LeagueDetailPage() {
       <DetailHeader title={league?.name ?? dashboard?.league.name ?? 'League'} />
       <div className="page-content app-shell-content">
         {dashboardQuery.isLoading || leaguesQuery.isLoading ? (
-          <section className="tt-player-section"><SkeletonList rows={6} /></section>
+          <PageSection surface="flat" density="compact"><SkeletonList rows={6} /></PageSection>
         ) : error || !dashboard || !league ? (
           <ErrorState title="League unavailable" message={error || 'This league could not be loaded.'} />
         ) : (
           <>
-            <HeroCard
+            <EntityHero
               eyebrow="League"
               title={league.name}
-              summary={`${league.season ?? 'Active season'} · ${league.divisions.length} divisions`}
+              subtitle={`${league.season ?? 'Active season'} · ${league.divisions.length} divisions`}
             />
 
-            <section className="tt-player-section">
-              <SectionHeader title="Standings" note="Choose a division" />
-              <div className="tt-season-picker" role="group" aria-label="Choose division">
+            <PageSection surface="flat" density="compact" title="Standings" note="Choose a division">
+              <FilterBar ariaLabel="Choose division">
                 {league.divisions.map((division) => (
                   <button
                     key={division.id}
@@ -64,13 +69,13 @@ export function LeagueDetailPage() {
                     {division.name}
                   </button>
                 ))}
-              </div>
+              </FilterBar>
               {standingsQuery.isLoading ? <SkeletonList rows={6} /> : standingsQuery.error ? (
                 <ErrorState message="Standings are unavailable." />
               ) : (standingsQuery.data?.data ?? []).length === 0 ? (
                 <EmptyState iconClassName="fa fa-table" title="No standings" message="This division does not have a table available." />
               ) : (
-                <List divider="hairline">
+                <DesignList density="compact" divider="hairline" paginate={false}>
                   {(standingsQuery.data?.data ?? []).map((row) => (
                     <ListItem
                       key={row.team_id}
@@ -95,13 +100,12 @@ export function LeagueDetailPage() {
                       onClick={() => navigateInTab('leagues', `team/${row.team_id}`)}
                     />
                   ))}
-                </List>
+                </DesignList>
               )}
-            </section>
+            </PageSection>
 
-            <section className="tt-player-section">
-              <SectionHeader title="Season history" note="Division winners" />
-              <div className="tt-season-picker" role="group" aria-label="Choose historical season">
+            <PageSection surface="flat" density="compact" title="Season history" note="Division winners">
+              <FilterBar ariaLabel="Choose historical season">
                 {dashboard.history.map((season) => (
                   <button
                     key={season.season_id}
@@ -113,7 +117,7 @@ export function LeagueDetailPage() {
                     {season.season}
                   </button>
                 ))}
-              </div>
+              </FilterBar>
               {selectedSeason ? (
                 <div className="tt-league-history">
                   <div className="tt-league-history__header">
@@ -122,7 +126,7 @@ export function LeagueDetailPage() {
                   </div>
                   <p>{selectedSeason.divisions} divisions · {selectedSeason.teams} teams · {selectedSeason.fixtures} fixtures</p>
                   {selectedSeason.champions.length > 0 ? (
-                    <List divider="hairline">
+                    <DesignList density="compact" divider="hairline" paginate={false}>
                       {selectedSeason.champions.map((champion) => (
                         <ListItem
                           key={`${selectedSeason.season_id}-${champion.division_name}`}
@@ -132,11 +136,11 @@ export function LeagueDetailPage() {
                           hideChevron
                         />
                       ))}
-                    </List>
+                    </DesignList>
                   ) : <p className="tt-section-meta">Division winners are unavailable.</p>}
                 </div>
               ) : null}
-            </section>
+            </PageSection>
           </>
         )}
       </div>
