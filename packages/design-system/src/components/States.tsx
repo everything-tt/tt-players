@@ -58,16 +58,17 @@ export interface SectionHeaderProps {
   note?: ReactNode;
   /** Optional action on the right (e.g. a source link or count pill). */
   action?: ReactNode;
+  density?: 'compact' | 'standard';
   className?: string;
 }
 
-/** Replaces the 51 hand-rolled `tt-player-section-header` blocks. */
-export function SectionHeader({ title, note, action, className }: SectionHeaderProps) {
+/** Canonical section heading with responsive note and action placement. */
+export function SectionHeader({ title, note, action, density = 'standard', className }: SectionHeaderProps) {
   return (
-    <div className={cx('tt-section-header', className)}>
+    <div className={cx('tt-section-header', `tt-section-header--${density}`, className)}>
       <h2 className="tt-section-header__title">{title}</h2>
       {note !== undefined ? <span className="tt-section-header__note">{note}</span> : null}
-      {action}
+      {action ? <span className="tt-section-header__action">{action}</span> : null}
     </div>
   );
 }
@@ -81,7 +82,7 @@ export interface HeroCardProps {
   className?: string;
 }
 
-/** Replaces the 7 duplicated hero cards (player/team/fixture/insights/h2h/search/leagues). */
+/** Compatibility hero card; prefer EntityHero for new and migrated screens. */
 export function HeroCard({ eyebrow, title, summary, actions, children, className }: HeroCardProps) {
   return (
     <section className={cx('tt-hero', className)}>
