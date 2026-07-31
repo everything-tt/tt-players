@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './index.css';
 import './design-tokens.css';
 import './native-mobile.css';
+import './density-pass.css';
 import { AppRouter } from './AppRouter';
 import { restoreLocalDataBackup } from './local-persistence';
 
