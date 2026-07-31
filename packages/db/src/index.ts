@@ -1,6 +1,20 @@
 export { db, createDb } from './database.js';
 export type { DatabaseConnectionOptions } from './database.js';
+export { readDataVersion, bumpDataVersion } from './data-versions.js';
+export type { DataVersionKey } from './data-versions.js';
 export type { ApiDatabase, StagingDatabase } from './types.js';
+export type {
+    ReadModelDatabase,
+    DataVersion,
+    NewDataVersion,
+    DataVersionUpdate,
+    SourceQualitySnapshot,
+    NewSourceQualitySnapshot,
+    SourceQualitySnapshotUpdate,
+    PlayerActiveLeague,
+    NewPlayerActiveLeague,
+    PlayerActiveLeagueUpdate,
+} from './read-model-types.js';
 export type {
     SourceRegistryDatabase,
     SourceInstance,
