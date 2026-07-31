@@ -1,10 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
+  DesignList,
   EntityHero,
   FilterBar,
   Inline,
-  List,
   ListItem,
   MetricGrid,
   PageSection,
@@ -43,11 +43,11 @@ describe('canonical design-system contracts', () => {
     expect(markup).toContain('aria-label="Match filters"');
   });
 
-  it('renders explicit list density and avatar-compatible item structure', () => {
+  it('renders explicit list density and item structure', () => {
     const markup = renderToStaticMarkup(
-      <List density="compact" paginate={false}>
+      <DesignList density="compact" paginate={false}>
         <ListItem title="Jane Smith" subtitle="Rowhedge" />
-      </List>,
+      </DesignList>,
     );
 
     expect(markup).toContain('tt-list--compact');
