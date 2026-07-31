@@ -35,28 +35,39 @@
 
 ## Temporary CSS layers
 
-The following files remain compatibility-only until all screens use explicit variants:
+The following files remain compatibility-only until the final large legacy screens migrate:
 
 - `apps/mobile/src/mobile-polish.css`
 - `apps/mobile/src/density-pass.css`
 - `apps/mobile/src/uncarded-density.css`
 
-Final geometry must move to `packages/design-system/src/styles/tokens.css` and `primitives.css`. These files are retired in the final migration task.
+Final geometry now lives in `packages/design-system/src/styles/tokens.css` and `primitives.css`. Compatibility files may consume those values but must not become the source of truth.
 
 ## Screen migration matrix
 
 | Journey | Main files | Status |
 |---|---|---|
-| Shared shell and navigation | `AppRouter.tsx`, `TabFooterBar.tsx`, `RootHeader.tsx`, `DetailHeader.tsx`, `MainDrawer.tsx` | Foundation migrated; consolidation pending |
-| Home/root tabs | `App.tsx`, `LeaguesTabContent.tsx`, `EventsTabContent.tsx`, `H2HTabContent.tsx` | Pending |
-| Player search/favourites | `App.tsx` player tab content | Pending |
-| Player profile | `PlayerPage.tsx`, `PlayerRatingPanel.tsx` | Rating panel migrated; hero and remaining sections pending |
-| Player insights/history | `PlayerInsightsPage.tsx`, `PlayerMatchesPage.tsx`, `PlayerTournamentsPage.tsx`, `MatchJournalPage.tsx` | Pending |
+| Shared shell and navigation | `AppRouter.tsx`, `TabFooterBar.tsx`, `RootHeader.tsx`, `DetailHeader.tsx`, `MainDrawer.tsx` | Foundation migrated; compatibility cleanup pending |
+| Home/root tabs | `App.tsx` | Legacy allowlist; migration pending |
+| Leagues root | `LeaguesTabContent.tsx` | Migrated |
+| Events/Tournaments root | `EventsTabContent.tsx` | Migrated |
+| H2H root | `H2HTabContent.tsx` | Legacy allowlist; migration pending |
+| Player search/favourites | `App.tsx` player tab content | Legacy allowlist; migration pending |
+| Player profile | `PlayerPage.tsx`, `PlayerRatingPanel.tsx` | Rating panel migrated; main profile pending |
+| Player insights/history | `PlayerInsightsPage.tsx`, `PlayerMatchesPage.tsx`, `PlayerTournamentsPage.tsx`, `MatchJournalPage.tsx` | Matches, tournaments and journal migrated; insights pending |
 | Ratings | `TopRatingsPage.tsx`, rating panels | Leaderboard and rating panel migrated |
-| Leagues | `LeagueDetailPage.tsx`, `LeaguesTabContent.tsx` | Pending |
-| Teams and fixtures | `TeamPage.tsx`, `FixturePage.tsx` | Pending |
-| Events/tournaments | `EventsTabContent.tsx`, `EventDetailPage.tsx` | Pending |
-| Utility | `AboutTabContent.tsx`, `DataCoveragePage.tsx`, feedback and selection pages | About migrated; remaining utility screens pending |
+| League detail | `LeagueDetailPage.tsx` | Migrated |
+| Teams and fixtures | `TeamPage.tsx`, `FixturePage.tsx` | Migrated |
+| Event detail | `EventDetailPage.tsx` | Legacy allowlist; migration pending |
+| Utility | `AboutTabContent.tsx`, `DataCoveragePage.tsx` | Migrated |
+| Component catalogue | `DesignSystemPage.tsx` | Added at `/design-system` |
+
+## Enforcement
+
+- `pnpm check:design-system` prevents new non-allowlisted legacy section wrappers.
+- It rejects inline canonical geometry outside documented temporary exceptions.
+- It rejects canonical token declarations outside the design-system token layer.
+- Mobile CI runs this guard before build and tests.
 
 ## Migration acceptance
 
