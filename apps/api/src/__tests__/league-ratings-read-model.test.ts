@@ -12,6 +12,7 @@ import * as m013 from '../../../../packages/db/src/migrations/013_add_rubber_sco
 import * as m015 from '../../../../packages/db/src/migrations/015_add_rubber_played_at.js';
 import * as m028 from '../../../../packages/db/src/migrations/028_create_calculated_ratings.js';
 import * as m035 from '../../../../packages/db/src/migrations/035_create_api_read_models.js';
+import { refreshPlayerActiveLeagues } from '../../../worker/src/read-models.js';
 import { buildApp } from '../app.js';
 
 const { Pool } = pg;
@@ -58,15 +59,67 @@ beforeAll(async () => {
         .executeTakeFirstOrThrow();
     leagueId = league.id;
 
+    const season = await db
+        .insertInto('seasons')
+        .values({
+            league_id: league.id,
+            external_id: 'active-season',
+            name: 'Active Season',
+            is_active: true,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+    const competition = await db
+        .insertInto('competitions')
+        .values({
+            season_id: season.id,
+            external_id: 'division',
+            name: 'Division',
+            type: 'league',
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+
     const players = await db
         .insertInto('external_players')
         .values([
             { platform_id: platform.id, external_id: 'included', name: 'Included Player' },
             { platform_id: platform.id, external_id: 'excluded', name: 'Excluded Player' },
+            { platform_id: platform.id, external_id: 'opponent', name: 'Opponent Player' },
         ])
         .returning('id')
         .execute();
     includedPlayerId = players[0]!.id;
+
+    const fixture = await db
+        .insertInto('fixtures')
+        .values({
+            competition_id: competition.id,
+            external_id: 'fixture',
+            date_played: '2026-01-01',
+            status: 'completed',
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+    await db
+        .insertInto('rubbers')
+        .values({
+            fixture_id: fixture.id,
+            external_id: 'rubber',
+            home_player_1_id: players[0]!.id,
+            away_player_1_id: players[2]!.id,
+            home_games_won: 3,
+            away_games_won: 1,
+            outcome_type: 'normal',
+        })
+        .execute();
+
+    const membershipCount = await refreshPlayerActiveLeagues(db);
+    expect(membershipCount).toBe(2);
+
+    // The request must not need to revisit match history after the read model exists.
+    await db.deleteFrom('rubbers').execute();
+    await db.deleteFrom('fixtures').execute();
 
     const model = await db
         .selectFrom('rating_models')
@@ -102,11 +155,6 @@ beforeAll(async () => {
                 provisional: false,
             },
         ])
-        .execute();
-
-    await db
-        .insertInto('player_active_leagues')
-        .values({ player_id: players[0]!.id, league_id: league.id })
         .execute();
 
     const app = await buildApp(db);
