@@ -8,13 +8,14 @@ import { usePlayerExtendedStatsQuery, usePlayerRubbersQuery } from './queries';
 import { TabShellPage } from './TabShellPage';
 import { DetailHeader } from './components/DetailHeader';
 import {
-  List,
-  ListItem,
-  OutcomeBadge,
+  DesignList,
   EmptyState,
   ErrorState,
+  FilterBar,
   InfiniteListFooter,
-  SectionHeader,
+  ListItem,
+  OutcomeBadge,
+  PageSection,
   SegmentedToggle,
 } from './ui/appkit';
 
@@ -24,7 +25,6 @@ type MatchSourceFilter = 'all' | 'league' | 'tournament';
 export function PlayerMatchesPage() {
   const { goBackInActiveTab, navigateInActiveTab, navigateInTab } = useTabNavigation();
   const { playerId = '' } = useParams<{ playerId: string }>();
-
   const [matches, setMatches] = useState<RubberItem[]>([]);
   const [matchesError, setMatchesError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
@@ -52,9 +52,7 @@ export function PlayerMatchesPage() {
       void matchesQuery.refetch();
       return;
     }
-    if (!matchesLoadingMore && hasMore) {
-      setOffset((previous) => previous + PAGE_SIZE);
-    }
+    if (!matchesLoadingMore && hasMore) setOffset((previous) => previous + PAGE_SIZE);
   };
 
   useEffect(() => {
@@ -81,16 +79,18 @@ export function PlayerMatchesPage() {
   }, [matchesQuery.data, matchesQuery.error, offset, playerId]);
 
   useEffect(() => {
-    setOffset(0); setMatches([]); setTotal(0); setMatchesError(null);
+    setOffset(0);
+    setMatches([]);
+    setTotal(0);
+    setMatchesError(null);
   }, [playerId, sourceFilter]);
 
   return (
     <TabShellPage>
       <DetailHeader title={statsLoading ? 'Match History' : stats?.player_name ?? 'Match History'} backFallback={playerId ? `player/${playerId}` : ''} />
       <div className="page-content app-shell-content">
-        <section className="tt-player-section" aria-labelledby="tt-player-matches-full-title">
-          <SectionHeader title="Player Matches" note="Full match list" />
-          <div className="mb-3">
+        <PageSection surface="flat" density="compact" title="Player Matches" note="Full match list">
+          <FilterBar ariaLabel="Choose match source">
             <SegmentedToggle
               ariaLabel="Choose match source"
               value={sourceFilter}
@@ -102,7 +102,8 @@ export function PlayerMatchesPage() {
               ]}
               full
             />
-          </div>
+          </FilterBar>
+
           {matchesLoading && matches.length === 0 ? (
             <SkeletonList rows={6} />
           ) : matchesError && matches.length === 0 ? (
@@ -111,7 +112,7 @@ export function PlayerMatchesPage() {
             <EmptyState iconClassName="fa fa-table" title="No matches" message="No matches available for this player." />
           ) : (
             <>
-              <List divider="hairline" paginate={false}>
+              <DesignList density="compact" divider="hairline" paginate={false}>
                 {matches.map((match) => (
                   <ListItem
                     key={match.id}
@@ -122,8 +123,8 @@ export function PlayerMatchesPage() {
                     hideChevron
                   />
                 ))}
-              </List>
-              <p className="tt-section-meta mt-3">Showing {matches.length} of {total} matches</p>
+              </DesignList>
+              <p className="tt-section-meta">Showing {matches.length} of {total} matches</p>
               <InfiniteListFooter
                 hasMore={hasMore}
                 isLoading={matchesLoadingMore}
@@ -137,12 +138,9 @@ export function PlayerMatchesPage() {
           )}
 
           {matchesError && matches.length > 0 ? (
-            <ErrorState
-              message="Couldn’t load more matches. Try again."
-              onRetry={() => void matchesQuery.refetch()}
-            />
+            <ErrorState message="Couldn’t load more matches. Try again." onRetry={() => void matchesQuery.refetch()} />
           ) : null}
-        </section>
+        </PageSection>
       </div>
     </TabShellPage>
   );
