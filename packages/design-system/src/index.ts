@@ -17,6 +17,13 @@ export {
   type HeaderIconPosition,
 } from './components/AppShell';
 
+export { Stack, Inline, type StackProps, type InlineProps, type LayoutGap } from './components/Layout';
+export { Surface, type SurfaceProps } from './components/Surface';
+export { PageSection, type PageSectionProps } from './components/PageSection';
+export { EntityHero, type EntityHeroProps } from './components/EntityHero';
+export { MetricGrid, type MetricGridProps, type MetricItem } from './components/MetricGrid';
+export { FilterBar, type FilterBarProps } from './components/FilterBar';
+
 export {
   AppCard,
   AppCardContent,
@@ -76,71 +83,16 @@ export {
   type HeroCardProps,
 } from './components/States';
 
-export {
-  BottomSheet,
-  type BottomSheetProps,
-} from './components/BottomSheet';
-
-export {
-  MoreButton,
-  ExternalLinkButton,
-  type MoreButtonProps,
-  type ExternalLinkButtonProps,
-} from './components/Actions';
-
-export {
-  OutcomeBadge,
-  type OutcomeBadgeProps,
-  type OutcomeResult,
-  type OutcomeVariant,
-} from './components/OutcomeBadge';
-
-export {
-  AppListGroup,
-  AppListItem,
-  type AppListGroupProps,
-  type AppListItemProps,
-  type AppListSize,
-} from './components/AppList';
-
-export {
-  AppPlayerList,
-  type AppPlayerListProps,
-  type AppPlayerListItem,
-} from './components/AppPlayerList';
-
-export {
-  AppSidebar,
-  AppSidebarDivider,
-  AppSidebarItem,
-  AppSidebarList,
-  type AppSidebarProps,
-  type AppSidebarDividerProps,
-  type AppSidebarItemProps,
-  type AppSidebarListProps,
-} from './components/AppSidebar';
-
-export {
-  AppTabBar,
-  type AppTabBarItem,
-  type AppTabBarProps,
-} from './components/AppTabBar';
-
-export {
-  AppSearchInput,
-  AppSearchBox,
-  type AppSearchInputProps,
-} from './components/AppSearchInput';
-
-export {
-  AppSwitch,
-  type AppSwitchProps,
-} from './components/AppSwitch';
-
-export {
-  AppBackdrop,
-  type AppBackdropProps,
-} from './components/AppBackdrop';
+export { BottomSheet, type BottomSheetProps } from './components/BottomSheet';
+export { MoreButton, ExternalLinkButton, type MoreButtonProps, type ExternalLinkButtonProps } from './components/Actions';
+export { OutcomeBadge, type OutcomeBadgeProps, type OutcomeResult, type OutcomeVariant } from './components/OutcomeBadge';
+export { AppListGroup, AppListItem, type AppListGroupProps, type AppListItemProps, type AppListSize } from './components/AppList';
+export { AppPlayerList, type AppPlayerListProps, type AppPlayerListItem } from './components/AppPlayerList';
+export { AppSidebar, AppSidebarDivider, AppSidebarItem, AppSidebarList, type AppSidebarProps, type AppSidebarDividerProps, type AppSidebarItemProps, type AppSidebarListProps } from './components/AppSidebar';
+export { AppTabBar, type AppTabBarItem, type AppTabBarProps } from './components/AppTabBar';
+export { AppSearchInput, AppSearchBox, type AppSearchInputProps } from './components/AppSearchInput';
+export { AppSwitch, type AppSwitchProps } from './components/AppSwitch';
+export { AppBackdrop, type AppBackdropProps } from './components/AppBackdrop';
 
 // Utilities
 export { cx } from './utils/cx';
