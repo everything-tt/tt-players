@@ -1,5 +1,6 @@
 import type { Task } from 'graphile-worker';
 import { db } from '@tt-players/db';
+import { RETRYABLE_JOB_SPEC, stableJobKey } from '../job-policy.js';
 import { fetchSport80EventsPage } from '../sport80-client.js';
 import { upsertSport80Platform, upsertSport80SourceEvent } from '../sport80-loader.js';
 
@@ -11,14 +12,6 @@ export interface ScrapeSport80EventsPayload {
     force?: boolean;
 }
 
-const SCRAPE_JOB_SPEC = { maxAttempts: 1 };
-
-/**
- * Queues Sport:80 event-result scrape jobs from the public rankings results API.
- *
- * This is intentionally page-based so daily jobs can scrape the latest page(s),
- * while historical backfills can raise maxPages without a separate code path.
- */
 export const scrapeSport80EventsTask: Task = async (payload, helpers) => {
     const {
         page = 0,
@@ -66,8 +59,8 @@ export const scrapeSport80EventsTask: Task = async (payload, helpers) => {
                 status: 'pending',
                 updated_at: new Date(),
             })
-            .onConflict((oc) =>
-                oc.column('event_id').doUpdateSet({
+            .onConflict((conflict) =>
+                conflict.column('event_id').doUpdateSet({
                     event_name: (eb) => eb.ref('excluded.event_name'),
                     event_date: (eb) => eb.ref('excluded.event_date'),
                     category: (eb) => eb.ref('excluded.category'),
@@ -87,7 +80,10 @@ export const scrapeSport80EventsTask: Task = async (payload, helpers) => {
             eventDate: event.date,
             category: event.category,
             force,
-        }, SCRAPE_JOB_SPEC);
+        }, {
+            ...RETRYABLE_JOB_SPEC,
+            jobKey: stableJobKey('sport80-event-results', eventId),
+        });
     }
 
     const nextPage = page + 1;
@@ -99,7 +95,9 @@ export const scrapeSport80EventsTask: Task = async (payload, helpers) => {
             category,
             maxPages,
             force,
-        }, SCRAPE_JOB_SPEC);
+        }, {
+            ...RETRYABLE_JOB_SPEC,
+            jobKey: stableJobKey('sport80-events-page', nextPage, limit, category),
+        });
     }
-
 };
