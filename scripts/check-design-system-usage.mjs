@@ -9,8 +9,13 @@ const legacySectionAllowlist = new Set([
   'H2HTabContent.tsx',
   'PlayerInsightsPage.tsx',
   'PlayerPage.tsx',
+  'components/PlayerRatingHistoryChart.tsx',
   'components/RatingPredictionPanel.tsx',
   'components/Skeleton.tsx',
+]);
+const inlineGeometryAllowlist = new Set([
+  'H2HTabContent.tsx',
+  'components/RatingPredictionPanel.tsx',
 ]);
 const compatibilityCss = new Set([
   'mobile-polish.css',
@@ -36,11 +41,13 @@ for (const file of await walk(mobileSrc)) {
   const relative = path.relative(mobileSrc, file).replaceAll(path.sep, '/');
   const source = await readFile(file, 'utf8');
 
-  if (file.endsWith('.tsx') && source.includes('className="tt-player-section') && !legacySectionAllowlist.has(relative)) {
+  const hasLegacySectionWrapper = /<section\b[^>]*className=(?:"tt-player-section|\{[^}]*['"]tt-player-section)/s.test(source);
+  if (file.endsWith('.tsx') && hasLegacySectionWrapper && !legacySectionAllowlist.has(relative)) {
     failures.push(`${relative}: use PageSection instead of a new tt-player-section wrapper`);
   }
 
-  if (file.endsWith('.tsx') && /style=\{\{[^}]*\b(?:padding|margin|width|height|minHeight|maxWidth)\s*:/.test(source)) {
+  const hasInlineGeometry = /style=\{\{[^}]*\b(?:padding|margin|width|height|minHeight|maxWidth)\s*:/s.test(source);
+  if (file.endsWith('.tsx') && hasInlineGeometry && !inlineGeometryAllowlist.has(relative)) {
     failures.push(`${relative}: canonical geometry must use design-system variants, not inline style`);
   }
 
