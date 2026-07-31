@@ -4,6 +4,7 @@ import './ratings-enhancements.css';
 import './mobile-polish.css';
 import { AboutPage } from './AboutPage';
 import { DataCoveragePage } from './DataCoveragePage';
+import { DesignSystemPage } from './DesignSystemPage';
 import { FixturePage } from './FixturePage';
 import { isAppTab, TabNavigationProvider } from './navigation/tab-navigation';
 import { MatchJournalPage } from './MatchJournalPage';
@@ -30,9 +31,7 @@ function TabRootRedirect() {
 
 function EnsureValidTab({ children }: { children: JSX.Element }) {
   const { tabId = '' } = useParams<{ tabId: string }>();
-  if (!isAppTab(tabId)) {
-    return <Navigate to="/tabs/home" replace />;
-  }
+  if (!isAppTab(tabId)) return <Navigate to="/tabs/home" replace />;
   return children;
 }
 
@@ -47,7 +46,6 @@ export function AppRouter() {
             <TabNavigationProvider>
               <Routes>
                 <Route path="/" element={<Navigate to="/tabs/home" replace />} />
-
                 <Route path="/tabs/:tabId" element={<EnsureValidTab><App /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/ratings" element={<EnsureValidTab><TopRatingsPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/event/:eventId" element={<EnsureValidTab><EventDetailPage /></EnsureValidTab>} />
@@ -63,6 +61,7 @@ export function AppRouter() {
 
                 <Route path="/about" element={<AboutPage />} />
                 <Route path="/data-coverage" element={<DataCoveragePage />} />
+                <Route path="/design-system" element={<DesignSystemPage />} />
                 <Route path="/players/:playerId" element={<PlayerPage />} />
                 <Route path="/players/:playerId/insights" element={<PlayerInsightsPage />} />
                 <Route path="/players/:playerId/matches" element={<PlayerMatchesPage />} />
@@ -71,7 +70,6 @@ export function AppRouter() {
                 <Route path="/teams/:teamId" element={<TeamPage />} />
                 <Route path="/tournaments/:eventId" element={<EventDetailPage />} />
                 <Route path="/h2h/:playerAId/:playerBId" element={<H2HPage />} />
-
                 <Route path="*" element={<Navigate to="/tabs/home" replace />} />
               </Routes>
             </TabNavigationProvider>
