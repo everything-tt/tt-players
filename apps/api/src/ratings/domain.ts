@@ -20,6 +20,10 @@ export interface RatingRow {
     total?: number | string;
 }
 
+export interface RankedRatingRow extends RatingRow {
+    rank: number | string;
+}
+
 export function presentRating(row: RatingRow, rank: number | null) {
     const rating = Number(row.rating);
     const deviation = Number(row.rating_deviation);
@@ -43,6 +47,13 @@ export function presentRating(row: RatingRow, rank: number | null) {
         provisional: row.provisional,
         first_rated_at: toDateString(row.first_rated_at),
         last_rated_at: toDateString(row.last_rated_at),
+    };
+}
+
+export function presentRankedRating(row: RankedRatingRow) {
+    return {
+        ...presentRating(row, Number(row.rank)),
+        rank: Number(row.rank),
     };
 }
 
