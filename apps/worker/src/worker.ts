@@ -7,6 +7,7 @@ import { db } from '@tt-players/db';
 import type { ScrapeTarget } from './bootstrap.js';
 import { resolveAllScrapeTargets } from './all-scrape-targets.js';
 import { runStartupRecovery } from './startup-recovery.js';
+import { refreshApiReadModels } from './read-models.js';
 import { setScheduledScrapeTargets, taskList } from './task-list.js';
 
 const { Pool } = pg;
@@ -52,6 +53,7 @@ graphilePool.on('error', (error) => {
 });
 
 const CRONTAB = `
+ 15 * * * * refreshApiReadModelsTask ?fill=1h
  0 2 * * * scheduleScrapeTasks ?fill=1d
  30 2 * * * scrapeSport80EventsTask ?fill=1d
  0 3 * * * scrapeSport80RankingsDiscoveryTask ?fill=1d
@@ -72,6 +74,7 @@ export async function startWorker(): Promise<void> {
 
     await runMigrations({ pgPool: graphilePool });
     await runStartupRecovery(db, (message) => console.log(message));
+    await refreshApiReadModels(db, (message) => console.log(message));
 
     const runner = await run({
         pgPool: graphilePool,
