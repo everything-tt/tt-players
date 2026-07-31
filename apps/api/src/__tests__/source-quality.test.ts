@@ -13,6 +13,8 @@ import * as m013 from '../../../../packages/db/src/migrations/013_add_rubber_sco
 import * as m015 from '../../../../packages/db/src/migrations/015_add_rubber_played_at.js';
 import * as m029 from '../../../../packages/db/src/migrations/029_create_source_registry.js';
 import * as m030 from '../../../../packages/db/src/migrations/030_create_player_identity_decisions.js';
+import * as m035 from '../../../../packages/db/src/migrations/035_create_api_read_models.js';
+import { buildSourceQualitySnapshot } from '../../../worker/src/read-models.js';
 import { buildApp } from '../app.js';
 
 const { Pool } = pg;
@@ -63,6 +65,7 @@ beforeAll(async () => {
     await sql`ALTER TABLE raw_scrape_logs SET SCHEMA staging`.execute(db);
     await m029.up(db);
     await m030.up(db);
+    await m035.up(db);
 
     const platform = await db
         .insertInto('platforms')
@@ -183,6 +186,16 @@ beforeAll(async () => {
         })
         .execute();
 
+    const snapshot = await buildSourceQualitySnapshot(db);
+    await db
+        .insertInto('source_quality_snapshots')
+        .values({
+            key: 'global',
+            content: snapshot,
+            generated_at: new Date(snapshot.generated_at),
+        })
+        .execute();
+
     const app = await buildApp(db);
     await app.ready();
     request = supertest(app.server);
@@ -193,7 +206,7 @@ afterAll(async () => {
 }, 15_000);
 
 describe('GET /api/sources/quality', () => {
-    it('returns source health, coverage and normalized data quality', async () => {
+    it('returns the worker-built source health snapshot', async () => {
         const response = await request.get('/api/sources/quality').expect(200);
 
         expect(response.headers['cache-control']).toContain('max-age=300');
