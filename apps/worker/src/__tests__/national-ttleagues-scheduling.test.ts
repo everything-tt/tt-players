@@ -17,7 +17,7 @@ beforeEach(() => {
 });
 
 describe('national TT Leagues scheduling', () => {
-    it('includes the tenant host on scheduled standings and match jobs', async () => {
+    it('includes tenant headers and deterministic retryable job specs', async () => {
         const addJob = vi.fn().mockResolvedValue({});
         setScheduledScrapeTargets([{
             url: 'https://ttleagues-api.azurewebsites.net/api/divisions/1001/standings',
@@ -45,7 +45,10 @@ describe('national TT Leagues scheduling', () => {
                 platformType: 'ttleagues',
                 competitionId: 'competition-1',
             }),
-            { maxAttempts: 1 },
+            expect.objectContaining({
+                maxAttempts: 3,
+                jobKey: expect.stringMatching(/^scrape-standings:/),
+            }),
         );
         expect(addJob).toHaveBeenNthCalledWith(
             2,
@@ -54,7 +57,10 @@ describe('national TT Leagues scheduling', () => {
                 tenantHost: 'british.ttleagues.com',
                 divisionId: '1001',
             }),
-            { maxAttempts: 1 },
+            expect.objectContaining({
+                maxAttempts: 3,
+                jobKey: expect.stringMatching(/^scrape-matches:/),
+            }),
         );
     });
 
@@ -82,10 +88,17 @@ describe('national TT Leagues scheduling', () => {
                 },
             },
         );
-        expect(addJob).toHaveBeenCalledWith('processLogTask', expect.objectContaining({
-            logId: 'log-1',
-            competitionId: 'competition-1',
-            platformType: 'ttleagues',
-        }));
+        expect(addJob).toHaveBeenCalledWith(
+            'processLogTask',
+            expect.objectContaining({
+                logId: 'log-1',
+                competitionId: 'competition-1',
+                platformType: 'ttleagues',
+            }),
+            expect.objectContaining({
+                maxAttempts: 3,
+                jobKey: expect.stringMatching(/^process-log:/),
+            }),
+        );
     });
 });

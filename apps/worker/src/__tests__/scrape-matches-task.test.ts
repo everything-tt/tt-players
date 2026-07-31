@@ -3,7 +3,6 @@ import { Kysely, Migrator, PostgresDialect } from 'kysely';
 import type { MigrationProvider, Migration } from 'kysely';
 import pg from 'pg';
 
-// Import Kysely migrations
 import * as m001 from '@tt-players/db/src/migrations/001_create_enums.js';
 import * as m002 from '@tt-players/db/src/migrations/002_create_core_tables.js';
 import * as m003 from '@tt-players/db/src/migrations/003_create_match_tables.js';
@@ -124,9 +123,7 @@ async function createTestDatabase(): Promise<void> {
 }
 
 async function dropTestDatabase(): Promise<void> {
-    if (testDb) {
-        await testDb.destroy();
-    }
+    if (testDb) await testDb.destroy();
     const adminPool = new Pool({ connectionString: ADMIN_DATABASE_URL });
     await adminPool.query(`
         SELECT pg_terminate_backend(pg_stat_activity.pid)
@@ -147,15 +144,12 @@ function createTestDb(): Kysely<Database> {
 }
 
 async function runMigrations(db: Kysely<Database>): Promise<void> {
-    const migrator = new Migrator({
-        db,
-        provider: new StaticMigrationProvider(),
-    });
+    const migrator = new Migrator({ db, provider: new StaticMigrationProvider() });
     const { error } = await migrator.migrateToLatest();
     if (error) throw error;
 }
 
-describe('scrapeMatchesTask optimization', () => {
+describe('scrapeMatchesTask batching', () => {
     beforeAll(async () => {
         await createTestDatabase();
         testDb = createTestDb();
@@ -180,7 +174,6 @@ describe('scrapeMatchesTask optimization', () => {
             })
             .returning('id')
             .executeTakeFirstOrThrow();
-
         const season = await testDb
             .insertInto('seasons')
             .values({
@@ -190,7 +183,6 @@ describe('scrapeMatchesTask optimization', () => {
             })
             .returning('id')
             .executeTakeFirstOrThrow();
-
         const competition = await testDb
             .insertInto('competitions')
             .values({
@@ -223,7 +215,7 @@ describe('scrapeMatchesTask optimization', () => {
         vi.restoreAllMocks();
     });
 
-    it('skips sets fetch for recently updated completed fixtures', async () => {
+    it('queues only missing result sets when a completed fixture is fresh', async () => {
         await testDb
             .insertInto('fixtures')
             .values({
@@ -238,28 +230,10 @@ describe('scrapeMatchesTask optimization', () => {
             groups: [],
             matches: [buildMatch(1001), buildMatch(1002)],
         };
-
-        vi.stubGlobal(
-            'fetch',
-            vi.fn(async (url: RequestInfo | URL) => {
-                const u = String(url);
-                if (u === MATCHES_URL) {
-                    return {
-                        ok: true,
-                        status: 200,
-                        json: async () => matchesJson,
-                    } as Response;
-                }
-                if (u.endsWith('/matches/1002/sets')) {
-                    return {
-                        ok: true,
-                        status: 200,
-                        json: async () => [{ id: 1 }],
-                    } as Response;
-                }
-                throw new Error(`Unexpected fetch URL: ${u}`);
-            }),
-        );
+        vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => {
+            if (String(url) !== MATCHES_URL) throw new Error(`Unexpected fetch URL: ${url}`);
+            return { ok: true, status: 200, json: async () => matchesJson } as Response;
+        }));
 
         const addJob = vi.fn(async () => undefined);
         const payload: ScrapeMatchesPayload = {
@@ -275,78 +249,76 @@ describe('scrapeMatchesTask optimization', () => {
             logger: { info: () => undefined },
         });
 
-        const fetchCalls = vi.mocked(fetch).mock.calls.map((c) => String(c[0]));
-        expect(fetchCalls).toContain(MATCHES_URL);
-        expect(fetchCalls).toContain('https://ttleagues-api.azurewebsites.net/api/matches/1002/sets');
-        expect(fetchCalls).not.toContain('https://ttleagues-api.azurewebsites.net/api/matches/1001/sets');
-
-        const [log] = await testDb
-            .selectFrom('raw_scrape_logs')
-            .select(['raw_payload'])
-            .where('endpoint_url', 'like', '%bundled=matches+sets')
-            .execute();
-        const bundled = JSON.parse(log.raw_payload) as { sets: Record<string, unknown> };
-        expect(Object.keys(bundled.sets)).toEqual(['1002']);
-
-        expect(addJob).toHaveBeenCalledWith(
+        expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(fetch)).toHaveBeenCalledWith(MATCHES_URL, expect.anything());
+        expect(addJob).toHaveBeenNthCalledWith(
+            1,
             'processLogTask',
             expect.objectContaining({ platformType: 'ttleagues-bundle' }),
+            expect.objectContaining({ maxAttempts: 3 }),
         );
+        expect(addJob).toHaveBeenNthCalledWith(
+            2,
+            'scrapeMatchSetsBatchTask',
+            expect.objectContaining({
+                matches: [expect.objectContaining({ id: 1002 })],
+            }),
+            expect.objectContaining({
+                maxAttempts: 3,
+                jobKey: expect.stringMatching(/^ttleagues-set-batch:/),
+            }),
+        );
+
+        const log = await testDb
+            .selectFrom('raw_scrape_logs')
+            .select(['raw_payload'])
+            .where('endpoint_url', 'like', '%snapshot=fixtures')
+            .executeTakeFirstOrThrow();
+        const snapshot = JSON.parse(log.raw_payload) as {
+            matches: { matches: Array<{ id: number }> };
+            sets: Record<string, unknown>;
+        };
+        expect(snapshot.matches.matches.map(({ id }) => id)).toEqual([1001, 1002]);
+        expect(snapshot.sets).toEqual({});
     });
 
-    it('re-fetches sets for stale completed fixtures', async () => {
-        const staleDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+    it('queues stale completed fixtures for bounded result fetching', async () => {
         await testDb
             .insertInto('fixtures')
             .values({
                 competition_id: competitionId,
                 external_id: '1001',
                 status: 'completed',
-                updated_at: staleDate,
+                updated_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
             })
             .executeTakeFirstOrThrow();
 
-        const matchesJson = {
-            groups: [],
-            matches: [buildMatch(1001)],
-        };
+        const matchesJson = { groups: [], matches: [buildMatch(1001)] };
+        vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => {
+            if (String(url) !== MATCHES_URL) throw new Error(`Unexpected fetch URL: ${url}`);
+            return { ok: true, status: 200, json: async () => matchesJson } as Response;
+        }));
 
-        vi.stubGlobal(
-            'fetch',
-            vi.fn(async (url: RequestInfo | URL) => {
-                const u = String(url);
-                if (u === MATCHES_URL) {
-                    return {
-                        ok: true,
-                        status: 200,
-                        json: async () => matchesJson,
-                    } as Response;
-                }
-                if (u.endsWith('/matches/1001/sets')) {
-                    return {
-                        ok: true,
-                        status: 200,
-                        json: async () => [{ id: 1 }],
-                    } as Response;
-                }
-                throw new Error(`Unexpected fetch URL: ${u}`);
-            }),
-        );
-
-        const payload: ScrapeMatchesPayload = {
+        const addJob = vi.fn(async () => undefined);
+        await scrapeMatchesTask({
             divisionId: '1632',
             tenantHost: 'example.ttleagues.com',
             platformId,
             platformType: 'ttleagues',
             competitionId,
-        };
-
-        await scrapeMatchesTask(payload, {
-            addJob: async () => undefined,
+        } satisfies ScrapeMatchesPayload, {
+            addJob,
             logger: { info: () => undefined },
         });
 
-        const fetchCalls = vi.mocked(fetch).mock.calls.map((c) => String(c[0]));
-        expect(fetchCalls).toContain('https://ttleagues-api.azurewebsites.net/api/matches/1001/sets');
+        expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+        expect(addJob).toHaveBeenNthCalledWith(
+            2,
+            'scrapeMatchSetsBatchTask',
+            expect.objectContaining({
+                matches: [expect.objectContaining({ id: 1001 })],
+            }),
+            expect.objectContaining({ maxAttempts: 3 }),
+        );
     });
 });

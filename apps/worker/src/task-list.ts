@@ -1,7 +1,11 @@
 import type { ScrapeTarget } from './bootstrap.js';
+import { RETRYABLE_JOB_SPEC, stableJobKey } from './job-policy.js';
 import { scrapeUrlTask } from './tasks/scrapeUrlTask.js';
 import { processLogTask } from './tasks/processLogTask.js';
 import { scrapeMatchesTask } from './tasks/scrapeMatchesTask.js';
+import { scrapeMatchSetsBatchTask } from './tasks/scrapeMatchSetsBatchTask.js';
+import { processMatchSetsBatchTask } from './tasks/processMatchSetsBatchTask.js';
+import { reconcilePlayersTask } from './tasks/reconcilePlayersTask.js';
 import { scrapeSport80EventsTask } from './tasks/scrapeSport80EventsTask.js';
 import { scrapeSport80EventResultsTask } from './tasks/scrapeSport80EventResultsTask.js';
 import { scrapeSport80RankingsDiscoveryTask } from './tasks/scrapeSport80RankingsDiscoveryTask.js';
@@ -10,8 +14,6 @@ import { calculateRatingsTask } from './tasks/calculateRatingsTask.js';
 import { refreshApiReadModelsTask } from './tasks/refreshApiReadModelsTask.js';
 
 let scheduledScrapeTargets: ScrapeTarget[] = [];
-
-const SCRAPE_JOB_SPEC = { maxAttempts: 1 };
 
 export function setScheduledScrapeTargets(targets: ScrapeTarget[]): void {
     scheduledScrapeTargets = targets;
@@ -35,7 +37,10 @@ const scheduleScrapeTasks = async (
             platformType: target.platformType,
             competitionId: target.competitionId,
             tt365DataType: target.platformType === 'tt365' ? 'standings' : undefined,
-        }, SCRAPE_JOB_SPEC);
+        }, {
+            ...RETRYABLE_JOB_SPEC,
+            jobKey: stableJobKey('scrape-standings', target.competitionId, target.url),
+        });
         helpers.logger.info(`  → Queued standings: ${target.leagueName} - ${target.divisionName}`);
 
         if (target.platformType === 'tt365' && target.fixturesUrl) {
@@ -45,7 +50,10 @@ const scheduleScrapeTasks = async (
                 platformType: target.platformType,
                 competitionId: target.competitionId,
                 tt365DataType: 'fixtures',
-            }, SCRAPE_JOB_SPEC);
+            }, {
+                ...RETRYABLE_JOB_SPEC,
+                jobKey: stableJobKey('scrape-fixtures', target.competitionId, target.fixturesUrl),
+            });
             helpers.logger.info(`  → Queued fixtures:  ${target.leagueName} - ${target.divisionName}`);
         }
 
@@ -56,7 +64,14 @@ const scheduleScrapeTasks = async (
                 platformId: target.platformId,
                 platformType: target.platformType,
                 competitionId: target.competitionId,
-            }, SCRAPE_JOB_SPEC);
+            }, {
+                ...RETRYABLE_JOB_SPEC,
+                jobKey: stableJobKey(
+                    'scrape-matches',
+                    target.competitionId,
+                    target.divisionExtId,
+                ),
+            });
             helpers.logger.info(`  → Queued matches:   ${target.leagueName} - ${target.divisionName}`);
         }
     }
@@ -106,6 +121,9 @@ export const taskList = {
     scrapeUrlTask,
     processLogTask,
     scrapeMatchesTask,
+    scrapeMatchSetsBatchTask,
+    processMatchSetsBatchTask,
+    reconcilePlayersTask,
     scrapeSport80EventsTask,
     scrapeSport80EventResultsTask,
     scrapeSport80RankingsDiscoveryTask,

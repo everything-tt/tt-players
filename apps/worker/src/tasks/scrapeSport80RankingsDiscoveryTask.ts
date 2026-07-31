@@ -1,5 +1,6 @@
 import type { Task } from 'graphile-worker';
 import { db } from '@tt-players/db';
+import { RETRYABLE_JOB_SPEC, stableJobKey } from '../job-policy.js';
 import {
     fetchSport80FeaturedCategories,
     fetchSport80RankingMetadata,
@@ -17,8 +18,6 @@ export interface ScrapeSport80RankingsDiscoveryPayload {
     maxPeriods?: number;
     includeRatingsList?: boolean;
 }
-
-const SCRAPE_JOB_SPEC = { maxAttempts: 1 };
 
 function extractCategoryEndpointId(route: string | undefined): string | null {
     const match = route?.match(/\/public\/rankings\/(\d+)/);
@@ -102,7 +101,16 @@ export const scrapeSport80RankingsDiscoveryTask: Task = async (payload, helpers)
                         periodLabel,
                         periodEndDate: parseSport80PeriodEndDate(periodLabel),
                         showRatingsList,
-                    }, SCRAPE_JOB_SPEC);
+                    }, {
+                        ...RETRYABLE_JOB_SPEC,
+                        jobKey: stableJobKey(
+                            'sport80-ranking-table',
+                            categoryEndpointId,
+                            subcategoryId,
+                            periodId,
+                            showRatingsList,
+                        ),
+                    });
                 }
             }
         }
