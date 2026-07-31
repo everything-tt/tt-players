@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 
+import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import pg from 'pg';
 
-const { Client } = pg;
+const requireFromDatabaseWorkspace = createRequire(
+    new URL('../packages/db/package.json', import.meta.url),
+);
+const { Client } = requireFromDatabaseWorkspace('pg');
 
 function parseArgs(argv) {
     const config = {
