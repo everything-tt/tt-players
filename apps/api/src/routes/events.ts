@@ -63,7 +63,6 @@ export function eventsRoutes(db: Kysely<Database>): FastifyPluginAsync {
     return async function (fastify) {
         const app = fastify.withTypeProvider<ZodTypeProvider>();
 
-        // List all events
         app.get(
             '/',
             {
@@ -75,90 +74,80 @@ export function eventsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     },
                 },
             },
-            async (request, reply) => {
+            async (request) => {
                 const { q, limit, offset } = request.query;
-                try {
-                    let countBuilder = db
-                        .selectFrom('competitions as c')
-                        .select(db.fn.countAll().as('count'))
-                        .where('c.type', '=', 'individual')
-                        .where('c.deleted_at', 'is', null);
+                let countBuilder = db
+                    .selectFrom('competitions as c')
+                    .select(db.fn.countAll().as('count'))
+                    .where('c.type', '=', 'individual')
+                    .where('c.deleted_at', 'is', null);
 
-                    if (q) {
-                        countBuilder = countBuilder.where(
-                            sql`coalesce(c.display_name, c.name)`,
-                            'ilike',
-                            `%${q}%`,
-                        );
-                    }
-
-                    const countRes = await countBuilder.executeTakeFirst();
-                    const total = Number(countRes?.count ?? 0);
-
-                    let queryBuilder = db
-                        .selectFrom('competitions as c')
-                        .innerJoin('seasons as s', 's.id', 'c.season_id')
-                        .innerJoin('leagues as l', 'l.id', 's.league_id')
-                        .innerJoin('platforms as p', 'p.id', 'l.platform_id')
-                        .select([
-                            'c.id',
-                            'p.id as platform_id',
-                            sql<string>`coalesce(c.source, 'canonical')`.as('source'),
-                            'c.external_id',
-                            sql<string>`coalesce(c.display_name, c.name)`.as('name'),
-                            sql<string | null>`c.event_date::text`.as('event_date'),
-                            'c.category',
-                            'c.source_url as public_url',
-                            'p.name as platform_name',
-                            (qb) => qb
-                                .selectFrom('rubbers as r')
-                                .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
-                                .select(qb.fn.countAll().as('count'))
-                                .whereRef('f.competition_id', '=', 'c.id')
-                                .where('r.deleted_at', 'is', null)
-                                .where('r.is_doubles', '=', false)
-                                .as('match_count'),
-                        ]);
-
-                    if (q) {
-                        queryBuilder = queryBuilder.where(
-                            sql`coalesce(c.display_name, c.name)`,
-                            'ilike',
-                            `%${q}%`,
-                        );
-                    }
-
-                    const events = await queryBuilder
-                        .where('c.type', '=', 'individual')
-                        .where('c.deleted_at', 'is', null)
-                        .orderBy('c.event_date', 'desc')
-                        .orderBy(sql`coalesce(c.display_name, c.name)`, 'asc')
-                        .limit(limit)
-                        .offset(offset)
-                        .execute();
-
-                    const formattedEvents = events.map(e => ({
-                        ...e,
-                        event_date: e.event_date ?? null,
-                        match_count: Number(e.match_count ?? 0),
-                    }));
-
-                    return {
-                        data: formattedEvents,
-                        total,
-                        limit,
-                        offset,
-                    };
-                } catch (error: any) {
-                    return reply.status(500).send({
-                        error: error.message ?? 'Failed to fetch events',
-                        statusCode: 500,
-                    });
+                if (q) {
+                    countBuilder = countBuilder.where(
+                        sql`coalesce(c.display_name, c.name)`,
+                        'ilike',
+                        `%${q}%`,
+                    );
                 }
-            }
+
+                const countRes = await countBuilder.executeTakeFirst();
+                const total = Number(countRes?.count ?? 0);
+
+                let queryBuilder = db
+                    .selectFrom('competitions as c')
+                    .innerJoin('seasons as s', 's.id', 'c.season_id')
+                    .innerJoin('leagues as l', 'l.id', 's.league_id')
+                    .innerJoin('platforms as p', 'p.id', 'l.platform_id')
+                    .select([
+                        'c.id',
+                        'p.id as platform_id',
+                        sql<string>`coalesce(c.source, 'canonical')`.as('source'),
+                        'c.external_id',
+                        sql<string>`coalesce(c.display_name, c.name)`.as('name'),
+                        sql<string | null>`c.event_date::text`.as('event_date'),
+                        'c.category',
+                        'c.source_url as public_url',
+                        'p.name as platform_name',
+                        (qb) => qb
+                            .selectFrom('rubbers as r')
+                            .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
+                            .select(qb.fn.countAll().as('count'))
+                            .whereRef('f.competition_id', '=', 'c.id')
+                            .where('r.deleted_at', 'is', null)
+                            .where('r.is_doubles', '=', false)
+                            .as('match_count'),
+                    ]);
+
+                if (q) {
+                    queryBuilder = queryBuilder.where(
+                        sql`coalesce(c.display_name, c.name)`,
+                        'ilike',
+                        `%${q}%`,
+                    );
+                }
+
+                const events = await queryBuilder
+                    .where('c.type', '=', 'individual')
+                    .where('c.deleted_at', 'is', null)
+                    .orderBy('c.event_date', 'desc')
+                    .orderBy(sql`coalesce(c.display_name, c.name)`, 'asc')
+                    .limit(limit)
+                    .offset(offset)
+                    .execute();
+
+                return {
+                    data: events.map((event) => ({
+                        ...event,
+                        event_date: event.event_date ?? null,
+                        match_count: Number(event.match_count ?? 0),
+                    })),
+                    total,
+                    limit,
+                    offset,
+                };
+            },
         );
 
-        // Get details of a single event
         app.get(
             '/:id',
             {
@@ -173,90 +162,84 @@ export function eventsRoutes(db: Kysely<Database>): FastifyPluginAsync {
             },
             async (request, reply) => {
                 const { id } = request.params;
-                try {
-                    const event = await db
-                        .selectFrom('competitions as c')
-                        .innerJoin('seasons as s', 's.id', 'c.season_id')
-                        .innerJoin('leagues as l', 'l.id', 's.league_id')
-                        .innerJoin('platforms as p', 'p.id', 'l.platform_id')
-                        .select([
-                            'c.id',
-                            'p.id as platform_id',
-                            sql<string>`coalesce(c.source, 'canonical')`.as('source'),
-                            'c.external_id',
-                            sql<string>`coalesce(c.display_name, c.name)`.as('name'),
-                            sql<string | null>`c.event_date::text`.as('event_date'),
-                            'c.category',
-                            'c.source_url as public_url',
-                            'p.name as platform_name',
-                            (qb) => qb
-                                .selectFrom('rubbers as r')
-                                .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
-                                .select(qb.fn.countAll().as('count'))
-                                .whereRef('f.competition_id', '=', 'c.id')
-                                .where('r.deleted_at', 'is', null)
-                                .where('r.is_doubles', '=', false)
-                                .as('match_count'),
-                        ])
-                        .where('c.id', '=', id)
-                        .where('c.type', '=', 'individual')
-                        .where('c.deleted_at', 'is', null)
-                        .executeTakeFirst();
+                const event = await db
+                    .selectFrom('competitions as c')
+                    .innerJoin('seasons as s', 's.id', 'c.season_id')
+                    .innerJoin('leagues as l', 'l.id', 's.league_id')
+                    .innerJoin('platforms as p', 'p.id', 'l.platform_id')
+                    .select([
+                        'c.id',
+                        'p.id as platform_id',
+                        sql<string>`coalesce(c.source, 'canonical')`.as('source'),
+                        'c.external_id',
+                        sql<string>`coalesce(c.display_name, c.name)`.as('name'),
+                        sql<string | null>`c.event_date::text`.as('event_date'),
+                        'c.category',
+                        'c.source_url as public_url',
+                        'p.name as platform_name',
+                        (qb) => qb
+                            .selectFrom('rubbers as r')
+                            .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
+                            .select(qb.fn.countAll().as('count'))
+                            .whereRef('f.competition_id', '=', 'c.id')
+                            .where('r.deleted_at', 'is', null)
+                            .where('r.is_doubles', '=', false)
+                            .as('match_count'),
+                    ])
+                    .where('c.id', '=', id)
+                    .where('c.type', '=', 'individual')
+                    .where('c.deleted_at', 'is', null)
+                    .executeTakeFirst();
 
-                    if (!event) {
-                        return reply.status(404).send({
-                            error: `Event ${id} not found`,
-                            statusCode: 404,
-                        });
-                    }
-
-                    const results = await db
-                        .selectFrom('rubbers as r')
-                        .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
-                        .leftJoin('external_players as hp1', 'hp1.id', 'r.home_player_1_id')
-                        .leftJoin('external_players as ap1', 'ap1.id', 'r.away_player_1_id')
-                        .select([
-                            'r.id',
-                            'r.played_at',
-                            'f.round_name',
-                            'f.round_order',
-                            sql<string>`COALESCE(hp1.name, 'Unknown')`.as('home_player_name'),
-                            sql<string | null>`hp1.external_id`.as('home_player_external_id'),
-                            sql<string>`COALESCE(ap1.name, 'Unknown')`.as('away_player_name'),
-                            sql<string | null>`ap1.external_id`.as('away_player_external_id'),
-                            sql<string>`CASE WHEN r.home_games_won > r.away_games_won THEN 'home' ELSE 'away' END`.as('winner_side'),
-                            sql<string | null>`r.id`.as('canonical_rubber_id'),
-                            sql<string | null>`COALESCE(hp1.canonical_player_id, hp1.id)`.as('home_player_resolved_id'),
-                            sql<string | null>`COALESCE(ap1.canonical_player_id, ap1.id)`.as('away_player_resolved_id'),
-                        ])
-                        .where('f.competition_id', '=', id)
-                        .where('r.deleted_at', 'is', null)
-                        .where('r.is_doubles', '=', false)
-                        .orderBy('f.round_order', 'asc')
-                        .orderBy('r.played_at', 'asc')
-                        .execute();
-
-                    // Format dates
-                    const formattedResults = results.map(r => ({
-                        ...r,
-                        played_at: r.played_at ? (r.played_at instanceof Date ? r.played_at.toISOString() : String(r.played_at)) : null,
-                    }));
-
-                    return {
-                        event: {
-                            ...event,
-                            event_date: event.event_date ?? null,
-                            match_count: Number(event.match_count ?? 0),
-                        },
-                        results: formattedResults,
-                    };
-                } catch (error: any) {
-                    return reply.status(500).send({
-                        error: error.message ?? 'Failed to fetch event details',
-                        statusCode: 500,
+                if (!event) {
+                    return reply.status(404).send({
+                        error: `Event ${id} not found`,
+                        statusCode: 404,
                     });
                 }
-            }
+
+                const results = await db
+                    .selectFrom('rubbers as r')
+                    .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
+                    .leftJoin('external_players as hp1', 'hp1.id', 'r.home_player_1_id')
+                    .leftJoin('external_players as ap1', 'ap1.id', 'r.away_player_1_id')
+                    .select([
+                        'r.id',
+                        'r.played_at',
+                        'f.round_name',
+                        'f.round_order',
+                        sql<string>`COALESCE(hp1.name, 'Unknown')`.as('home_player_name'),
+                        sql<string | null>`hp1.external_id`.as('home_player_external_id'),
+                        sql<string>`COALESCE(ap1.name, 'Unknown')`.as('away_player_name'),
+                        sql<string | null>`ap1.external_id`.as('away_player_external_id'),
+                        sql<string>`CASE WHEN r.home_games_won > r.away_games_won THEN 'home' ELSE 'away' END`.as('winner_side'),
+                        sql<string | null>`r.id`.as('canonical_rubber_id'),
+                        sql<string | null>`COALESCE(hp1.canonical_player_id, hp1.id)`.as('home_player_resolved_id'),
+                        sql<string | null>`COALESCE(ap1.canonical_player_id, ap1.id)`.as('away_player_resolved_id'),
+                    ])
+                    .where('f.competition_id', '=', id)
+                    .where('r.deleted_at', 'is', null)
+                    .where('r.is_doubles', '=', false)
+                    .orderBy('f.round_order', 'asc')
+                    .orderBy('r.played_at', 'asc')
+                    .execute();
+
+                return {
+                    event: {
+                        ...event,
+                        event_date: event.event_date ?? null,
+                        match_count: Number(event.match_count ?? 0),
+                    },
+                    results: results.map((result) => ({
+                        ...result,
+                        played_at: result.played_at
+                            ? result.played_at instanceof Date
+                                ? result.played_at.toISOString()
+                                : String(result.played_at)
+                            : null,
+                    })),
+                };
+            },
         );
     };
 }
