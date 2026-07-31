@@ -7,15 +7,11 @@ const legacySectionAllowlist = new Set([
   'App.tsx',
   'EventDetailPage.tsx',
   'H2HTabContent.tsx',
-  'PlayerInsightsPage.tsx',
   'PlayerPage.tsx',
-  'components/PlayerRatingHistoryChart.tsx',
-  'components/RatingPredictionPanel.tsx',
   'components/Skeleton.tsx',
 ]);
 const inlineGeometryAllowlist = new Set([
   'H2HTabContent.tsx',
-  'components/RatingPredictionPanel.tsx',
 ]);
 const compatibilityCss = new Set([
   'mobile-polish.css',
