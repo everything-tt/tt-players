@@ -190,6 +190,19 @@ describe('GET /api/ratings/league', () => {
         });
     });
 
+    it('preserves the total when the requested page is empty', async () => {
+        const response = await request
+            .get(`/api/ratings/league?league_ids=${leagueId}&page=2&page_size=1`)
+            .expect(200);
+
+        expect(response.body).toMatchObject({
+            data: [],
+            total: 1,
+            page: 2,
+            page_size: 1,
+        });
+    });
+
     it('rejects invalid league identifiers before querying', async () => {
         await request
             .get('/api/ratings/league?league_ids=not-a-uuid')
