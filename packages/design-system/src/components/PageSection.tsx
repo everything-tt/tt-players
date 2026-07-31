@@ -7,6 +7,7 @@ export interface PageSectionProps {
   density?: 'compact' | 'standard' | 'editorial';
   title?: ReactNode;
   note?: ReactNode;
+  action?: ReactNode;
   ariaLabelledby?: string;
   className?: string;
   children: ReactNode;
@@ -17,6 +18,7 @@ export function PageSection({
   density = 'standard',
   title,
   note,
+  action,
   ariaLabelledby,
   className,
   children,
@@ -26,7 +28,7 @@ export function PageSection({
       className={cx('tt-section', `tt-section--${surface}`, `tt-section--${density}`, className)}
       aria-labelledby={ariaLabelledby}
     >
-      {title ? <SectionHeader title={title} note={note} density={density === 'compact' ? 'compact' : 'standard'} /> : null}
+      {title ? <SectionHeader title={title} note={note} action={action} density={density === 'compact' ? 'compact' : 'standard'} /> : null}
       {children}
     </section>
   );
