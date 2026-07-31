@@ -57,18 +57,21 @@
   text-align: right;
 }
 
-.tt-ratings-load-more {
+.tt-ratings-load-more,
+.tt-infinite-list-footer {
   align-items: center;
   color: var(--ink-muted);
   display: flex;
   font-size: 12px;
+  grid-column: 1 / -1;
   justify-content: center;
   min-height: 72px;
   padding: 12px 0 6px;
   text-align: center;
 }
 
-.tt-ratings-load-more button {
+.tt-ratings-load-more button,
+.tt-infinite-list-footer button {
   background: transparent;
   border: 1px solid var(--accent-border);
   border-radius: var(--radius-pill);

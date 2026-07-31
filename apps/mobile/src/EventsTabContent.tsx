@@ -14,8 +14,8 @@ import {
   IconCircle,
   EmptyState,
   ErrorState,
+  InfiniteListFooter,
   SectionHeader,
-  MoreButton,
 } from './ui/appkit';
 import { SearchPanel } from './components/SearchPanel';
 import { FavouriteButton } from './components/FavouriteButton';
@@ -53,7 +53,7 @@ export function EventsTabContent() {
 
   const pageError = getQueryError(eventsQuery.error);
   const isLoadingInitial = eventsQuery.isLoading && offset === 0;
-  const isLoadingMore = eventsQuery.isLoading && offset > 0;
+  const isLoadingMore = eventsQuery.isFetching && offset > 0;
   const hasMore = events.length < total;
 
   const displayedEvents = useMemo(
@@ -61,7 +61,15 @@ export function EventsTabContent() {
     [events, isSearchActive],
   );
 
-  const handleLoadMore = () => { if (!isLoadingMore && hasMore) setOffset((p) => p + PAGE_SIZE); };
+  const handleLoadMore = () => {
+    if (eventsQuery.isError) {
+      void eventsQuery.refetch();
+      return;
+    }
+    if (!isLoadingMore && hasMore) {
+      setOffset((previous) => previous + PAGE_SIZE);
+    }
+  };
 
   return (
     <>
@@ -114,7 +122,7 @@ export function EventsTabContent() {
               title={isSearchActive ? 'Search Results' : 'Recent Tournaments'}
               note={isSearchActive ? `${events.length} shown` : `Last ${RECENT_LIMIT}`}
             />
-            <List divider="hairline" size="lg">
+            <List divider="hairline" size="lg" paginate={false}>
               {displayedEvents.map((event: EventItem) => (
                 <ListItem
                   key={event.id}
@@ -126,11 +134,17 @@ export function EventsTabContent() {
                 />
               ))}
             </List>
-            {isSearchActive && hasMore ? (
+            {isSearchActive ? (
               <div className="mt-3">
-                <MoreButton loading={isLoadingMore} hasMore={hasMore} onClick={handleLoadMore}>
-                  Load more tournaments
-                </MoreButton>
+                <InfiniteListFooter
+                  hasMore={hasMore}
+                  isLoading={isLoadingMore}
+                  autoLoad={!pageError}
+                  onLoadMore={handleLoadMore}
+                  loadLabel={pageError ? 'Retry loading tournaments' : 'Load more tournaments'}
+                  loadingLabel="Loading more tournaments…"
+                  endLabel={`All ${events.length} tournaments shown`}
+                />
                 <p className="tt-section-meta mt-2">Showing {events.length} of {total}</p>
               </div>
             ) : null}

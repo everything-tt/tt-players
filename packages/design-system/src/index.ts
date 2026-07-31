@@ -49,6 +49,7 @@ export {
 export {
   List,
   ListItem,
+  InfiniteListFooter,
   Avatar,
   RankBadge,
   IconCircle,
@@ -56,6 +57,7 @@ export {
   Checkbox,
   type ListProps,
   type ListItemProps,
+  type InfiniteListFooterProps,
   type ListVariant,
   type ListSize,
   type ListDivider,

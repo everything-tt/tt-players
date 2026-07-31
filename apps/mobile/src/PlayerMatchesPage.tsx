@@ -13,8 +13,8 @@ import {
   OutcomeBadge,
   EmptyState,
   ErrorState,
+  InfiniteListFooter,
   SectionHeader,
-  MoreButton,
   SegmentedToggle,
 } from './ui/appkit';
 
@@ -36,7 +36,7 @@ export function PlayerMatchesPage() {
   const stats = statsQuery.data ?? null;
   const statsLoading = statsQuery.isLoading;
   const matchesLoading = matchesQuery.isLoading && offset === 0;
-  const matchesLoadingMore = matchesQuery.isLoading && offset > 0;
+  const matchesLoadingMore = matchesQuery.isFetching && offset > 0;
   const hasMore = useMemo(() => matches.length < total, [matches.length, total]);
 
   const openMatch = (match: RubberItem) => () => {
@@ -45,6 +45,16 @@ export function PlayerMatchesPage() {
       return;
     }
     navigateInTab('leagues', `fixture/${match.fixture_id}`);
+  };
+
+  const handleLoadMore = () => {
+    if (matchesQuery.isError) {
+      void matchesQuery.refetch();
+      return;
+    }
+    if (!matchesLoadingMore && hasMore) {
+      setOffset((previous) => previous + PAGE_SIZE);
+    }
   };
 
   useEffect(() => {
@@ -101,7 +111,7 @@ export function PlayerMatchesPage() {
             <EmptyState iconClassName="fa fa-table" title="No matches" message="No matches available for this player." />
           ) : (
             <>
-              <List divider="hairline">
+              <List divider="hairline" paginate={false}>
                 {matches.map((match) => (
                   <ListItem
                     key={match.id}
@@ -114,19 +124,23 @@ export function PlayerMatchesPage() {
                 ))}
               </List>
               <p className="tt-section-meta mt-3">Showing {matches.length} of {total} matches</p>
+              <InfiniteListFooter
+                hasMore={hasMore}
+                isLoading={matchesLoadingMore}
+                autoLoad={!matchesError}
+                onLoadMore={handleLoadMore}
+                loadLabel={matchesError ? 'Retry loading matches' : 'Load more matches'}
+                loadingLabel="Loading more matches…"
+                endLabel="End of match history"
+              />
             </>
           )}
 
           {matchesError && matches.length > 0 ? (
-            <ErrorState message="Couldn’t load more matches. Try again." />
-          ) : null}
-
-          {hasMore && matches.length > 0 ? (
-            <div className="mt-3">
-              <MoreButton loading={matchesLoadingMore} hasMore={hasMore} onClick={() => setOffset((p) => p + PAGE_SIZE)}>
-                Load more matches
-              </MoreButton>
-            </div>
+            <ErrorState
+              message="Couldn’t load more matches. Try again."
+              onRetry={() => void matchesQuery.refetch()}
+            />
           ) : null}
         </section>
       </div>

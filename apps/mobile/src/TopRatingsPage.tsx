@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { DetailHeader } from './components/DetailHeader';
 import { SkeletonList } from './components/Skeleton';
 import { LEAGUES_STORAGE_KEY } from './local-persistence';
@@ -10,6 +10,7 @@ import {
   AppPageContent,
   EmptyState,
   ErrorState,
+  InfiniteListFooter,
   List,
   ListItem,
   Pill,
@@ -35,7 +36,6 @@ function readSelectedLeagueIds(): string[] {
 
 export function TopRatingsPage() {
   const { navigateInTab, switchTab } = useTabNavigation();
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const leagueIds = useMemo(readSelectedLeagueIds, []);
   const ratingsQuery = useInfiniteLeagueRatingsQuery(leagueIds, PAGE_SIZE, MAX_RATINGS);
   const players = useMemo(
@@ -46,21 +46,6 @@ export function TopRatingsPage() {
   const cappedTotal = Math.min(total, MAX_RATINGS);
   const scopeLabel = leagueIds.length === 1 ? '1 selected league' : `${leagueIds.length} selected leagues`;
   const initialError = players.length === 0 ? getQueryError(ratingsQuery.error) : null;
-
-  useEffect(() => {
-    const target = loadMoreRef.current;
-    if (!target || !ratingsQuery.hasNextPage || ratingsQuery.isFetchingNextPage) return;
-    if (typeof IntersectionObserver === 'undefined') return;
-
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting) {
-        void ratingsQuery.fetchNextPage();
-      }
-    }, { rootMargin: '240px 0px' });
-
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [ratingsQuery.fetchNextPage, ratingsQuery.hasNextPage, ratingsQuery.isFetchingNextPage]);
 
   return (
     <TabShellPage>
@@ -97,7 +82,7 @@ export function TopRatingsPage() {
               <div className="tt-ratings-leaderboard-count" aria-live="polite">
                 Showing {players.length} of {cappedTotal}
               </div>
-              <List divider="hairline" size="lg">
+              <List divider="hairline" size="lg" paginate={false}>
                 {players.map((player, index) => (
                   <ListItem
                     key={player.player_id}
@@ -110,19 +95,15 @@ export function TopRatingsPage() {
                 ))}
               </List>
 
-              <div ref={loadMoreRef} className="tt-ratings-load-more">
-                {ratingsQuery.isFetchingNextPage ? (
-                  <span role="status">Loading 10 more players…</span>
-                ) : ratingsQuery.hasNextPage ? (
-                  <button type="button" onClick={() => void ratingsQuery.fetchNextPage()}>
-                    Load 10 more
-                  </button>
-                ) : (
-                  <span role="status">
-                    {cappedTotal >= MAX_RATINGS ? 'Top 100 loaded' : 'End of leaderboard'}
-                  </span>
-                )}
-              </div>
+              <InfiniteListFooter
+                hasMore={Boolean(ratingsQuery.hasNextPage)}
+                isLoading={ratingsQuery.isFetchingNextPage}
+                autoLoad={!ratingsQuery.isError}
+                onLoadMore={() => ratingsQuery.fetchNextPage()}
+                loadLabel={ratingsQuery.isError ? 'Retry loading players' : 'Load 10 more'}
+                loadingLabel="Loading 10 more players…"
+                endLabel={cappedTotal >= MAX_RATINGS ? 'Top 100 loaded' : 'End of leaderboard'}
+              />
 
               {players.length > 0 && ratingsQuery.isError ? (
                 <ErrorState
