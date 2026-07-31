@@ -1,6 +1,7 @@
 import type { Task } from 'graphile-worker';
 import { db } from '@tt-players/db';
 import { extractAndStore, storeScrapePayload } from '../extractor.js';
+import { RETRYABLE_JOB_SPEC, stableJobKey } from '../job-policy.js';
 import { fetchWithTT365Policy } from '../tt365-http.js';
 
 export interface ScrapeUrlPayload {
@@ -12,14 +13,6 @@ export interface ScrapeUrlPayload {
     tt365DataType?: 'standings' | 'fixtures' | 'matchcard' | 'playerstats';
     matchExternalId?: string;
     playerExternalId?: string;
-}
-
-const SCRAPE_RETRY_DELAY_MS = Number(
-    process.env['SCRAPE_RETRY_DELAY_MS'] ?? '10000',
-);
-
-function sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function extractAntiForgeryToken(html: string): string | null {
@@ -97,12 +90,6 @@ async function extractAndStoreTT365MatchCard(url: string, platformId: string): P
     return storeScrapePayload(url, platformId, ajaxHtml, db);
 }
 
-/**
- * Graphile Worker task: Phase 1 (Extract).
- *
- * Fetches a URL, hashes the body, upserts into raw_scrape_logs,
- * then chains a processLogTask for the resulting log row.
- */
 export const scrapeUrlTask: Task = async (payload, helpers) => {
     const {
         url,
@@ -128,22 +115,9 @@ export const scrapeUrlTask: Task = async (payload, helpers) => {
         }
         : {};
 
-    const extractOnce = async (): Promise<string> => (
-        isTT365MatchCard
-            ? extractAndStoreTT365MatchCard(url, platformId)
-            : extractAndStore(url, platformId, db, requestInit)
-    );
-
-    let logId: string;
-    try {
-        logId = await extractOnce();
-    } catch {
-        helpers.logger.info(
-            `scrapeUrlTask: first attempt failed for ${url}; retrying in ${SCRAPE_RETRY_DELAY_MS}ms`,
-        );
-        await sleep(SCRAPE_RETRY_DELAY_MS);
-        logId = await extractOnce();
-    }
+    const logId = isTT365MatchCard
+        ? await extractAndStoreTT365MatchCard(url, platformId)
+        : await extractAndStore(url, platformId, db, requestInit);
 
     helpers.logger.info(`scrapeUrlTask: stored log ${logId}, queuing processLogTask`);
 
@@ -155,5 +129,8 @@ export const scrapeUrlTask: Task = async (payload, helpers) => {
         tt365DataType,
         matchExternalId,
         playerExternalId,
+    }, {
+        ...RETRYABLE_JOB_SPEC,
+        jobKey: stableJobKey('process-log', logId),
     });
 };
