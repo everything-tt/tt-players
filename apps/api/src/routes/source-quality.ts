@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import type { Kysely } from 'kysely';
-import type { Database } from '@tt-players/db';
+import { readDataVersion, type Database } from '@tt-players/db';
 
 const HealthSchema = z.enum(['healthy', 'degraded', 'unobserved']);
 
@@ -63,11 +63,14 @@ export function sourceQualityRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 },
             },
         }, async (_request, reply) => {
-            const snapshot = await db
-                .selectFrom('source_quality_snapshots')
-                .select('content')
-                .where('key', '=', 'global')
-                .executeTakeFirst();
+            const [snapshot, version] = await Promise.all([
+                db
+                    .selectFrom('source_quality_snapshots')
+                    .select('content')
+                    .where('key', '=', 'global')
+                    .executeTakeFirst(),
+                readDataVersion(db, 'source-quality'),
+            ]);
 
             const parsed = SourceQualityResponseSchema.safeParse(snapshot?.content);
             if (!parsed.success) {
@@ -77,6 +80,7 @@ export function sourceQualityRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 });
             }
 
+            reply.header('ETag', `W/"source-quality-${version}"`);
             return reply.send(parsed.data);
         });
     };
