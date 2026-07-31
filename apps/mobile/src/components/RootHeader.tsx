@@ -20,6 +20,11 @@ export function RootHeader({
   onShare,
 }: RootHeaderProps) {
   const [isCompact, setIsCompact] = useState(false);
+  const badgeText = String(leagueBadge);
+  const selectedCount = /^\d+$/.test(badgeText) ? Number(badgeText) : 0;
+  const leagueAriaLabel = selectedCount > 0
+    ? `Select leagues, ${selectedCount} selected`
+    : 'Select leagues';
 
   useEffect(() => {
     const update = () => {
@@ -46,10 +51,10 @@ export function RootHeader({
             type="button"
             className="tt-root-header__action tt-root-header__filter"
             onClick={onOpenLeagues}
-            aria-label="Select leagues"
+            aria-label={leagueAriaLabel}
           >
             <i className="fas fa-filter" aria-hidden="true" />
-            <span className="tt-root-header__badge">{leagueBadge}</span>
+            {selectedCount > 0 ? <span className="tt-root-header__badge">{selectedCount}</span> : null}
           </button>
           <button type="button" className="tt-root-header__action" onClick={onOpenFeedback} aria-label="Send feedback">
             <i className="fas fa-comment-dots" aria-hidden="true" />
