@@ -3,6 +3,7 @@ import { db } from '@tt-players/db';
 import { chunkItems } from '../batches.js';
 import { storeScrapePayload } from '../extractor.js';
 import { RETRYABLE_JOB_SPEC, stableJobKey } from '../job-policy.js';
+import { selectMatchesNeedingResults } from '../match-batch-planner.js';
 import { MatchesResponseSchema } from '../zod-schemas.js';
 
 export interface ScrapeMatchesPayload {
@@ -74,8 +75,9 @@ export const scrapeMatchesTask: Task = async (payload, helpers) => {
         jobKey: stableJobKey('process-log', snapshotLogId),
     });
 
-    const completedMatches = matchesData.matches.filter((match) => match.hasResults);
-    const completedMatchIds = completedMatches.map((match) => String(match.id));
+    const completedMatchIds = matchesData.matches
+        .filter((match) => match.hasResults)
+        .map((match) => String(match.id));
     const existingFixtures = completedMatchIds.length === 0
         ? []
         : await db
@@ -84,16 +86,12 @@ export const scrapeMatchesTask: Task = async (payload, helpers) => {
             .where('competition_id', '=', competitionId)
             .where('external_id', 'in', completedMatchIds)
             .execute();
-    const existingFixtureMap = new Map(
-        existingFixtures.map((fixture) => [fixture.external_id, fixture]),
+    const matchesNeedingSets = selectMatchesNeedingResults(
+        matchesData.matches,
+        existingFixtures,
+        Date.now(),
+        TTL_RECHECK_COMPLETED_MS,
     );
-
-    const nowMs = Date.now();
-    const matchesNeedingSets = completedMatches.filter((match) => {
-        const fixture = existingFixtureMap.get(String(match.id));
-        if (!fixture || fixture.status !== 'completed') return true;
-        return nowMs - new Date(fixture.updated_at).getTime() >= TTL_RECHECK_COMPLETED_MS;
-    });
     const batches = chunkItems(matchesNeedingSets, TTL_SET_BATCH_SIZE);
 
     helpers.logger.info(
