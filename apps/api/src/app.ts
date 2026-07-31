@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { type FastifyError } from 'fastify';
 import cors from '@fastify/cors';
 import compress from '@fastify/compress';
 import multipart from '@fastify/multipart';
@@ -23,14 +23,34 @@ import { ratingsRoutes } from './routes/ratings.js';
 import { sourceQualityRoutes } from './routes/source-quality.js';
 import { userSyncRoutes } from './routes/user-sync.js';
 
-export async function buildApp(db: Kysely<Database>) {
-    const app = Fastify({ logger: false }).withTypeProvider<ZodTypeProvider>();
+function envInteger(name: string, fallback: number): number {
+    const raw = process.env[name];
+    if (raw === undefined || raw.trim() === '') return fallback;
 
-    // ── Serialiser / validator (Zod) ─────────────────────────────────────────
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value < 0) {
+        throw new Error(`${name} must be a non-negative integer.`);
+    }
+    return value;
+}
+
+export async function buildApp(db: Kysely<Database>) {
+    const app = Fastify({
+        logger: process.env['NODE_ENV'] === 'test'
+            ? false
+            : {
+                level: process.env['LOG_LEVEL'] || 'info',
+                redact: ['req.headers.authorization'],
+            },
+        requestIdHeader: 'x-request-id',
+        requestTimeout: envInteger('API_REQUEST_TIMEOUT_MS', 15_000),
+        keepAliveTimeout: envInteger('API_KEEP_ALIVE_TIMEOUT_MS', 72_000),
+        bodyLimit: envInteger('API_BODY_LIMIT_BYTES', 2 * 1024 * 1024),
+    }).withTypeProvider<ZodTypeProvider>();
+
     app.setSerializerCompiler(serializerCompiler);
     app.setValidatorCompiler(validatorCompiler);
 
-    // ── CORS ─────────────────────────────────────────────────────────────────
     const allowedOrigins = (process.env['ALLOWED_ORIGIN'] || 'http://localhost:7373')
         .split(',')
         .map((origin) => origin.trim())
@@ -40,7 +60,6 @@ export async function buildApp(db: Kysely<Database>) {
         methods: ['GET', 'POST', 'PUT', 'OPTIONS'],
     });
 
-    // ── Compression (gzip/deflate) ───────────────────────────────────────────
     await app.register(compress, { global: true, threshold: 1024 });
     await app.register(multipart, {
         limits: {
@@ -50,7 +69,6 @@ export async function buildApp(db: Kysely<Database>) {
         },
     });
 
-    // ── Caching headers (Cache-Control) ─────────────────────────────────────
     const CACHE_STATIC = 'public, max-age=300, s-maxage=300, stale-while-revalidate=60';
     const CACHE_DYNAMIC = 'public, max-age=60, s-maxage=120, stale-while-revalidate=30';
     const CACHE_LEADERBOARD = 'public, max-age=300, s-maxage=600, stale-while-revalidate=120';
@@ -69,7 +87,7 @@ export async function buildApp(db: Kysely<Database>) {
         [/^\/api\/health(\/|$)/, 'no-cache'],
     ];
 
-    app.addHook('onSend', async (request, reply, payload) => {
+    app.addHook('onSend', async (request, reply) => {
         if (reply.statusCode < 200 || reply.statusCode >= 300) return;
         if (reply.getHeader('Cache-Control')) return;
 
@@ -82,16 +100,39 @@ export async function buildApp(db: Kysely<Database>) {
             }
         }
     });
-    // ── Global error handler ──────────────────────────────────────────────────
-    app.setErrorHandler((error: any, _request, reply) => {
-        const statusCode = error.statusCode ?? 500;
+
+    const slowRequestMs = envInteger('API_SLOW_REQUEST_MS', 1_000);
+    app.addHook('onResponse', async (request, reply) => {
+        if (reply.elapsedTime < slowRequestMs) return;
+
+        request.log.warn({
+            method: request.method,
+            url: request.url,
+            statusCode: reply.statusCode,
+            elapsedMs: Math.round(reply.elapsedTime),
+        }, 'slow request');
+    });
+
+    app.setErrorHandler((error: FastifyError, request, reply) => {
+        const candidateStatus = error.statusCode;
+        const statusCode = typeof candidateStatus === 'number'
+            && candidateStatus >= 400
+            && candidateStatus <= 599
+            ? candidateStatus
+            : 500;
+
+        if (statusCode >= 500) {
+            request.log.error({ err: error, statusCode }, 'request failed');
+        }
+
         reply.status(statusCode).send({
-            error: error.message ?? 'Internal Server Error',
+            error: statusCode >= 500
+                ? 'Internal Server Error'
+                : error.message || 'Request failed',
             statusCode,
         });
     });
 
-    // ── Routes ────────────────────────────────────────────────────────────────
     app.get('/api/health', async () => ({
         status: 'ok',
         service: 'tt-players-api',
