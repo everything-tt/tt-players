@@ -66,17 +66,18 @@ export function PlayerInsightsPage() {
               title={stats.player_name}
               subtitle={`Momentum: ${momentum}`}
               leading={<DesignAvatar text={getInitials(stats.player_name)} size="hero" variant="solid" />}
-            >
-              <MetricGrid
-                columns={4}
-                metrics={[
-                  { label: 'Win Rate', value: `${winRate}%` },
-                  { label: 'Played', value: stats.total },
-                  { label: 'Wins', value: stats.wins },
-                  { label: 'Losses', value: stats.losses },
-                ]}
-              />
-            </EntityHero>
+              highlights={(
+                <MetricGrid
+                  columns={4}
+                  metrics={[
+                    { label: 'Win Rate', value: `${winRate}%` },
+                    { label: 'Played', value: stats.total },
+                    { label: 'Wins', value: stats.wins },
+                    { label: 'Losses', value: stats.losses },
+                  ]}
+                />
+              )}
+            />
 
             <PlayerRatingHistoryChart playerId={playerId} />
 
