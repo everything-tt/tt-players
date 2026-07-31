@@ -19,6 +19,7 @@ export {
   type HeaderClearSize,
   type HeaderIconPosition,
 } from './components/AppShell';
+export { BrowsePage, DetailPage, type BrowsePageProps, type DetailPageProps } from './components/PageLayouts';
 
 export { Stack, Inline, type StackProps, type InlineProps, type LayoutGap } from './components/Layout';
 export { Surface, type SurfaceProps } from './components/Surface';
