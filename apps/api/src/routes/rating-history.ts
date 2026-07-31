@@ -3,18 +3,20 @@ import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { sql, type Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
-
-const DEFAULT_MODEL_KEY = 'global-singles-glicko2-v1';
-
-type HistoryRange = '3m' | '1y' | '3y' | '10y' | 'all';
-type RatingConfidence = 'high' | 'medium' | 'low';
+import { DEFAULT_RATING_MODEL_KEY } from '../ratings/domain.js';
+import {
+    type HistoryRange,
+    type HistoryRow,
+    historyStartDate,
+    presentHistoryPoint,
+} from '../ratings/history.js';
 
 const ParamsSchema = z.object({
     id: z.string().uuid(),
 });
 
 const QuerySchema = z.object({
-    model: z.string().min(1).default(DEFAULT_MODEL_KEY),
+    model: z.string().min(1).default(DEFAULT_RATING_MODEL_KEY),
     range: z.enum(['3m', '1y', '3y', '10y', 'all']).default('1y'),
 });
 
@@ -40,22 +42,6 @@ const HistoryPointSchema = z.object({
 interface PlayerIdentityRow {
     player_id: string;
     player_name: string;
-}
-
-interface HistoryRow {
-    week_start: string | Date;
-    snapshot_date: string | Date;
-    rating: number;
-    rating_deviation: number;
-    conservative_rating: number;
-    previous_rating: number | null;
-    rated_matches: number;
-    rated_wins: number;
-    rated_losses: number;
-    week_matches: number;
-    week_wins: number;
-    week_losses: number;
-    provisional: boolean;
 }
 
 export function ratingHistoryRoutes(db: Kysely<Database>): FastifyPluginAsync {
@@ -102,7 +88,8 @@ export function ratingHistoryRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     });
                 }
 
-                const fromDate = historyStartDate(request.query.range);
+                const range = request.query.range as HistoryRange;
+                const fromDate = historyStartDate(range);
                 const historyResult = await sql<HistoryRow>`
                     WITH ordered_history AS (
                         SELECT
@@ -134,62 +121,10 @@ export function ratingHistoryRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     player_id: identity.player_id,
                     player_name: identity.player_name,
                     model: request.query.model,
-                    range: request.query.range,
+                    range,
                     data: historyResult.rows.map(presentHistoryPoint),
                 });
             },
         );
     };
-}
-
-function historyStartDate(range: HistoryRange): string | null {
-    if (range === 'all') return null;
-
-    const now = new Date();
-    const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    if (range === '3m') date.setUTCMonth(date.getUTCMonth() - 3);
-    if (range === '1y') date.setUTCFullYear(date.getUTCFullYear() - 1);
-    if (range === '3y') date.setUTCFullYear(date.getUTCFullYear() - 3);
-    if (range === '10y') date.setUTCFullYear(date.getUTCFullYear() - 10);
-    return date.toISOString().slice(0, 10);
-}
-
-function presentHistoryPoint(row: HistoryRow) {
-    const rating = Number(row.rating);
-    const deviation = Number(row.rating_deviation);
-    const previousRating = row.previous_rating === null ? null : Number(row.previous_rating);
-
-    return {
-        week_start: toDateString(row.week_start),
-        snapshot_date: toDateString(row.snapshot_date),
-        rating,
-        rating_deviation: deviation,
-        conservative_rating: Number(row.conservative_rating),
-        rating_low: round(rating - 2 * deviation, 2),
-        rating_high: round(rating + 2 * deviation, 2),
-        rating_change: previousRating === null ? null : round(rating - previousRating, 2),
-        confidence: ratingConfidence(deviation),
-        rated_matches: Number(row.rated_matches),
-        rated_wins: Number(row.rated_wins),
-        rated_losses: Number(row.rated_losses),
-        week_matches: Number(row.week_matches),
-        week_wins: Number(row.week_wins),
-        week_losses: Number(row.week_losses),
-        provisional: row.provisional,
-    };
-}
-
-function ratingConfidence(deviation: number): RatingConfidence {
-    if (deviation <= 70) return 'high';
-    if (deviation <= 120) return 'medium';
-    return 'low';
-}
-
-function toDateString(value: string | Date): string {
-    return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
-}
-
-function round(value: number, digits: number): number {
-    const factor = 10 ** digits;
-    return Math.round(value * factor) / factor;
 }

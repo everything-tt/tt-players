@@ -3,53 +3,20 @@ import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { sql, type Kysely, type RawBuilder } from 'kysely';
 import type { Database } from '@tt-players/db';
-
-const DEFAULT_MODEL_KEY = 'global-singles-glicko2-v1';
-
-type RatingConfidence = 'high' | 'medium' | 'low';
+import {
+    DEFAULT_RATING_MODEL_KEY,
+    type RankedRatingRow,
+    presentRankedRating,
+} from '../ratings/domain.js';
+import { RankedRatingSchema } from '../ratings/schemas.js';
 
 const QuerySchema = z.object({
-    model: z.string().min(1).default(DEFAULT_MODEL_KEY),
+    model: z.string().min(1).default(DEFAULT_RATING_MODEL_KEY),
     league_ids: z.string().min(1),
     page: z.coerce.number().int().min(1).default(1),
     page_size: z.coerce.number().int().min(1).max(100).default(5),
     include_provisional: z.enum(['true', 'false']).default('false').transform((value: string) => value === 'true'),
 });
-
-const RatingSchema = z.object({
-    rank: z.number().int(),
-    player_id: z.string().uuid(),
-    player_name: z.string(),
-    rating: z.number(),
-    rating_deviation: z.number(),
-    conservative_rating: z.number(),
-    rating_low: z.number(),
-    rating_high: z.number(),
-    confidence: z.enum(['high', 'medium', 'low']),
-    rated_matches: z.number().int(),
-    rated_wins: z.number().int(),
-    rated_losses: z.number().int(),
-    win_rate: z.number(),
-    provisional: z.boolean(),
-    first_rated_at: z.string().nullable(),
-    last_rated_at: z.string().nullable(),
-});
-
-interface RatingRow {
-    rank: number | string;
-    total: number | string;
-    player_id: string;
-    player_name: string;
-    rating: number | string;
-    rating_deviation: number | string;
-    conservative_rating: number | string;
-    rated_matches: number | string;
-    rated_wins: number | string;
-    rated_losses: number | string;
-    provisional: boolean;
-    first_rated_at: string | Date | null;
-    last_rated_at: string | Date | null;
-}
 
 export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
     return async function (fastify) {
@@ -62,7 +29,7 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     querystring: QuerySchema,
                     response: {
                         200: z.object({
-                            data: z.array(RatingSchema),
+                            data: z.array(RankedRatingSchema),
                             total: z.number().int(),
                             page: z.number().int(),
                             page_size: z.number().int(),
@@ -79,7 +46,10 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     .map((id) => id.trim())
                     .filter((id) => id.length > 0);
 
-                if (leagueIds.length === 0 || leagueIds.some((id) => !z.string().uuid().safeParse(id).success)) {
+                if (
+                    leagueIds.length === 0
+                    || leagueIds.some((id) => !z.string().uuid().safeParse(id).success)
+                ) {
                     return reply.status(400).send({
                         error: 'league_ids must contain one or more valid UUIDs',
                         statusCode: 400,
@@ -96,7 +66,7 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 } = request.query;
                 const offset = (page - 1) * pageSize;
 
-                const result = await sql<RatingRow>`
+                const result = await sql<RankedRatingRow>`
                     WITH ranked AS (
                         SELECT
                             ROW_NUMBER() OVER (
@@ -135,7 +105,7 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 `.execute(db);
 
                 return reply.send({
-                    data: result.rows.map(presentRating),
+                    data: result.rows.map(presentRankedRating),
                     total: Number(result.rows[0]?.total ?? 0),
                     page,
                     page_size: pageSize,
@@ -149,46 +119,4 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
 
 function uuidArray(ids: string[]): RawBuilder<string[]> {
     return sql`ARRAY[${sql.join(ids.map((id) => sql`${id}::uuid`))}]::uuid[]`;
-}
-
-function presentRating(row: RatingRow) {
-    const rating = Number(row.rating);
-    const deviation = Number(row.rating_deviation);
-    const ratedMatches = Number(row.rated_matches);
-    const ratedWins = Number(row.rated_wins);
-
-    return {
-        rank: Number(row.rank),
-        player_id: row.player_id,
-        player_name: row.player_name,
-        rating,
-        rating_deviation: deviation,
-        conservative_rating: Number(row.conservative_rating),
-        rating_low: round(rating - 2 * deviation, 2),
-        rating_high: round(rating + 2 * deviation, 2),
-        confidence: ratingConfidence(deviation),
-        rated_matches: ratedMatches,
-        rated_wins: ratedWins,
-        rated_losses: Number(row.rated_losses),
-        win_rate: ratedMatches > 0 ? ratedWins / ratedMatches : 0,
-        provisional: row.provisional,
-        first_rated_at: toDateString(row.first_rated_at),
-        last_rated_at: toDateString(row.last_rated_at),
-    };
-}
-
-function ratingConfidence(deviation: number): RatingConfidence {
-    if (deviation <= 70) return 'high';
-    if (deviation <= 120) return 'medium';
-    return 'low';
-}
-
-function round(value: number, decimals: number): number {
-    const factor = 10 ** decimals;
-    return Math.round(value * factor) / factor;
-}
-
-function toDateString(value: string | Date | null): string | null {
-    if (!value) return null;
-    return value instanceof Date ? value.toISOString().slice(0, 10) : value.slice(0, 10);
 }
