@@ -5,8 +5,8 @@ import { sql, type Kysely, type RawBuilder } from 'kysely';
 import type { Database } from '@tt-players/db';
 import {
     DEFAULT_RATING_MODEL_KEY,
-    type RatingRow,
-    presentRating,
+    type RankedRatingRow,
+    presentRankedRating,
 } from '../ratings/domain.js';
 import { RankedRatingSchema } from '../ratings/schemas.js';
 
@@ -66,7 +66,7 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 } = request.query;
                 const offset = (page - 1) * pageSize;
 
-                const result = await sql<RatingRow>`
+                const result = await sql<RankedRatingRow>`
                     WITH ranked AS (
                         SELECT
                             ROW_NUMBER() OVER (
@@ -105,7 +105,7 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 `.execute(db);
 
                 return reply.send({
-                    data: result.rows.map((row) => presentRating(row, Number(row.rank))),
+                    data: result.rows.map(presentRankedRating),
                     total: Number(result.rows[0]?.total ?? 0),
                     page,
                     page_size: pageSize,
