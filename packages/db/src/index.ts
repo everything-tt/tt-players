@@ -1,4 +1,5 @@
 export { db, createDb } from './database.js';
+export type { DatabaseConnectionOptions } from './database.js';
 export type { ApiDatabase, StagingDatabase } from './types.js';
 export type {
     SourceRegistryDatabase,
@@ -25,14 +26,12 @@ export type {
     PlayerIdentityDecisionUpdate,
 } from './identity-resolution-types.js';
 export type {
-    // Enum types
     CompetitionType,
     FixtureStatus,
     OutcomeType,
     ScrapeStatus,
     RankingListKind,
     ScoreSource,
-    // Table row types
     Platform,
     NewPlatform,
     PlatformUpdate,
