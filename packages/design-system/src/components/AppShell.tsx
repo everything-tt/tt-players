@@ -38,6 +38,7 @@ export interface AppHeaderProps {
   children?: ReactNode;
   className?: string;
   style?: React.CSSProperties;
+  ariaLabel?: string;
   ref?: React.Ref<HTMLElement>;
 }
 
@@ -45,26 +46,30 @@ export function AppHeaderActionLink({ iconClassName, onClick, position, ariaLabe
   return (
     <button
       type="button"
-      className={cx('header-icon', `header-icon-${position}`, className)}
+      className={cx('header-icon', `header-icon-${position}`, 'tt-app-header__action', className)}
       aria-label={ariaLabel}
       onClick={onClick}
     >
-      <i className={iconClassName} />
+      <i className={iconClassName} aria-hidden="true" />
       {badgeContent}
     </button>
   );
 }
 
 export function AppShellPage({ children, className, id = 'page' }: AppShellPageProps) {
-  return <div id={id} className={cx('app-shell-page', className)}>{children}</div>;
+  return <div id={id} className={cx('app-shell-page', 'tt-app-shell', className)}>{children}</div>;
 }
 
 export function AppHeaderSpacer({ size = 'medium' }: AppHeaderSpacerProps) {
-  return <div className={`header-clear-${size}`} />;
+  return <div className={cx(`header-clear-${size}`, 'tt-app-header-spacer')} aria-hidden="true" />;
 }
 
 export function AppPageContent({ children, className, style }: AppPageContentProps) {
-  return <main className={cx('page-content app-shell-content', className)} style={style}>{children}</main>;
+  return (
+    <main className={cx('page-content app-shell-content', 'tt-page-content', className)} style={style}>
+      {children}
+    </main>
+  );
 }
 
 export const AppHeader = React.forwardRef<HTMLElement, AppHeaderProps>(({
@@ -76,22 +81,28 @@ export const AppHeader = React.forwardRef<HTMLElement, AppHeaderProps>(({
   children,
   className,
   style,
+  ariaLabel = 'Application header',
 }, ref) => {
   return (
-    <header ref={ref} style={style} className={cx('header header-fixed header-logo-center', className)}>
+    <header
+      ref={ref}
+      style={style}
+      className={cx('header header-fixed header-logo-center', 'tt-app-header', className)}
+      aria-label={ariaLabel}
+    >
       {children ? (
         children
       ) : (
         <>
           {onTitleClick ? (
-            <button type="button" className="header-title" onClick={onTitleClick}>{title}</button>
+            <button type="button" className="header-title tt-app-header__title" onClick={onTitleClick}>{title}</button>
           ) : (
-            <span className="header-title">{title}</span>
+            <span className="header-title tt-app-header__title">{title}</span>
           )}
           {leftAction ? <AppHeaderActionLink {...leftAction} /> : null}
           {rightAction ? <AppHeaderActionLink {...rightAction} /> : null}
           {actions.map((action, index) => (
-            <AppHeaderActionLink key={index} {...action} />
+            <AppHeaderActionLink key={`${action.position}-${action.ariaLabel}-${index}`} {...action} />
           ))}
         </>
       )}
