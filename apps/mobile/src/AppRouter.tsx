@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
-import './ratings-enhancements.css';
 import App from './App';
+import './ratings-enhancements.css';
+import './mobile-polish.css';
 import { AboutPage } from './AboutPage';
 import { DataCoveragePage } from './DataCoveragePage';
 import { FixturePage } from './FixturePage';
