@@ -8,14 +8,14 @@ import { ratingConfidenceLabel, useInfiniteLeagueRatingsQuery } from './rating-q
 import { TabShellPage } from './TabShellPage';
 import {
   AppPageContent,
+  DesignList,
   EmptyState,
   ErrorState,
   InfiniteListFooter,
-  List,
   ListItem,
+  PageSection,
   Pill,
   RankBadge,
-  SectionHeader,
 } from './ui/appkit';
 import './ratings-ui.css';
 
@@ -51,11 +51,13 @@ export function TopRatingsPage() {
     <TabShellPage>
       <DetailHeader title="Top Rated Players" backFallback="" />
       <AppPageContent className="tt-ratings-leaderboard-page">
-        <section className="tt-player-section tt-ratings-leaderboard" aria-labelledby="tt-ratings-leaderboard-title">
-          <SectionHeader
-            title={<span id="tt-ratings-leaderboard-title">League leaderboard</span>}
-            note={leagueIds.length > 0 ? scopeLabel : 'No league scope'}
-          />
+        <PageSection
+          surface="flat"
+          density="compact"
+          title="League leaderboard"
+          note={leagueIds.length > 0 ? scopeLabel : 'No league scope'}
+          className="tt-ratings-leaderboard"
+        >
           <p className="tt-ratings-leaderboard-copy">
             Established players are ranked by conservative ability rating across your selected active leagues. Up to the top 100 are shown.
           </p>
@@ -82,7 +84,7 @@ export function TopRatingsPage() {
               <div className="tt-ratings-leaderboard-count" aria-live="polite">
                 Showing {players.length} of {cappedTotal}
               </div>
-              <List divider="hairline" size="lg" paginate={false}>
+              <DesignList density="compact" divider="hairline" paginate={false}>
                 {players.map((player, index) => (
                   <ListItem
                     key={player.player_id}
@@ -93,7 +95,7 @@ export function TopRatingsPage() {
                     onClick={() => navigateInTab('players', `player/${player.player_id}`)}
                   />
                 ))}
-              </List>
+              </DesignList>
 
               <InfiniteListFooter
                 hasMore={Boolean(ratingsQuery.hasNextPage)}
@@ -114,7 +116,7 @@ export function TopRatingsPage() {
               ) : null}
             </>
           )}
-        </section>
+        </PageSection>
       </AppPageContent>
     </TabShellPage>
   );
