@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { chunkItems } from '../batches.js';
-import { stableJobKey } from '../job-policy.js';
+import {
+    PIPELINE_JOB_SPEC,
+    RETRYABLE_JOB_SPEC,
+    stableJobKey,
+} from '../job-policy.js';
 
 describe('worker job policy', () => {
     it('splits work into bounded batches without losing order', () => {
@@ -25,5 +29,20 @@ describe('worker job policy', () => {
         expect(first).toBe(same);
         expect(first).not.toBe(different);
         expect(first).toMatch(/^scrape-matches:[a-f0-9]{32}$/);
+    });
+
+    it('deduplicates idempotent refresh jobs even while locked', () => {
+        expect(RETRYABLE_JOB_SPEC).toEqual({
+            maxAttempts: 3,
+            jobKeyMode: 'unsafe_dedupe',
+        });
+    });
+
+    it('uses replacement semantics for pipeline stage continuation', () => {
+        expect(PIPELINE_JOB_SPEC).toEqual({
+            maxAttempts: 3,
+            jobKeyMode: 'replace',
+            priority: 100,
+        });
     });
 });
