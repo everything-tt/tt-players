@@ -4,6 +4,8 @@ import { scrapeUrlTask } from './tasks/scrapeUrlTask.js';
 import { processLogTask } from './tasks/processLogTask.js';
 import { scrapeMatchesTask } from './tasks/scrapeMatchesTask.js';
 import { scrapeMatchSetsBatchTask } from './tasks/scrapeMatchSetsBatchTask.js';
+import { processMatchSetsBatchTask } from './tasks/processMatchSetsBatchTask.js';
+import { reconcilePlayersTask } from './tasks/reconcilePlayersTask.js';
 import { scrapeSport80EventsTask } from './tasks/scrapeSport80EventsTask.js';
 import { scrapeSport80EventResultsTask } from './tasks/scrapeSport80EventResultsTask.js';
 import { scrapeSport80RankingsDiscoveryTask } from './tasks/scrapeSport80RankingsDiscoveryTask.js';
@@ -120,6 +122,8 @@ export const taskList = {
     processLogTask,
     scrapeMatchesTask,
     scrapeMatchSetsBatchTask,
+    processMatchSetsBatchTask,
+    reconcilePlayersTask,
     scrapeSport80EventsTask,
     scrapeSport80EventResultsTask,
     scrapeSport80RankingsDiscoveryTask,
