@@ -7,6 +7,9 @@ on:
       - 'apps/api/**'
       - 'apps/worker/**'
       - 'infra/**'
+      - 'scripts/benchmark-api.mjs'
+      - 'scripts/capture-query-plans.mjs'
+      - 'scripts/__tests__/**'
       - 'scripts/migrate-vps-postgres.sh'
       - 'scripts/deploy-vps-release.sh'
       - 'scripts/rollback-vps-release.sh'
@@ -60,18 +63,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: |
-          pnpm --filter @tt-players/api... build
-          pnpm --filter @tt-players/worker build
-
-      - name: Test
+      - name: Backend quality gate
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
-        run: |
-          pnpm --filter @tt-players/db test
-          pnpm --filter @tt-players/api test
-          pnpm --filter @tt-players/worker test -- --passWithNoTests
+        run: pnpm run check:backend
 
       - name: Validate deployment scripts
         run: |

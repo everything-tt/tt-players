@@ -255,16 +255,24 @@ describe('scrapeMatchesTask batching', () => {
             1,
             'processLogTask',
             expect.objectContaining({ platformType: 'ttleagues-bundle' }),
-            expect.objectContaining({ maxAttempts: 3 }),
+            expect.objectContaining({
+                maxAttempts: 3,
+                jobKeyMode: 'unsafe_dedupe',
+            }),
         );
         expect(addJob).toHaveBeenNthCalledWith(
             2,
             'scrapeMatchSetsBatchTask',
-            expect.objectContaining({
-                matches: [expect.objectContaining({ id: 1002 })],
-            }),
+            [
+                expect.objectContaining({
+                    divisionId: '1632',
+                    competitionId,
+                    match: expect.objectContaining({ id: 1002 }),
+                }),
+            ],
             expect.objectContaining({
                 maxAttempts: 3,
+                jobKeyMode: 'unsafe_dedupe',
                 jobKey: expect.stringMatching(/^ttleagues-set-batch:/),
             }),
         );
@@ -315,10 +323,15 @@ describe('scrapeMatchesTask batching', () => {
         expect(addJob).toHaveBeenNthCalledWith(
             2,
             'scrapeMatchSetsBatchTask',
+            [
+                expect.objectContaining({
+                    match: expect.objectContaining({ id: 1001 }),
+                }),
+            ],
             expect.objectContaining({
-                matches: [expect.objectContaining({ id: 1001 })],
+                maxAttempts: 3,
+                jobKeyMode: 'unsafe_dedupe',
             }),
-            expect.objectContaining({ maxAttempts: 3 }),
         );
     });
 });

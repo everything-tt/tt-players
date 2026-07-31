@@ -18,6 +18,10 @@ const QuerySchema = z.object({
     include_provisional: z.enum(['true', 'false']).default('false').transform((value: string) => value === 'true'),
 });
 
+interface CountRow {
+    total: number | string;
+}
+
 export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
     return async function (fastify) {
         const app = fastify.withTypeProvider<ZodTypeProvider>();
@@ -57,7 +61,6 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 }
 
                 const uniqueLeagueIds = [...new Set(leagueIds)];
-                const leagueIdArray = uuidArray(uniqueLeagueIds);
                 const {
                     model,
                     page,
@@ -66,24 +69,45 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 } = request.query;
                 const offset = (page - 1) * pageSize;
 
-                const result = await sql<RankedRatingRow>`
-                    WITH ranked AS (
-                        SELECT
-                            ROW_NUMBER() OVER (
-                                ORDER BY rating.conservative_rating DESC, rating.rated_matches DESC, player.name ASC
-                            ) AS rank,
-                            COUNT(*) OVER () AS total,
-                            rating.player_id,
-                            player.name AS player_name,
-                            rating.rating,
-                            rating.rating_deviation,
-                            rating.conservative_rating,
-                            rating.rated_matches,
-                            rating.rated_wins,
-                            rating.rated_losses,
-                            rating.provisional,
-                            rating.first_rated_at,
-                            rating.last_rated_at
+                const [result, countResult] = await Promise.all([
+                    sql<RankedRatingRow>`
+                        WITH ranked AS (
+                            SELECT
+                                ROW_NUMBER() OVER (
+                                    ORDER BY rating.conservative_rating DESC, rating.rated_matches DESC, player.name ASC
+                                ) AS rank,
+                                rating.player_id,
+                                player.name AS player_name,
+                                rating.rating,
+                                rating.rating_deviation,
+                                rating.conservative_rating,
+                                rating.rated_matches,
+                                rating.rated_wins,
+                                rating.rated_losses,
+                                rating.provisional,
+                                rating.first_rated_at,
+                                rating.last_rated_at
+                            FROM player_ratings rating
+                            JOIN rating_models model_row ON model_row.id = rating.model_id
+                            JOIN external_players player ON player.id = rating.player_id
+                            WHERE model_row.key = ${model}
+                              AND player.deleted_at IS NULL
+                              AND (${includeProvisional} OR rating.provisional = false)
+                              AND EXISTS (
+                                  SELECT 1
+                                  FROM player_active_leagues membership
+                                  WHERE membership.player_id = rating.player_id
+                                    AND membership.league_id = ANY(${uuidArray(uniqueLeagueIds)})
+                              )
+                        )
+                        SELECT *
+                        FROM ranked
+                        ORDER BY rank
+                        LIMIT ${pageSize}
+                        OFFSET ${offset}
+                    `.execute(db),
+                    sql<CountRow>`
+                        SELECT COUNT(*)::int AS total
                         FROM player_ratings rating
                         JOIN rating_models model_row ON model_row.id = rating.model_id
                         JOIN external_players player ON player.id = rating.player_id
@@ -94,19 +118,14 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                               SELECT 1
                               FROM player_active_leagues membership
                               WHERE membership.player_id = rating.player_id
-                                AND membership.league_id = ANY(${leagueIdArray})
+                                AND membership.league_id = ANY(${uuidArray(uniqueLeagueIds)})
                           )
-                    )
-                    SELECT *
-                    FROM ranked
-                    ORDER BY rank
-                    LIMIT ${pageSize}
-                    OFFSET ${offset}
-                `.execute(db);
+                    `.execute(db),
+                ]);
 
                 return reply.send({
                     data: result.rows.map(presentRankedRating),
-                    total: Number(result.rows[0]?.total ?? 0),
+                    total: Number(countResult.rows[0]?.total ?? 0),
                     page,
                     page_size: pageSize,
                     model,
