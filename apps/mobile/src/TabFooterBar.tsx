@@ -1,3 +1,4 @@
+import { AppTabBar } from './ui/appkit';
 import { useTabNavigation, type AppTabId } from './navigation/tab-navigation';
 import { TAB_METADATA } from './player-shared';
 
@@ -13,24 +14,14 @@ export function TabFooterBar({ reselectBehavior = 'noop' }: TabFooterBarProps) {
   const { activeTab, switchTab } = useTabNavigation();
 
   return (
-    <nav id="footer-bar" className="footer-bar-3" aria-label="Primary navigation">
-      {FOOTER_TABS.map((tabId) => {
-        const meta = TAB_METADATA[tabId];
-        const selected = tabId === activeTab;
-        return (
-          <button
-            key={tabId}
-            type="button"
-            className={selected ? 'active-nav' : undefined}
-            aria-current={selected ? 'page' : undefined}
-            aria-label={selected ? `${meta.label}, current tab` : meta.label}
-            onClick={() => switchTab(tabId, reselectBehavior)}
-          >
-            <i className={meta.icon} aria-hidden="true" />
-            <span>{meta.label}</span>
-          </button>
-        );
-      })}
-    </nav>
+    <AppTabBar
+      items={FOOTER_TABS.map((tabId) => ({
+        id: tabId,
+        label: TAB_METADATA[tabId].label,
+        iconClassName: TAB_METADATA[tabId].icon,
+      }))}
+      activeItemId={activeTab}
+      onItemClick={(id) => switchTab(id as AppTabId, reselectBehavior)}
+    />
   );
 }
