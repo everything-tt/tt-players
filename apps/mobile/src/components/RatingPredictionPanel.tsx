@@ -2,11 +2,11 @@ import { ratingConfidenceLabel, useRatingPredictionQuery } from '../rating-queri
 import { formatMatchDate } from '../player-shared';
 import { usePlayerH2HQuery, usePlayerInsightsQuery } from '../queries';
 import {
+  DesignList,
   EmptyState,
   IconCircle,
-  List,
   ListItem,
-  SectionHeader,
+  PageSection,
 } from '../ui/appkit';
 import '../ratings-ui.css';
 
@@ -73,8 +73,7 @@ export function RatingPredictionPanel({ playerA, playerB }: RatingPredictionPane
 
   return (
     <>
-      <section className="tt-player-section mt-2" aria-labelledby="tt-rating-prediction-title">
-        <SectionHeader title="Win Probability" note="Calculated ability" />
+      <PageSection surface="flat" density="compact" title="Win Probability" note="Calculated ability">
         {predictionQuery.isLoading ? (
           <EmptyState iconClassName="fa fa-spinner fa-spin" title="Calculating matchup…" />
         ) : !prediction ? (
@@ -104,8 +103,8 @@ export function RatingPredictionPanel({ playerA, playerB }: RatingPredictionPane
               role="img"
               aria-label={`${playerA.name} ${playerAProbability} percent chance, ${playerB.name} ${playerBProbability} percent chance`}
             >
-              <div className="tt-rating-probability-a" style={{ width: `${playerAProbability}%` }} />
-              <div className="tt-rating-probability-b" style={{ width: `${playerBProbability}%` }} />
+              <div className="tt-rating-probability-a" style={{ flexGrow: playerAProbability }} />
+              <div className="tt-rating-probability-b" style={{ flexGrow: playerBProbability }} />
             </div>
 
             <div className="tt-rating-prediction-meta">
@@ -114,32 +113,16 @@ export function RatingPredictionPanel({ playerA, playerB }: RatingPredictionPane
             </div>
           </>
         )}
-      </section>
+      </PageSection>
 
-      <section className="tt-player-section" aria-labelledby="tt-match-preparation-title">
-        <SectionHeader title="Match Preparation" note="At a glance" />
+      <PageSection surface="flat" density="compact" title="Match Preparation" note="At a glance">
         {preparationLoading ? (
           <EmptyState iconClassName="fa fa-spinner fa-spin" title="Building match brief…" />
         ) : (
-          <List divider="hairline">
-            <ListItem
-              leading={<IconCircle iconClassName="fa fa-chart-line" tone="accent" />}
-              title="Model read"
-              subtitle={modelRead}
-              hideChevron
-            />
-            <ListItem
-              leading={<IconCircle iconClassName="fa fa-code-compare" tone="neutral" />}
-              title="Previous meetings"
-              subtitle={meetingRead}
-              hideChevron
-            />
-            <ListItem
-              leading={<IconCircle iconClassName="fa fa-fire" tone="danger" />}
-              title="Recent form"
-              subtitle={formRead}
-              hideChevron
-            />
+          <DesignList density="compact" divider="hairline" paginate={false}>
+            <ListItem leading={<IconCircle iconClassName="fa fa-chart-line" tone="accent" />} title="Model read" subtitle={modelRead} hideChevron />
+            <ListItem leading={<IconCircle iconClassName="fa fa-code-compare" tone="neutral" />} title="Previous meetings" subtitle={meetingRead} hideChevron />
+            <ListItem leading={<IconCircle iconClassName="fa fa-fire" tone="danger" />} title="Recent form" subtitle={formRead} hideChevron />
             {recentMeeting ? (
               <ListItem
                 leading={<IconCircle iconClassName="fa fa-clock" tone="neutral" />}
@@ -148,15 +131,10 @@ export function RatingPredictionPanel({ playerA, playerB }: RatingPredictionPane
                 hideChevron
               />
             ) : null}
-            <ListItem
-              leading={<IconCircle iconClassName="fa fa-eye" tone="success" />}
-              title="What to watch"
-              subtitle={watchRead}
-              hideChevron
-            />
-          </List>
+            <ListItem leading={<IconCircle iconClassName="fa fa-eye" tone="success" />} title="What to watch" subtitle={watchRead} hideChevron />
+          </DesignList>
         )}
-      </section>
+      </PageSection>
     </>
   );
 }
