@@ -3,6 +3,7 @@ import { Kysely, PostgresDialect, sql } from 'kysely';
 import pg from 'pg';
 import * as m001 from '../migrations/001_create_enums.js';
 import * as m002 from '../migrations/002_create_core_tables.js';
+import * as m003 from '../migrations/003_create_match_tables.js';
 import * as m035 from '../migrations/035_create_api_read_models.js';
 
 const { Pool } = pg;
@@ -25,6 +26,7 @@ beforeAll(async () => {
     });
     await m001.up(db);
     await m002.up(db);
+    await m003.up(db);
     await m035.up(db);
 }, 30_000);
 
