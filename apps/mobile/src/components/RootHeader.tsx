@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react';
-
-const COMPACT_SCROLL_THRESHOLD = 40;
+import { useCollapsibleHeader } from '../ui/appkit';
 
 interface RootHeaderProps {
   title: string;
@@ -19,23 +17,12 @@ export function RootHeader({
   onOpenFeedback,
   onShare,
 }: RootHeaderProps) {
-  const [isCompact, setIsCompact] = useState(false);
+  const isCompact = useCollapsibleHeader();
   const badgeText = String(leagueBadge);
   const selectedCount = /^\d+$/.test(badgeText) ? Number(badgeText) : 0;
   const leagueAriaLabel = selectedCount > 0
     ? `Select leagues, ${selectedCount} selected`
     : 'Select leagues';
-
-  useEffect(() => {
-    const update = () => {
-      const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
-      setIsCompact(scrollTop >= COMPACT_SCROLL_THRESHOLD);
-    };
-
-    update();
-    window.addEventListener('scroll', update, { passive: true });
-    return () => window.removeEventListener('scroll', update);
-  }, []);
 
   return (
     <header className={`tt-root-header${isCompact ? ' tt-root-header--compact' : ''}`} role="banner">
