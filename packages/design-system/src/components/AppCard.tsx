@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { MouseEventHandler, ReactNode } from 'react';
 import { AppButton } from './AppButton';
 import { cx } from '../utils/cx';
 
@@ -20,7 +20,7 @@ export interface AppLoadingCardProps {
 
 export interface AppMessageCardAction {
   label: string;
-  onClick: () => void;
+  onClick: MouseEventHandler<HTMLAnchorElement>;
   tone?: 'highlight' | 'outline-highlight';
 }
 
@@ -69,7 +69,11 @@ export function AppMessageCard({ title, message, tone = 'neutral', action, class
         {title ? <h3 className="mb-2">{title}</h3> : null}
         <p className={cx('mb-3', tone === 'danger' && 'color-red-dark')}>{message}</p>
         {action ? (
-          <AppButton onClick={action.onClick} tone={action.tone ?? 'highlight'} full>
+          <AppButton
+            onClick={(event) => action.onClick(event as unknown as React.MouseEvent<HTMLAnchorElement>)}
+            tone={action.tone ?? 'highlight'}
+            full
+          >
             {action.label}
           </AppButton>
         ) : null}
