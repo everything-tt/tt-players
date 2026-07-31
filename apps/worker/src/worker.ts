@@ -53,12 +53,12 @@ graphilePool.on('error', (error) => {
 });
 
 const CRONTAB = `
- 15 * * * * refreshApiReadModelsTask ?fill=1h
  0 2 * * * scheduleScrapeTasks ?fill=1d
  30 2 * * * scrapeSport80EventsTask ?fill=1d
  0 3 * * * scrapeSport80RankingsDiscoveryTask ?fill=1d
  30 3 * * * purgeExpiredCacheEntries ?fill=1d
  0 4 * * * calculateRatingsTask ?fill=1d
+ 30 4 * * * refreshApiReadModelsTask ?fill=1d
  `;
 
 export async function startWorker(): Promise<void> {
