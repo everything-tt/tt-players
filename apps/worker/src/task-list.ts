@@ -12,6 +12,7 @@ import { scrapeSport80RankingsDiscoveryTask } from './tasks/scrapeSport80Ranking
 import { scrapeSport80RankingTableTask } from './tasks/scrapeSport80RankingTableTask.js';
 import { calculateRatingsTask } from './tasks/calculateRatingsTask.js';
 import { refreshApiReadModelsTask } from './tasks/refreshApiReadModelsTask.js';
+import { completeDailyPipelineTask } from './tasks/completeDailyPipelineTask.js';
 
 let scheduledScrapeTargets: ScrapeTarget[] = [];
 
@@ -130,6 +131,7 @@ export const taskList = {
     scrapeSport80RankingTableTask,
     calculateRatingsTask,
     refreshApiReadModelsTask,
+    completeDailyPipelineTask,
     scheduleScrapeTasks,
     purgeExpiredCacheEntries,
 };
