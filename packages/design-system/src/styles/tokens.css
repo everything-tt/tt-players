@@ -1,0 +1,52 @@
+:root {
+  --tt-space-0: 0px;
+  --tt-space-1: 4px;
+  --tt-space-2: 8px;
+  --tt-space-3: 12px;
+  --tt-space-4: 16px;
+  --tt-space-5: 20px;
+  --tt-space-6: 24px;
+  --tt-space-8: 32px;
+  --tt-gutter-flat: 12px;
+  --tt-gutter-card: 16px;
+  --tt-section-gap-flat: 10px;
+  --tt-section-gap-standard: 14px;
+  --tt-row-height-compact: 56px;
+  --tt-row-height-comfortable: 68px;
+  --tt-avatar-compact: 40px;
+  --tt-avatar-standard: 48px;
+  --tt-avatar-hero: 64px;
+  --tt-control-height: 44px;
+  --tt-header-height: 56px;
+  --tt-root-header-height: 64px;
+  --tt-tab-height: 58px;
+  --tt-radius-sm: 8px;
+  --tt-radius-md: 12px;
+  --tt-radius-lg: 16px;
+  --tt-radius-pill: 999px;
+  --tt-motion-fast: 120ms;
+  --tt-motion-standard: 180ms;
+  --tt-ease-native: cubic-bezier(.2, 0, 0, 1);
+  --tt-surface-canvas: var(--canvas-parchment);
+  --tt-surface-subtle: var(--surface-subtle);
+  --tt-surface-raised: color-mix(in oklch, var(--surface-strong) 94%, var(--canvas-parchment));
+  --tt-surface-accent: var(--accent-subtle);
+  --tt-text-primary: var(--ink);
+  --tt-text-muted: var(--ink-muted);
+  --tt-border: var(--border-hairline);
+  --tt-shadow-raised: 0 1px 2px oklch(21% .034 158 / .04), 0 8px 22px oklch(21% .034 158 / .05);
+}
+
+body.theme-dark {
+  --tt-surface-raised: color-mix(in oklch, var(--surface-strong) 92%, var(--canvas-parchment));
+  --tt-shadow-raised: 0 1px 2px oklch(0% 0 0 / .16), 0 10px 28px oklch(0% 0 0 / .18);
+}
+
+@media (max-width: 380px) {
+  :root {
+    --tt-gutter-flat: 10px;
+    --tt-row-height-compact: 54px;
+    --tt-avatar-compact: 38px;
+    --tt-section-gap-flat: 8px;
+  }
+}
