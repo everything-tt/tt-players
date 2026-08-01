@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   deriveKnockoutResult,
+  deriveTournamentPageState,
   formatRoundLabel,
   type TournamentBracketMatch,
 } from './tournament-analysis';
@@ -27,6 +28,29 @@ describe('formatRoundLabel', () => {
     expect(formatRoundLabel('semi-final')).toBe('Semi-final');
     expect(formatRoundLabel('group_stage')).toBe('Group Stage');
     expect(formatRoundLabel(null)).toBe('General');
+  });
+});
+
+describe('deriveTournamentPageState', () => {
+  it('hides all player and match sections before results exist', () => {
+    expect(deriveTournamentPageState(0, 'entries_open')).toEqual({
+      hasRecordedResults: false,
+      resultsAvailabilityMessage: 'Results and player information will appear after the event.',
+    });
+  });
+
+  it('explains when a past event has no imported results', () => {
+    expect(deriveTournamentPageState(0, 'completed')).toEqual({
+      hasRecordedResults: false,
+      resultsAvailabilityMessage: 'Results are not currently available for this event.',
+    });
+  });
+
+  it('enables result sections as soon as a recorded match exists', () => {
+    expect(deriveTournamentPageState(1, 'completed')).toEqual({
+      hasRecordedResults: true,
+      resultsAvailabilityMessage: null,
+    });
   });
 });
 
