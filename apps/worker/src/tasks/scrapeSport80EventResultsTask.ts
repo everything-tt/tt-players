@@ -67,6 +67,12 @@ async function saveSport80SourceMapping(
     matchConfidence: number | null,
 ): Promise<void> {
     const sourceUrl = sport80Urls.eventResultsTable(eventId);
+    const rawPayload = {
+        id: eventId,
+        name: eventName,
+        date: eventDate,
+        category,
+    };
     const now = new Date();
     await database
         .insertInto('tournament_sources')
@@ -77,12 +83,7 @@ async function saveSport80SourceMapping(
             external_id: eventId,
             source_url: sourceUrl,
             source_key: eventId,
-            raw_payload: {
-                id: eventId,
-                name: eventName,
-                date: eventDate,
-                category,
-            },
+            raw_payload: rawPayload,
             first_seen_at: now,
             last_seen_at: now,
             missing_count: 0,
@@ -93,14 +94,14 @@ async function saveSport80SourceMapping(
         })
         .onConflict((conflict) =>
             conflict.columns(['provider', 'source_type', 'source_key']).doUpdateSet({
-                competition_id: (eb) => eb.ref('excluded.competition_id'),
-                external_id: (eb) => eb.ref('excluded.external_id'),
-                source_url: (eb) => eb.ref('excluded.source_url'),
-                raw_payload: (eb) => eb.ref('excluded.raw_payload'),
+                competition_id: competitionId,
+                external_id: eventId,
+                source_url: sourceUrl,
+                raw_payload: rawPayload,
                 last_seen_at: now,
                 missing_count: 0,
-                match_method: (eb) => eb.ref('excluded.match_method'),
-                match_confidence: (eb) => eb.ref('excluded.match_confidence'),
+                match_method: matchMethod,
+                match_confidence: matchConfidence,
                 updated_at: now,
             }),
         )
