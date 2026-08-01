@@ -15,12 +15,16 @@ export interface TteCalendarEvent {
     sourceKey: string;
     sourceUrl: string;
     name: string;
+    description: string | null;
     startDate: string;
     endDate: string | null;
     venueName: string | null;
     venueAddress: string | null;
     venueTown: string | null;
     venuePostcode: string | null;
+    venueUrl: string | null;
+    organizerName: string | null;
+    organizerUrl: string | null;
     categories: string[];
     entryDeadline: string | null;
     entryUrl: string | null;
@@ -43,6 +47,18 @@ function absoluteTteUrl(value: string, baseUrl: string = TTE_ORIGIN): string | n
     try {
         const url = new URL(value, baseUrl);
         if (url.origin !== TTE_ORIGIN) return null;
+        url.hash = '';
+        return url.toString();
+    } catch {
+        return null;
+    }
+}
+
+function absoluteUrlValue(value: unknown, baseUrl: string): string | null {
+    const text = stringValue(value);
+    if (!text) return null;
+    try {
+        const url = new URL(text, baseUrl);
         url.hash = '';
         return url.toString();
     } catch {
@@ -95,6 +111,17 @@ function asObject(value: unknown): JsonObject | null {
         : null;
 }
 
+function firstObject(value: unknown): JsonObject | null {
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const object = asObject(item);
+            if (object) return object;
+        }
+        return null;
+    }
+    return asObject(value);
+}
+
 function findEventNode(value: unknown): JsonObject | null {
     if (Array.isArray(value)) {
         for (const item of value) {
@@ -131,6 +158,16 @@ function stringValue(value: unknown): string | null {
     return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function plainTextValue(value: unknown): string | null {
+    const text = stringValue(value);
+    if (!text) return null;
+    const normalized = cheerio.load(`<body>${text}</body>`)('body')
+        .text()
+        .replace(/\s+/g, ' ')
+        .trim();
+    return normalized || null;
+}
+
 function dateOnly(value: unknown): string | null {
     const text = stringValue(value);
     if (!text) return null;
@@ -142,6 +179,19 @@ function textFromDom($: cheerio.CheerioAPI, selectors: string[]): string | null 
     for (const selector of selectors) {
         const value = $(selector).first().text().replace(/\s+/g, ' ').trim();
         if (value) return value;
+    }
+    return null;
+}
+
+function hrefFromDom(
+    $: cheerio.CheerioAPI,
+    selectors: string[],
+    baseUrl: string,
+): string | null {
+    for (const selector of selectors) {
+        const href = $(selector).first().attr('href');
+        const absolute = absoluteUrlValue(href, baseUrl);
+        if (absolute) return absolute;
     }
     return null;
 }
@@ -337,13 +387,20 @@ export function parseTteEventPage(html: string, sourceUrl: string): TteCalendarE
         throw error;
     }
 
-    const location = asObject(event.location);
-    const address = asObject(location?.address);
+    const location = firstObject(event.location);
+    const address = firstObject(location?.address);
+    const organizer = firstObject(event.organizer);
 
     return {
         sourceKey,
         sourceUrl,
         name,
+        description: plainTextValue(event.description)
+            ?? textFromDom($, [
+                '.tribe-events-single-event-description',
+                '[itemprop="description"]',
+                '.event-description',
+            ]),
         startDate,
         endDate,
         venueName: stringValue(location?.name)
@@ -354,6 +411,22 @@ export function parseTteEventPage(html: string, sourceUrl: string): TteCalendarE
             ?? textFromDom($, ['.tribe-events-address .tribe-locality', '.tribe-locality']),
         venuePostcode: stringValue(address?.postalCode)
             ?? textFromDom($, ['.tribe-events-address .tribe-postal-code', '.tribe-postal-code']),
+        venueUrl: absoluteUrlValue(location?.url, sourceUrl)
+            ?? hrefFromDom($, [
+                '.tribe-events-meta-group-venue .tribe-venue-url a[href]',
+                '.tribe-venue-url a[href]',
+            ], sourceUrl),
+        organizerName: stringValue(organizer?.name)
+            ?? stringValue(event.organizer)
+            ?? textFromDom($, [
+                '.tribe-events-meta-group-organizer .tribe-organizer',
+                '.tribe-organizer',
+            ]),
+        organizerUrl: absoluteUrlValue(organizer?.url, sourceUrl)
+            ?? hrefFromDom($, [
+                '.tribe-events-meta-group-organizer .tribe-organizer-url a[href]',
+                '.tribe-organizer-url a[href]',
+            ], sourceUrl),
         categories: categoriesFromDom($),
         entryDeadline: entryDeadlineFromText(pageText),
         entryUrl: findEntryUrl($, sourceUrl),
