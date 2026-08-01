@@ -24,6 +24,16 @@ export interface TteCalendarEvent {
     publishedStatus: 'confirmed' | 'provisional' | 'cancelled' | 'postponed';
 }
 
+export class TteEventParseError extends Error {
+    readonly sourceUrl: string;
+
+    constructor(sourceUrl: string) {
+        super(`Unable to parse TTE event: ${sourceUrl}`);
+        this.name = 'TteEventParseError';
+        this.sourceUrl = sourceUrl;
+    }
+}
+
 type JsonObject = Record<string, unknown>;
 
 function absoluteTteUrl(value: string, baseUrl: string = TTE_ORIGIN): string | null {
@@ -207,7 +217,7 @@ export function parseTteEventPage(html: string, sourceUrl: string): TteCalendarE
     const endDate = dateOnly(event.endDate);
 
     if (!sourceKey || !name || !startDate) {
-        throw new Error(`Unable to parse TTE event: ${sourceUrl}`);
+        throw new TteEventParseError(sourceUrl);
     }
 
     const location = asObject(event.location);
