@@ -16,6 +16,11 @@ export interface KnockoutResult {
   semiFinalists: TournamentBracketPlayer[];
 }
 
+export interface TournamentPageState {
+  hasRecordedResults: boolean;
+  resultsAvailabilityMessage: string | null;
+}
+
 export function normaliseRoundKey(value: string | null | undefined): string {
   return (value ?? '')
     .trim()
@@ -36,6 +41,32 @@ export function formatRoundLabel(value: string | null | undefined): string {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+export function deriveTournamentPageState(
+  resultCount: number,
+  eventStatus: string | null | undefined,
+): TournamentPageState {
+  if (resultCount > 0) {
+    return {
+      hasRecordedResults: true,
+      resultsAvailabilityMessage: null,
+    };
+  }
+
+  const status = eventStatus?.toLowerCase() ?? '';
+  const isBeforeResults = status === 'upcoming'
+    || status === 'entries_open'
+    || status === 'entries_closed'
+    || status === 'in_progress'
+    || status === 'postponed';
+
+  return {
+    hasRecordedResults: false,
+    resultsAvailabilityMessage: isBeforeResults
+      ? 'Results and player information will appear after the event.'
+      : 'Results are not currently available for this event.',
+  };
 }
 
 function winnerAndLoser(match: TournamentBracketMatch): {
