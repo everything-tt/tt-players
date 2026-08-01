@@ -32,6 +32,7 @@ import * as m024 from '../../../../../packages/db/src/migrations/024_add_recent_
 import * as m025 from '../../../../../packages/db/src/migrations/025_add_feedback_github_issue_link.js';
 import * as m026 from '../../../../../packages/db/src/migrations/026_create_feedback_attachments.js';
 import * as m027 from '../../../../../packages/db/src/migrations/027_expand_feedback_context_and_attachments.js';
+import * as m028 from '../../../../../packages/db/src/migrations/028_create_tournament_sources.js';
 
 const { Pool } = pg;
 
@@ -69,6 +70,7 @@ class StaticMigrationProvider implements MigrationProvider {
             '025_add_feedback_github_issue_link': m025,
             '026_create_feedback_attachments': m026,
             '027_expand_feedback_context_and_attachments': m027,
+            '028_create_tournament_sources': m028,
         };
     }
 }
