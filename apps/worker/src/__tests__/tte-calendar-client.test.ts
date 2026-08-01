@@ -25,12 +25,19 @@ const EVENT_HTML = `
         "@context": "https://schema.org",
         "@type": "Event",
         "name": "Liverpool Centenary Senior 4★ Open",
+        "description": "Six-player round-robin groups followed by banded knockout events.",
         "startDate": "2026-08-22T08:45:00+01:00",
         "endDate": "2026-08-23T17:00:00+01:00",
         "eventStatus": "https://schema.org/EventScheduled",
+        "organizer": {
+          "@type": "Organization",
+          "name": "Liverpool Table Tennis",
+          "url": "https://liverpool.example.com"
+        },
         "location": {
           "@type": "Place",
           "name": "Wavertree Tennis Centre",
+          "url": "https://wavertree.example.com",
           "address": {
             "@type": "PostalAddress",
             "streetAddress": "Wavertree Sports Park, Wellington Road",
@@ -58,6 +65,9 @@ const DOM_EVENT_HTML = `
 <html>
   <body>
     <h1>Topspin Nottingham Senior 4* Open</h1>
+    <div class="tribe-events-single-event-description">
+      <p>Players begin in groups before progressing into graded knockout competitions.</p>
+    </div>
     <div class="tribe-events-schedule">
       <h2><span class="tribe-event-date-start">June 21st</span></h2>
     </div>
@@ -82,6 +92,12 @@ const DOM_EVENT_HTML = `
           <span class="tribe-postal-code">NG11 8NS</span>
         </span>
       </address>
+      <div class="tribe-venue-url"><a href="https://venue.example.com">Venue website</a></div>
+    </div>
+    <div class="tribe-events-meta-group tribe-events-meta-group-organizer">
+      <h2>Organiser</h2>
+      <div class="tribe-organizer">Topspin Nottingham TTC</div>
+      <div class="tribe-organizer-url"><a href="https://organizer.example.com">Organiser website</a></div>
     </div>
     <h5>Entry Information</h5>
     <p><a href="https://entries.example.com/nottingham">Download Entry Form</a></p>
@@ -124,7 +140,7 @@ describe('TTE competition event discovery', () => {
 });
 
 describe('TTE event detail parsing', () => {
-    it('extracts structured dates, venue, categories and entry information', () => {
+    it('extracts structured dates, venue, categories, entry information and rich metadata', () => {
         expect(
             parseTteEventPage(
                 EVENT_HTML,
@@ -134,12 +150,16 @@ describe('TTE event detail parsing', () => {
             sourceKey: 'liverpool-centenary-senior-4-open',
             sourceUrl: 'https://www.tabletennisengland.co.uk/event/liverpool-centenary-senior-4-open/',
             name: 'Liverpool Centenary Senior 4★ Open',
+            description: 'Six-player round-robin groups followed by banded knockout events.',
             startDate: '2026-08-22',
             endDate: '2026-08-23',
             venueName: 'Wavertree Tennis Centre',
             venueAddress: 'Wavertree Sports Park, Wellington Road',
             venueTown: 'Liverpool',
             venuePostcode: 'L15 4LE',
+            venueUrl: 'https://wavertree.example.com',
+            organizerName: 'Liverpool Table Tennis',
+            organizerUrl: 'https://liverpool.example.com',
             categories: ['4* event', 'Senior'],
             entryDeadline: '2026-07-26',
             entryUrl: 'https://entries.example.com/liverpool',
@@ -147,7 +167,7 @@ describe('TTE event detail parsing', () => {
         });
     });
 
-    it('extracts dates and venue from the live Tribe Events DOM when JSON-LD is absent', () => {
+    it('extracts rich metadata from the live Tribe Events DOM when JSON-LD is absent', () => {
         expect(
             parseTteEventPage(
                 DOM_EVENT_HTML,
@@ -157,12 +177,16 @@ describe('TTE event detail parsing', () => {
             sourceKey: 'topspin-nottingham-senior-4-open',
             sourceUrl: 'https://www.tabletennisengland.co.uk/event/topspin-nottingham-senior-4-open/',
             name: 'Topspin Nottingham Senior 4* Open',
+            description: 'Players begin in groups before progressing into graded knockout competitions.',
             startDate: '2025-06-21',
             endDate: null,
             venueName: 'Clifton Sports Hub, Nottingham Trent University',
             venueAddress: 'Clifton Campus, Clifton Lane',
             venueTown: 'Nottingham',
             venuePostcode: 'NG11 8NS',
+            venueUrl: 'https://venue.example.com/',
+            organizerName: 'Topspin Nottingham TTC',
+            organizerUrl: 'https://organizer.example.com/',
             categories: ['4* event', 'Senior'],
             entryDeadline: '2025-05-30',
             entryUrl: 'https://entries.example.com/nottingham',
@@ -180,12 +204,16 @@ describe('TTE event detail parsing', () => {
             sourceKey: 'andro-horsham-spinners-ttc-18-39-veteran-over-18-2',
             sourceUrl: 'https://www.tabletennisengland.co.uk/event/andro-horsham-spinners-ttc-18-39-veteran-over-18-2/',
             name: 'ANDRO Horsham Spinners TTC 18-39, Veteran & Over-18 2*',
+            description: null,
             startDate: '2026-02-01',
             endDate: null,
             venueName: null,
             venueAddress: null,
             venueTown: null,
             venuePostcode: null,
+            venueUrl: null,
+            organizerName: null,
+            organizerUrl: null,
             categories: [],
             entryDeadline: null,
             entryUrl: null,
