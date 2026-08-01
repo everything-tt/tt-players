@@ -3,6 +3,7 @@ import {
     buildMonthRange,
     deriveCalendarEventStatus,
     discoverTteCalendarEvents,
+    discoverTteCalendarEventsDetailed,
 } from '../tte-events-sync.js';
 
 const archive = (eventUrls: string[]) => `
@@ -133,6 +134,60 @@ describe('discoverTteCalendarEvents', () => {
             'shared-open',
         ]);
         expect(requested.filter((url) => url.endsWith('/shared-open/'))).toHaveLength(1);
+    });
+
+    it('quarantines one malformed detail page while retaining its source key as seen', async () => {
+        const pages = new Map<string, string>([
+            [
+                'https://www.tabletennisengland.co.uk/events-cat/all-competitions/?date=2025-06-01',
+                archive([
+                    '/event/1066-summer-junior-1/',
+                    '/event/valid-june-open/',
+                ]),
+            ],
+            [
+                'https://www.tabletennisengland.co.uk/event/1066-summer-junior-1/',
+                '<html><body><h1>1066 Summer Junior 1*</h1></body></html>',
+            ],
+            [
+                'https://www.tabletennisengland.co.uk/event/valid-june-open/',
+                eventPage('Valid June Open 2*', '2025-06-15'),
+            ],
+        ]);
+
+        const result = await discoverTteCalendarEventsDetailed({
+            startMonth: '2025-06',
+            endMonth: '2025-06',
+            concurrency: 2,
+            fetchPage: async (url) => {
+                const page = pages.get(url);
+                if (!page) throw new Error(`Unexpected URL ${url}`);
+                return page;
+            },
+        });
+
+        expect(result.events.map((event) => event.sourceKey)).toEqual(['valid-june-open']);
+        expect(result.seenSourceKeys).toEqual([
+            '1066-summer-junior-1',
+            'valid-june-open',
+        ]);
+        expect(result.parseFailures).toEqual([
+            expect.objectContaining({
+                sourceKey: '1066-summer-junior-1',
+                sourceUrl: 'https://www.tabletennisengland.co.uk/event/1066-summer-junior-1/',
+            }),
+        ]);
+    });
+
+    it('does not quarantine detail-page fetch failures', async () => {
+        await expect(discoverTteCalendarEventsDetailed({
+            startMonth: '2026-08',
+            endMonth: '2026-08',
+            fetchPage: async (url) => {
+                if (url.includes('/events-cat/')) return archive(['/event/network-failure/']);
+                throw new Error('network unavailable');
+            },
+        })).rejects.toThrow('network unavailable');
     });
 
     it('fails safely when a complete archive scan returns no events', async () => {
