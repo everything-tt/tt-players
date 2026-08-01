@@ -1,0 +1,329 @@
+diff --git a/packages/design-system/src/components/SearchToolbar.tsx b/packages/design-system/src/components/SearchToolbar.tsx
+new file mode 100644
+--- /dev/null
++++ b/packages/design-system/src/components/SearchToolbar.tsx
+@@ -0,0 +1,34 @@
++import type { ReactNode } from 'react';
++import { cx } from '../utils/cx';
++
++export interface SearchToolbarProps {
++  children: ReactNode;
++  actions?: ReactNode;
++  ariaLabel?: string;
++  className?: string;
++}
++
++/** Compact native-style search row with optional trailing filter actions. */
++export function SearchToolbar({
++  children,
++  actions,
++  ariaLabel = 'Search',
++  className,
++}: SearchToolbarProps) {
++  return (
++    <section
++      className={cx('tt-search-toolbar', className)}
++      role="search"
++      aria-label={ariaLabel}
++    >
++      <div className="tt-search-toolbar__input">{children}</div>
++      {actions ? (
++        <div className="tt-search-toolbar__actions">{actions}</div>
++      ) : null}
++    </section>
++  );
++}
++diff --git a/packages/design-system/src/components/AppToggleButton.tsx b/packages/design-system/src/components/AppToggleButton.tsx
++new file mode 100644
++--- /dev/null
+++++ b/packages/design-system/src/components/AppToggleButton.tsx
++@@ -0,0 +1,43 @@
+++import type { ButtonHTMLAttributes, ReactNode } from 'react';
+++import { cx } from '../utils/cx';
+++
+++export interface AppToggleButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'aria-pressed'> {
+++  children: ReactNode;
+++  pressed: boolean;
+++  iconClassName?: string;
+++  size?: 'sm' | 'md';
+++}
+++
+++/** Persistent on/off filter button with visible and semantic selected state. */
+++export function AppToggleButton({
+++  children,
+++  pressed,
+++  iconClassName,
+++  size = 'md',
+++  className,
+++  type = 'button',
+++  ...props
+++}: AppToggleButtonProps) {
+++  return (
+++    <button
+++      type={type}
+++      className={cx(
+++        'tt-toggle-button',
+++        `tt-toggle-button--${size}`,
+++        pressed && 'tt-toggle-button--pressed',
+++        className,
+++      )}
+++      aria-pressed={pressed}
+++      {...props}
+++    >
+++      {iconClassName ? <i className={iconClassName} aria-hidden="true" /> : null}
+++      <span>{children}</span>
+++    </button>
+++  );
+++}
++diff --git a/packages/design-system/src/components/EntityHero.tsx b/packages/design-system/src/components/EntityHero.tsx
++--- a/packages/design-system/src/components/EntityHero.tsx
+++++ b/packages/design-system/src/components/EntityHero.tsx
++@@ -9,6 +9,7 @@ export interface EntityHeroProps {
++   highlights?: ReactNode;
++   accent?: 'brand' | 'neutral' | 'success';
++   className?: string;
+++  actionPlacement?: 'auto' | 'inline' | 'below';
++ }
++ 
++ export function EntityHero({
++@@ -20,10 +21,16 @@ export function EntityHero({
++   highlights,
++   accent = 'brand',
++   className,
+++  actionPlacement = 'auto',
++ }: EntityHeroProps) {
+++  const inlineActions = actions && actionPlacement !== 'below';
++   return (
++-    <section className={cx('tt-entity-hero', `tt-entity-hero--${accent}`, className)}>
+++    <section className={cx(
+++      'tt-entity-hero',
+++      `tt-entity-hero--${accent}`,
+++      `tt-entity-hero--actions-${actionPlacement}`,
+++      className,
+++    )}>
++       <div className="tt-entity-hero__main">
++         {leading ? <div className="tt-entity-hero__leading">{leading}</div> : null}
++         <div className="tt-entity-hero__copy">
++@@ -32,8 +39,9 @@ export function EntityHero({
++           <h1 className="tt-entity-hero__title">{title}</h1>
++           {subtitle ? <div className="tt-entity-hero__subtitle">{subtitle}</div> : null}
++         </div>
++-        {actions ? <div className="tt-entity-hero__actions">{actions}</div> : null}
+++        {inlineActions ? <div className="tt-entity-hero__actions">{actions}</div> : null}
++       </div>
+++      {actions && actionPlacement === 'below' ? <div className="tt-entity-hero__actions">{actions}</div> : null}
++       {highlights ? <div className="tt-entity-hero__highlights">{highlights}</div> : null}
++     </section>
++   );
++diff --git a/packages/design-system/src/index.ts b/packages/design-system/src/index.ts
++--- a/packages/design-system/src/index.ts
+++++ b/packages/design-system/src/index.ts
++@@ -48,6 +48,8 @@ export {
++   type AppButtonTone,
++ } from './components/AppButton';
++ 
+++export { AppToggleButton, type AppToggleButtonProps } from './components/AppToggleButton';
+++export { SearchToolbar, type SearchToolbarProps } from './components/SearchToolbar';
++ export {
++   SegmentedToggle,
++   type SegmentedToggleOption,
++diff --git a/packages/design-system/src/styles/native-search.css b/packages/design-system/src/styles/native-search.css
++new file mode 100644
++--- /dev/null
+++++ b/packages/design-system/src/styles/native-search.css
++@@ -0,0 +1,91 @@
+++.tt-search-toolbar {
+++  box-sizing: border-box;
+++  display: flex;
+++  align-items: stretch;
+++  gap: var(--tt-space-2);
+++  width: auto;
+++  min-width: 0;
+++  margin: var(--tt-space-2) var(--tt-gutter-flat) var(--tt-space-3);
+++}
+++
+++.tt-search-toolbar__input {
+++  flex: 1 1 auto;
+++  min-width: 0;
+++}
+++
+++.tt-search-toolbar__input > * {
+++  width: 100%;
+++  min-height: 44px;
+++  margin: 0;
+++}
+++
+++.tt-search-toolbar__actions {
+++  display: flex;
+++  flex: 0 0 auto;
+++  align-items: stretch;
+++  gap: var(--tt-space-2);
+++}
+++
+++.tt-toggle-button {
+++  box-sizing: border-box;
+++  display: inline-flex;
+++  align-items: center;
+++  justify-content: center;
+++  gap: var(--tt-space-2);
+++  min-width: 44px;
+++  min-height: 44px;
+++  padding: 0 var(--tt-space-3);
+++  border: 1px solid var(--tt-border);
+++  border-radius: 999px;
+++  background: var(--tt-surface-raised);
+++  color: var(--tt-text, var(--ink));
+++  font: inherit;
+++  font-size: 14px;
+++  font-weight: 700;
+++  line-height: 1;
+++}
+++
+++.tt-toggle-button--sm {
+++  min-height: 40px;
+++  padding-inline: var(--tt-space-2);
+++  font-size: 13px;
+++}
+++
+++.tt-toggle-button--pressed {
+++  border-color: color-mix(in oklch, var(--accent) 45%, var(--tt-border));
+++  background: var(--accent-subtle);
+++  color: var(--accent);
+++}
+++
+++.tt-toggle-button:focus-visible {
+++  outline: 2px solid var(--accent);
+++  outline-offset: 2px;
+++}
+++
+++.tt-toggle-button:disabled {
+++  cursor: not-allowed;
+++  opacity: .55;
+++}
+++
+++.tt-entity-hero__title {
+++  overflow-wrap: break-word;
+++  word-break: normal;
+++}
+++
+++.tt-entity-hero--actions-below > .tt-entity-hero__actions {
+++  display: flex;
+++  flex-wrap: wrap;
+++  align-items: center;
+++  gap: var(--tt-space-2);
+++  min-width: 0;
+++  margin-top: var(--tt-space-3);
+++}
+++
+++@media (max-width: 420px) {
+++  .tt-search-toolbar {
+++    gap: var(--tt-space-2);
+++  }
+++
+++  .tt-search-toolbar__actions .tt-toggle-button span {
+++    display: none;
+++  }
+++
+++  .tt-search-toolbar__actions .tt-toggle-button {
+++    width: 44px;
+++    padding: 0;
+++  }
+++
+++  .tt-entity-hero--actions-auto .tt-entity-hero__main {
+++    flex-wrap: wrap;
+++  }
+++
+++  .tt-entity-hero--actions-auto .tt-entity-hero__actions {
+++    flex: 1 0 100%;
+++    flex-wrap: wrap;
+++  }
+++}
++diff --git a/apps/mobile/src/main.tsx b/apps/mobile/src/main.tsx
++--- a/apps/mobile/src/main.tsx
+++++ b/apps/mobile/src/main.tsx
++@@ -5,6 +5,7 @@ import './index.css';
++ import './design-tokens.css';
++ import '../../../packages/design-system/src/styles/tokens.css';
++ import '../../../packages/design-system/src/styles/primitives.css';
+++import '../../../packages/design-system/src/styles/native-search.css';
++ import './native-mobile.css';
++ import './density-pass.css';
++ import './uncarded-density.css';
++diff --git a/apps/mobile/src/paged-search.ts b/apps/mobile/src/paged-search.ts
++new file mode 100644
++--- /dev/null
+++++ b/apps/mobile/src/paged-search.ts
++@@ -0,0 +1,85 @@
+++export interface PlayerSearchPathOptions {
+++  query: string;
+++  leagueIds: string[];
+++  savedIds: string[];
+++  limit: number;
+++  offset: number;
+++  allLeaguesCount?: number;
+++}
+++
+++export interface TournamentListPathOptions {
+++  status: 'upcoming' | 'completed';
+++  query: string;
+++  savedIds: string[];
+++  limit: number;
+++  offset: number;
+++}
+++
+++function sortedUnique(values: string[]): string[] {
+++  return Array.from(new Set(values.filter(Boolean))).sort();
+++}
+++
+++export function buildPlayerSearchPath({
+++  query,
+++  leagueIds,
+++  savedIds,
+++  limit,
+++  offset,
+++  allLeaguesCount,
+++}: PlayerSearchPathOptions): string {
+++  const params = new URLSearchParams();
+++  const normalizedQuery = query.trim();
+++  if (normalizedQuery) params.set('q', normalizedQuery);
+++
+++  const normalizedLeagueIds = sortedUnique(leagueIds);
+++  const shouldIncludeLeagueIds = allLeaguesCount === undefined
+++    ? normalizedLeagueIds.length > 0
+++    : normalizedLeagueIds.length > 0 && normalizedLeagueIds.length < allLeaguesCount;
+++  if (shouldIncludeLeagueIds) params.set('league_ids', normalizedLeagueIds.join(','));
+++
+++  const normalizedSavedIds = sortedUnique(savedIds);
+++  if (normalizedSavedIds.length > 0) params.set('saved_ids', normalizedSavedIds.join(','));
+++  params.set('limit', String(limit));
+++  params.set('offset', String(offset));
+++  return `/players/search?${params.toString()}`;
+++}
+++
+++export function buildTournamentListPath({
+++  status,
+++  query,
+++  savedIds,
+++  limit,
+++  offset,
+++}: TournamentListPathOptions): string {
+++  const params = new URLSearchParams();
+++  params.set('status', status);
+++  const normalizedQuery = query.trim();
+++  if (normalizedQuery) params.set('q', normalizedQuery);
+++  const normalizedSavedIds = sortedUnique(savedIds);
+++  if (normalizedSavedIds.length > 0) params.set('saved_ids', normalizedSavedIds.join(','));
+++  params.set('limit', String(limit));
+++  params.set('offset', String(offset));
+++  return `/events?${params.toString()}`;
+++}
+++
+++export function mergePageById<T extends { id: string }>(
+++  previous: T[],
+++  incoming: T[],
+++  reset: boolean,
+++): T[] {
+++  if (reset) return incoming;
+++  const existingIds = new Set(previous.map((item) => item.id));
+++  return [...previous, ...incoming.filter((item) => !existingIds.has(item.id))];
+++}
