@@ -29,6 +29,39 @@ describe('canonical design-system contracts', () => {
     expect(markup).toContain('tt-section--compact');
   });
 
+  it('separates section description, metadata and actions', () => {
+    const markup = renderToStaticMarkup(
+      <PageSection
+        surface="flat"
+        density="compact"
+        emphasis="primary"
+        title="Compare players"
+        description="Choose two players to compare."
+        meta={<span>1 saved</span>}
+        action={<button type="button">Manage</button>}
+      >
+        Body
+      </PageSection>,
+    );
+
+    expect(markup).toContain('tt-section--emphasis-primary');
+    expect(markup).toContain('tt-section-header--primary');
+    expect(markup).toContain('tt-section-header__copy');
+    expect(markup).toContain('tt-section-header__description');
+    expect(markup).toContain('tt-section-header__trailing');
+    expect(markup).toContain('tt-section-header__meta');
+    expect(markup).toContain('tt-section-header__action');
+  });
+
+  it('keeps note as a backwards-compatible description alias', () => {
+    const markup = renderToStaticMarkup(
+      <PageSection title="Players" note="12 found">Body</PageSection>,
+    );
+
+    expect(markup).toContain('tt-section-header__description');
+    expect(markup).toContain('12 found');
+  });
+
   it('renders reusable hero, metric and filter compositions', () => {
     const markup = renderToStaticMarkup(
       <>
