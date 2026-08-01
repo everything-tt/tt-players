@@ -69,6 +69,41 @@ export function summarizePlan(planDocument) {
     return summary;
 }
 
+export function buildH2HRelevantRubbersPlanQuery() {
+    return `WITH relevant AS MATERIALIZED (
+                SELECT
+                    rubber.id,
+                    rubber.fixture_id,
+                    rubber.home_player_1_id,
+                    rubber.away_player_1_id,
+                    rubber.home_games_won,
+                    rubber.away_games_won
+                FROM rubbers rubber
+                JOIN fixtures fixture ON fixture.id = rubber.fixture_id
+                WHERE (
+                    rubber.home_player_1_id = ANY($1::uuid[])
+                    OR rubber.away_player_1_id = ANY($1::uuid[])
+                    OR rubber.home_player_1_id = ANY($2::uuid[])
+                    OR rubber.away_player_1_id = ANY($2::uuid[])
+                )
+                  AND rubber.is_doubles = false
+                  AND rubber.deleted_at IS NULL
+                  AND rubber.outcome_type <> 'walkover'
+                  AND fixture.deleted_at IS NULL
+            )
+            SELECT
+                COUNT(*)::int AS relevant_matches,
+                COUNT(*) FILTER (
+                    WHERE home_player_1_id = ANY($1::uuid[])
+                       OR away_player_1_id = ANY($1::uuid[])
+                )::int AS player1_matches,
+                COUNT(*) FILTER (
+                    WHERE home_player_1_id = ANY($2::uuid[])
+                       OR away_player_1_id = ANY($2::uuid[])
+                )::int AS player2_matches
+            FROM relevant`;
+}
+
 async function firstValue(client, text, column) {
     const result = await client.query(text);
     return result.rows[0]?.[column] ?? null;
@@ -83,6 +118,47 @@ async function explain(client, name, text, values, analyze) {
         summary: summarizePlan(document),
         plan: document,
     };
+}
+
+async function sourceIdsForCanonicalPlayer(client, canonicalId) {
+    const result = await client.query(
+        `SELECT ARRAY_AGG(id ORDER BY id) AS source_ids
+         FROM external_players
+         WHERE COALESCE(canonical_player_id, id) = $1::uuid
+           AND deleted_at IS NULL`,
+        [canonicalId],
+    );
+    return result.rows[0]?.source_ids ?? [];
+}
+
+async function findH2HCandidates(client) {
+    const result = await client.query(`
+        WITH appearances AS (
+            SELECT home_player_1_id AS player_id
+            FROM rubbers
+            WHERE home_player_1_id IS NOT NULL
+              AND is_doubles = false
+              AND deleted_at IS NULL
+              AND outcome_type <> 'walkover'
+
+            UNION ALL
+
+            SELECT away_player_1_id AS player_id
+            FROM rubbers
+            WHERE away_player_1_id IS NOT NULL
+              AND is_doubles = false
+              AND deleted_at IS NULL
+              AND outcome_type <> 'walkover'
+        )
+        SELECT COALESCE(player.canonical_player_id, player.id) AS canonical_id
+        FROM appearances
+        JOIN external_players player ON player.id = appearances.player_id
+        WHERE player.deleted_at IS NULL
+        GROUP BY COALESCE(player.canonical_player_id, player.id)
+        ORDER BY COUNT(*) DESC
+        LIMIT 2
+    `);
+    return result.rows.map((row) => row.canonical_id);
 }
 
 export async function capturePlans(client, analyze) {
@@ -201,6 +277,27 @@ export async function capturePlans(client, analyze) {
         ));
     } else {
         plans.push({ name: 'team-fixtures-page', skipped: true, reason: 'No team fixtures' });
+    }
+
+    const h2hCandidates = await findH2HCandidates(client);
+    if (h2hCandidates.length === 2) {
+        const [player1SourceIds, player2SourceIds] = await Promise.all([
+            sourceIdsForCanonicalPlayer(client, h2hCandidates[0]),
+            sourceIdsForCanonicalPlayer(client, h2hCandidates[1]),
+        ]);
+        if (player1SourceIds.length > 0 && player2SourceIds.length > 0) {
+            plans.push(await explain(
+                client,
+                'h2h-analysis-relevant-rubbers',
+                buildH2HRelevantRubbersPlanQuery(),
+                [player1SourceIds, player2SourceIds],
+                analyze,
+            ));
+        } else {
+            plans.push({ name: 'h2h-analysis-relevant-rubbers', skipped: true, reason: 'No source IDs for H2H candidates' });
+        }
+    } else {
+        plans.push({ name: 'h2h-analysis-relevant-rubbers', skipped: true, reason: 'Fewer than two H2H candidates' });
     }
 
     return plans;
