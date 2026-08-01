@@ -5,6 +5,7 @@ import {
     fetchTtePage,
     parseTteCompetitionArchive,
     parseTteEventPage,
+    TteEventParseError,
     type TteCalendarEvent,
 } from './tte-events-client.js';
 import { normalizeTournamentName, normalizeVenue } from './tournament-normalization.js';
@@ -16,6 +17,18 @@ export interface DiscoverTteCalendarEventsOptions {
     fetchPage?: (url: string) => Promise<string>;
 }
 
+export interface TteCalendarParseFailure {
+    sourceKey: string;
+    sourceUrl: string;
+    message: string;
+}
+
+export interface TteCalendarDiscoveryResult {
+    events: TteCalendarEvent[];
+    seenSourceKeys: string[];
+    parseFailures: TteCalendarParseFailure[];
+}
+
 export interface SyncTteCalendarOptions extends DiscoverTteCalendarEventsOptions {
     now?: Date;
 }
@@ -23,6 +36,7 @@ export interface SyncTteCalendarOptions extends DiscoverTteCalendarEventsOptions
 export interface SyncTteCalendarSummary {
     archiveMonths: number;
     discovered: number;
+    parseFailures: number;
     created: number;
     updated: number;
     unchanged: number;
@@ -109,9 +123,18 @@ async function mapWithConcurrency<T, R>(
     return results;
 }
 
-export async function discoverTteCalendarEvents(
+function sourceKeyFromEventUrl(sourceUrl: string): string | null {
+    try {
+        const match = new URL(sourceUrl).pathname.match(/^\/event\/([^/]+)\/?$/);
+        return match?.[1] ?? null;
+    } catch {
+        return null;
+    }
+}
+
+export async function discoverTteCalendarEventsDetailed(
     options: DiscoverTteCalendarEventsOptions,
-): Promise<TteCalendarEvent[]> {
+): Promise<TteCalendarDiscoveryResult> {
     const months = buildMonthRange(options.startMonth, options.endMonth);
     const fetchPage = options.fetchPage ?? ((url: string) => fetchTtePage(url));
     const eventUrls = new Set<string>();
@@ -128,13 +151,57 @@ export async function discoverTteCalendarEvents(
         throw new Error('No TTE competition events discovered; refusing to treat the calendar as empty');
     }
 
-    const events = await mapWithConcurrency(
-        [...eventUrls].sort(),
+    const sortedUrls = [...eventUrls].sort();
+    const seenSourceKeys = sortedUrls
+        .map(sourceKeyFromEventUrl)
+        .filter((sourceKey): sourceKey is string => Boolean(sourceKey))
+        .sort();
+
+    const outcomes = await mapWithConcurrency(
+        sortedUrls,
         Math.max(1, Math.min(options.concurrency ?? 4, 8)),
-        async (sourceUrl) => parseTteEventPage(await fetchPage(sourceUrl), sourceUrl),
+        async (sourceUrl): Promise<
+            | { event: TteCalendarEvent; failure?: never }
+            | { event?: never; failure: TteCalendarParseFailure }
+        > => {
+            const html = await fetchPage(sourceUrl);
+            try {
+                return { event: parseTteEventPage(html, sourceUrl) };
+            } catch (error) {
+                if (!(error instanceof TteEventParseError)) throw error;
+                const sourceKey = sourceKeyFromEventUrl(sourceUrl);
+                if (!sourceKey) throw error;
+                return {
+                    failure: {
+                        sourceKey,
+                        sourceUrl,
+                        message: error.message,
+                    },
+                };
+            }
+        },
     );
 
-    return events.sort((left, right) => left.sourceKey.localeCompare(right.sourceKey));
+    const events = outcomes
+        .flatMap((outcome) => outcome.event ? [outcome.event] : [])
+        .sort((left, right) => left.sourceKey.localeCompare(right.sourceKey));
+    const parseFailures = outcomes
+        .flatMap((outcome) => outcome.failure ? [outcome.failure] : [])
+        .sort((left, right) => left.sourceKey.localeCompare(right.sourceKey));
+
+    if (events.length === 0) {
+        throw new Error(
+            `No usable TTE competition events parsed; ${parseFailures.length} detail pages failed`,
+        );
+    }
+
+    return { events, seenSourceKeys, parseFailures };
+}
+
+export async function discoverTteCalendarEvents(
+    options: DiscoverTteCalendarEventsOptions,
+): Promise<TteCalendarEvent[]> {
+    return (await discoverTteCalendarEventsDetailed(options)).events;
 }
 
 function seasonIdentity(startDate: string): { externalId: string; name: string } {
@@ -367,11 +434,18 @@ export async function syncTteCalendarEvents(
 ): Promise<SyncTteCalendarSummary> {
     const now = options.now ?? new Date();
     const months = buildMonthRange(options.startMonth, options.endMonth);
-    const events = await discoverTteCalendarEvents(options);
-    const seen = new Set(events.map((event) => event.sourceKey));
+    const discovery = await discoverTteCalendarEventsDetailed(options);
+    const events = discovery.events;
+    const seen = new Set(discovery.seenSourceKeys);
+
+    for (const failure of discovery.parseFailures) {
+        console.warn(`Quarantined malformed TTE event ${failure.sourceUrl}: ${failure.message}`);
+    }
+
     const summary: SyncTteCalendarSummary = {
         archiveMonths: months.length,
         discovered: events.length,
+        parseFailures: discovery.parseFailures.length,
         created: 0,
         updated: 0,
         unchanged: 0,
