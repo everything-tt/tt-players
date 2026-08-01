@@ -1,5 +1,5 @@
+import type { ReactNode } from 'react';
 import { ratingConfidenceLabel, useRatingPredictionQuery } from '../rating-queries';
-import { formatMatchDate } from '../player-shared';
 import { usePlayerH2HQuery } from '../queries';
 import { useH2HAnalysisQuery } from '../h2h-analysis-query';
 import {
@@ -7,9 +7,7 @@ import {
   DesignList,
   EmptyState,
   ErrorState,
-  IconCircle,
   ListItem,
-  MetricGrid,
   PageSection,
 } from '../ui/appkit';
 import '../ratings-ui.css';
@@ -22,6 +20,8 @@ interface PredictionPlayer {
 interface RatingPredictionPanelProps {
   playerA: PredictionPlayer;
   playerB: PredictionPlayer;
+  actions?: ReactNode;
+  encounterCount?: number;
 }
 
 function signed(value: number | null): string {
@@ -29,11 +29,17 @@ function signed(value: number | null): string {
   return `${value > 0 ? '+' : ''}${value}`;
 }
 
-function formLine(name: string, played: number, wins: number, winRate: number): string {
-  return played > 0 ? `${name}: ${wins}W from ${played} (${winRate}%)` : `${name}: no recent matches`;
+function edgeLabel(value: number, positiveName: string, negativeName: string): string {
+  if (value === 0) return 'Even';
+  return `${value > 0 ? positiveName : negativeName} +${Math.abs(value)}`;
 }
 
-export function RatingPredictionPanel({ playerA, playerB }: RatingPredictionPanelProps) {
+export function RatingPredictionPanel({
+  playerA,
+  playerB,
+  actions,
+  encounterCount = 0,
+}: RatingPredictionPanelProps) {
   const predictionQuery = useRatingPredictionQuery(playerA.id, playerB.id, true);
   const h2hQuery = usePlayerH2HQuery(playerA.id, playerB.id, true);
   const analysisQuery = useH2HAnalysisQuery(playerA.id, playerB.id, true);
@@ -43,167 +49,168 @@ export function RatingPredictionPanel({ playerA, playerB }: RatingPredictionPane
   const analysis = analysisQuery.data ?? null;
   const playerAProbability = prediction ? Math.round(prediction.player1.win_probability * 100) : 0;
   const playerBProbability = prediction ? 100 - playerAProbability : 0;
-  const encounterCount = h2h?.encounters.length ?? 0;
-  const recentMeeting = h2h?.encounters.length
-    ? [...h2h.encounters].sort((a, b) => b.date.localeCompare(a.date))[0]
-    : null;
-
-  const historicalFavourite = !h2h || h2h.player1_wins === h2h.player2_wins
-    ? null
-    : h2h.player1_wins > h2h.player2_wins ? 'a' : 'b';
   const modelFavourite = !prediction || playerAProbability === playerBProbability
     ? null
     : playerAProbability > playerBProbability ? 'a' : 'b';
+  const favouriteName = modelFavourite === 'a' ? playerA.name : modelFavourite === 'b' ? playerB.name : null;
+  const headline = !prediction
+    ? 'Prediction unavailable'
+    : favouriteName
+      ? `${favouriteName} is favoured`
+      : 'Too close to call';
+  const headlineDetail = !prediction
+    ? 'Both players need a calculated rating before a model verdict can be shown.'
+    : favouriteName
+      ? `${Math.max(playerAProbability, playerBProbability)}% model win chance`
+      : 'The rating model sees an even matchup.';
 
-  const modelRead = !prediction
-    ? 'The rating model does not have enough data for this matchup yet.'
-    : playerAProbability === playerBProbability
-      ? 'The rating model sees this as an even matchup.'
-      : `${modelFavourite === 'a' ? playerA.name : playerB.name} has the model edge at ${Math.max(playerAProbability, playerBProbability)}%.`;
-
-  const meetingRead = !h2h || encounterCount === 0
-    ? 'No previous meetings are recorded.'
+  const directMeetingSummary = !h2h || encounterCount === 0
+    ? 'No recorded meetings'
     : h2h.player1_wins === h2h.player2_wins
-      ? `Previous meetings are level at ${h2h.player1_wins}-${h2h.player2_wins}.`
-      : `${historicalFavourite === 'a' ? playerA.name : playerB.name} leads previous meetings ${Math.max(h2h.player1_wins, h2h.player2_wins)}-${Math.min(h2h.player1_wins, h2h.player2_wins)}.`;
-
-  const formRead = analysis
-    ? `${formLine(playerA.name, analysis.form.player1.played, analysis.form.player1.wins, analysis.form.player1.win_rate)}; ${formLine(playerB.name, analysis.form.player2.played, analysis.form.player2.wins, analysis.form.player2.win_rate)}.`
-    : 'Recent-form comparison is still loading.';
-
-  const watchRead = prediction && historicalFavourite && modelFavourite && historicalFavourite !== modelFavourite
-    ? 'The model and the previous meetings point in different directions, so the matchup may be closer than the headline probability.'
-    : analysis && Math.abs(analysis.common_opponents.aggregate_edge) >= 10
-      ? `${analysis.common_opponents.aggregate_edge > 0 ? playerA.name : playerB.name} has a meaningful edge against shared opponents.`
-      : encounterCount > 0 && encounterCount < 3
-        ? 'Treat the head-to-head record carefully because it is based on a small sample.'
-        : prediction && Math.abs(playerAProbability - playerBProbability) <= 10
-          ? 'This is a close model matchup; recent form and the opening games may matter more than the overall ratings.'
-          : 'Use the probability as context rather than a guarantee; match conditions and current form can still change the outcome.';
+      ? `Level ${h2h.player1_wins}-${h2h.player2_wins}`
+      : `${h2h.player1_wins > h2h.player2_wins ? playerA.name : playerB.name} leads ${Math.max(h2h.player1_wins, h2h.player2_wins)}-${Math.min(h2h.player1_wins, h2h.player2_wins)}`;
 
   return (
     <>
-      <PageSection surface="flat" density="compact" title="Win probability" note="Calculated ability">
-        {predictionQuery.isLoading ? (
-          <EmptyState iconClassName="fa fa-spinner fa-spin" title="Calculating matchup…" />
-        ) : !prediction ? (
-          <EmptyState
-            iconClassName="fa fa-chart-simple"
-            title="Prediction not available yet"
-            message="Both players need a calculated rating before a probability can be shown."
-          />
-        ) : (
-          <>
-            <div className="tt-rating-prediction-grid">
-              <div className="tt-rating-prediction-player tt-rating-prediction-player-a">
-                <span className="tt-rating-prediction-name">{playerA.name}</span>
-                <strong>{playerAProbability}%</strong>
-                <span>Rating {Math.round(prediction.player1.rating)}</span>
-              </div>
-              <div className="tt-rating-prediction-vs" aria-hidden="true">VS</div>
-              <div className="tt-rating-prediction-player tt-rating-prediction-player-b">
-                <span className="tt-rating-prediction-name">{playerB.name}</span>
-                <strong>{playerBProbability}%</strong>
-                <span>Rating {Math.round(prediction.player2.rating)}</span>
-              </div>
-            </div>
+      <PageSection
+        surface="raised"
+        density="compact"
+        title={`${playerA.name} vs ${playerB.name}`}
+        note={encounterCount > 0 ? `${encounterCount} recorded meetings` : 'No recorded direct meetings'}
+      >
+        <div className="tt-h2h-verdict">
+          {actions ? <div className="tt-h2h-matchup-actions">{actions}</div> : null}
 
-            <div
-              className="tt-rating-probability-bar"
-              role="img"
-              aria-label={`${playerA.name} ${playerAProbability} percent chance, ${playerB.name} ${playerBProbability} percent chance`}
-            >
-              <div className="tt-rating-probability-a" style={{ flexGrow: playerAProbability }} />
-              <div className="tt-rating-probability-b" style={{ flexGrow: playerBProbability }} />
-            </div>
+          {predictionQuery.isLoading ? (
+            <EmptyState iconClassName="fa fa-spinner fa-spin" title="Calculating matchup…" />
+          ) : !prediction ? (
+            <EmptyState
+              iconClassName="fa fa-chart-simple"
+              title="Prediction not available yet"
+              message="Both players need a calculated rating before a probability can be shown."
+            />
+          ) : (
+            <>
+              <div className="tt-h2h-verdict-copy">
+                <span className="tt-h2h-verdict-eyebrow">Model verdict</span>
+                <strong>{headline}</strong>
+                <span>{headlineDetail}</span>
+              </div>
 
-            <div className="tt-rating-prediction-meta">
-              <span>{ratingConfidenceLabel(prediction.confidence)} prediction confidence</span>
-              <span>Model estimate, not a guarantee</span>
-            </div>
-          </>
-        )}
+              <div className="tt-rating-prediction-grid tt-h2h-verdict-grid">
+                <div className="tt-rating-prediction-player tt-rating-prediction-player-a">
+                  <span className="tt-rating-prediction-name">{playerA.name}</span>
+                  <strong>{playerAProbability}%</strong>
+                  <span>Rating {Math.round(prediction.player1.rating)}</span>
+                </div>
+                <div className="tt-rating-prediction-vs" aria-hidden="true">VS</div>
+                <div className="tt-rating-prediction-player tt-rating-prediction-player-b">
+                  <span className="tt-rating-prediction-name">{playerB.name}</span>
+                  <strong>{playerBProbability}%</strong>
+                  <span>Rating {Math.round(prediction.player2.rating)}</span>
+                </div>
+              </div>
+
+              <div
+                className="tt-rating-probability-bar"
+                role="img"
+                aria-label={`${playerA.name} ${playerAProbability} percent chance, ${playerB.name} ${playerBProbability} percent chance`}
+              >
+                <div className="tt-rating-probability-a" style={{ flexGrow: playerAProbability }} />
+                <div className="tt-rating-probability-b" style={{ flexGrow: playerBProbability }} />
+              </div>
+
+              <div className="tt-rating-prediction-meta">
+                <span>{ratingConfidenceLabel(prediction.confidence)} prediction confidence</span>
+                <span>Model estimate, not a guarantee</span>
+              </div>
+            </>
+          )}
+        </div>
       </PageSection>
 
-      <PageSection surface="flat" density="compact" title="Match preparation" note="At a glance">
-        {h2hQuery.isLoading || analysisQuery.isLoading ? (
-          <EmptyState iconClassName="fa fa-spinner fa-spin" title="Building match brief…" />
+      <PageSection
+        surface="flat"
+        density="compact"
+        title="Evidence"
+        note={analysis ? `${analysis.evidence.confidence} confidence · sample ${analysis.evidence.sample_size}` : 'Building comparison'}
+      >
+        {analysisQuery.isLoading || h2hQuery.isLoading ? (
+          <EmptyState iconClassName="fa fa-spinner fa-spin" title="Building matchup evidence…" />
         ) : analysisQuery.error ? (
           <ErrorState title="Couldn’t load matchup evidence" message="Direct history is still available below." onRetry={() => analysisQuery.refetch()} />
-        ) : (
+        ) : analysis ? (
           <DesignList density="compact" divider="hairline" paginate={false}>
-            <ListItem leading={<IconCircle iconClassName="fa fa-chart-line" tone="accent" />} title="Model read" subtitle={modelRead} hideChevron />
-            <ListItem leading={<IconCircle iconClassName="fa fa-code-compare" tone="neutral" />} title="Previous meetings" subtitle={meetingRead} hideChevron />
-            <ListItem leading={<IconCircle iconClassName="fa fa-fire" tone="danger" />} title="Recent form" subtitle={formRead} hideChevron />
-            {recentMeeting ? (
-              <ListItem
-                leading={<IconCircle iconClassName="fa fa-clock" tone="neutral" />}
-                title="Last meeting"
-                subtitle={`${recentMeeting.isWin ? playerA.name : playerB.name} won ${recentMeeting.result} · ${formatMatchDate(recentMeeting.date)} · ${recentMeeting.source_label}`}
-                hideChevron
-              />
-            ) : null}
-            <ListItem leading={<IconCircle iconClassName="fa fa-eye" tone="success" />} title="What to watch" subtitle={watchRead} hideChevron />
+            <ListItem
+              leading={<DesignAvatar size="compact" text="RT" />}
+              title="Ability rating"
+              subtitle={`${analysis.rating.player1.current ?? '—'} vs ${analysis.rating.player2.current ?? '—'} · 12-week change ${signed(analysis.rating.player1.change_12_weeks)} vs ${signed(analysis.rating.player2.change_12_weeks)}`}
+              trailing={prediction ? <strong>{edgeLabel(Math.round(prediction.player1.rating - prediction.player2.rating), playerA.name, playerB.name)}</strong> : undefined}
+              hideChevron
+            />
+            <ListItem
+              leading={<DesignAvatar size="compact" text="FM" />}
+              title="Recent form"
+              subtitle={`${playerA.name} ${analysis.form.player1.wins}W from ${analysis.form.player1.played} (${analysis.form.player1.win_rate}%) · ${playerB.name} ${analysis.form.player2.wins}W from ${analysis.form.player2.played} (${analysis.form.player2.win_rate}%)`}
+              trailing={<strong>{edgeLabel(analysis.form.player1.win_rate - analysis.form.player2.win_rate, playerA.name, playerB.name)}</strong>}
+              hideChevron
+            />
+            <ListItem
+              leading={<DesignAvatar size="compact" text="SO" />}
+              title="Shared opponents"
+              subtitle={analysis.common_opponents.total > 0
+                ? `${analysis.common_opponents.total} shared opponents provide indirect comparison`
+                : 'No shared opponents are recorded yet'}
+              trailing={analysis.common_opponents.total > 0
+                ? <strong>{edgeLabel(analysis.common_opponents.aggregate_edge, playerA.name, playerB.name)}</strong>
+                : undefined}
+              hideChevron
+            />
+            <ListItem
+              leading={<DesignAvatar size="compact" text="H2" />}
+              title="Direct meetings"
+              subtitle={encounterCount === 0
+                ? 'The model relies on ratings, recent form and shared opponents.'
+                : `${encounterCount} recorded matches`}
+              trailing={<strong>{directMeetingSummary}</strong>}
+              hideChevron
+            />
           </DesignList>
+        ) : (
+          <EmptyState iconClassName="fa fa-chart-simple" title="Evidence not available yet" />
         )}
       </PageSection>
 
       {analysis ? (
-        <>
-          <PageSection surface="flat" density="compact" title="Current evidence" note={`${analysis.evidence.confidence} confidence · sample ${analysis.evidence.sample_size}`}>
-            <MetricGrid
-              columns={2}
-              density="compact"
-              metrics={[
-                {
-                  label: playerA.name,
-                  value: analysis.rating.player1.current ?? '—',
-                  hint: `${signed(analysis.rating.player1.change_12_weeks)} over 12 weeks · ${analysis.form.player1.win_rate}% recent form`,
-                },
-                {
-                  label: playerB.name,
-                  value: analysis.rating.player2.current ?? '—',
-                  hint: `${signed(analysis.rating.player2.change_12_weeks)} over 12 weeks · ${analysis.form.player2.win_rate}% recent form`,
-                },
-              ]}
+        <PageSection
+          surface="flat"
+          density="compact"
+          title="Common opponents"
+          note={analysis.common_opponents.total > 0
+            ? `${analysis.common_opponents.total} shared · aggregate edge ${analysis.common_opponents.aggregate_edge > 0 ? '+' : ''}${analysis.common_opponents.aggregate_edge}`
+            : 'Indirect comparison'}
+        >
+          {analysis.common_opponents.data.length === 0 ? (
+            <EmptyState
+              iconClassName="fa fa-people-arrows"
+              title="No shared opponents yet"
+              message="This comparison will appear once both players have faced at least one of the same opponents."
             />
-            <DesignList density="compact" divider="hairline" paginate={false}>
-              {analysis.evidence.reasons.map((reason) => (
-                <ListItem key={reason} leading={<IconCircle iconClassName="fa fa-check" tone="success" />} title={reason} hideChevron />
+          ) : (
+            <DesignList density="compact" divider="hairline" paginate initialVisibleCount={5} pageSize={5}>
+              {analysis.common_opponents.data.map((opponent) => (
+                <ListItem
+                  key={opponent.opponent_id}
+                  leading={<DesignAvatar size="compact" text={opponent.opponent_name.slice(0, 2).toUpperCase()} />}
+                  title={opponent.opponent_name}
+                  subtitle={`${playerA.name}: ${opponent.player1.wins}-${opponent.player1.losses} (${opponent.player1.win_rate}%) · ${playerB.name}: ${opponent.player2.wins}-${opponent.player2.losses} (${opponent.player2.win_rate}%)`}
+                  trailing={<strong>{opponent.edge > 0 ? '+' : ''}{opponent.edge}</strong>}
+                  hideChevron
+                />
               ))}
             </DesignList>
-          </PageSection>
-
-          <PageSection
-            surface="flat"
-            density="compact"
-            title="Common opponents"
-            note={analysis.common_opponents.total > 0
-              ? `${analysis.common_opponents.total} shared · aggregate edge ${analysis.common_opponents.aggregate_edge > 0 ? '+' : ''}${analysis.common_opponents.aggregate_edge}`
-              : 'Indirect comparison'}
-          >
-            {analysis.common_opponents.data.length === 0 ? (
-              <EmptyState
-                iconClassName="fa fa-people-arrows"
-                title="No shared opponents yet"
-                message="This comparison will appear once both players have faced at least one of the same opponents."
-              />
-            ) : (
-              <DesignList density="compact" divider="hairline" paginate initialVisibleCount={5} pageSize={5}>
-                {analysis.common_opponents.data.map((opponent) => (
-                  <ListItem
-                    key={opponent.opponent_id}
-                    leading={<DesignAvatar size="compact" text={opponent.opponent_name.slice(0, 2).toUpperCase()} />}
-                    title={opponent.opponent_name}
-                    subtitle={`${playerA.name}: ${opponent.player1.wins}-${opponent.player1.losses} (${opponent.player1.win_rate}%) · ${playerB.name}: ${opponent.player2.wins}-${opponent.player2.losses} (${opponent.player2.win_rate}%)`}
-                    trailing={<strong>{opponent.edge > 0 ? '+' : ''}{opponent.edge}</strong>}
-                    hideChevron
-                  />
-                ))}
-              </DesignList>
-            )}
-          </PageSection>
-        </>
+          )}
+        </PageSection>
       ) : null}
     </>
   );
