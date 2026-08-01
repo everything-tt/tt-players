@@ -51,6 +51,8 @@ export {
   type AppButtonSize,
   type AppButtonTone,
 } from './components/AppButton';
+export { AppToggleButton, type AppToggleButtonProps } from './components/AppToggleButton';
+export { SearchToolbar, type SearchToolbarProps } from './components/SearchToolbar';
 
 export {
   SegmentedToggle,
