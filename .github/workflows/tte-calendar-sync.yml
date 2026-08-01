@@ -4,10 +4,6 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '17 4 * * *'
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/tte-calendar-sync.yml'
 
 concurrency:
   group: tte-calendar-production-sync
@@ -35,13 +31,22 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
-      - name: Run full TTE calendar sync
+      - name: Verify scraper is deployed
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           set -euo pipefail
           test -n "$VPS_USER"
+          ssh "$VPS_USER@$VPS_HOST" \
+            "test -f /opt/tt-players/current/apps/worker/src/scrape-tte-events-once.ts"
+
+      - name: Run full TTE calendar sync
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
           ssh "$VPS_USER@$VPS_HOST" <<'REMOTE'
           set -euo pipefail
           systemd-run \
