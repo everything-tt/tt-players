@@ -162,6 +162,7 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
   const isFavourite = playerA && playerB ? isFavouriteMatchup(playerA.id, playerB.id) : false;
   const shareTarget = useMemo(() => playerA && playerB ? buildH2HShareTarget(window.location.origin, playerA, playerB) : null, [playerA, playerB]);
   const { share, status: shareStatus } = useShareTarget(shareTarget);
+  const hasCompleteMatchup = Boolean(playerA && playerB);
 
   const openSearch = (picker: 'A' | 'B') => {
     setActivePicker(picker);
@@ -207,29 +208,42 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
 
   return (
     <Stack gap="md" className="tt-h2h-page">
-      <PageSection
-        surface="raised"
-        density="standard"
-        title={playerA && playerB ? `${playerA.name} vs ${playerB.name}` : 'Build a matchup'}
-        note={playerA && playerB ? `${encounterCount} recorded encounters` : 'Select two players to compare records and matchup evidence.'}
-        action={matchupActions}
-      >
-        <div className="tt-h2h-picker-grid">
-          <PlayerPicker label="Player A" player={playerA} tone="a" onSelect={() => openSearch('A')} onOpenProfile={onOpenPlayer} />
-          <span className="tt-h2h-picker-vs" aria-hidden="true">VS</span>
-          <PlayerPicker label="Player B" player={playerB} tone="b" onSelect={() => openSearch('B')} onOpenProfile={onOpenPlayer} />
-        </div>
-        {shareStatus ? <span className="sr-only" aria-live="polite">{shareStatus}</span> : null}
-      </PageSection>
-
-      {!playerA || !playerB ? (
-        <PageSection surface="flat" density="compact">
-          <EmptyState iconClassName="fa fa-code-compare" title="Ready for the duel?" message="Select two players above to unlock H2H analytics." />
+      {!hasCompleteMatchup ? (
+        <PageSection
+          surface="flat"
+          density="compact"
+          title="Compare players"
+          note="Choose two players to see prediction, form, shared evidence and meeting history."
+          action={matchupActions}
+        >
+          <div className="tt-h2h-picker-grid">
+            <PlayerPicker label="Player A" player={playerA} tone="a" onSelect={() => openSearch('A')} onOpenProfile={onOpenPlayer} />
+            <span className="tt-h2h-picker-vs" aria-hidden="true">VS</span>
+            <PlayerPicker label="Player B" player={playerB} tone="b" onSelect={() => openSearch('B')} onOpenProfile={onOpenPlayer} />
+          </div>
         </PageSection>
-      ) : null}
+      ) : (
+        <PageSection
+          surface="flat"
+          density="compact"
+          title={`${playerA!.name} vs ${playerB!.name}`}
+          note={encounterCount > 0 ? `${encounterCount} recorded encounters` : 'No recorded direct meetings'}
+          action={matchupActions}
+        >
+          <MetricGrid
+            columns={2}
+            density="compact"
+            items={[
+              { label: playerA!.name, value: getWinRate(playerA!), hint: `${playerA!.wins} wins from ${playerA!.played}` },
+              { label: playerB!.name, value: getWinRate(playerB!), hint: `${playerB!.wins} wins from ${playerB!.played}` },
+            ]}
+          />
+          {shareStatus ? <span className="sr-only" aria-live="polite">{shareStatus}</span> : null}
+        </PageSection>
+      )}
 
-      {favouriteH2Hs.length > 0 && (!playerA || !playerB) ? (
-        <PageSection surface="flat" density="compact" title="Favourite matchups" note={`${favouriteH2Hs.length} saved`}>
+      {favouriteH2Hs.length > 0 && !hasCompleteMatchup ? (
+        <PageSection surface="flat" density="compact" title="Saved matchups" note={`${favouriteH2Hs.length} saved`}>
           <DesignList density="compact" divider="hairline">
             {favouriteH2Hs.map((item) => {
               const name = `${item.player1.name} vs ${item.player2.name}`;
@@ -273,11 +287,11 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
         <>
           <RatingPredictionPanel playerA={{ id: playerA.id, name: playerA.name }} playerB={{ id: playerB.id, name: playerB.name }} />
 
-          <PageSection surface="raised" density="compact" title="Why this prediction?" note={`${evidence.confidence} confidence`}>
+          <PageSection surface="flat" density="compact" title="Why this prediction?" note={`${evidence.confidence} confidence`}>
             <Stack gap="sm">
               <div className={`tt-h2h-confidence tt-h2h-confidence--${evidence.confidence}`}>
                 <strong>{evidence.predictedPlayer === 'even' ? 'Too close to call' : `${evidence.predictedPlayer === 'A' ? playerA.name : playerB.name} has the edge`}</strong>
-                <span>{evidence.confidence[0].toUpperCase() + evidence.confidence.slice(1)} confidence from the available evidence</span>
+                <span>{encounterCount > 0 ? 'Direct results and current records support this view.' : 'Current records and indirect evidence support this view.'}</span>
               </div>
               <DesignList density="compact" divider="hairline">
                 {evidence.reasons.map((reason, index) => (
@@ -289,15 +303,25 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
         </>
       ) : null}
 
-      {h2h && playerA && playerB ? (
+      {h2h && playerA && playerB && encounterCount === 0 ? (
+        <PageSection surface="flat" density="compact" title="Direct meetings" note="No recorded meetings">
+          <EmptyState
+            iconClassName="fa fa-code-compare"
+            title="Prediction uses indirect evidence"
+            message="Ratings, current records and shared evidence are used because these players have not met in the recorded data."
+          />
+        </PageSection>
+      ) : null}
+
+      {h2h && playerA && playerB && encounterCount > 0 ? (
         <>
-          <PageSection surface="flat" density="compact" title="Matchup score" note={`${encounterCount} direct encounters`}>
+          <PageSection surface="flat" density="compact" title="Direct record" note={`${encounterCount} meetings`}>
             <MetricGrid
               columns={3}
               density="compact"
               items={[
                 { label: playerA.name, value: h2h.player1_wins, hint: `${playerAWinPct}% wins` },
-                { label: 'Played', value: encounterCount, hint: evidence.confidence + ' confidence' },
+                { label: 'Played', value: encounterCount, hint: 'recorded matches' },
                 { label: playerB.name, value: h2h.player2_wins, hint: `${playerBWinPct}% wins` },
               ]}
             />
@@ -307,10 +331,8 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
             </div>
           </PageSection>
 
-          <PageSection surface="flat" density="compact" title="Encounters by event" note="Direct-record breakdown">
-            {leagueSummaries.length === 0 ? (
-              <EmptyState iconClassName="fa fa-calendar-times" title="No encounters found" message="There are no recorded direct matches yet." />
-            ) : (
+          {leagueSummaries.length > 0 ? (
+            <PageSection surface="flat" density="compact" title="By competition" note="Direct-record breakdown">
               <DesignList density="compact" divider="hairline">
                 {leagueSummaries.map((summary) => (
                   <ListItem
@@ -322,25 +344,21 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
                   />
                 ))}
               </DesignList>
-            )}
-          </PageSection>
+            </PageSection>
+          ) : null}
 
-          <PageSection surface="flat" density="compact" title="Encounter history" note="Past direct matches">
-            {h2h.encounters.length === 0 ? (
-              <EmptyState iconClassName="fa fa-history" title="No past encounters" />
-            ) : (
-              <DesignList density="compact" divider="hairline">
-                {h2h.encounters.map((encounter) => (
-                  <ListItem
-                    key={encounter.id}
-                    leading={<OutcomeBadge result={encounter.isWin ? 'W' : 'L'} variant="badge" />}
-                    title={encounter.result}
-                    subtitle={`${formatMatchDate(encounter.date)} · ${encounter.league}`}
-                    onClick={() => navigateInTab('leagues', `fixture/${encounter.fixture_id}`)}
-                  />
-                ))}
-              </DesignList>
-            )}
+          <PageSection surface="flat" density="compact" title="Meeting history" note="Most recent first">
+            <DesignList density="compact" divider="hairline">
+              {h2h.encounters.map((encounter) => (
+                <ListItem
+                  key={encounter.id}
+                  leading={<OutcomeBadge result={encounter.isWin ? 'W' : 'L'} variant="badge" />}
+                  title={encounter.result}
+                  subtitle={`${formatMatchDate(encounter.date)} · ${encounter.league}`}
+                  onClick={() => navigateInTab('leagues', `fixture/${encounter.fixture_id}`)}
+                />
+              ))}
+            </DesignList>
           </PageSection>
         </>
       ) : null}
