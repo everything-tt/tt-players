@@ -1,3 +1,6 @@
+import { FileMigrationProvider } from 'kysely';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import { describe, expect, it } from 'vitest';
 import { validateMigrationOrder } from '../migration-preflight.js';
 
@@ -49,5 +52,27 @@ describe('migration preflight', () => {
                 '002_create_core_tables',
             ],
         )).toThrow('previously executed migration 002_create_core_tables is missing');
+    });
+
+    it('keeps repository migrations pending after the production 033 prefix', async () => {
+        const provider = new FileMigrationProvider({
+            fs,
+            path,
+            migrationFolder: path.join(import.meta.dirname, '..', 'migrations'),
+        });
+        const availableMigrations = Object.keys(await provider.getMigrations())
+            .filter((migration) => migration.localeCompare('031_') >= 0);
+
+        expect(validateMigrationOrder(
+            availableMigrations,
+            [
+                '031_create_weekly_rating_history',
+                '033_capture_monthly_rating_checkpoints',
+            ],
+        )).toEqual([
+            '034_create_user_sync_states',
+            '035_create_api_read_models',
+            '036_create_tournament_sources',
+        ]);
     });
 });
