@@ -92,8 +92,8 @@ export function SectionHeader({
     )}>
       <div className="tt-section-header__copy">
         <h2 className="tt-section-header__title">{title}</h2>
-        {resolvedDescription !== undefined ? (
-          <p className="tt-section-header__description tt-section-header__note">{resolvedDescription}</p>
+        {resolvedDescription !== undefined && resolvedDescription !== null ? (
+          <div className="tt-section-header__description tt-section-header__note">{resolvedDescription}</div>
         ) : null}
       </div>
       {hasTrailing ? (
