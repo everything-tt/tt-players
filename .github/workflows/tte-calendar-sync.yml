@@ -42,8 +42,21 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$VPS_USER"
-          ssh "$VPS_USER@$VPS_HOST" \
-            "sudo -u ttp bash -lc 'set -a; source /etc/ttp/worker.env; set +a; cd /opt/tt-players/current; pnpm --filter @tt-players/worker tte:events'"
+          ssh "$VPS_USER@$VPS_HOST" <<'REMOTE'
+          set -euo pipefail
+          systemd-run \
+            --quiet \
+            --wait \
+            --pipe \
+            --collect \
+            --unit=ttp-tte-calendar-sync \
+            --uid=ttp \
+            --gid=ttp \
+            --property=EnvironmentFile=/etc/ttp/worker.env \
+            --property=WorkingDirectory=/opt/tt-players/current/apps/worker \
+            /opt/tt-players/current/apps/worker/node_modules/.bin/tsx \
+            src/scrape-tte-events-once.ts
+          REMOTE
 
       - name: Verify live tournament endpoints
         env:
