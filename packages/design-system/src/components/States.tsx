@@ -53,22 +53,55 @@ export function ErrorState({ title = 'Something went wrong', message, onRetry, c
   );
 }
 
+export type SectionHeaderEmphasis = 'primary' | 'standard' | 'secondary';
+
 export interface SectionHeaderProps {
   title: ReactNode;
+  description?: ReactNode;
+  /** @deprecated Use `description` for explanatory copy or `meta` for counts/status. */
   note?: ReactNode;
-  /** Optional action on the right (e.g. a source link or count pill). */
+  /** Count, status or confidence displayed in the trailing region. */
+  meta?: ReactNode;
+  /** Optional interactive control displayed after metadata. */
   action?: ReactNode;
   density?: 'compact' | 'standard';
+  emphasis?: SectionHeaderEmphasis;
   className?: string;
 }
 
-/** Canonical section heading with responsive note and action placement. */
-export function SectionHeader({ title, note, action, density = 'standard', className }: SectionHeaderProps) {
+/** Canonical section heading with separate copy, metadata and action regions. */
+export function SectionHeader({
+  title,
+  description,
+  note,
+  meta,
+  action,
+  density = 'standard',
+  emphasis = 'standard',
+  className,
+}: SectionHeaderProps) {
+  const resolvedDescription = description ?? note;
+  const hasTrailing = meta !== undefined || Boolean(action);
+
   return (
-    <div className={cx('tt-section-header', `tt-section-header--${density}`, className)}>
-      <h2 className="tt-section-header__title">{title}</h2>
-      {note !== undefined ? <span className="tt-section-header__note">{note}</span> : null}
-      {action ? <span className="tt-section-header__action">{action}</span> : null}
+    <div className={cx(
+      'tt-section-header',
+      `tt-section-header--${density}`,
+      `tt-section-header--${emphasis}`,
+      className,
+    )}>
+      <div className="tt-section-header__copy">
+        <h2 className="tt-section-header__title">{title}</h2>
+        {resolvedDescription !== undefined ? (
+          <p className="tt-section-header__description tt-section-header__note">{resolvedDescription}</p>
+        ) : null}
+      </div>
+      {hasTrailing ? (
+        <div className="tt-section-header__trailing">
+          {meta !== undefined ? <span className="tt-section-header__meta">{meta}</span> : null}
+          {action ? <span className="tt-section-header__action">{action}</span> : null}
+        </div>
+      ) : null}
     </div>
   );
 }
