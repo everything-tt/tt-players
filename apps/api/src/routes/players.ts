@@ -26,9 +26,17 @@ const RubberCursorSchema = z.object({
     id: z.string().uuid(),
     total: z.number().int().nonnegative().optional(),
 });
+const SavedIdsSchema = z.string().refine((value) => {
+    const ids = value.split(',').map((id) => id.trim()).filter(Boolean);
+    return ids.length <= 200 && ids.every((id) => z.string().uuid().safeParse(id).success);
+}, 'saved_ids must contain at most 200 comma-separated UUIDs');
+
 const SearchQuerySchema = z.object({
     q: z.string().optional(),
     league_ids: z.string().optional(),
+    saved_ids: SavedIdsSchema.optional(),
+    limit: z.coerce.number().int().min(1).max(50).default(10),
+    offset: z.coerce.number().int().min(0).default(0),
 });
 
 const H2HQuerySchema = z.object({
@@ -52,6 +60,10 @@ const SearchResponseSchema = z.object({
             wins: z.number().int(),
         })
     ),
+    total: z.number().int().nonnegative(),
+    limit: z.number().int().positive(),
+    offset: z.number().int().nonnegative(),
+    has_more: z.boolean(),
 });
 
 const ResponseSchema = z.object({
@@ -691,181 +703,116 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 const leagueIds = (request.query.league_ids ?? '')
                     .split(',')
                     .map((id) => id.trim())
-                    .filter((id) => id.length > 0);
-                const leagueCsv = leagueIds.join(',');
+                    .filter(Boolean);
+                const savedIds = (request.query.saved_ids ?? '')
+                    .split(',')
+                    .map((id) => id.trim())
+                    .filter(Boolean);
+                const { limit, offset } = request.query;
                 const leagueIdArray = uuidArray(leagueIds);
+                const savedIdArray = uuidArray(savedIds);
                 const searchPattern = `%${normalizedQuery}%`;
-                const limit = normalizedQuery ? 20 : 10;
-                let rows: Array<{
+                const requireActivity = normalizedQuery.length === 0 || leagueIds.length > 0;
+                const recentOnly = normalizedQuery.length === 0;
+
+                const result = await sql<{
                     id: string;
                     name: string;
-                    played: number | string | null;
-                    wins: number | string | null;
-                }>;
-                if (!normalizedQuery) {
-                    rows = await sql<{
-                        id: string;
-                        name: string;
-                        played: number | string | null;
-                        wins: number | string | null;
-                    }>`
-                        WITH recent_fixtures AS MATERIALIZED (
-                            SELECT f.id
-                            FROM fixtures f
-                            JOIN competitions c ON c.id = f.competition_id
-                            JOIN seasons s ON s.id = c.season_id
-                            WHERE f.deleted_at IS NULL
-                              AND c.deleted_at IS NULL
-                              AND s.deleted_at IS NULL
-                              AND f.date_played >= NOW() - INTERVAL '100 days'
-                              AND (${leagueIds.length} = 0 OR s.league_id = ANY(${leagueIdArray}))
-                            ORDER BY f.date_played DESC, f.id DESC
-                            LIMIT 1500
-                        ),
-                        recent_players AS (
-                            SELECT
-                                COALESCE(ep.canonical_player_id, ep.id) AS canonical_id,
-                                COUNT(*)::int AS played,
-                                SUM(p.win)::int AS wins
-                            FROM recent_fixtures f
-                            CROSS JOIN LATERAL (
-                                SELECT r.home_player_1_id AS pid,
-                                       CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END AS win
-                                FROM rubbers r
-                                WHERE r.fixture_id = f.id
-                                  AND r.is_doubles = false
-                                  AND r.deleted_at IS NULL
-                                  AND r.outcome_type != 'walkover'
-                                  AND r.home_player_1_id IS NOT NULL
-
-                                UNION ALL
-
-                                SELECT r.away_player_1_id AS pid,
-                                       CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END AS win
-                                FROM rubbers r
-                                WHERE r.fixture_id = f.id
-                                  AND r.is_doubles = false
-                                  AND r.deleted_at IS NULL
-                                  AND r.outcome_type != 'walkover'
-                                  AND r.away_player_1_id IS NOT NULL
-
-                                OFFSET 0
-                            ) p
-                            JOIN external_players ep ON ep.id = p.pid
-                            WHERE ep.deleted_at IS NULL
-                            GROUP BY COALESCE(ep.canonical_player_id, ep.id)
-                        )
-                        SELECT
-                            c.id,
-                            c.name,
-                            rp.played,
-                            rp.wins
-                        FROM recent_players rp
-                        JOIN external_players c ON c.id = rp.canonical_id
-                        WHERE c.deleted_at IS NULL AND (c.canonical_player_id IS NULL OR c.canonical_player_id = c.id)
-                        ORDER BY rp.played DESC, rp.wins DESC, c.name ASC
-                        LIMIT ${limit}
-                    `.execute(db).then((result) => result.rows);
-                } else {
-                    const matchedPlayers = await sql<{
-                        id: string;
-                        name: string;
-                    }>`
-                        SELECT 
-                            cp.id AS id,
-                            cp.name AS name
+                    played: number | string;
+                    wins: number | string;
+                    total: number | string;
+                }>`
+                    WITH canonical_players AS (
+                        SELECT cp.id, cp.name
                         FROM external_players ep
                         JOIN external_players cp ON cp.id = COALESCE(ep.canonical_player_id, ep.id)
                         WHERE ep.deleted_at IS NULL
-                          AND ep.name ILIKE ${searchPattern}
+                          AND cp.deleted_at IS NULL
+                          AND (${normalizedQuery} = '' OR ep.name ILIKE ${searchPattern})
+                          AND (${savedIds.length} = 0 OR cp.id = ANY(${savedIdArray}))
                         GROUP BY cp.id, cp.name
-                        ORDER BY cp.name ASC
-                        LIMIT ${limit}
-                    `.execute(db).then((result) => result.rows);
+                    ),
+                    player_matches AS (
+                        SELECT
+                            COALESCE(ep.canonical_player_id, ep.id) AS player_id,
+                            CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END AS win
+                        FROM rubbers r
+                        JOIN external_players ep ON ep.id = r.home_player_1_id
+                        JOIN fixtures f ON f.id = r.fixture_id
+                        JOIN competitions c ON c.id = f.competition_id
+                        JOIN seasons s ON s.id = c.season_id
+                        WHERE r.is_doubles = false
+                          AND r.deleted_at IS NULL
+                          AND r.outcome_type != 'walkover'
+                          AND ep.deleted_at IS NULL
+                          AND f.deleted_at IS NULL
+                          AND c.deleted_at IS NULL
+                          AND s.deleted_at IS NULL
+                          AND (${leagueIds.length} = 0 OR s.league_id = ANY(${leagueIdArray}))
+                          AND (${recentOnly} = false OR f.date_played >= NOW() - INTERVAL '100 days')
 
-                    if (matchedPlayers.length === 0) {
-                        rows = [];
-                    } else {
-                        const matchedIds = matchedPlayers.map(p => p.id);
-                        const stats = await sql<{
-                            canonical_id: string;
-                            played: number | string | null;
-                            wins: number | string | null;
-                        }>`
-                            WITH matched_canonicals AS (
-                                SELECT unnest(ARRAY[${sql.join(matchedIds.map(id => sql`${id}::uuid`))}]::uuid[]) AS canonical_id
-                            ),
-                            player_rubbers AS (
-                                SELECT
-                                    mc.canonical_id,
-                                    r.id AS rubber_id,
-                                    CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END AS win
-                                FROM matched_canonicals mc
-                                JOIN external_players ep ON (ep.id = mc.canonical_id OR ep.canonical_player_id = mc.canonical_id)
-                                JOIN rubbers r ON r.home_player_1_id = ep.id
-                                JOIN fixtures f ON f.id = r.fixture_id
-                                JOIN competitions c ON c.id = f.competition_id
-                                JOIN seasons s ON s.id = c.season_id
-                                WHERE r.is_doubles = false
-                                  AND r.deleted_at IS NULL
-                                  AND r.outcome_type != 'walkover'
-                                  AND ep.deleted_at IS NULL
-                                  AND f.deleted_at IS NULL
-                                  AND c.deleted_at IS NULL
-                                  AND s.deleted_at IS NULL
-                                  AND (${leagueCsv} = '' OR s.league_id::text = ANY(string_to_array(${leagueCsv}, ',')))
+                        UNION ALL
 
-                                UNION ALL
+                        SELECT
+                            COALESCE(ep.canonical_player_id, ep.id) AS player_id,
+                            CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END AS win
+                        FROM rubbers r
+                        JOIN external_players ep ON ep.id = r.away_player_1_id
+                        JOIN fixtures f ON f.id = r.fixture_id
+                        JOIN competitions c ON c.id = f.competition_id
+                        JOIN seasons s ON s.id = c.season_id
+                        WHERE r.is_doubles = false
+                          AND r.deleted_at IS NULL
+                          AND r.outcome_type != 'walkover'
+                          AND ep.deleted_at IS NULL
+                          AND f.deleted_at IS NULL
+                          AND c.deleted_at IS NULL
+                          AND s.deleted_at IS NULL
+                          AND (${leagueIds.length} = 0 OR s.league_id = ANY(${leagueIdArray}))
+                          AND (${recentOnly} = false OR f.date_played >= NOW() - INTERVAL '100 days')
+                    ),
+                    player_stats AS (
+                        SELECT player_id, COUNT(*)::int AS played, COALESCE(SUM(win), 0)::int AS wins
+                        FROM player_matches
+                        GROUP BY player_id
+                    ),
+                    filtered AS (
+                        SELECT
+                            cp.id,
+                            cp.name,
+                            COALESCE(ps.played, 0)::int AS played,
+                            COALESCE(ps.wins, 0)::int AS wins
+                        FROM canonical_players cp
+                        LEFT JOIN player_stats ps ON ps.player_id = cp.id
+                        WHERE (${requireActivity} = false OR COALESCE(ps.played, 0) > 0)
+                    )
+                    SELECT id, name, played, wins, COUNT(*) OVER()::int AS total
+                    FROM filtered
+                    ORDER BY
+                        CASE WHEN ${recentOnly} THEN played END DESC NULLS LAST,
+                        CASE WHEN ${recentOnly} THEN wins END DESC NULLS LAST,
+                        name ASC,
+                        id ASC
+                    LIMIT ${limit}
+                    OFFSET ${offset}
+                `.execute(db);
 
-                                SELECT
-                                    mc.canonical_id,
-                                    r.id AS rubber_id,
-                                    CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END AS win
-                                FROM matched_canonicals mc
-                                JOIN external_players ep ON (ep.id = mc.canonical_id OR ep.canonical_player_id = mc.canonical_id)
-                                JOIN rubbers r ON r.away_player_1_id = ep.id
-                                JOIN fixtures f ON f.id = r.fixture_id
-                                JOIN competitions c ON c.id = f.competition_id
-                                JOIN seasons s ON s.id = c.season_id
-                                WHERE r.is_doubles = false
-                                  AND r.deleted_at IS NULL
-                                  AND r.outcome_type != 'walkover'
-                                  AND ep.deleted_at IS NULL
-                                  AND f.deleted_at IS NULL
-                                  AND c.deleted_at IS NULL
-                                  AND s.deleted_at IS NULL
-                                  AND (${leagueCsv} = '' OR s.league_id::text = ANY(string_to_array(${leagueCsv}, ',')))
-                            )
-                            SELECT
-                                canonical_id,
-                                COUNT(rubber_id)::int AS played,
-                                COALESCE(SUM(win), 0)::int AS wins
-                            FROM player_rubbers
-                            GROUP BY canonical_id
-                        `.execute(db).then((result) => result.rows);
-
-                        const statsMap = new Map(stats.map(s => [s.canonical_id, s]));
-                        rows = matchedPlayers.map(p => {
-                            const s = statsMap.get(p.id);
-                            return {
-                                id: p.id,
-                                name: p.name,
-                                played: s ? Number(s.played) : 0,
-                                wins: s ? Number(s.wins) : 0,
-                            };
-                        });
-                    }
-                }
+                const data = result.rows.map((row) => ({
+                    id: row.id,
+                    name: row.name,
+                    played: Number(row.played),
+                    wins: Number(row.wins),
+                }));
+                const total = result.rows.length > 0 ? Number(result.rows[0]!.total) : 0;
 
                 return reply.send({
-                    data: rows.map(r => ({
-                        id: r.id,
-                        name: r.name,
-                        played: Number(r.played),
-                        wins: Number(r.wins),
-                    }))
+                    data,
+                    total,
+                    limit,
+                    offset,
+                    has_more: offset + data.length < total,
                 });
-            }
+            },
         );
 
         app.get(
