@@ -26,9 +26,9 @@ export interface TteCalendarEvent {
 
 type JsonObject = Record<string, unknown>;
 
-function absoluteTteUrl(value: string): string | null {
+function absoluteTteUrl(value: string, baseUrl: string = TTE_ORIGIN): string | null {
     try {
-        const url = new URL(value, TTE_ORIGIN);
+        const url = new URL(value, baseUrl);
         if (url.origin !== TTE_ORIGIN) return null;
         url.hash = '';
         return url.toString();
@@ -54,7 +54,7 @@ export function parseTteCompetitionArchive(html: string): TteCompetitionArchive 
     $('a[href]').each((_index, element) => {
         const href = $(element).attr('href');
         if (!href) return;
-        const absolute = absoluteTteUrl(href);
+        const absolute = absoluteTteUrl(href, TTE_ALL_COMPETITIONS_URL);
         if (!absolute) return;
         const url = new URL(absolute);
 
