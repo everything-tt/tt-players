@@ -146,6 +146,13 @@ function textFromDom($: cheerio.CheerioAPI, selectors: string[]): string | null 
     return null;
 }
 
+function nameFromTitle($: cheerio.CheerioAPI): string | null {
+    const title = textFromDom($, ['title']);
+    if (!title) return null;
+    const name = title.replace(/\s+-\s+Table Tennis England\s*$/i, '').trim();
+    return name || null;
+}
+
 function dateFromDom($: cheerio.CheerioAPI, selectors: string[]): string | null {
     const attributes = ['datetime', 'title', 'content', 'data-start-date', 'data-end-date', 'data-date'];
     for (const selector of selectors) {
@@ -159,19 +166,60 @@ function dateFromDom($: cheerio.CheerioAPI, selectors: string[]): string | null 
     return null;
 }
 
+interface ScoredDateCandidate {
+    date: string;
+    score: number;
+    order: number;
+}
+
+function scoredDateFromAnyAttribute($: cheerio.CheerioAPI): string | null {
+    const candidates: ScoredDateCandidate[] = [];
+    let order = 0;
+
+    $('*').each((_index, element) => {
+        const attributes = $(element).attr();
+        if (!attributes) return;
+
+        const context = [
+            attributes.class,
+            attributes.id,
+            attributes.itemprop,
+            attributes.property,
+        ].filter(Boolean).join(' ').toLowerCase();
+
+        for (const [attribute, value] of Object.entries(attributes)) {
+            const date = dateOnly(value);
+            if (!date) continue;
+
+            const descriptor = `${attribute} ${context}`.toLowerCase();
+            let score = 0;
+            if (/(start|event|calendar|date|dtstart)/.test(descriptor)) score += 6;
+            if (/00:00:00/.test(value)) score += 4;
+            if (attribute === 'title' || attribute.startsWith('data-')) score += 1;
+            if (/(modified|published|updated|article)/.test(descriptor)) score -= 12;
+            if (/T\d{2}:\d{2}:\d{2}/.test(value) && !/T00:00:00/.test(value)) score -= 3;
+
+            candidates.push({ date, score, order });
+            order += 1;
+        }
+    });
+
+    candidates.sort((left, right) => right.score - left.score || left.order - right.order);
+    const best = candidates[0];
+    return best && best.score >= 0 ? best.date : null;
+}
+
 function describeUnparseablePage($: cheerio.CheerioAPI, html: string): string {
     const title = textFromDom($, ['title']) ?? '';
     const heading = textFromDom($, ['h1']) ?? '';
     const bodySample = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 180);
     const dateCandidates = new Set<string>();
-    const attributes = ['datetime', 'title', 'content', 'data-start-date', 'data-end-date', 'data-date'];
 
-    $('[datetime], [title], [content], [data-start-date], [data-end-date], [data-date]').each((_index, element) => {
-        for (const attribute of attributes) {
-            const value = $(element).attr(attribute)?.trim();
-            if (value && /\d{4}-\d{2}-\d{2}/.test(value)) {
-                dateCandidates.add(value.slice(0, 80));
-            }
+    $('*').each((_index, element) => {
+        const attributes = $(element).attr();
+        if (!attributes) return;
+        for (const value of Object.values(attributes)) {
+            if (/\d{4}-\d{2}-\d{2}/.test(value)) dateCandidates.add(value.slice(0, 80));
             if (dateCandidates.size >= 5) return false;
         }
         return undefined;
@@ -262,14 +310,16 @@ export function parseTteEventPage(html: string, sourceUrl: string): TteCalendarE
     const pageText = $('body').text().replace(/\s+/g, ' ').trim();
 
     const name = stringValue(event.name)
-        ?? textFromDom($, ['h1.tribe-events-single-event-title', 'h1']);
+        ?? textFromDom($, ['h1.tribe-events-single-event-title', 'h1'])
+        ?? nameFromTitle($);
     const startDate = dateOnly(event.startDate)
         ?? dateFromDom($, [
             '[itemprop="startDate"]',
             '.tribe-events-start-date',
             '.tribe-event-date-start',
             'time.tribe-events-start-date',
-        ]);
+        ])
+        ?? scoredDateFromAnyAttribute($);
     const endDate = dateOnly(event.endDate)
         ?? dateFromDom($, [
             '[itemprop="endDate"]',
