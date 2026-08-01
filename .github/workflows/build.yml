@@ -32,7 +32,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: netlify-${{ github.ref }}
+  group: netlify-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
