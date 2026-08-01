@@ -54,6 +54,41 @@ const EVENT_HTML = `
   </body>
 </html>`;
 
+const DOM_EVENT_HTML = `
+<html>
+  <body>
+    <h1>Topspin Nottingham Senior 4* Open</h1>
+    <div class="tribe-events-schedule">
+      <h2><span class="tribe-event-date-start">June 21st</span></h2>
+    </div>
+    <dl class="tribe-events-meta-group tribe-events-meta-group-details">
+      <dt class="tribe-events-start-date-label">Date:</dt>
+      <dd>
+        <abbr class="tribe-events-abbr tribe-events-start-date published dtstart" title="2025-06-21 00:00:00">June 21st</abbr>
+      </dd>
+      <dt>Event Categories:</dt>
+      <dd class="tribe-events-event-categories">
+        <a href="/events-cat/4-event/">4* event</a>
+        <a href="/events-cat/senior/">Senior</a>
+      </dd>
+    </dl>
+    <div class="tribe-events-meta-group tribe-events-meta-group-venue">
+      <h2>Venue</h2>
+      <div class="tribe-venue">Clifton Sports Hub, Nottingham Trent University</div>
+      <address class="tribe-events-address">
+        <span class="tribe-address">
+          <span class="tribe-street-address">Clifton Campus, Clifton Lane</span>
+          <span class="tribe-locality">Nottingham</span>
+          <span class="tribe-postal-code">NG11 8NS</span>
+        </span>
+      </address>
+    </div>
+    <h5>Entry Information</h5>
+    <p><a href="https://entries.example.com/nottingham">Download Entry Form</a></p>
+    <p>Closing date for entries: Friday 30 May, 2025</p>
+  </body>
+</html>`;
+
 describe('TTE competition event discovery', () => {
     it('builds the monthly all-competitions archive URL', () => {
         expect(buildTteCompetitionArchiveUrl('2026-08-01')).toBe(
@@ -96,6 +131,29 @@ describe('TTE event detail parsing', () => {
             entryDeadline: '2026-07-26',
             entryUrl: 'https://entries.example.com/liverpool',
             publishedStatus: 'provisional',
+        });
+    });
+
+    it('extracts dates and venue from the live Tribe Events DOM when JSON-LD is absent', () => {
+        expect(
+            parseTteEventPage(
+                DOM_EVENT_HTML,
+                'https://www.tabletennisengland.co.uk/event/topspin-nottingham-senior-4-open/',
+            ),
+        ).toEqual({
+            sourceKey: 'topspin-nottingham-senior-4-open',
+            sourceUrl: 'https://www.tabletennisengland.co.uk/event/topspin-nottingham-senior-4-open/',
+            name: 'Topspin Nottingham Senior 4* Open',
+            startDate: '2025-06-21',
+            endDate: null,
+            venueName: 'Clifton Sports Hub, Nottingham Trent University',
+            venueAddress: 'Clifton Campus, Clifton Lane',
+            venueTown: 'Nottingham',
+            venuePostcode: 'NG11 8NS',
+            categories: ['4* event', 'Senior'],
+            entryDeadline: '2025-05-30',
+            entryUrl: 'https://entries.example.com/nottingham',
+            publishedStatus: 'confirmed',
         });
     });
 
