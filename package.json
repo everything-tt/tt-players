@@ -10,7 +10,7 @@
     "db:seed": "pnpm --filter @tt-players/db run db:seed",
     "test": "pnpm run test:backend",
     "test:backend": "pnpm --filter @tt-players/db test && pnpm --filter @tt-players/api test && pnpm --filter @tt-players/worker test && pnpm run test:performance-tools",
-    "test:performance-tools": "node --test scripts/__tests__/performance-tools.test.mjs",
+    "test:performance-tools": "node --test scripts/__tests__/*.test.mjs",
     "typecheck:backend": "pnpm --filter @tt-players/api... build && pnpm --filter @tt-players/worker build",
     "check:backend": "pnpm run typecheck:backend && pnpm run test:backend",
     "check:design-system": "node scripts/check-design-system-usage.mjs",

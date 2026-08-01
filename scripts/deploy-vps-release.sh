@@ -43,6 +43,14 @@ if [[ "$release_dir" != "$root_dir"/releases/* ]]; then
   exit 1
 fi
 
+service_recovery_script="$release_dir/scripts/lib/service-recovery.sh"
+if [[ ! -f "$service_recovery_script" ]]; then
+  echo "Service recovery helper does not exist: $service_recovery_script" >&2
+  exit 1
+fi
+# shellcheck source=/dev/null
+source "$service_recovery_script"
+
 current_release=""
 if [[ -L "$current_link" ]]; then
   current_release=$(readlink -f "$current_link")
@@ -76,13 +84,13 @@ install -m 0644 "$release_dir/infra/systemd/ttp-worker.service" /etc/systemd/sys
 systemctl daemon-reload
 
 # A database migration is a forward-only boundary. Stop both services before
-# applying it, and remove the previous pointer so operators cannot accidentally
-# select a pre-migration release.
+# applying it. If the migration fails, restart the current release immediately
+# so the failed deployment does not leave the application offline.
 if [[ "$database_changed" == true ]]; then
-  systemctl stop ttp-worker ttp-api || true
-  sudo -u postgres env \
-    DATABASE_URL='postgresql:///tt_players?host=/var/run/postgresql' \
-    bash "$release_dir/scripts/migrate-vps-postgres.sh"
+  run_with_service_recovery ttp-worker ttp-api -- \
+    sudo -u postgres env \
+      DATABASE_URL='postgresql:///tt_players?host=/var/run/postgresql' \
+      bash "$release_dir/scripts/migrate-vps-postgres.sh"
   rm -f "$previous_link"
 elif [[ -n "$current_release" && "$current_release" != "$release_dir" ]]; then
   ln -sfn "$current_release" "$previous_link"
