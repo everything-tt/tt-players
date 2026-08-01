@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { EmptyState, ErrorState, SegmentedToggle, cx } from '../ui/appkit';
+import { EmptyState, ErrorState, SearchHeader, SegmentedToggle } from '../ui/appkit';
 import type { SegmentedToggleOption } from '../ui/appkit';
 
 export interface SearchPanelProps<T extends string = string> {
@@ -17,14 +17,17 @@ export interface SearchPanelProps<T extends string = string> {
     options: SegmentedToggleOption<T>[];
   };
   className?: string;
-  /** Children render below the panel (the actual results and state rows). */
+  /** Children render below the search header (the actual results and state rows). */
   children?: ReactNode;
 }
 
-/** Shared search surface for root-tab search screens. */
+/**
+ * Shared browse-page search treatment. The root toolbar already carries the
+ * page title, so search remains compact, flat and sticky instead of being
+ * wrapped in a second hero card.
+ */
 export function SearchPanel<T extends string = string>({
   eyebrow,
-  title,
   placeholder = 'Search…',
   query,
   onQueryChange,
@@ -34,53 +37,21 @@ export function SearchPanel<T extends string = string>({
 }: SearchPanelProps<T>) {
   return (
     <>
-      <section
-        className={cx('tt-search-panel', className)}
-        role="search"
-        aria-label={eyebrow ? `${eyebrow} search` : 'Search'}
-      >
-        <div className="tt-search-panel__top">
-          <div>
-            {eyebrow ? <p className="tt-eyebrow">{eyebrow}</p> : null}
-            {title ? <h2 className="tt-hero-title">{title}</h2> : null}
-          </div>
-        </div>
-
-        <label className="tt-search-input">
-          <i className="fa fa-search" aria-hidden="true" />
-          <input
-            type="search"
-            inputMode="search"
-            enterKeyHint="search"
-            autoComplete="off"
-            placeholder={placeholder}
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-            aria-label={placeholder}
+      <SearchHeader
+        ariaLabel={eyebrow ? `${eyebrow} search` : 'Search'}
+        placeholder={placeholder}
+        query={query}
+        onQueryChange={onQueryChange}
+        className={className}
+        filters={scope ? (
+          <SegmentedToggle
+            ariaLabel={scope.ariaLabel}
+            value={scope.value}
+            onChange={scope.onChange}
+            options={scope.options}
           />
-          {query ? (
-            <button
-              type="button"
-              className="tt-search-input__clear"
-              onClick={() => onQueryChange('')}
-              aria-label="Clear search"
-            >
-              <i className="fa fa-times-circle" aria-hidden="true" />
-            </button>
-          ) : null}
-        </label>
-
-        {scope ? (
-          <div className="tt-search-panel__scope">
-            <SegmentedToggle
-              ariaLabel={scope.ariaLabel}
-              value={scope.value}
-              onChange={scope.onChange}
-              options={scope.options}
-            />
-          </div>
-        ) : null}
-      </section>
+        ) : undefined}
+      />
       {children}
     </>
   );
