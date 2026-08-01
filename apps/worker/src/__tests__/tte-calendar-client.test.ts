@@ -89,6 +89,19 @@ const DOM_EVENT_HTML = `
   </body>
 </html>`;
 
+const TITLE_ATTRIBUTE_EVENT_HTML = `
+<html>
+  <head>
+    <title>ANDRO Horsham Spinners TTC 18-39, Veteran &amp; Over-18 2* - Table Tennis England</title>
+    <meta property="article:modified_time" content="2025-12-10T17:06:16+00:00">
+  </head>
+  <body>
+    <main>
+      <div class="new-event-template" data-calendar-value="2026-02-01 00:00:00">Event details</div>
+    </main>
+  </body>
+</html>`;
+
 describe('TTE competition event discovery', () => {
     it('builds the monthly all-competitions archive URL', () => {
         expect(buildTteCompetitionArchiveUrl('2026-08-01')).toBe(
@@ -153,6 +166,29 @@ describe('TTE event detail parsing', () => {
             categories: ['4* event', 'Senior'],
             entryDeadline: '2025-05-30',
             entryUrl: 'https://entries.example.com/nottingham',
+            publishedStatus: 'confirmed',
+        });
+    });
+
+    it('uses the page title and scored date attributes from the current live template', () => {
+        expect(
+            parseTteEventPage(
+                TITLE_ATTRIBUTE_EVENT_HTML,
+                'https://www.tabletennisengland.co.uk/event/andro-horsham-spinners-ttc-18-39-veteran-over-18-2/',
+            ),
+        ).toEqual({
+            sourceKey: 'andro-horsham-spinners-ttc-18-39-veteran-over-18-2',
+            sourceUrl: 'https://www.tabletennisengland.co.uk/event/andro-horsham-spinners-ttc-18-39-veteran-over-18-2/',
+            name: 'ANDRO Horsham Spinners TTC 18-39, Veteran & Over-18 2*',
+            startDate: '2026-02-01',
+            endDate: null,
+            venueName: null,
+            venueAddress: null,
+            venueTown: null,
+            venuePostcode: null,
+            categories: [],
+            entryDeadline: null,
+            entryUrl: null,
             publishedStatus: 'confirmed',
         });
     });
