@@ -10,6 +10,8 @@ Replace the large hero-style search treatment on the Players and Tournaments roo
 
 Both screens should make the active scope obvious, keep search close to the list it affects, support saved-only filtering without a separate saved section, and progressively load results as the user scrolls.
 
+Pagination applies to every result mode: the default browse list, typed search results, Saved-only results, and Saved plus search results. No mode may silently truncate a large matching result set.
+
 The root header remains the page title. The content must not repeat the title in a hero card.
 
 ## 2. Chosen interaction model
@@ -24,6 +26,8 @@ The shared vertical structure is:
 The Saved control is a filter, not a navigation destination. It uses both an icon and the label `Saved`, has a minimum 44px touch target, and exposes pressed/selected semantics.
 
 Row-level favourite buttons remain available so users can add or remove saved entities without leaving the list.
+
+Every active result set initially displays 10 items. When more matching items exist, scrolling toward the bottom loads the next page of 10. This behaviour is identical before and after entering a search query.
 
 ## 3. Shared design-system architecture
 
@@ -97,11 +101,15 @@ The existing separate `Saved Tournaments` section is removed.
 ### 4.3 Pagination
 
 - Initial page size: 10.
+- Pagination applies equally to unfiltered lists, text-search results, Saved-only results, and combined Saved plus text-search results.
 - Additional pages load automatically when the footer approaches the viewport.
-- Only one load-more request may be active for a tab.
+- Each additional page contains up to 10 more matching tournaments.
+- Only one load-more request may be active for a tab and filter key.
+- A query, lifecycle-tab, or Saved-filter change starts a new paginated result set from page one.
 - Duplicate rows are prevented by tournament ID.
 - A failed load-more request preserves existing rows and exposes a retry action.
-- The footer shows a clear end state when all matching tournaments are loaded.
+- The footer shows a clear end state only when every matching tournament for the current tab, query, and Saved state has been loaded.
+- The server response must provide reliable `has_more`, total, cursor, or equivalent pagination metadata; the client must not infer completion merely because an earlier fixed search limit was reached.
 
 ### 4.4 Empty states
 
@@ -177,7 +185,17 @@ Use offset pagination with deterministic ordering:
 - blank query: recent match volume descending, wins descending, player name ascending, player ID ascending;
 - named query: player name ascending, player ID ascending.
 
-Apply league and saved-ID filters before counting and pagination. The client uses page size 10 and the same progressive-loading behaviour and retry rules as Tournaments.
+Apply league and saved-ID filters before counting and pagination.
+
+The same pagination contract is mandatory for:
+
+- the blank browse list;
+- all text searches with three or more characters;
+- Saved-only browsing;
+- Saved plus text search;
+- both `All leagues` and `Selected` scopes.
+
+The client requests 10 results initially and automatically requests the next 10 when the user scrolls near the end. A search returning 11, 50, or hundreds of matches must remain scroll-loadable until `has_more` is false. Search results must never be capped at the current fixed limit of 20.
 
 ### 5.5 Empty states
 
@@ -202,6 +220,7 @@ For each screen:
 6. Toggling Saved resets pagination for the active filter key.
 7. Row favourite changes update local saved state immediately.
 8. If Saved is active and a visible row is unsaved, remove it from the visible list without resetting the entire screen; reconcile with the query cache afterward.
+9. Browse and search use the same infinite-query/list-state path so pagination cannot behave differently between empty-query and typed-query modes.
 
 Search requests must be cancellable through the existing React Query/AbortSignal path so stale responses cannot replace newer results.
 
@@ -252,6 +271,9 @@ Saved-filter request failure on Players:
 - search requests target only the active tab;
 - Saved intersects with lifecycle and query;
 - switching tabs preserves query, pages, and scroll state;
+- an unfiltered list with more than 10 matches scroll-loads further pages;
+- a text search with more than 10 matches scroll-loads further pages;
+- a Saved or Saved-plus-search result with more than 10 matches scroll-loads further pages;
 - automatic load-more, retry, deduplication, and end state work;
 - removing a favourite while Saved is active removes the row.
 
@@ -262,7 +284,10 @@ Saved-filter request failure on Players:
 - empty selected-league state opens or points to league selection;
 - one/two-character queries do not fetch;
 - three-character queries reset and paginate correctly;
+- a player search returning more than 10 matches loads additional pages on scroll;
+- searches are not truncated at 20 results;
 - Saved accurately intersects with active scope and query;
+- Saved-only and Saved-plus-search results paginate when more than 10 match;
 - player API validates and caps `saved_ids`;
 - player API pagination ordering is stable;
 - switching scope preserves query, pages, and scroll state;
