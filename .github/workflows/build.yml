@@ -94,8 +94,6 @@ jobs:
       cancel-in-progress: true
     env:
       PREVIEW_URL: ${{ needs.build-deploy.outputs.deploy_url }}
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/playwright-browsers
-      TMPDIR: ${{ runner.temp }}
       UI_REVIEW_REPORT_DIR: ${{ github.workspace }}/ui-review-report
       UI_REVIEW_MAX_ROUTES: 10
 
