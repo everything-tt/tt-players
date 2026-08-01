@@ -1,5 +1,5 @@
 import type { Task } from 'graphile-worker';
-import { type Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import { db, type Database } from '@tt-players/db';
 import { storeScrapePayload } from '../extractor.js';
 import { fetchSport80EventResults, sport80Urls } from '../sport80-client.js';
@@ -11,6 +11,7 @@ import {
     upsertSport80SourceEvent,
     upsertSport80SourceEventResultRows,
 } from '../sport80-loader.js';
+import { chooseTournamentCandidate } from '../tournament-reconciliation.js';
 
 export interface ScrapeSport80EventResultsPayload {
     eventId: string;
@@ -18,6 +19,11 @@ export interface ScrapeSport80EventResultsPayload {
     eventDate?: string | null;
     category?: string;
     force?: boolean;
+}
+
+interface CompetitionResolution {
+    competitionId: string;
+    matchMethod: 'existing-source' | 'automatic' | 'review' | 'separate';
 }
 
 async function upsertSeason(
@@ -50,8 +56,132 @@ async function upsertSeason(
     return row.id;
 }
 
-async function upsertCompetition(
-    db: Kysely<Database>,
+async function saveSport80SourceMapping(
+    database: Kysely<any>,
+    competitionId: string,
+    eventId: string,
+    eventName: string,
+    eventDate: string | null,
+    category: string | null,
+    matchMethod: string,
+    matchConfidence: number | null,
+): Promise<void> {
+    const sourceUrl = sport80Urls.eventResultsTable(eventId);
+    const rawPayload = {
+        id: eventId,
+        name: eventName,
+        date: eventDate,
+        category,
+    };
+    const now = new Date();
+    await database
+        .insertInto('tournament_sources')
+        .values({
+            competition_id: competitionId,
+            provider: 'sport80',
+            source_type: 'results',
+            external_id: eventId,
+            source_url: sourceUrl,
+            source_key: eventId,
+            raw_payload: rawPayload,
+            first_seen_at: now,
+            last_seen_at: now,
+            missing_count: 0,
+            match_method: matchMethod,
+            match_confidence: matchConfidence,
+            created_at: now,
+            updated_at: now,
+        })
+        .onConflict((conflict) =>
+            conflict.columns(['provider', 'source_type', 'source_key']).doUpdateSet({
+                competition_id: competitionId,
+                external_id: eventId,
+                source_url: sourceUrl,
+                raw_payload: rawPayload,
+                last_seen_at: now,
+                missing_count: 0,
+                match_method: matchMethod,
+                match_confidence: matchConfidence,
+                updated_at: now,
+            }),
+        )
+        .execute();
+}
+
+async function recordReviewCandidate(
+    database: Kysely<any>,
+    eventId: string,
+    eventName: string,
+    eventDate: string | null,
+    candidateId: string,
+    candidateVenue: string | null,
+    score: NonNullable<ReturnType<typeof chooseTournamentCandidate>['score']>,
+): Promise<void> {
+    const existing = await database
+        .selectFrom('tournament_match_candidates')
+        .select('id')
+        .where('incoming_provider', '=', 'sport80')
+        .where('incoming_external_id', '=', eventId)
+        .where('candidate_competition_id', '=', candidateId)
+        .where('status', '=', 'pending')
+        .executeTakeFirst();
+    if (existing) return;
+
+    await database
+        .insertInto('tournament_match_candidates')
+        .values({
+            incoming_provider: 'sport80',
+            incoming_external_id: eventId,
+            incoming_name: eventName,
+            incoming_date: eventDate,
+            incoming_venue: candidateVenue,
+            candidate_competition_id: candidateId,
+            name_score: score.name,
+            date_score: score.date,
+            venue_score: score.venue,
+            category_score: score.category,
+            total_score: score.total,
+            status: 'pending',
+        })
+        .execute();
+}
+
+async function findCalendarCandidates(
+    database: Kysely<any>,
+    eventDate: string | null,
+): Promise<Array<{
+    id: string;
+    name: string;
+    startDate: string | null;
+    endDate: string | null;
+    venue: string | null;
+    category: string | null;
+}>> {
+    let query = database
+        .selectFrom('competitions')
+        .select([
+            'id',
+            sql<string>`coalesce(display_name, name)`.as('name'),
+            sql<string | null>`start_date::text`.as('startDate'),
+            sql<string | null>`end_date::text`.as('endDate'),
+            sql<string | null>`nullif(concat_ws(' ', venue_name, venue_town, venue_postcode), '')`.as('venue'),
+            'category',
+        ])
+        .where('type', '=', 'individual')
+        .where('source', '=', 'tte-calendar')
+        .where('deleted_at', 'is', null);
+
+    if (eventDate) {
+        query = query
+            .where('start_date', '>=', sql<Date>`${eventDate}::date - interval '7 days'`)
+            .where('start_date', '<=', sql<Date>`${eventDate}::date + interval '7 days'`);
+    }
+
+    return query.limit(50).execute();
+}
+
+async function upsertSeparateSport80Competition(
+    database: Kysely<any>,
     seasonId: string,
     eventId: string,
     eventName: string,
@@ -63,29 +193,30 @@ async function upsertCompetition(
     const displayName = parsedName.displayName;
     const normalizedEventDate = eventDate ?? parsedName.dateFromName;
     const normalizedCategory = category ?? parsedName.category;
-    const existing = await db
+    const sourceUrl = sport80Urls.eventResultsTable(eventId);
+    const existing = await database
         .selectFrom('competitions')
         .select('id')
-        .where('season_id', '=', seasonId)
         .where('external_id', '=', externalId)
         .executeTakeFirst();
     if (existing) {
-        await db
+        await database
             .updateTable('competitions')
             .set({
                 name: eventName,
                 display_name: displayName,
                 event_date: normalizedEventDate,
+                start_date: normalizedEventDate,
                 category: normalizedCategory,
                 source: 'sport80',
-                source_url: `https://tabletennisengland.sport80.com/public/rankings/results/${eventId}`,
+                source_url: sourceUrl,
             })
             .where('id', '=', existing.id)
             .execute();
         return existing.id;
     }
 
-    const row = await db
+    const row = await database
         .insertInto('competitions')
         .values({
             season_id: seasonId,
@@ -93,14 +224,120 @@ async function upsertCompetition(
             name: eventName,
             display_name: displayName,
             event_date: normalizedEventDate,
+            start_date: normalizedEventDate,
             category: normalizedCategory,
             type: 'individual',
             source: 'sport80',
-            source_url: `https://tabletennisengland.sport80.com/public/rankings/results/${eventId}`,
+            source_url: sourceUrl,
+            event_status: 'completed',
         })
         .returning('id')
         .executeTakeFirstOrThrow();
     return row.id;
+}
+
+async function resolveCompetition(
+    database: Kysely<any>,
+    seasonId: string,
+    eventId: string,
+    eventName: string,
+    eventDate: string | null,
+    category: string | null,
+): Promise<CompetitionResolution> {
+    const existingSource = await database
+        .selectFrom('tournament_sources')
+        .select(['competition_id', 'match_method'])
+        .where('provider', '=', 'sport80')
+        .where('source_type', '=', 'results')
+        .where('source_key', '=', eventId)
+        .executeTakeFirst();
+    if (existingSource) {
+        return {
+            competitionId: existingSource.competition_id,
+            matchMethod: 'existing-source',
+        };
+    }
+
+    const parsedName = parseSport80EventName(eventName);
+    const normalizedDate = eventDate ?? parsedName.dateFromName;
+    const candidates = await findCalendarCandidates(database, normalizedDate);
+    const choice = chooseTournamentCandidate(
+        {
+            name: parsedName.displayName,
+            startDate: normalizedDate,
+            endDate: normalizedDate,
+            category: category ?? parsedName.category,
+            venue: null,
+        },
+        candidates,
+    );
+
+    if (choice.decision === 'automatic' && choice.candidate && choice.score) {
+        await saveSport80SourceMapping(
+            database,
+            choice.candidate.id,
+            eventId,
+            eventName,
+            normalizedDate,
+            category ?? parsedName.category,
+            'automatic',
+            choice.score.total,
+        );
+        return {
+            competitionId: choice.candidate.id,
+            matchMethod: 'automatic',
+        };
+    }
+
+    const separateCompetitionId = await upsertSeparateSport80Competition(
+        database,
+        seasonId,
+        eventId,
+        eventName,
+        normalizedDate,
+        category,
+    );
+
+    if (choice.decision === 'review' && choice.candidate && choice.score) {
+        await recordReviewCandidate(
+            database,
+            eventId,
+            eventName,
+            normalizedDate,
+            choice.candidate.id,
+            choice.candidate.venue ?? null,
+            choice.score,
+        );
+        await saveSport80SourceMapping(
+            database,
+            separateCompetitionId,
+            eventId,
+            eventName,
+            normalizedDate,
+            category ?? parsedName.category,
+            'review-pending',
+            choice.score.total,
+        );
+        return {
+            competitionId: separateCompetitionId,
+            matchMethod: 'review',
+        };
+    }
+
+    await saveSport80SourceMapping(
+        database,
+        separateCompetitionId,
+        eventId,
+        eventName,
+        normalizedDate,
+        category ?? parsedName.category,
+        'separate',
+        null,
+    );
+    return {
+        competitionId: separateCompetitionId,
+        matchMethod: 'separate',
+    };
 }
 
 export const scrapeSport80EventResultsTask: Task = async (payload, helpers) => {
@@ -146,26 +383,32 @@ export const scrapeSport80EventResultsTask: Task = async (payload, helpers) => {
             `scrapeSport80EventResultsTask: event ${eventId}, ${result.data.length} result rows`,
         );
 
+        const resolvedName = eventName ?? `Sport:80 Event ${eventId}`;
         const platformId = await upsertSport80Platform(db);
         const leagueId = await upsertSport80League(db, platformId);
         const seasonId = await upsertSeason(db, leagueId, eventDate ?? null);
-        const competitionId = await upsertCompetition(
-            db,
+        const resolution = await resolveCompetition(
+            db as Kysely<any>,
             seasonId,
             eventId,
-            eventName ?? `Sport:80 Event ${eventId}`,
+            resolvedName,
             eventDate ?? null,
             category ?? null,
         );
+        const competitionId = resolution.competitionId;
+        helpers.logger.info(
+            `scrapeSport80EventResultsTask: event ${eventId} resolved via ${resolution.matchMethod} to ${competitionId}`,
+        );
+
         const sourceEventId = await upsertSport80SourceEvent(db, platformId, {
             id: eventId,
-            name: eventName ?? `Sport:80 Event ${eventId}`,
+            name: resolvedName,
             date: eventDate ?? null,
             category: category ?? null,
             raw: {
                 id: Number.isNaN(Number(eventId)) ? eventId : Number(eventId),
                 date: eventDate ?? null,
-                name: eventName ?? `Sport:80 Event ${eventId}`,
+                name: resolvedName,
                 category: category ?? null,
             },
             canonicalCompetitionId: competitionId,
@@ -181,7 +424,7 @@ export const scrapeSport80EventResultsTask: Task = async (payload, helpers) => {
 
         const parsedData = parseSport80EventResults({
             eventId,
-            eventName: eventName ?? `Sport:80 Event ${eventId}`,
+            eventName: resolvedName,
             eventDate: eventDate ?? null,
             rows: result.data,
         });
@@ -194,9 +437,12 @@ export const scrapeSport80EventResultsTask: Task = async (payload, helpers) => {
         });
 
         const now = new Date();
-        await db
+        await (db as Kysely<any>)
             .updateTable('competitions')
-            .set({ last_scraped_at: now })
+            .set({
+                last_scraped_at: now,
+                ...(result.data.length > 0 ? { event_status: 'completed' } : {}),
+            })
             .where('id', '=', competitionId)
             .execute();
 
