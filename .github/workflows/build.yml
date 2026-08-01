@@ -96,7 +96,7 @@ jobs:
       PREVIEW_URL: ${{ needs.build-deploy.outputs.deploy_url }}
       PLAYWRIGHT_BROWSERS_PATH: /opt/playwright-browsers
       TMPDIR: /var/tmp/ui-screenshots
-      UI_REVIEW_REPORT_DIR: ui-review-report
+      UI_REVIEW_REPORT_DIR: ${{ github.workspace }}/ui-review-report
       UI_REVIEW_MAX_ROUTES: 10
 
     steps:
