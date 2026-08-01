@@ -7,13 +7,17 @@ import {
 } from './player-shared';
 import {
   AppButton,
-  Avatar,
+  DesignAvatar,
+  DesignList,
   EmptyState,
   ErrorState,
-  List,
+  Inline,
   ListItem,
+  MetricGrid,
   OutcomeBadge,
-  SectionHeader,
+  PageSection,
+  Stack,
+  Surface,
 } from './ui/appkit';
 import { PlayerSearchSheet } from './PlayerSearchSheet';
 import { useTabNavigation } from './navigation/tab-navigation';
@@ -23,10 +27,10 @@ import { FavouriteButton } from './components/FavouriteButton';
 import { RatingPredictionPanel } from './components/RatingPredictionPanel';
 import { buildH2HShareTarget } from './share-target';
 import { useShareTarget } from './hooks/useShareTarget';
+import { buildH2HEvidence, buildLeagueSummaries } from './h2h-analysis';
 
 function getWinRate(player: Pick<PlayerSearchItem, 'wins' | 'played'>): number {
-  if (player.played <= 0) return 0;
-  return Math.round((player.wins / player.played) * 100);
+  return player.played > 0 ? Math.round((player.wins / player.played) * 100) : 0;
 }
 
 const H2H_ACTIVE_PLAYER_A_KEY = 'tt_players_h2h_active_player_a';
@@ -54,18 +58,7 @@ function parseStoredActivePlayer(key: string): PlayerSearchItem | null {
 
 interface H2HTabContentProps {
   onOpenPlayer: (playerId: string) => void;
-  initialPlayerIds?: {
-    playerAId: string;
-    playerBId: string;
-  };
-}
-
-interface LeagueEncounterSummary {
-  latestDate: string;
-  league: string;
-  played: number;
-  playerAWins: number;
-  playerBWins: number;
+  initialPlayerIds?: { playerAId: string; playerBId: string };
 }
 
 interface PlayerPickerProps {
@@ -78,47 +71,40 @@ interface PlayerPickerProps {
 
 function PlayerPicker({ label, player, tone, onSelect, onOpenProfile }: PlayerPickerProps) {
   return (
-    <div
-      className={`tt-h2h-picker-card ${player
-        ? `tt-h2h-picker-card-selected tt-h2h-picker-card-selected-${tone}`
-        : 'tt-h2h-picker-card-empty'}`}
-    >
+    <Surface tone={player ? 'accent' : 'raised'} padding="none" className={`tt-h2h-player-card tt-h2h-player-card--${tone}`}>
       <button
         type="button"
-        className="tt-h2h-picker-select"
+        className="tt-h2h-player-card__select"
         onClick={onSelect}
         aria-label={player ? `Change ${label}, currently ${player.name}` : `Select ${label}`}
       >
-        <p className={`font-11 text-uppercase mb-2 ${player ? 'color-white opacity-60' : 'opacity-60'}`}>
-          {label}
-        </p>
+        <span className="tt-h2h-player-card__label">{label}</span>
         {player ? (
-          <div className="tt-h2h-selected-player">
-            <Avatar text={getInitials(player.name)} variant="onAccent" className="tt-h2h-selected-avatar" />
-            <div>
-              <h3 className="mb-1 font-700">{player.name}</h3>
-              <p className="font-12 mb-0">{player.wins}W · {player.played} played</p>
-            </div>
-          </div>
+          <Inline gap="sm" align="center" className="tt-h2h-player-card__identity">
+            <DesignAvatar size="standard" text={getInitials(player.name)} variant="onAccent" />
+            <span className="tt-h2h-player-card__copy">
+              <strong>{player.name}</strong>
+              <small>{player.wins}W · {player.played} played · {getWinRate(player)}% win rate</small>
+            </span>
+          </Inline>
         ) : (
-          <div className="text-center py-2">
-            <i className="fa fa-plus-circle font-20 opacity-30 mb-1 d-block" aria-hidden="true" />
-            <span className="font-12 opacity-50">Select Player</span>
-          </div>
+          <span className="tt-h2h-player-card__empty">
+            <i className="fa fa-plus-circle" aria-hidden="true" />
+            <strong>Select player</strong>
+          </span>
         )}
       </button>
       {player ? (
         <button
           type="button"
-          className="tt-h2h-profile-button"
+          className="tt-h2h-player-card__profile"
           onClick={() => onOpenProfile(player.id)}
           aria-label={`View ${player.name} profile`}
         >
           <i className="fa fa-user" aria-hidden="true" />
-          Profile
         </button>
       ) : null}
-    </div>
+    </Surface>
   );
 }
 
@@ -130,32 +116,22 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
     toggle: toggleFavouriteMatchup,
     remove: removeFavouriteMatchup,
   } = useFavouriteH2H();
-  const [playerA, setPlayerA] = useState<PlayerSearchItem | null>(() =>
-    initialPlayerIds ? null : parseStoredActivePlayer(H2H_ACTIVE_PLAYER_A_KEY));
-  const [playerB, setPlayerB] = useState<PlayerSearchItem | null>(() =>
-    initialPlayerIds ? null : parseStoredActivePlayer(H2H_ACTIVE_PLAYER_B_KEY));
+  const [playerA, setPlayerA] = useState<PlayerSearchItem | null>(() => initialPlayerIds ? null : parseStoredActivePlayer(H2H_ACTIVE_PLAYER_A_KEY));
+  const [playerB, setPlayerB] = useState<PlayerSearchItem | null>(() => initialPlayerIds ? null : parseStoredActivePlayer(H2H_ACTIVE_PLAYER_B_KEY));
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [activePicker, setActivePicker] = useState<'A' | 'B' | null>(null);
 
-  const initialPlayerAQuery = usePlayerExtendedStatsQuery(
-    initialPlayerIds?.playerAId ?? '',
-    Boolean(initialPlayerIds?.playerAId),
-  );
-  const initialPlayerBQuery = usePlayerExtendedStatsQuery(
-    initialPlayerIds?.playerBId ?? '',
-    Boolean(initialPlayerIds?.playerBId),
-  );
+  const initialPlayerAQuery = usePlayerExtendedStatsQuery(initialPlayerIds?.playerAId ?? '', Boolean(initialPlayerIds?.playerAId));
+  const initialPlayerBQuery = usePlayerExtendedStatsQuery(initialPlayerIds?.playerBId ?? '', Boolean(initialPlayerIds?.playerBId));
 
   useEffect(() => {
     const stats = initialPlayerAQuery.data;
-    if (!stats || playerA) return;
-    setPlayerA({ id: stats.player_id, name: stats.player_name, played: stats.total, wins: stats.wins });
+    if (stats && !playerA) setPlayerA({ id: stats.player_id, name: stats.player_name, played: stats.total, wins: stats.wins });
   }, [initialPlayerAQuery.data, playerA]);
 
   useEffect(() => {
     const stats = initialPlayerBQuery.data;
-    if (!stats || playerB) return;
-    setPlayerB({ id: stats.player_id, name: stats.player_name, played: stats.total, wins: stats.wins });
+    if (stats && !playerB) setPlayerB({ id: stats.player_id, name: stats.player_name, played: stats.total, wins: stats.wins });
   }, [initialPlayerBQuery.data, playerB]);
 
   useEffect(() => {
@@ -168,22 +144,24 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
     else localStorage.removeItem(H2H_ACTIVE_PLAYER_B_KEY);
   }, [playerB]);
 
-  const isFavourite = playerA && playerB ? isFavouriteMatchup(playerA.id, playerB.id) : false;
-  const shareTarget = useMemo(
-    () => playerA && playerB
-      ? buildH2HShareTarget(window.location.origin, playerA, playerB)
-      : null,
-    [playerA, playerB],
-  );
-  const { share, status: shareStatus } = useShareTarget(shareTarget);
-
-  const h2hQuery = usePlayerH2HQuery(
-    playerA?.id ?? '',
-    playerB?.id ?? '',
-    Boolean(playerA && playerB),
-  );
+  const h2hQuery = usePlayerH2HQuery(playerA?.id ?? '', playerB?.id ?? '', Boolean(playerA && playerB));
   const h2h = h2hQuery.data ?? null;
   const h2hError = getQueryError(h2hQuery.error);
+  const encounterCount = h2h?.encounters.length ?? 0;
+  const playerAWinPct = encounterCount > 0 && h2h ? Math.round((h2h.player1_wins / encounterCount) * 100) : 0;
+  const playerBWinPct = encounterCount > 0 && h2h ? Math.round((h2h.player2_wins / encounterCount) * 100) : 0;
+  const leagueSummaries = useMemo(() => buildLeagueSummaries(h2h?.encounters ?? []), [h2h]);
+  const evidence = useMemo(() => buildH2HEvidence({
+    directEncounters: encounterCount,
+    playerAWins: h2h?.player1_wins ?? 0,
+    playerBWins: h2h?.player2_wins ?? 0,
+    playerARecord: { wins: playerA?.wins ?? 0, played: playerA?.played ?? 0 },
+    playerBRecord: { wins: playerB?.wins ?? 0, played: playerB?.played ?? 0 },
+  }), [encounterCount, h2h, playerA, playerB]);
+
+  const isFavourite = playerA && playerB ? isFavouriteMatchup(playerA.id, playerB.id) : false;
+  const shareTarget = useMemo(() => playerA && playerB ? buildH2HShareTarget(window.location.origin, playerA, playerB) : null, [playerA, playerB]);
+  const { share, status: shareStatus } = useShareTarget(shareTarget);
 
   const openSearch = (picker: 'A' | 'B') => {
     setActivePicker(picker);
@@ -197,147 +175,75 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
     setActivePicker(null);
   };
 
+  const swapPlayers = () => {
+    setPlayerA(playerB);
+    setPlayerB(playerA);
+  };
+
   const clearMatchup = () => {
     setPlayerA(null);
     setPlayerB(null);
   };
 
-  const encounterCount = h2h?.encounters.length ?? 0;
-  const playerAWinPct = encounterCount > 0 && h2h
-    ? Math.round((h2h.player1_wins / encounterCount) * 100)
-    : 0;
-  const playerBWinPct = encounterCount > 0 && h2h
-    ? Math.round((h2h.player2_wins / encounterCount) * 100)
-    : 0;
-
-  const leagueEncounterSummary = useMemo<LeagueEncounterSummary[]>(() => {
-    if (!h2h) return [];
-    const summaryByLeague = new Map<string, LeagueEncounterSummary>();
-
-    for (const encounter of h2h.encounters) {
-      const key = encounter.league || 'Unknown League';
-      const current = summaryByLeague.get(key);
-      if (!current) {
-        summaryByLeague.set(key, {
-          league: key,
-          played: 1,
-          playerAWins: encounter.isWin ? 1 : 0,
-          playerBWins: encounter.isWin ? 0 : 1,
-          latestDate: encounter.date,
-        });
-        continue;
-      }
-      current.played += 1;
-      if (encounter.isWin) current.playerAWins += 1;
-      else current.playerBWins += 1;
-      if (encounter.date > current.latestDate) current.latestDate = encounter.date;
-    }
-
-    return Array.from(summaryByLeague.values())
-      .sort((a, b) => b.played - a.played || b.playerAWins - a.playerAWins);
-  }, [h2h]);
+  const matchupActions = playerA || playerB ? (
+    <Inline gap="xs" align="center" wrap>
+      {playerA && playerB ? (
+        <>
+          <AppButton size="s" tone="ghost" aria-label="Swap players" onClick={swapPlayers}>
+            <i className="fa fa-exchange-alt" aria-hidden="true" />
+            Swap
+          </AppButton>
+          <FavouriteButton saved={Boolean(isFavourite)} onToggle={() => toggleFavouriteMatchup({ player1: playerA, player2: playerB })} />
+          <AppButton size="s" tone="ghost" aria-label={`Share ${playerA.name} versus ${playerB.name}`} onClick={share}>
+            <i className="fa fa-share-alt" aria-hidden="true" />
+          </AppButton>
+        </>
+      ) : null}
+      <AppButton size="s" tone="ghost" aria-label="Clear matchup" onClick={clearMatchup}>
+        <i className="fa fa-times" aria-hidden="true" />
+      </AppButton>
+    </Inline>
+  ) : null;
 
   return (
-    <>
-      <section className="tt-h2h-panel" aria-labelledby="tt-h2h-title">
-        <div className="tt-h2h-panel-top">
-          <div className="tt-h2h-panel-copy">
-            <p className="tt-player-eyebrow">Head to Head</p>
-            <h2 id="tt-h2h-title" className="tt-player-title">
-              {playerA && playerB ? `${playerA.name} vs ${playerB.name}` : 'Build a Matchup'}
-            </h2>
-            <p className="tt-player-summary-line">
-              {playerA && playerB
-                ? `${encounterCount} recorded encounters`
-                : 'Pick two players to unlock head-to-head analysis.'}
-            </p>
-          </div>
-          <div className="tt-h2h-actions">
-            {playerA && playerB ? (
-              <>
-                <FavouriteButton
-                  saved={Boolean(isFavourite)}
-                  onToggle={() => toggleFavouriteMatchup({ player1: playerA, player2: playerB })}
-                />
-                <AppButton
-                  size="sm"
-                  className="tt-player-action-pill"
-                  tone="outline"
-                  aria-label={`Share ${playerA.name} versus ${playerB.name}`}
-                  onClick={share}
-                >
-                  <i className="fa fa-share-alt" aria-hidden="true" />
-                  <span>Share</span>
-                </AppButton>
-              </>
-            ) : null}
-            {playerA || playerB ? (
-              <AppButton
-                size="sm"
-                className="tt-player-action-pill tt-clear-action-button"
-                tone="outline"
-                aria-label="Clear matchup"
-                onClick={clearMatchup}
-              >
-                <i className="fa fa-times-circle" aria-hidden="true" />
-                <span>Clear</span>
-              </AppButton>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="tt-h2h-panel-divider" />
-
+    <Stack gap="md" className="tt-h2h-page">
+      <PageSection
+        surface="raised"
+        density="standard"
+        title={playerA && playerB ? `${playerA.name} vs ${playerB.name}` : 'Build a matchup'}
+        note={playerA && playerB ? `${encounterCount} recorded encounters` : 'Select two players to compare records and matchup evidence.'}
+        action={matchupActions}
+      >
         <div className="tt-h2h-picker-grid">
-          <div className="tt-h2h-picker-vs" aria-hidden="true">VS</div>
-          <PlayerPicker
-            label="Player A"
-            player={playerA}
-            tone="a"
-            onSelect={() => openSearch('A')}
-            onOpenProfile={onOpenPlayer}
-          />
-          <PlayerPicker
-            label="Player B"
-            player={playerB}
-            tone="b"
-            onSelect={() => openSearch('B')}
-            onOpenProfile={onOpenPlayer}
-          />
+          <PlayerPicker label="Player A" player={playerA} tone="a" onSelect={() => openSearch('A')} onOpenProfile={onOpenPlayer} />
+          <span className="tt-h2h-picker-vs" aria-hidden="true">VS</span>
+          <PlayerPicker label="Player B" player={playerB} tone="b" onSelect={() => openSearch('B')} onOpenProfile={onOpenPlayer} />
         </div>
         {shareStatus ? <span className="sr-only" aria-live="polite">{shareStatus}</span> : null}
-      </section>
+      </PageSection>
 
       {!playerA || !playerB ? (
-        <section className="tt-h2h-section" aria-label="Head to head empty state">
-          <EmptyState
-            iconClassName="fa fa-code-compare"
-            title="Ready for the duel?"
-            message="Select two players above to unlock H2H analytics."
-          />
-        </section>
+        <PageSection surface="flat" density="compact">
+          <EmptyState iconClassName="fa fa-code-compare" title="Ready for the duel?" message="Select two players above to unlock H2H analytics." />
+        </PageSection>
       ) : null}
 
       {favouriteH2Hs.length > 0 && (!playerA || !playerB) ? (
-        <section className="tt-player-section mt-2" aria-labelledby="tt-favourite-h2h-title">
-          <SectionHeader title="Favourite Matchups" note={`${favouriteH2Hs.length} saved`} />
-          <List divider="hairline" size="lg">
+        <PageSection surface="flat" density="compact" title="Favourite matchups" note={`${favouriteH2Hs.length} saved`}>
+          <DesignList density="compact" divider="hairline">
             {favouriteH2Hs.map((item) => {
               const name = `${item.player1.name} vs ${item.player2.name}`;
               return (
                 <ListItem
                   key={`${item.player1.id}-${item.player2.id}`}
-                  leading={<Avatar text="VS" />}
+                  leading={<DesignAvatar size="compact" text="VS" />}
                   title={name}
-                  subtitle={`${getWinRate(item.player1)}% WR (${item.player1.wins}W) vs ${getWinRate(item.player2)}% WR (${item.player2.wins}W)`}
-                  onClick={() => {
-                    setPlayerA(item.player1);
-                    setPlayerB(item.player2);
-                  }}
+                  subtitle={`${getWinRate(item.player1)}% vs ${getWinRate(item.player2)}% recorded win rate`}
+                  onClick={() => { setPlayerA(item.player1); setPlayerB(item.player2); }}
                   trailing={(
                     <button
                       type="button"
-                      className="tt-player-remove-badge"
+                      className="tt-h2h-remove-action"
                       aria-label={`Remove ${name} from favourites`}
                       onClick={(event) => {
                         event.preventDefault();
@@ -345,98 +251,85 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
                         removeFavouriteMatchup(item.player1.id, item.player2.id);
                       }}
                     >
-                      Remove
+                      <i className="fa fa-trash-alt" aria-hidden="true" />
                     </button>
                   )}
                 />
               );
             })}
-          </List>
-        </section>
+          </DesignList>
+        </PageSection>
       ) : null}
 
-      <PlayerSearchSheet
-        isOpen={isSheetOpen}
-        onClose={() => {
-          setIsSheetOpen(false);
-          setActivePicker(null);
-        }}
-        onSelect={onSelectPlayer}
-        excludePlayerId={activePicker === 'A' ? playerB?.id : playerA?.id}
-        title={activePicker === 'A' ? 'Select Player A' : 'Select Player B'}
-      />
-
       {h2hQuery.isLoading ? (
-        <section className="tt-h2h-section" aria-label="Loading head to head">
-          <EmptyState iconClassName="fa fa-spinner fa-spin" title="Loading head-to-head…" />
-        </section>
+        <PageSection surface="flat" density="compact"><EmptyState iconClassName="fa fa-spinner fa-spin" title="Loading head-to-head…" /></PageSection>
       ) : null}
 
       {h2hError ? (
-        <section className="tt-h2h-section">
-          <ErrorState
-            title="Couldn’t load this matchup"
-            message={h2hError}
-            onRetry={() => h2hQuery.refetch()}
-          />
-        </section>
+        <PageSection surface="flat" density="compact"><ErrorState title="Couldn’t load this matchup" message={h2hError} onRetry={() => h2hQuery.refetch()} /></PageSection>
       ) : null}
 
       {playerA && playerB ? (
-        <RatingPredictionPanel
-          playerA={{ id: playerA.id, name: playerA.name }}
-          playerB={{ id: playerB.id, name: playerB.name }}
-        />
+        <>
+          <RatingPredictionPanel playerA={{ id: playerA.id, name: playerA.name }} playerB={{ id: playerB.id, name: playerB.name }} />
+
+          <PageSection surface="raised" density="compact" title="Why this prediction?" note={`${evidence.confidence} confidence`}>
+            <Stack gap="sm">
+              <div className={`tt-h2h-confidence tt-h2h-confidence--${evidence.confidence}`}>
+                <strong>{evidence.predictedPlayer === 'even' ? 'Too close to call' : `${evidence.predictedPlayer === 'A' ? playerA.name : playerB.name} has the edge`}</strong>
+                <span>{evidence.confidence[0].toUpperCase() + evidence.confidence.slice(1)} confidence from the available evidence</span>
+              </div>
+              <DesignList density="compact" divider="hairline">
+                {evidence.reasons.map((reason, index) => (
+                  <ListItem key={reason} leading={<span className="tt-h2h-reason-index">{index + 1}</span>} title={reason} hideChevron />
+                ))}
+              </DesignList>
+            </Stack>
+          </PageSection>
+        </>
       ) : null}
 
       {h2h && playerA && playerB ? (
         <>
-          <section className="tt-player-section mt-2" aria-labelledby="tt-h2h-matchup-score-title">
-            <SectionHeader title="Matchup Score" note={`${encounterCount} total encounters`} />
-            <div className="tt-h2h-duel-grid mt-2">
-              <div className="tt-h2h-duel-side">
-                <span className="tt-h2h-duel-name">{playerA.name}</span>
-                <strong className="tt-h2h-duel-score">{h2h.player1_wins}</strong>
-                <span className="tt-h2h-duel-rate">{playerAWinPct}% wins</span>
-              </div>
-              <div className="tt-h2h-duel-vs" aria-hidden="true">VS</div>
-              <div className="tt-h2h-duel-side">
-                <span className="tt-h2h-duel-name">{playerB.name}</span>
-                <strong className="tt-h2h-duel-score">{h2h.player2_wins}</strong>
-                <span className="tt-h2h-duel-rate">{playerBWinPct}% wins</span>
-              </div>
+          <PageSection surface="flat" density="compact" title="Matchup score" note={`${encounterCount} direct encounters`}>
+            <MetricGrid
+              columns={3}
+              density="compact"
+              items={[
+                { label: playerA.name, value: h2h.player1_wins, hint: `${playerAWinPct}% wins` },
+                { label: 'Played', value: encounterCount, hint: evidence.confidence + ' confidence' },
+                { label: playerB.name, value: h2h.player2_wins, hint: `${playerBWinPct}% wins` },
+              ]}
+            />
+            <div className="tt-h2h-share-bar" role="img" aria-label={`${playerA.name} ${playerAWinPct} percent, ${playerB.name} ${playerBWinPct} percent`}>
+              <span className="tt-h2h-share-bar__a" style={{ flexGrow: playerAWinPct || 1 }} />
+              <span className="tt-h2h-share-bar__b" style={{ flexGrow: playerBWinPct || 1 }} />
             </div>
-            <div className="tt-h2h-bar mt-3" role="img" aria-label={`${playerA.name} ${playerAWinPct} percent, ${playerB.name} ${playerBWinPct} percent`}>
-              <div className="tt-h2h-bar-a" style={{ width: `${playerAWinPct}%` }} />
-              <div className="tt-h2h-bar-b" style={{ width: `${playerBWinPct}%` }} />
-            </div>
-          </section>
+          </PageSection>
 
-          <section className="tt-player-section mt-2" aria-labelledby="tt-h2h-repeated-title">
-            <SectionHeader title="Encounters by Event" note="Event-level aggregation" />
-            {encounterCount === 0 ? (
-              <EmptyState iconClassName="fa fa-calendar-times" title="No encounters found" message="No matches were found across recorded events." />
+          <PageSection surface="flat" density="compact" title="Encounters by event" note="Direct-record breakdown">
+            {leagueSummaries.length === 0 ? (
+              <EmptyState iconClassName="fa fa-calendar-times" title="No encounters found" message="There are no recorded direct matches yet." />
             ) : (
-              <List divider="hairline">
-                {leagueEncounterSummary.slice(0, 5).map((summary) => (
+              <DesignList density="compact" divider="hairline">
+                {leagueSummaries.map((summary) => (
                   <ListItem
                     key={summary.league}
-                    leading={<Avatar text={getInitials(summary.league)} />}
+                    leading={<DesignAvatar size="compact" text={getInitials(summary.league)} />}
                     title={summary.league}
                     subtitle={`${summary.played} matches · ${summary.playerAWins}-${summary.playerBWins} · Latest ${formatMatchDate(summary.latestDate)}`}
                     hideChevron
                   />
                 ))}
-              </List>
+              </DesignList>
             )}
-          </section>
+          </PageSection>
 
-          <section className="tt-player-section mt-2" aria-labelledby="tt-h2h-history-title">
-            <SectionHeader title="Encounter History" note="Past matches" />
+          <PageSection surface="flat" density="compact" title="Encounter history" note="Past direct matches">
             {h2h.encounters.length === 0 ? (
               <EmptyState iconClassName="fa fa-history" title="No past encounters" />
             ) : (
-              <List divider="hairline">
+              <DesignList density="compact" divider="hairline">
                 {h2h.encounters.map((encounter) => (
                   <ListItem
                     key={encounter.id}
@@ -446,11 +339,19 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
                     onClick={() => navigateInTab('leagues', `fixture/${encounter.fixture_id}`)}
                   />
                 ))}
-              </List>
+              </DesignList>
             )}
-          </section>
+          </PageSection>
         </>
       ) : null}
-    </>
+
+      <PlayerSearchSheet
+        isOpen={isSheetOpen}
+        onClose={() => { setIsSheetOpen(false); setActivePicker(null); }}
+        onSelect={onSelectPlayer}
+        excludePlayerId={activePicker === 'A' ? playerB?.id : playerA?.id}
+        title={activePicker === 'A' ? 'Select Player A' : 'Select Player B'}
+      />
+    </Stack>
   );
 }

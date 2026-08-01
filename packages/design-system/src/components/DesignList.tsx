@@ -6,10 +6,24 @@ export type DesignListDensity = 'compact' | 'comfortable';
 
 export interface DesignListProps extends ComponentProps<typeof List> {
   density?: DesignListDensity;
+  /** Alias for the first client-rendered page size. */
+  initialVisibleCount?: number;
 }
 
-export function DesignList({ density = 'compact', className, ...props }: DesignListProps) {
-  return <List {...props} className={cx(`tt-list--${density}`, className)} />;
+export function DesignList({
+  density = 'compact',
+  className,
+  initialVisibleCount,
+  pageSize,
+  ...props
+}: DesignListProps) {
+  return (
+    <List
+      {...props}
+      pageSize={initialVisibleCount ?? pageSize}
+      className={cx(`tt-list--${density}`, className)}
+    />
+  );
 }
 
 export interface DesignAvatarProps extends Omit<ComponentProps<typeof Avatar>, 'size'> {
