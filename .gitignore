@@ -13,3 +13,7 @@ backups/
 !terraform.tfvars.example
 .playwright-report/
 .playwright-cli
+test-results/
+ui-review-report/
+apps/mobile/test-results/
+apps/mobile/ui-review-report/
