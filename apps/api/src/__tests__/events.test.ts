@@ -159,7 +159,7 @@ describe('Events API', () => {
         });
     });
 
-    it('returns upcoming calendar metadata, lifecycle filters and source links', async () => {
+    it('returns complete upcoming calendar metadata, lifecycle filters and source links', async () => {
         const database = db as Kysely<any>;
         const platform = await database
             .insertInto('platforms')
@@ -200,6 +200,7 @@ describe('Events API', () => {
                 start_date: '2026-10-10',
                 end_date: '2026-10-11',
                 venue_name: 'Later Sports Centre',
+                venue_address: '1 Tournament Way',
                 venue_town: 'Leeds',
                 venue_postcode: 'LS1 1AA',
                 entry_deadline: new Date('2026-09-20T23:59:59Z'),
@@ -245,7 +246,12 @@ describe('Events API', () => {
                     external_id: 'later-open',
                     source_url: 'https://www.tabletennisengland.co.uk/event/later-open/',
                     source_key: 'later-open',
-                    raw_payload: {},
+                    raw_payload: {
+                        description: 'Six-player groups followed by three banded knockout competitions.',
+                        organizerName: 'Neil Brierley',
+                        organizerUrl: 'https://organizer.example.com/neil',
+                        venueUrl: 'https://venue.example.com/later',
+                    },
                 },
                 {
                     competition_id: later.id,
@@ -276,6 +282,7 @@ describe('Events API', () => {
             start_date: '2026-10-10',
             end_date: '2026-10-11',
             venue_name: 'Later Sports Centre',
+            venue_address: '1 Tournament Way',
             venue_town: 'Leeds',
             venue_postcode: 'LS1 1AA',
             entry_url: 'https://entries.example.com/later',
@@ -288,6 +295,13 @@ describe('Events API', () => {
         expect(completed.body.data.some((event: { id: string }) => event.id === later.id)).toBe(false);
 
         const detail = await request.get(`/api/events/${later.id}`).expect(200);
+        expect(detail.body.event).toMatchObject({
+            description: 'Six-player groups followed by three banded knockout competitions.',
+            organizer_name: 'Neil Brierley',
+            organizer_url: 'https://organizer.example.com/neil',
+            venue_url: 'https://venue.example.com/later',
+            venue_address: '1 Tournament Way',
+        });
         expect(detail.body.sources).toEqual(expect.arrayContaining([
             expect.objectContaining({
                 provider: 'tte',
