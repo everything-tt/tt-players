@@ -27,21 +27,19 @@
   margin-top: var(--tt-uncarded-section-gap) !important;
 }
 
-/* Uncarded headings should introduce content without creating a card-sized gap. */
-.tt-section-header,
+/* Legacy page-specific headings retain compact spacing. Canonical
+ * .tt-section-header rhythm is owned by the design-system stylesheet. */
 .tt-player-section-header,
 .tt-home-leaders-header,
 .tt-rating-history-header {
   margin-bottom: 6px !important;
 }
 
-.tt-section-header__title,
 .tt-player-section-title,
 .tt-rating-history-header h3 {
   margin-block: 0 !important;
 }
 
-.tt-section-header__note,
 .tt-player-section-note,
 .tt-home-leaders-desc,
 .tt-rating-history-header p {

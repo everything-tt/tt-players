@@ -9,6 +9,7 @@ import {
   ErrorState,
   ListItem,
   PageSection,
+  Pill,
 } from '../ui/appkit';
 import '../ratings-ui.css';
 
@@ -75,8 +76,13 @@ export function RatingPredictionPanel({
       <PageSection
         surface="raised"
         density="compact"
+        emphasis="primary"
         title={`${playerA.name} vs ${playerB.name}`}
-        note={encounterCount > 0 ? `${encounterCount} recorded meetings` : 'No recorded direct meetings'}
+        meta={(
+          <Pill tone={encounterCount > 0 ? 'accent' : 'neutral'} size="sm">
+            {encounterCount > 0 ? `${encounterCount} meetings` : 'No direct meetings'}
+          </Pill>
+        )}
       >
         <div className="tt-h2h-verdict">
           {actions ? <div className="tt-h2h-matchup-actions">{actions}</div> : null}
@@ -133,7 +139,11 @@ export function RatingPredictionPanel({
         surface="flat"
         density="compact"
         title="Evidence"
-        note={analysis ? `${analysis.evidence.confidence} confidence · sample ${analysis.evidence.sample_size}` : 'Building comparison'}
+        meta={(
+          <Pill tone={analysis?.evidence.confidence === 'high' ? 'success' : 'neutral'} size="sm">
+            {analysis ? `${analysis.evidence.confidence} · sample ${analysis.evidence.sample_size}` : 'Building'}
+          </Pill>
+        )}
       >
         {analysisQuery.isLoading || h2hQuery.isLoading ? (
           <EmptyState iconClassName="fa fa-spinner fa-spin" title="Building matchup evidence…" />
@@ -185,10 +195,15 @@ export function RatingPredictionPanel({
         <PageSection
           surface="flat"
           density="compact"
+          emphasis="secondary"
           title="Common opponents"
-          note={analysis.common_opponents.total > 0
-            ? `${analysis.common_opponents.total} shared · aggregate edge ${analysis.common_opponents.aggregate_edge > 0 ? '+' : ''}${analysis.common_opponents.aggregate_edge}`
-            : 'Indirect comparison'}
+          meta={(
+            <Pill tone="neutral" size="sm">
+              {analysis.common_opponents.total > 0
+                ? `${analysis.common_opponents.total} shared · ${analysis.common_opponents.aggregate_edge > 0 ? '+' : ''}${analysis.common_opponents.aggregate_edge}`
+                : 'Indirect comparison'}
+            </Pill>
+          )}
         >
           {analysis.common_opponents.data.length === 0 ? (
             <EmptyState

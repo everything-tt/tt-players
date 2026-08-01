@@ -44,7 +44,14 @@ export function DesignSystemPage() {
           highlights={<MetricGrid density="compact" metrics={[{ label: 'Compact row', value: '56px' }, { label: 'Touch target', value: '44px' }, { label: 'Flat gutter', value: '12px' }]} />}
         />
 
-        <PageSection surface="flat" density="compact" title="Layout" note="Stack · Inline · Surface">
+        <PageSection
+          surface="flat"
+          density="compact"
+          emphasis="primary"
+          title="Layout"
+          description="Primary sections introduce the page’s main task and keep explanatory copy close to the title."
+          meta={<Pill tone="accent">Primary</Pill>}
+        >
           <Stack gap="sm">
             <Surface variant="subtle" padding="compact">Subtle surface</Surface>
             <Surface variant="raised" padding="compact">Raised surface</Surface>
@@ -57,7 +64,12 @@ export function DesignSystemPage() {
           </Stack>
         </PageSection>
 
-        <PageSection surface="flat" density="compact" title="Filters" note="Scrollable on narrow screens">
+        <PageSection
+          surface="flat"
+          density="compact"
+          title="Filters"
+          description="Standard sections balance a clear title with supporting controls."
+        >
           <FilterBar ariaLabel="Catalogue filters">
             <SegmentedToggle
               ariaLabel="Catalogue filters"
@@ -69,7 +81,13 @@ export function DesignSystemPage() {
           </FilterBar>
         </PageSection>
 
-        <PageSection surface="flat" density="compact" title="Compact list" note="Operational density">
+        <PageSection
+          surface="flat"
+          density="compact"
+          emphasis="secondary"
+          title="Compact list"
+          meta={<Pill tone="neutral">3 examples</Pill>}
+        >
           <DesignList density="compact" divider="hairline" paginate={false}>
             <ListItem leading={<DesignAvatar size="compact" text="JS" />} title="Jane Smith" subtitle="Rowhedge · 18 wins" trailing={<Pill tone="accent">72%</Pill>} />
             <ListItem leading={<OutcomeBadge result="W" variant="icon" />} title="vs Alex Brown · 3–1" subtitle="31 Jul · League" hideChevron />
@@ -77,7 +95,7 @@ export function DesignSystemPage() {
           </DesignList>
         </PageSection>
 
-        <PageSection surface="raised" density="standard" title="Comfortable section" note="Editorial grouping">
+        <PageSection surface="raised" density="standard" title="Comfortable section" description="Editorial grouping">
           <DesignList density="comfortable" divider="hairline" paginate={false}>
             <ListItem leading={<DesignAvatar size="standard" text="AB" />} title="Comfortable player row" subtitle="Used where more supporting detail is needed" />
           </DesignList>

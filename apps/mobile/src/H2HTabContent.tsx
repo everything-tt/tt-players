@@ -16,6 +16,7 @@ import {
   MetricGrid,
   OutcomeBadge,
   PageSection,
+  Pill,
   Stack,
   Surface,
 } from './ui/appkit';
@@ -208,8 +209,9 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
         <PageSection
           surface="flat"
           density="compact"
+          emphasis="primary"
           title="Compare players"
-          note="Choose two players to see prediction, form, shared evidence and meeting history."
+          description="Choose two players to see prediction, form, shared evidence and meeting history."
           action={matchupActions}
         >
           <div className="tt-h2h-picker-grid">
@@ -221,7 +223,13 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
       ) : null}
 
       {favouriteH2Hs.length > 0 && !hasCompleteMatchup ? (
-        <PageSection surface="flat" density="compact" title="Saved matchups" note={`${favouriteH2Hs.length} saved`}>
+        <PageSection
+          surface="flat"
+          density="compact"
+          emphasis="secondary"
+          title="Saved matchups"
+          meta={<Pill tone="neutral" size="sm">{favouriteH2Hs.length} saved</Pill>}
+        >
           <DesignList density="compact" divider="hairline">
             {favouriteH2Hs.map((item) => {
               const name = `${item.player1.name} vs ${item.player2.name}`;
@@ -275,7 +283,12 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
 
       {h2h && playerA && playerB && encounterCount > 0 ? (
         <>
-          <PageSection surface="flat" density="compact" title="Direct record" note={`${encounterCount} meetings`}>
+          <PageSection
+            surface="flat"
+            density="compact"
+            title="Direct record"
+            meta={<Pill tone="neutral" size="sm">{encounterCount} meetings</Pill>}
+          >
             <MetricGrid
               columns={3}
               density="compact"
@@ -292,7 +305,7 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
           </PageSection>
 
           {leagueSummaries.length > 0 ? (
-            <PageSection surface="flat" density="compact" title="By competition" note="Direct-record breakdown">
+            <PageSection surface="flat" density="compact" title="By competition" description="Direct-record breakdown">
               <DesignList density="compact" divider="hairline">
                 {leagueSummaries.map((summary) => (
                   <ListItem
@@ -307,7 +320,7 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
             </PageSection>
           ) : null}
 
-          <PageSection surface="flat" density="compact" title="Meeting history" note="Most recent first">
+          <PageSection surface="flat" density="compact" title="Meeting history" description="Most recent first">
             <DesignList density="compact" divider="hairline">
               {h2h.encounters.map((encounter) => (
                 <ListItem

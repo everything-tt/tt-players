@@ -69,19 +69,18 @@
   padding: 13px 14px !important;
 }
 
-.tt-section-header,
+/* Legacy page-specific headers keep their compact overrides. Canonical
+ * .tt-section-header geometry is owned by the design-system stylesheet. */
 .tt-player-section-header,
 .tt-home-leaders-header {
   margin-bottom: 8px !important;
 }
 
-.tt-section-header__title,
 .tt-player-section-title {
   font-size: 17px !important;
   line-height: 1.2 !important;
 }
 
-.tt-section-header__note,
 .tt-player-section-note,
 .tt-home-leaders-desc {
   font-size: 11px !important;

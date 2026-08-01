@@ -14,12 +14,51 @@ Use the application shell and one explicit top-level surface for every content g
   <AppHeaderSpacer />
   <AppPageContent>
     <EntityHero title="Jane Smith" subtitle="Rowhedge" />
-    <PageSection surface="flat" density="compact" title="Recent matches">
+    <PageSection
+      surface="flat"
+      density="compact"
+      title="Recent matches"
+      meta={<Pill tone="neutral">12 found</Pill>}
+    >
       <DesignList density="compact">...</DesignList>
     </PageSection>
   </AppPageContent>
 </AppShellPage>
 ```
+
+## Section hierarchy
+
+`PageSection` separates explanatory copy, metadata and interactive actions so they do not compete in one generic note slot.
+
+```tsx
+<PageSection
+  title="Compare players"
+  description="Choose two players to see prediction, form and shared evidence."
+  emphasis="primary"
+>
+  ...
+</PageSection>
+
+<PageSection
+  title="Saved matchups"
+  emphasis="secondary"
+  meta={<Pill tone="neutral">3 saved</Pill>}
+  action={<AppButton tone="ghost">Manage</AppButton>}
+>
+  ...
+</PageSection>
+```
+
+Use:
+
+- `description` for explanatory copy beneath the title;
+- `meta` for counts, confidence, status or other concise context;
+- `action` for interactive controls;
+- `emphasis="primary"` once for the main task or leading analytical section;
+- the default `standard` emphasis for ordinary content;
+- `emphasis="secondary"` for supporting lists or drill-down sections.
+
+`note` remains a compatibility alias for `description`, but newly touched screens should use the explicit props. The canonical section header has no default decorative accent bar; typography, spacing and content structure carry the hierarchy.
 
 ## Surface selection
 
@@ -103,7 +142,7 @@ before opening or updating a UI pull request.
 
 ## Catalogue
 
-The component catalogue is available at `/design-system`. It displays canonical surfaces, layout primitives, filters, compact and comfortable lists, metrics and common states.
+The component catalogue is available at `/design-system`. It displays canonical surfaces, layout primitives, section hierarchy, filters, compact and comfortable lists, metrics and common states.
 
 ## Migration rule
 

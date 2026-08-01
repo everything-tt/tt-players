@@ -23,7 +23,7 @@ export { BrowsePage, DetailPage, type BrowsePageProps, type DetailPageProps } fr
 
 export { Stack, Inline, type StackProps, type InlineProps, type LayoutGap } from './components/Layout';
 export { Surface, type SurfaceProps } from './components/Surface';
-export { PageSection, type PageSectionProps } from './components/PageSection';
+export { PageSection, type PageSectionProps, type PageSectionEmphasis } from './components/PageSection';
 export { EntityHero, type EntityHeroProps } from './components/EntityHero';
 export { MetricGrid, type MetricGridProps, type MetricItem } from './components/MetricGrid';
 export { FilterBar, type FilterBarProps } from './components/FilterBar';
@@ -85,6 +85,7 @@ export {
   type EmptyStateProps,
   type ErrorStateProps,
   type SectionHeaderProps,
+  type SectionHeaderEmphasis,
   type HeroCardProps,
 } from './components/States';
 
