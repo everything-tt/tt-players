@@ -67,6 +67,7 @@ describe('migration preflight', () => {
             availableMigrations,
             [
                 '031_create_weekly_rating_history',
+                '032_create_rating_replay_checkpoints',
                 '033_capture_monthly_rating_checkpoints',
             ],
         )).toEqual([
