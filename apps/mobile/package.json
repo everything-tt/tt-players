@@ -10,15 +10,16 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.8",
     "@tanstack/react-query": "^5.67.2",
     "@tt-players/design-system": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.2.0",
-    "workbox-window": "^7.4.0",
-    "@supabase/supabase-js": "^2.110.8"
+    "workbox-window": "^7.4.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.54.2",
     "@types/node": "^22.13.4",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
