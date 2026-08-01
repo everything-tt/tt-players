@@ -21,6 +21,7 @@ on:
       - '.github/workflows/backend-ci.yml'
       - '.github/workflows/vps-deploy.yml'
       - '.github/workflows/vps-rollback.yml'
+      - '.github/workflows/tte-calendar-sync.yml'
   pull_request:
     branches: [main]
     paths:
@@ -40,6 +41,7 @@ on:
       - '.github/workflows/backend-ci.yml'
       - '.github/workflows/vps-deploy.yml'
       - '.github/workflows/vps-rollback.yml'
+      - '.github/workflows/tte-calendar-sync.yml'
 
 permissions:
   contents: read
