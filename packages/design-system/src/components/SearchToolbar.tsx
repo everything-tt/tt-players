@@ -28,7 +28,3 @@ export function SearchToolbar({
     </section>
   );
 }
-diff --git a/packages/design-system/src/components/AppToggleButton.tsx b/packages/design-system/src/components/AppToggleButton.tsx
-new file mode 100644
---- /dev/null
-+++ b/packages/design-system/src/components/AppToggleButton.tsx
