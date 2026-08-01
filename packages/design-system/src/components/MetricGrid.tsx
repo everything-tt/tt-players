@@ -8,7 +8,9 @@ export interface MetricItem {
 }
 
 export interface MetricGridProps {
-  metrics: MetricItem[];
+  metrics?: MetricItem[];
+  /** @deprecated Use metrics. Kept while migrated screens converge on the canonical API. */
+  items?: MetricItem[];
   density?: 'compact' | 'standard';
   columns?: 2 | 3 | 4;
   ariaLabel?: string;
@@ -17,18 +19,20 @@ export interface MetricGridProps {
 
 export function MetricGrid({
   metrics,
+  items,
   density = 'standard',
   columns,
   ariaLabel = 'Key metrics',
   className,
 }: MetricGridProps) {
-  const resolvedColumns = columns ?? Math.min(4, Math.max(2, metrics.length)) as 2 | 3 | 4;
+  const resolvedMetrics = metrics ?? items ?? [];
+  const resolvedColumns = columns ?? Math.min(4, Math.max(2, resolvedMetrics.length)) as 2 | 3 | 4;
   return (
     <div
       className={cx('tt-metric-grid', `tt-metric-grid--${density}`, `tt-metric-grid--cols-${resolvedColumns}`, className)}
       aria-label={ariaLabel}
     >
-      {metrics.map((metric, index) => (
+      {resolvedMetrics.map((metric, index) => (
         <div className="tt-metric" key={index}>
           <strong className="tt-metric__value">{metric.value}</strong>
           <span className="tt-metric__label">{metric.label}</span>
