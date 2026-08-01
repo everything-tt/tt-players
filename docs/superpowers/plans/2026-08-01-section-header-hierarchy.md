@@ -16,10 +16,11 @@
 
 ## Tasks
 
-- [ ] Add failing design-system contract tests for description, metadata, action and emphasis.
-- [ ] Implement the new API while retaining `note` as a compatibility alias.
-- [ ] Replace the accent-bar layout with copy and trailing regions.
-- [ ] Remove app-level overrides that compete with canonical header styles.
-- [ ] Migrate H2H to primary, standard and secondary section emphasis.
-- [ ] Update design-system guidance.
-- [ ] Run design-system tests, typecheck and usage checks in CI.
+- [x] Add design-system contract tests for description, metadata, action and emphasis.
+- [x] Implement the new API while retaining `note` as a compatibility alias.
+- [x] Replace the accent-bar layout with copy and trailing regions.
+- [x] Remove app-level overrides that compete with canonical header styles.
+- [x] Migrate H2H to primary, standard and secondary section emphasis.
+- [x] Update the component catalogue and design-system guidance.
+- [ ] Run design-system tests, mobile typecheck/build and usage checks in CI.
+- [ ] Review primary and secondary headers at narrow mobile widths.
