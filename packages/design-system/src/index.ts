@@ -27,6 +27,7 @@ export { PageSection, type PageSectionProps } from './components/PageSection';
 export { EntityHero, type EntityHeroProps } from './components/EntityHero';
 export { MetricGrid, type MetricGridProps, type MetricItem } from './components/MetricGrid';
 export { FilterBar, type FilterBarProps } from './components/FilterBar';
+export { SearchHeader, type SearchHeaderProps } from './components/SearchHeader';
 export { DesignList, DesignAvatar, type DesignListProps, type DesignListDensity, type DesignAvatarProps } from './components/DesignList';
 
 export {
