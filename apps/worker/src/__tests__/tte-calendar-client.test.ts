@@ -165,4 +165,31 @@ describe('TTE event detail parsing', () => {
             ),
         ).toThrow('Unable to parse TTE event');
     });
+
+    it('includes bounded response diagnostics when a fetched page cannot be parsed', () => {
+        const blockedHtml = `
+          <html>
+            <head><title>Attention Required</title></head>
+            <body><h1>Just a moment...</h1><p>Checking your browser before accessing the site.</p></body>
+          </html>`;
+
+        expect(() =>
+            parseTteEventPage(
+                blockedHtml,
+                'https://www.tabletennisengland.co.uk/event/blocked-event/',
+            ),
+        ).toThrow('title="Attention Required"');
+        expect(() =>
+            parseTteEventPage(
+                blockedHtml,
+                'https://www.tabletennisengland.co.uk/event/blocked-event/',
+            ),
+        ).toThrow('heading="Just a moment..."');
+        expect(() =>
+            parseTteEventPage(
+                blockedHtml,
+                'https://www.tabletennisengland.co.uk/event/blocked-event/',
+            ),
+        ).toThrow('bodySample="Just a moment... Checking your browser before accessing the site."');
+    });
 });
