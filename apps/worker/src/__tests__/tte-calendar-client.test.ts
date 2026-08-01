@@ -190,6 +190,6 @@ describe('TTE event detail parsing', () => {
                 blockedHtml,
                 'https://www.tabletennisengland.co.uk/event/blocked-event/',
             ),
-        ).toThrow('bodySample="Just a moment... Checking your browser before accessing the site."');
+        ).toThrow('bodySample="Just a moment...Checking your browser before accessing the site."');
     });
 });
