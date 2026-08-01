@@ -74,6 +74,7 @@ describe('migration preflight', () => {
             '034_create_user_sync_states',
             '035_create_api_read_models',
             '036_create_tournament_sources',
+            '037_correct_tournament_lifecycle_statuses',
         ]);
     });
 });
