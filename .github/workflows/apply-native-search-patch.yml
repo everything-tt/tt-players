@@ -1,11 +1,11 @@
-name: Apply native search feature patch
+name: Apply native search feature transform
 
 on:
   push:
     branches:
       - design/native-search-browse-pages
     paths:
-      - .github/native-search.patch
+      - .github/apply-native-search.mjs
 
 permissions:
   contents: write
@@ -19,19 +19,18 @@ jobs:
           ref: design/native-search-browse-pages
           fetch-depth: 0
 
-      - name: Apply patch and commit
+      - name: Apply asserted transforms and commit
         shell: bash
         run: |
           set -euo pipefail
-          if [[ ! -f .github/native-search.patch ]]; then
-            echo "Patch already applied."
+          if [[ ! -f .github/apply-native-search.mjs ]]; then
+            echo "Transform already applied."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git apply --check .github/native-search.patch
-          git apply .github/native-search.patch
-          rm .github/native-search.patch
+          node .github/apply-native-search.mjs
+          rm .github/apply-native-search.mjs
           git add -A
           git commit -m "feat: implement native paged search browse"
           git push origin HEAD:design/native-search-browse-pages
