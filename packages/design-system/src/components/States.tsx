@@ -87,7 +87,7 @@ export function SectionHeader({
     <div className={cx(
       'tt-section-header',
       `tt-section-header--${density}`,
-      `tt-section-header--${emphasis}`,
+      `tt-section-header--emphasis-${emphasis}`,
       className,
     )}>
       <div className="tt-section-header__copy">
