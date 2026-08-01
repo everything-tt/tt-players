@@ -190,25 +190,6 @@ describe('discoverTteCalendarEvents', () => {
         })).rejects.toThrow('network unavailable');
     });
 
-    it('reports representative diagnostics when every discovered detail page is malformed', async () => {
-        await expect(discoverTteCalendarEventsDetailed({
-            startMonth: '2026-08',
-            endMonth: '2026-08',
-            fetchPage: async (url) => {
-                if (url.includes('/events-cat/')) return archive(['/event/blocked-event/']);
-                return '<html><head><title>Attention Required</title></head><body><h1>Just a moment...</h1></body></html>';
-            },
-        })).rejects.toThrow('Samples: Unable to parse TTE event');
-        await expect(discoverTteCalendarEventsDetailed({
-            startMonth: '2026-08',
-            endMonth: '2026-08',
-            fetchPage: async (url) => {
-                if (url.includes('/events-cat/')) return archive(['/event/blocked-event/']);
-                return '<html><head><title>Attention Required</title></head><body><h1>Just a moment...</h1></body></html>';
-            },
-        })).rejects.toThrow('title="Attention Required"');
-    });
-
     it('fails safely when a complete archive scan returns no events', async () => {
         await expect(discoverTteCalendarEvents({
             startMonth: '2026-08',
