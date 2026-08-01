@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useEventsQuery } from './queries';
 import { useTabNavigation } from './navigation/tab-navigation';
 import { useFavouriteTournaments } from './hooks/useFavouriteTournaments';
@@ -16,8 +16,7 @@ import {
 import { SearchPanel } from './components/SearchPanel';
 import { FavouriteButton } from './components/FavouriteButton';
 
-const PAGE_SIZE = 25;
-const RECENT_LIMIT = 10;
+const PAGE_SIZE = 20;
 
 export function EventsTabContent() {
   const { navigateInActiveTab } = useTabNavigation();
@@ -28,10 +27,14 @@ export function EventsTabContent() {
   const [offset, setOffset] = useState(0);
   const [total, setTotal] = useState(0);
   const isSearchActive = isActive;
-  const currentLimit = isSearchActive ? PAGE_SIZE : RECENT_LIMIT;
-  const eventsQuery = useEventsQuery(debouncedQuery, currentLimit, isSearchActive ? offset : 0);
+  const eventsQuery = useEventsQuery(debouncedQuery, PAGE_SIZE, offset);
 
-  useEffect(() => { setOffset(0); setEvents([]); setTotal(0); }, [debouncedQuery]);
+  useEffect(() => {
+    setOffset(0);
+    setEvents([]);
+    setTotal(0);
+  }, [debouncedQuery]);
+
   useEffect(() => {
     if (!eventsQuery.data) return;
     setTotal(eventsQuery.data.total);
@@ -46,11 +49,15 @@ export function EventsTabContent() {
   const isLoadingInitial = eventsQuery.isLoading && offset === 0;
   const isLoadingMore = eventsQuery.isFetching && offset > 0;
   const hasMore = events.length < total;
-  const displayedEvents = useMemo(() => isSearchActive ? events : events.slice(0, RECENT_LIMIT), [events, isSearchActive]);
   const handleLoadMore = () => {
-    if (eventsQuery.isError) { void eventsQuery.refetch(); return; }
+    if (eventsQuery.isError) {
+      void eventsQuery.refetch();
+      return;
+    }
     if (!isLoadingMore && hasMore) setOffset((previous) => previous + PAGE_SIZE);
   };
+
+  const sectionTitle = isSearchActive ? 'Search Results' : 'Tournaments';
 
   return (
     <SearchPanel eyebrow="Tournaments" title="Find a tournament" placeholder="Search tournaments by name…" query={query} onQueryChange={search.setQuery}>
@@ -65,28 +72,24 @@ export function EventsTabContent() {
       ) : null}
 
       {isLoadingInitial ? (
-        <PageSection surface="flat" density="compact" title={isSearchActive ? 'Search Results' : 'Recent Tournaments'} note="Loading">
+        <PageSection surface="flat" density="compact" title={sectionTitle} note="Loading">
           <EmptyState iconClassName="fa fa-spinner fa-spin" title="Loading…" />
         </PageSection>
       ) : pageError && events.length === 0 ? (
         <PageSection surface="flat" density="compact"><ErrorState message={pageError} onRetry={() => eventsQuery.refetch()} /></PageSection>
       ) : events.length === 0 ? (
-        <PageSection surface="flat" density="compact" title={isSearchActive ? 'Search Results' : 'Recent Tournaments'}>
+        <PageSection surface="flat" density="compact" title={sectionTitle}>
           <EmptyState iconClassName="fa fa-trophy" title={isSearchActive ? 'No tournaments found' : 'No tournaments yet'} message={query ? `No tournaments matching “${query}”.` : 'No scraped tournament events in the database yet.'} />
         </PageSection>
       ) : (
-        <PageSection surface="flat" density="compact" title={isSearchActive ? 'Search Results' : 'Recent Tournaments'} note={isSearchActive ? `${events.length} shown` : `Last ${RECENT_LIMIT}`}>
+        <PageSection surface="flat" density="compact" title={sectionTitle} note={`${events.length} shown`}>
           <DesignList density="compact" divider="hairline" paginate={false}>
-            {displayedEvents.map((event: EventItem) => (
+            {events.map((event: EventItem) => (
               <ListItem key={event.id} leading={<IconCircle iconClassName="fa fa-trophy" tone="accent" />} title={event.name} subtitle={`${formatDateOrUnknown(event.event_date)} · ${event.category ?? 'Tournament'} · ${event.match_count} ${event.match_count === 1 ? 'match' : 'matches'}`} onClick={() => navigateInActiveTab(`event/${event.id}`)} trailing={<FavouriteButton size="icon" saved={isFavourite(event.id)} onToggle={() => toggleFavourite(event)} />} />
             ))}
           </DesignList>
-          {isSearchActive ? (
-            <>
-              <InfiniteListFooter hasMore={hasMore} isLoading={isLoadingMore} autoLoad={!pageError} onLoadMore={handleLoadMore} loadLabel={pageError ? 'Retry loading tournaments' : 'Load more tournaments'} loadingLabel="Loading more tournaments…" endLabel={`All ${events.length} tournaments shown`} />
-              <p className="tt-section-meta">Showing {events.length} of {total}</p>
-            </>
-          ) : null}
+          <InfiniteListFooter hasMore={hasMore} isLoading={isLoadingMore} autoLoad={!pageError} onLoadMore={handleLoadMore} loadLabel={pageError ? 'Retry loading tournaments' : 'Load more tournaments'} loadingLabel="Loading more tournaments…" endLabel={`All ${events.length} tournaments shown`} />
+          <p className="tt-section-meta">Showing {events.length} of {total}</p>
         </PageSection>
       )}
     </SearchPanel>
