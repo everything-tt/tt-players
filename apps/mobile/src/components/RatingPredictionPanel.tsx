@@ -31,7 +31,7 @@ function signed(value: number | null): string {
 
 function edgeLabel(value: number, positiveName: string, negativeName: string): string {
   if (value === 0) return 'Even';
-  return `${value > 0 ? positiveName : negativeName} ${value > 0 ? '+' : ''}${value}`;
+  return `${value > 0 ? positiveName : negativeName} +${Math.abs(value)}`;
 }
 
 export function RatingPredictionPanel({
