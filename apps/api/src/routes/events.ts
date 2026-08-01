@@ -2,7 +2,6 @@ import type { FastifyPluginAsync } from 'fastify';
 import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { sql, type Kysely } from 'kysely';
-import type { Database } from '@tt-players/db';
 
 const ParamsSchema = z.object({
     id: z.string().uuid(),
@@ -15,10 +14,32 @@ const EventItemSchema = z.object({
     external_id: z.string(),
     name: z.string(),
     event_date: z.string().nullable(),
+    start_date: z.string().nullable(),
+    end_date: z.string().nullable(),
+    status: z.string(),
     category: z.string().nullable(),
+    venue_name: z.string().nullable(),
+    venue_town: z.string().nullable(),
+    venue_postcode: z.string().nullable(),
+    entry_deadline: z.string().nullable(),
+    entry_url: z.string().nullable(),
+    information_url: z.string().nullable(),
+    result_url: z.string().nullable(),
     public_url: z.string().nullable(),
     platform_name: z.string(),
     match_count: z.coerce.number().int(),
+    source_count: z.coerce.number().int(),
+});
+
+const TournamentSourceSchema = z.object({
+    provider: z.string(),
+    source_type: z.string(),
+    external_id: z.string().nullable(),
+    source_url: z.string(),
+    match_method: z.string().nullable(),
+    match_confidence: z.coerce.number().nullable(),
+    first_seen_at: z.string(),
+    last_seen_at: z.string(),
 });
 
 const ListResponseSchema = z.object({
@@ -45,6 +66,7 @@ const EventResultRowSchema = z.object({
 
 const GetResponseSchema = z.object({
     event: EventItemSchema,
+    sources: z.array(TournamentSourceSchema),
     results: z.array(EventResultRowSchema),
 });
 
@@ -55,11 +77,129 @@ const ErrorSchema = z.object({
 
 const QuerySchema = z.object({
     q: z.string().optional(),
+    status: z.enum([
+        'upcoming',
+        'in_progress',
+        'completed',
+        'cancelled',
+        'postponed',
+        'unpublished',
+        'all',
+    ]).optional(),
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    category: z.string().optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
     offset: z.coerce.number().int().min(0).default(0),
 });
 
-export function eventsRoutes(db: Kysely<Database>): FastifyPluginAsync {
+type EventQuery = z.infer<typeof QuerySchema>;
+
+function applyEventFilters<T>(builder: T, query: EventQuery): T {
+    let filtered = builder as any;
+    filtered = filtered
+        .where('c.type', '=', 'individual')
+        .where('c.deleted_at', 'is', null);
+
+    if (query.q) {
+        filtered = filtered.where(
+            sql`coalesce(c.display_name, c.name)`,
+            'ilike',
+            `%${query.q}%`,
+        );
+    }
+
+    if (query.status && query.status !== 'all') {
+        if (query.status === 'upcoming') {
+            filtered = filtered.where('c.event_status', 'in', [
+                'upcoming',
+                'entries_open',
+                'entries_closed',
+            ]);
+        } else {
+            filtered = filtered.where('c.event_status', '=', query.status);
+        }
+    }
+
+    if (query.from) {
+        filtered = filtered.where(
+            sql`coalesce(c.start_date, c.event_date)`,
+            '>=',
+            query.from,
+        );
+    }
+    if (query.to) {
+        filtered = filtered.where(
+            sql`coalesce(c.start_date, c.event_date)`,
+            '<=',
+            query.to,
+        );
+    }
+    if (query.category) {
+        filtered = filtered.where('c.category', 'ilike', `%${query.category}%`);
+    }
+
+    return filtered as T;
+}
+
+function eventSelection() {
+    return [
+        'c.id',
+        'p.id as platform_id',
+        sql<string>`coalesce(c.source, 'canonical')`.as('source'),
+        'c.external_id',
+        sql<string>`coalesce(c.display_name, c.name)`.as('name'),
+        sql<string | null>`c.event_date::text`.as('event_date'),
+        sql<string | null>`coalesce(c.start_date, c.event_date)::text`.as('start_date'),
+        sql<string | null>`c.end_date::text`.as('end_date'),
+        sql<string>`coalesce(c.status_override, c.event_status, case when c.event_date < current_date then 'completed' else 'upcoming' end)`.as('status'),
+        'c.category',
+        'c.venue_name',
+        'c.venue_town',
+        'c.venue_postcode',
+        sql<string | null>`c.entry_deadline::text`.as('entry_deadline'),
+        'c.entry_url',
+        'c.information_url',
+        sql<string | null>`(
+            select ts.source_url
+            from tournament_sources ts
+            where ts.competition_id = c.id
+              and ts.source_type = 'results'
+            order by ts.last_seen_at desc
+            limit 1
+        )`.as('result_url'),
+        sql<string | null>`coalesce(c.information_url, c.source_url)`.as('public_url'),
+        'p.name as platform_name',
+        sql<number>`(
+            select count(*)
+            from rubbers r
+            join fixtures f on f.id = r.fixture_id
+            where f.competition_id = c.id
+              and r.deleted_at is null
+              and r.is_doubles = false
+        )`.as('match_count'),
+        sql<number>`(
+            select count(*)
+            from tournament_sources ts
+            where ts.competition_id = c.id
+        )`.as('source_count'),
+    ] as const;
+}
+
+function mapEvent(event: Record<string, unknown>) {
+    return {
+        ...event,
+        event_date: event.event_date ?? null,
+        start_date: event.start_date ?? null,
+        end_date: event.end_date ?? null,
+        entry_deadline: event.entry_deadline ?? null,
+        result_url: event.result_url ?? null,
+        match_count: Number(event.match_count ?? 0),
+        source_count: Number(event.source_count ?? 0),
+    };
+}
+
+export function eventsRoutes(db: Kysely<any>): FastifyPluginAsync {
     return async function (fastify) {
         const app = fastify.withTypeProvider<ZodTypeProvider>();
 
@@ -75,20 +215,11 @@ export function eventsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 },
             },
             async (request) => {
-                const { q, limit, offset } = request.query;
+                const query = request.query;
                 let countBuilder = db
                     .selectFrom('competitions as c')
-                    .select(db.fn.countAll().as('count'))
-                    .where('c.type', '=', 'individual')
-                    .where('c.deleted_at', 'is', null);
-
-                if (q) {
-                    countBuilder = countBuilder.where(
-                        sql`coalesce(c.display_name, c.name)`,
-                        'ilike',
-                        `%${q}%`,
-                    );
-                }
+                    .select(db.fn.countAll().as('count'));
+                countBuilder = applyEventFilters(countBuilder, query);
 
                 const countRes = await countBuilder.executeTakeFirst();
                 const total = Number(countRes?.count ?? 0);
@@ -98,52 +229,33 @@ export function eventsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     .innerJoin('seasons as s', 's.id', 'c.season_id')
                     .innerJoin('leagues as l', 'l.id', 's.league_id')
                     .innerJoin('platforms as p', 'p.id', 'l.platform_id')
-                    .select([
-                        'c.id',
-                        'p.id as platform_id',
-                        sql<string>`coalesce(c.source, 'canonical')`.as('source'),
-                        'c.external_id',
-                        sql<string>`coalesce(c.display_name, c.name)`.as('name'),
-                        sql<string | null>`c.event_date::text`.as('event_date'),
-                        'c.category',
-                        'c.source_url as public_url',
-                        'p.name as platform_name',
-                        (qb) => qb
-                            .selectFrom('rubbers as r')
-                            .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
-                            .select(qb.fn.countAll().as('count'))
-                            .whereRef('f.competition_id', '=', 'c.id')
-                            .where('r.deleted_at', 'is', null)
-                            .where('r.is_doubles', '=', false)
-                            .as('match_count'),
-                    ]);
+                    .select(eventSelection());
+                queryBuilder = applyEventFilters(queryBuilder, query);
 
-                if (q) {
-                    queryBuilder = queryBuilder.where(
-                        sql`coalesce(c.display_name, c.name)`,
-                        'ilike',
-                        `%${q}%`,
-                    );
+                if (query.status === 'upcoming') {
+                    queryBuilder = queryBuilder
+                        .orderBy(sql`coalesce(c.start_date, c.event_date)`, 'asc')
+                        .orderBy(sql`coalesce(c.display_name, c.name)`, 'asc');
+                } else if (query.status === 'in_progress') {
+                    queryBuilder = queryBuilder
+                        .orderBy(sql`coalesce(c.start_date, c.event_date)`, 'asc')
+                        .orderBy(sql`coalesce(c.display_name, c.name)`, 'asc');
+                } else {
+                    queryBuilder = queryBuilder
+                        .orderBy(sql`coalesce(c.start_date, c.event_date)`, 'desc')
+                        .orderBy(sql`coalesce(c.display_name, c.name)`, 'asc');
                 }
 
                 const events = await queryBuilder
-                    .where('c.type', '=', 'individual')
-                    .where('c.deleted_at', 'is', null)
-                    .orderBy('c.event_date', 'desc')
-                    .orderBy(sql`coalesce(c.display_name, c.name)`, 'asc')
-                    .limit(limit)
-                    .offset(offset)
+                    .limit(query.limit)
+                    .offset(query.offset)
                     .execute();
 
                 return {
-                    data: events.map((event) => ({
-                        ...event,
-                        event_date: event.event_date ?? null,
-                        match_count: Number(event.match_count ?? 0),
-                    })),
+                    data: events.map((event: Record<string, unknown>) => mapEvent(event)),
                     total,
-                    limit,
-                    offset,
+                    limit: query.limit,
+                    offset: query.offset,
                 };
             },
         );
@@ -167,25 +279,7 @@ export function eventsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     .innerJoin('seasons as s', 's.id', 'c.season_id')
                     .innerJoin('leagues as l', 'l.id', 's.league_id')
                     .innerJoin('platforms as p', 'p.id', 'l.platform_id')
-                    .select([
-                        'c.id',
-                        'p.id as platform_id',
-                        sql<string>`coalesce(c.source, 'canonical')`.as('source'),
-                        'c.external_id',
-                        sql<string>`coalesce(c.display_name, c.name)`.as('name'),
-                        sql<string | null>`c.event_date::text`.as('event_date'),
-                        'c.category',
-                        'c.source_url as public_url',
-                        'p.name as platform_name',
-                        (qb) => qb
-                            .selectFrom('rubbers as r')
-                            .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
-                            .select(qb.fn.countAll().as('count'))
-                            .whereRef('f.competition_id', '=', 'c.id')
-                            .where('r.deleted_at', 'is', null)
-                            .where('r.is_doubles', '=', false)
-                            .as('match_count'),
-                    ])
+                    .select(eventSelection())
                     .where('c.id', '=', id)
                     .where('c.type', '=', 'individual')
                     .where('c.deleted_at', 'is', null)
@@ -198,39 +292,62 @@ export function eventsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     });
                 }
 
-                const results = await db
-                    .selectFrom('rubbers as r')
-                    .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
-                    .leftJoin('external_players as hp1', 'hp1.id', 'r.home_player_1_id')
-                    .leftJoin('external_players as ap1', 'ap1.id', 'r.away_player_1_id')
-                    .select([
-                        'r.id',
-                        'r.played_at',
-                        'f.round_name',
-                        'f.round_order',
-                        sql<string>`COALESCE(hp1.name, 'Unknown')`.as('home_player_name'),
-                        sql<string | null>`hp1.external_id`.as('home_player_external_id'),
-                        sql<string>`COALESCE(ap1.name, 'Unknown')`.as('away_player_name'),
-                        sql<string | null>`ap1.external_id`.as('away_player_external_id'),
-                        sql<string>`CASE WHEN r.home_games_won > r.away_games_won THEN 'home' ELSE 'away' END`.as('winner_side'),
-                        sql<string | null>`r.id`.as('canonical_rubber_id'),
-                        sql<string | null>`COALESCE(hp1.canonical_player_id, hp1.id)`.as('home_player_resolved_id'),
-                        sql<string | null>`COALESCE(ap1.canonical_player_id, ap1.id)`.as('away_player_resolved_id'),
-                    ])
-                    .where('f.competition_id', '=', id)
-                    .where('r.deleted_at', 'is', null)
-                    .where('r.is_doubles', '=', false)
-                    .orderBy('f.round_order', 'asc')
-                    .orderBy('r.played_at', 'asc')
-                    .execute();
+                const [sources, results] = await Promise.all([
+                    db
+                        .selectFrom('tournament_sources')
+                        .select([
+                            'provider',
+                            'source_type',
+                            'external_id',
+                            'source_url',
+                            'match_method',
+                            'match_confidence',
+                            sql<string>`first_seen_at::text`.as('first_seen_at'),
+                            sql<string>`last_seen_at::text`.as('last_seen_at'),
+                        ])
+                        .where('competition_id', '=', id)
+                        .orderBy('source_type', 'asc')
+                        .orderBy('provider', 'asc')
+                        .execute(),
+                    db
+                        .selectFrom('rubbers as r')
+                        .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
+                        .leftJoin('external_players as hp1', 'hp1.id', 'r.home_player_1_id')
+                        .leftJoin('external_players as ap1', 'ap1.id', 'r.away_player_1_id')
+                        .select([
+                            'r.id',
+                            'r.played_at',
+                            'f.round_name',
+                            'f.round_order',
+                            sql<string>`COALESCE(hp1.name, 'Unknown')`.as('home_player_name'),
+                            sql<string | null>`hp1.external_id`.as('home_player_external_id'),
+                            sql<string>`COALESCE(ap1.name, 'Unknown')`.as('away_player_name'),
+                            sql<string | null>`ap1.external_id`.as('away_player_external_id'),
+                            sql<string>`CASE WHEN r.home_games_won > r.away_games_won THEN 'home' ELSE 'away' END`.as('winner_side'),
+                            sql<string | null>`r.id`.as('canonical_rubber_id'),
+                            sql<string | null>`COALESCE(hp1.canonical_player_id, hp1.id)`.as('home_player_resolved_id'),
+                            sql<string | null>`COALESCE(ap1.canonical_player_id, ap1.id)`.as('away_player_resolved_id'),
+                        ])
+                        .where('f.competition_id', '=', id)
+                        .where('r.deleted_at', 'is', null)
+                        .where('r.is_doubles', '=', false)
+                        .orderBy('f.round_order', 'asc')
+                        .orderBy('r.played_at', 'asc')
+                        .execute(),
+                ]);
 
                 return {
-                    event: {
-                        ...event,
-                        event_date: event.event_date ?? null,
-                        match_count: Number(event.match_count ?? 0),
-                    },
-                    results: results.map((result) => ({
+                    event: mapEvent(event),
+                    sources: sources.map((source: Record<string, unknown>) => ({
+                        ...source,
+                        external_id: source.external_id ?? null,
+                        match_method: source.match_method ?? null,
+                        match_confidence: source.match_confidence === null
+                            || source.match_confidence === undefined
+                            ? null
+                            : Number(source.match_confidence),
+                    })),
+                    results: results.map((result: Record<string, unknown>) => ({
                         ...result,
                         played_at: result.played_at
                             ? result.played_at instanceof Date
