@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   formatMatchDate,
   getInitials,
@@ -29,6 +30,13 @@ import { RatingPredictionPanel } from './components/RatingPredictionPanel';
 import { buildH2HShareTarget } from './share-target';
 import { useShareTarget } from './hooks/useShareTarget';
 import { buildLeagueSummaries } from './h2h-analysis';
+import type { H2HAnalysisResponse } from './h2h-analysis-types';
+import type { RatingPredictionResponse } from './rating-queries';
+import {
+  h2hAnalysisQueryKey,
+  h2hPredictionQueryKey,
+  primeReverseMatchupCache,
+} from './h2h-matchup-cache';
 import './h2h-ui.css';
 
 function getWinRate(player: Pick<PlayerSearchItem, 'wins' | 'played'>): number {
@@ -112,6 +120,7 @@ function PlayerPicker({ label, player, tone, onSelect, onOpenProfile }: PlayerPi
 
 export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentProps) {
   const { navigateInTab } = useTabNavigation();
+  const queryClient = useQueryClient();
   const {
     items: favouriteH2Hs,
     isFavourite: isFavouriteMatchup,
@@ -172,6 +181,17 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
   };
 
   const swapPlayers = () => {
+    if (playerA && playerB) {
+      primeReverseMatchupCache(queryClient, playerA, playerB, {
+        direct: h2hQuery.data,
+        prediction: queryClient.getQueryData<RatingPredictionResponse>(
+          h2hPredictionQueryKey(playerA.id, playerB.id),
+        ),
+        analysis: queryClient.getQueryData<H2HAnalysisResponse>(
+          h2hAnalysisQueryKey(playerA.id, playerB.id),
+        ),
+      });
+    }
     setPlayerA(playerB);
     setPlayerB(playerA);
   };
