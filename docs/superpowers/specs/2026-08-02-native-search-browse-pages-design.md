@@ -31,7 +31,7 @@ Row-level favourite buttons remain available so users can add or remove saved en
 
 Continue using `BrowsePage` as the generic page shell. Do not introduce a search-specific page type.
 
-Add a reusable search toolbar primitive to `packages/design-system`, tentatively named `SearchToolbar`:
+Add `SearchToolbar` to `packages/design-system`:
 
 - composes the canonical `AppSearchInput`;
 - accepts one or more optional trailing actions;
@@ -40,7 +40,7 @@ Add a reusable search toolbar primitive to `packages/design-system`, tentatively
 - owns spacing, alignment, focus treatment, and responsive behaviour;
 - does not own query state, fetching, list state, or domain semantics.
 
-Add or refine a canonical toggle-button primitive if `AppButton` cannot represent a persistent selected state cleanly. It must support `aria-pressed`, icon plus label, inactive outline treatment, and active tinted/filled treatment.
+Add `AppToggleButton` to the design system for persistent filter states. It supports `aria-pressed`, icon plus label, inactive outline treatment, active tinted treatment, disabled state, and the same size tokens as `AppButton`.
 
 The segmented scope control continues to use `SegmentedToggle`.
 
@@ -51,6 +51,7 @@ The mobile app composes:
 - `BrowsePage` or the existing root shell content area;
 - `SegmentedToggle`;
 - `SearchToolbar`;
+- `AppToggleButton` for Saved;
 - `DesignList` / `ListItem`;
 - `InfiniteListFooter`;
 - shared loading, empty, and error states.
@@ -120,11 +121,11 @@ Use the existing league scopes as compact top tabs:
 - `All leagues`
 - `Selected`
 
-`All leagues` is selected initially unless a future product requirement explicitly persists the prior scope.
+`All leagues` is selected initially.
 
 The `Selected` tab remains available when no leagues are selected, but shows a useful empty state with an action to open league selection rather than silently behaving like `All leagues`.
 
-Each scope owns independent list and scroll state. Only the active scope is queried.
+Each scope owns independent list and scroll state. Only the active scope is queried. The current search text remains when switching scope so the same player can be checked across both scopes.
 
 ### 5.2 Search and Saved filtering
 
@@ -137,7 +138,7 @@ Saved is an additional filter within the active league scope, not a separate sav
 
 The active query, league scope, and saved-only state form one request scope. Saved-only results must be accurate for `Selected`, rather than ignoring the league filter.
 
-To support this, the player-search API may accept the locally saved player IDs as an optional filter. The API then intersects those IDs with the active league scope and query before paginating. The input must be validated and bounded to prevent unbounded query strings or expensive requests.
+Extend the player-search API with an optional `saved_ids` parameter containing comma-separated canonical player UUIDs. Validate every UUID and cap the list at 200 IDs. The API intersects those IDs with the active league scope and query before ordering and pagination.
 
 When no players are saved, enabling Saved immediately shows a purposeful empty state while keeping row-level favourite actions available after the filter is cleared.
 
@@ -153,20 +154,30 @@ Preserve the current performance guard for typed search:
 
 Clearing the search restores the active scope's browse list and its saved-only filter.
 
-### 5.4 Pagination
+### 5.4 Pagination contract
 
-The current player-search endpoint returns a fixed set and must be extended for progressive loading.
+Extend `GET /players/search` with:
 
-Use a stable paginated contract with:
+- `limit`: integer from 1 to 50, default 10;
+- `offset`: non-negative integer, default 0;
+- `saved_ids`: optional comma-separated canonical player UUIDs, maximum 200.
 
-- `limit`, defaulting to 10 for these screens;
-- `offset` or a stable cursor;
-- `total` and/or `has_more`;
-- stable deterministic ordering for blank and named searches.
+Return:
 
-Cursor pagination is preferred if the existing query can provide a stable compound cursor without excessive complexity. Otherwise, offset pagination is acceptable for this bounded browse/search use case, provided ordering is deterministic.
+```json
+{
+  "data": [],
+  "total": 0,
+  "has_more": false
+}
+```
 
-The client uses the same progressive-loading behaviour and retry rules as Tournaments.
+Use offset pagination with deterministic ordering:
+
+- blank query: recent match volume descending, wins descending, player name ascending, player ID ascending;
+- named query: player name ascending, player ID ascending.
+
+Apply league and saved-ID filters before counting and pagination. The client uses page size 10 and the same progressive-loading behaviour and retry rules as Tournaments.
 
 ### 5.5 Empty states
 
@@ -190,15 +201,15 @@ For each screen:
 5. Changing query resets pagination for the active filter key after debounce.
 6. Toggling Saved resets pagination for the active filter key.
 7. Row favourite changes update local saved state immediately.
-8. If Saved is active and a visible row is unsaved, remove it from the visible list without resetting the entire screen; reconcile with the server/query cache afterward.
+8. If Saved is active and a visible row is unsaved, remove it from the visible list without resetting the entire screen; reconcile with the query cache afterward.
 
 Search requests must be cancellable through the existing React Query/AbortSignal path so stale responses cannot replace newer results.
 
 ## 7. Accessibility and native behaviour
 
-- Scope controls use correct tab/segmented-control semantics and expose the selected value.
+- Scope controls use correct segmented-control semantics and expose the selected value.
 - Saved uses `aria-pressed` and does not rely on colour alone.
-- Search inputs have visible accessible labels even when the visual UI uses placeholders.
+- Search inputs have accessible labels even when the visual UI uses placeholders.
 - Loading and result-count changes are announced through a restrained `aria-live` region.
 - Touch targets are at least 44x44px.
 - Keyboard focus remains visible.
@@ -229,9 +240,9 @@ Saved-filter request failure on Players:
 
 ### 9.1 Design-system tests
 
-- search toolbar renders input and optional trailing actions;
+- `SearchToolbar` renders an input and optional trailing actions;
 - narrow-width layout remains usable at 320px;
-- Saved toggle exposes selected and accessible states;
+- `AppToggleButton` exposes selected and accessible states;
 - focus and disabled states remain visible.
 
 ### 9.2 Tournaments tests
@@ -252,6 +263,7 @@ Saved-filter request failure on Players:
 - one/two-character queries do not fetch;
 - three-character queries reset and paginate correctly;
 - Saved accurately intersects with active scope and query;
+- player API validates and caps `saved_ids`;
 - player API pagination ordering is stable;
 - switching scope preserves query, pages, and scroll state;
 - removing a favourite while Saved is active removes the row.
@@ -268,12 +280,12 @@ Saved-filter request failure on Players:
 
 Implement Players and Tournaments together in one focused PR because they share the same new design-system toolbar and list-state conventions.
 
-The PR should include:
+The PR includes:
 
-- shared design-system controls;
+- `SearchToolbar` and `AppToggleButton` in the shared design system;
 - Tournament root-tab migration;
 - Player root-tab migration;
-- player-search pagination/filter API changes;
+- player-search pagination and saved-filter API changes;
 - tests and mobile screenshot coverage.
 
 Unrelated root tabs and detail-page redesigns are out of scope.
