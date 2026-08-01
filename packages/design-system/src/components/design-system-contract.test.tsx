@@ -45,7 +45,7 @@ describe('canonical design-system contracts', () => {
     );
 
     expect(markup).toContain('tt-section--emphasis-primary');
-    expect(markup).toContain('tt-section-header--primary');
+    expect(markup).toContain('tt-section-header--emphasis-primary');
     expect(markup).toContain('tt-section-header__copy');
     expect(markup).toContain('tt-section-header__description');
     expect(markup).toContain('tt-section-header__trailing');
