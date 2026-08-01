@@ -32,7 +32,7 @@ import * as m024 from '../../../../../packages/db/src/migrations/024_add_recent_
 import * as m025 from '../../../../../packages/db/src/migrations/025_add_feedback_github_issue_link.js';
 import * as m026 from '../../../../../packages/db/src/migrations/026_create_feedback_attachments.js';
 import * as m027 from '../../../../../packages/db/src/migrations/027_expand_feedback_context_and_attachments.js';
-import * as m028 from '../../../../../packages/db/src/migrations/028_create_tournament_sources.js';
+import * as m030 from '../../../../../packages/db/src/migrations/030_create_tournament_sources.js';
 
 const { Pool } = pg;
 
@@ -70,7 +70,7 @@ class StaticMigrationProvider implements MigrationProvider {
             '025_add_feedback_github_issue_link': m025,
             '026_create_feedback_attachments': m026,
             '027_expand_feedback_context_and_attachments': m027,
-            '028_create_tournament_sources': m028,
+            '030_create_tournament_sources': m030,
         };
     }
 }
@@ -131,14 +131,12 @@ export interface SeedIds {
 }
 
 export async function seedTestData(db: Kysely<Database>): Promise<SeedIds> {
-    // Platform
     const [platform] = await db
         .insertInto('platforms')
         .values({ name: 'Test Platform', base_url: 'https://test.example.com' })
         .returning('id')
         .execute();
 
-    // League
     const [league] = await db
         .insertInto('leagues')
         .values({
@@ -151,67 +149,36 @@ export async function seedTestData(db: Kysely<Database>): Promise<SeedIds> {
 
     const [region] = await db
         .insertInto('regions')
-        .values({
-            slug: 'test-region',
-            name: 'Test Region',
-        })
+        .values({ slug: 'test-region', name: 'Test Region' })
         .returning('id')
         .execute();
 
-    await db
-        .insertInto('league_regions')
-        .values({
-            league_id: league!.id,
-            region_id: region!.id,
-        })
-        .execute();
+    await db.insertInto('league_regions').values({ league_id: league!.id, region_id: region!.id }).execute();
 
-    // Season
     const [season] = await db
         .insertInto('seasons')
-        .values({
-            league_id: league!.id,
-            external_id: 'ext-season-1',
-            name: '2024/25',
-            is_active: true,
-        })
+        .values({ league_id: league!.id, external_id: 'ext-season-1', name: '2024/25', is_active: true })
         .returning('id')
         .execute();
 
-    // Competition
     const [competition] = await db
         .insertInto('competitions')
-        .values({
-            season_id: season!.id,
-            external_id: 'ext-comp-1',
-            name: 'Division 1',
-            type: 'league',
-        })
+        .values({ season_id: season!.id, external_id: 'ext-comp-1', name: 'Division 1', type: 'league' })
         .returning('id')
         .execute();
 
-    // Teams
     const [homeTeam] = await db
         .insertInto('teams')
-        .values({
-            competition_id: competition!.id,
-            external_id: 'ext-team-home',
-            name: 'Home FC',
-        })
+        .values({ competition_id: competition!.id, external_id: 'ext-team-home', name: 'Home FC' })
         .returning('id')
         .execute();
 
     const [awayTeam] = await db
         .insertInto('teams')
-        .values({
-            competition_id: competition!.id,
-            external_id: 'ext-team-away',
-            name: 'Away FC',
-        })
+        .values({ competition_id: competition!.id, external_id: 'ext-team-away', name: 'Away FC' })
         .returning('id')
         .execute();
 
-    // League Standings
     const [standing] = await db
         .insertInto('league_standings')
         .values({
@@ -228,7 +195,6 @@ export async function seedTestData(db: Kysely<Database>): Promise<SeedIds> {
         .returning('id')
         .execute();
 
-    // Fixture
     const [fixture] = await db
         .insertInto('fixtures')
         .values({
@@ -245,30 +211,18 @@ export async function seedTestData(db: Kysely<Database>): Promise<SeedIds> {
         .returning('id')
         .execute();
 
-    // External Players
     const [homePlayer] = await db
         .insertInto('external_players')
-        .values({
-            platform_id: platform!.id,
-            external_id: 'ext-player-home',
-            name: 'Alice Smith',
-            updated_at: new Date(),
-        })
+        .values({ platform_id: platform!.id, external_id: 'ext-player-home', name: 'Alice Smith', updated_at: new Date() })
         .returning('id')
         .execute();
 
     const [awayPlayer] = await db
         .insertInto('external_players')
-        .values({
-            platform_id: platform!.id,
-            external_id: 'ext-player-away',
-            name: 'Bob Jones',
-            updated_at: new Date(),
-        })
+        .values({ platform_id: platform!.id, external_id: 'ext-player-away', name: 'Bob Jones', updated_at: new Date() })
         .returning('id')
         .execute();
 
-    // Rubbers: one normal (homePlayer wins), one walkover (should be excluded)
     const [normalRubber] = await db
         .insertInto('rubbers')
         .values({
