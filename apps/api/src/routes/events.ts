@@ -94,6 +94,9 @@ const QuerySchema = z.object({
 });
 
 type EventQuery = z.infer<typeof QuerySchema>;
+type EventItem = z.infer<typeof EventItemSchema>;
+type TournamentSourceItem = z.infer<typeof TournamentSourceSchema>;
+type EventResultItem = z.infer<typeof EventResultRowSchema>;
 
 function applyEventFilters<T>(builder: T, query: EventQuery): T {
     let filtered = builder as any;
@@ -186,16 +189,71 @@ function eventSelection() {
     ] as const;
 }
 
-function mapEvent(event: Record<string, unknown>) {
+function nullableString(value: unknown): string | null {
+    return value === null || value === undefined ? null : String(value);
+}
+
+function mapEvent(event: Record<string, unknown>): EventItem {
     return {
-        ...event,
-        event_date: event.event_date ?? null,
-        start_date: event.start_date ?? null,
-        end_date: event.end_date ?? null,
-        entry_deadline: event.entry_deadline ?? null,
-        result_url: event.result_url ?? null,
+        id: String(event.id),
+        platform_id: String(event.platform_id),
+        source: String(event.source),
+        external_id: String(event.external_id),
+        name: String(event.name),
+        event_date: nullableString(event.event_date),
+        start_date: nullableString(event.start_date),
+        end_date: nullableString(event.end_date),
+        status: String(event.status),
+        category: nullableString(event.category),
+        venue_name: nullableString(event.venue_name),
+        venue_town: nullableString(event.venue_town),
+        venue_postcode: nullableString(event.venue_postcode),
+        entry_deadline: nullableString(event.entry_deadline),
+        entry_url: nullableString(event.entry_url),
+        information_url: nullableString(event.information_url),
+        result_url: nullableString(event.result_url),
+        public_url: nullableString(event.public_url),
+        platform_name: String(event.platform_name),
         match_count: Number(event.match_count ?? 0),
         source_count: Number(event.source_count ?? 0),
+    };
+}
+
+function mapSource(source: Record<string, unknown>): TournamentSourceItem {
+    return {
+        provider: String(source.provider),
+        source_type: String(source.source_type),
+        external_id: nullableString(source.external_id),
+        source_url: String(source.source_url),
+        match_method: nullableString(source.match_method),
+        match_confidence: source.match_confidence === null || source.match_confidence === undefined
+            ? null
+            : Number(source.match_confidence),
+        first_seen_at: String(source.first_seen_at),
+        last_seen_at: String(source.last_seen_at),
+    };
+}
+
+function mapResult(result: Record<string, unknown>): EventResultItem {
+    return {
+        id: String(result.id),
+        played_at: result.played_at
+            ? result.played_at instanceof Date
+                ? result.played_at.toISOString()
+                : String(result.played_at)
+            : null,
+        round_name: nullableString(result.round_name),
+        round_order: result.round_order === null || result.round_order === undefined
+            ? null
+            : Number(result.round_order),
+        home_player_name: String(result.home_player_name),
+        home_player_external_id: nullableString(result.home_player_external_id),
+        away_player_name: String(result.away_player_name),
+        away_player_external_id: nullableString(result.away_player_external_id),
+        winner_side: String(result.winner_side),
+        canonical_rubber_id: nullableString(result.canonical_rubber_id),
+        home_player_resolved_id: nullableString(result.home_player_resolved_id),
+        away_player_resolved_id: nullableString(result.away_player_resolved_id),
     };
 }
 
@@ -232,11 +290,7 @@ export function eventsRoutes(db: Kysely<any>): FastifyPluginAsync {
                     .select(eventSelection());
                 queryBuilder = applyEventFilters(queryBuilder, query);
 
-                if (query.status === 'upcoming') {
-                    queryBuilder = queryBuilder
-                        .orderBy(sql`coalesce(c.start_date, c.event_date)`, 'asc')
-                        .orderBy(sql`coalesce(c.display_name, c.name)`, 'asc');
-                } else if (query.status === 'in_progress') {
+                if (query.status === 'upcoming' || query.status === 'in_progress') {
                     queryBuilder = queryBuilder
                         .orderBy(sql`coalesce(c.start_date, c.event_date)`, 'asc')
                         .orderBy(sql`coalesce(c.display_name, c.name)`, 'asc');
@@ -338,23 +392,8 @@ export function eventsRoutes(db: Kysely<any>): FastifyPluginAsync {
 
                 return {
                     event: mapEvent(event),
-                    sources: sources.map((source: Record<string, unknown>) => ({
-                        ...source,
-                        external_id: source.external_id ?? null,
-                        match_method: source.match_method ?? null,
-                        match_confidence: source.match_confidence === null
-                            || source.match_confidence === undefined
-                            ? null
-                            : Number(source.match_confidence),
-                    })),
-                    results: results.map((result: Record<string, unknown>) => ({
-                        ...result,
-                        played_at: result.played_at
-                            ? result.played_at instanceof Date
-                                ? result.played_at.toISOString()
-                                : String(result.played_at)
-                            : null,
-                    })),
+                    sources: sources.map((source: Record<string, unknown>) => mapSource(source)),
+                    results: results.map((result: Record<string, unknown>) => mapResult(result)),
                 };
             },
         );
