@@ -7,7 +7,7 @@ export interface TournamentBracketMatch {
   roundName: string | null;
   home: TournamentBracketPlayer;
   away: TournamentBracketPlayer;
-  winnerSide: 'home' | 'away' | null;
+  winnerSide: string | null;
 }
 
 export interface KnockoutResult {
