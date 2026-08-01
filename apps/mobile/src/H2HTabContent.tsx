@@ -27,7 +27,8 @@ import { FavouriteButton } from './components/FavouriteButton';
 import { RatingPredictionPanel } from './components/RatingPredictionPanel';
 import { buildH2HShareTarget } from './share-target';
 import { useShareTarget } from './hooks/useShareTarget';
-import { buildH2HEvidence, buildLeagueSummaries } from './h2h-analysis';
+import { buildLeagueSummaries } from './h2h-analysis';
+import './h2h-ui.css';
 
 function getWinRate(player: Pick<PlayerSearchItem, 'wins' | 'played'>): number {
   return player.played > 0 ? Math.round((player.wins / player.played) * 100) : 0;
@@ -151,13 +152,6 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
   const playerAWinPct = encounterCount > 0 && h2h ? Math.round((h2h.player1_wins / encounterCount) * 100) : 0;
   const playerBWinPct = encounterCount > 0 && h2h ? Math.round((h2h.player2_wins / encounterCount) * 100) : 0;
   const leagueSummaries = useMemo(() => buildLeagueSummaries(h2h?.encounters ?? []), [h2h]);
-  const evidence = useMemo(() => buildH2HEvidence({
-    directEncounters: encounterCount,
-    playerAWins: h2h?.player1_wins ?? 0,
-    playerBWins: h2h?.player2_wins ?? 0,
-    playerARecord: { wins: playerA?.wins ?? 0, played: playerA?.played ?? 0 },
-    playerBRecord: { wins: playerB?.wins ?? 0, played: playerB?.played ?? 0 },
-  }), [encounterCount, h2h, playerA, playerB]);
 
   const isFavourite = playerA && playerB ? isFavouriteMatchup(playerA.id, playerB.id) : false;
   const shareTarget = useMemo(() => playerA && playerB ? buildH2HShareTarget(window.location.origin, playerA, playerB) : null, [playerA, playerB]);
@@ -187,7 +181,7 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
   };
 
   const matchupActions = playerA || playerB ? (
-    <Inline gap="xs" align="center" wrap>
+    <Inline gap="xs" align="center" wrap className="tt-h2h-action-row">
       {playerA && playerB ? (
         <>
           <AppButton size="s" tone="ghost" aria-label="Swap players" onClick={swapPlayers}>
@@ -197,11 +191,13 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
           <FavouriteButton saved={Boolean(isFavourite)} onToggle={() => toggleFavouriteMatchup({ player1: playerA, player2: playerB })} />
           <AppButton size="s" tone="ghost" aria-label={`Share ${playerA.name} versus ${playerB.name}`} onClick={share}>
             <i className="fa fa-share-alt" aria-hidden="true" />
+            Share
           </AppButton>
         </>
       ) : null}
       <AppButton size="s" tone="ghost" aria-label="Clear matchup" onClick={clearMatchup}>
         <i className="fa fa-times" aria-hidden="true" />
+        Clear
       </AppButton>
     </Inline>
   ) : null;
@@ -222,25 +218,7 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
             <PlayerPicker label="Player B" player={playerB} tone="b" onSelect={() => openSearch('B')} onOpenProfile={onOpenPlayer} />
           </div>
         </PageSection>
-      ) : (
-        <PageSection
-          surface="flat"
-          density="compact"
-          title={`${playerA!.name} vs ${playerB!.name}`}
-          note={encounterCount > 0 ? `${encounterCount} recorded encounters` : 'No recorded direct meetings'}
-          action={matchupActions}
-        >
-          <MetricGrid
-            columns={2}
-            density="compact"
-            items={[
-              { label: playerA!.name, value: getWinRate(playerA!), hint: `${playerA!.wins} wins from ${playerA!.played}` },
-              { label: playerB!.name, value: getWinRate(playerB!), hint: `${playerB!.wins} wins from ${playerB!.played}` },
-            ]}
-          />
-          {shareStatus ? <span className="sr-only" aria-live="polite">{shareStatus}</span> : null}
-        </PageSection>
-      )}
+      ) : null}
 
       {favouriteH2Hs.length > 0 && !hasCompleteMatchup ? (
         <PageSection surface="flat" density="compact" title="Saved matchups" note={`${favouriteH2Hs.length} saved`}>
@@ -285,32 +263,14 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
 
       {playerA && playerB ? (
         <>
-          <RatingPredictionPanel playerA={{ id: playerA.id, name: playerA.name }} playerB={{ id: playerB.id, name: playerB.name }} />
-
-          <PageSection surface="flat" density="compact" title="Why this prediction?" note={`${evidence.confidence} confidence`}>
-            <Stack gap="sm">
-              <div className={`tt-h2h-confidence tt-h2h-confidence--${evidence.confidence}`}>
-                <strong>{evidence.predictedPlayer === 'even' ? 'Too close to call' : `${evidence.predictedPlayer === 'A' ? playerA.name : playerB.name} has the edge`}</strong>
-                <span>{encounterCount > 0 ? 'Direct results and current records support this view.' : 'Current records and indirect evidence support this view.'}</span>
-              </div>
-              <DesignList density="compact" divider="hairline">
-                {evidence.reasons.map((reason, index) => (
-                  <ListItem key={reason} leading={<span className="tt-h2h-reason-index">{index + 1}</span>} title={reason} hideChevron />
-                ))}
-              </DesignList>
-            </Stack>
-          </PageSection>
-        </>
-      ) : null}
-
-      {h2h && playerA && playerB && encounterCount === 0 ? (
-        <PageSection surface="flat" density="compact" title="Direct meetings" note="No recorded meetings">
-          <EmptyState
-            iconClassName="fa fa-code-compare"
-            title="Prediction uses indirect evidence"
-            message="Ratings, current records and shared evidence are used because these players have not met in the recorded data."
+          <RatingPredictionPanel
+            playerA={{ id: playerA.id, name: playerA.name }}
+            playerB={{ id: playerB.id, name: playerB.name }}
+            actions={matchupActions}
+            encounterCount={encounterCount}
           />
-        </PageSection>
+          {shareStatus ? <span className="sr-only" aria-live="polite">{shareStatus}</span> : null}
+        </>
       ) : null}
 
       {h2h && playerA && playerB && encounterCount > 0 ? (
