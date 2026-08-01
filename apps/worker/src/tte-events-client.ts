@@ -1,6 +1,9 @@
 import * as cheerio from 'cheerio';
 
 const TTE_ORIGIN = 'https://www.tabletennisengland.co.uk';
+const MAX_PARSE_DIAGNOSTIC_WARNINGS = 5;
+let parseDiagnosticWarnings = 0;
+
 export const TTE_ALL_COMPETITIONS_URL = `${TTE_ORIGIN}/events-cat/all-competitions/`;
 
 export interface TteCompetitionArchive {
@@ -27,8 +30,8 @@ export interface TteCalendarEvent {
 export class TteEventParseError extends Error {
     readonly sourceUrl: string;
 
-    constructor(sourceUrl: string) {
-        super(`Unable to parse TTE event: ${sourceUrl}`);
+    constructor(sourceUrl: string, diagnostics?: string) {
+        super(`Unable to parse TTE event: ${sourceUrl}${diagnostics ? `; ${diagnostics}` : ''}`);
         this.name = 'TteEventParseError';
         this.sourceUrl = sourceUrl;
     }
@@ -156,6 +159,33 @@ function dateFromDom($: cheerio.CheerioAPI, selectors: string[]): string | null 
     return null;
 }
 
+function describeUnparseablePage($: cheerio.CheerioAPI, html: string): string {
+    const title = textFromDom($, ['title']) ?? '';
+    const heading = textFromDom($, ['h1']) ?? '';
+    const bodySample = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 180);
+    const dateCandidates = new Set<string>();
+    const attributes = ['datetime', 'title', 'content', 'data-start-date', 'data-end-date', 'data-date'];
+
+    $('[datetime], [title], [content], [data-start-date], [data-end-date], [data-date]').each((_index, element) => {
+        for (const attribute of attributes) {
+            const value = $(element).attr(attribute)?.trim();
+            if (value && /\d{4}-\d{2}-\d{2}/.test(value)) {
+                dateCandidates.add(value.slice(0, 80));
+            }
+            if (dateCandidates.size >= 5) return false;
+        }
+        return undefined;
+    });
+
+    return [
+        `htmlLength=${html.length}`,
+        `title=${JSON.stringify(title.slice(0, 100))}`,
+        `heading=${JSON.stringify(heading.slice(0, 100))}`,
+        `dateCandidates=${JSON.stringify([...dateCandidates])}`,
+        `bodySample=${JSON.stringify(bodySample)}`,
+    ].join(', ');
+}
+
 function parseEnglishDate(value: string): string | null {
     const cleaned = value.replace(/(\d+)(st|nd|rd|th)/gi, '$1').replace(/,/g, '').trim();
     const match = cleaned.match(/^(?:(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+)?(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/i);
@@ -249,7 +279,12 @@ export function parseTteEventPage(html: string, sourceUrl: string): TteCalendarE
         ]);
 
     if (!sourceKey || !name || !startDate) {
-        throw new TteEventParseError(sourceUrl);
+        const error = new TteEventParseError(sourceUrl, describeUnparseablePage($, html));
+        if (parseDiagnosticWarnings < MAX_PARSE_DIAGNOSTIC_WARNINGS) {
+            console.warn(error.message);
+            parseDiagnosticWarnings += 1;
+        }
+        throw error;
     }
 
     const location = asObject(event.location);
