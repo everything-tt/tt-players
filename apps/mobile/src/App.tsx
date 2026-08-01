@@ -69,6 +69,24 @@ function App() {
   const [hasCompletedLeagueOnboarding, setHasCompletedLeagueOnboarding] = useState(() => hasCompletedStoredLeagueOnboarding());
   const [selectedLeagueIds, setSelectedLeagueIds] = useState<string[]>([]);
 
+  const leaguesQuery = useLeaguesQuery();
+  const allLeagues: LeagueWithDivisions[] = useMemo(
+    () => (Array.isArray(leaguesQuery.data?.data) ? leaguesQuery.data.data : []),
+    [leaguesQuery.data],
+  );
+  const allLeagueIds = useMemo(() => allLeagues.map((league) => league.id), [allLeagues]);
+  const isLeaguesLoading = leaguesQuery.isLoading;
+  const leaguesError = getQueryError(leaguesQuery.error);
+
+  const hasSelectedLeagueScope = hasCompletedLeagueOnboarding && selectedLeagueIds.length > 0;
+  const isAllLeagueScope = hasSelectedLeagueScope
+    && allLeagues.length > 0
+    && selectedLeagueIds.length === allLeagues.length;
+  const selectedLeagueBadgeLabel = !hasCompletedLeagueOnboarding
+    ? 'Choose'
+    : isAllLeagueScope
+      ? 'All'
+      : selectedLeagueIds.length;
 
   const openLeagueSelector = () => {
     setIsMainMenuOpen(false);

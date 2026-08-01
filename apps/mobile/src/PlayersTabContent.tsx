@@ -145,7 +145,6 @@ export function PlayersTabContent({
         )}
       >
         <AppSearchInput
-          type="search"
           inputMode="search"
           enterKeyHint="search"
           autoComplete="off"

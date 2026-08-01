@@ -209,7 +209,6 @@ export function EventsTabContent() {
         )}
       >
         <AppSearchInput
-          type="search"
           inputMode="search"
           enterKeyHint="search"
           autoComplete="off"

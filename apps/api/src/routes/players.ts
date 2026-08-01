@@ -713,7 +713,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 const savedIdArray = uuidArray(savedIds);
                 const searchPattern = `%${normalizedQuery}%`;
                 const requireActivity = normalizedQuery.length === 0 || leagueIds.length > 0;
-                const recentOnly = normalizedQuery.length === 0;
+                const recentOnly = normalizedQuery.length === 0 && savedIds.length === 0;
 
                 const result = await sql<{
                     id: string;
