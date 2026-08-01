@@ -35,9 +35,3 @@ export function AppToggleButton({
     </button>
   );
 }
-diff --git a/packages/design-system/src/components/EntityHero.tsx b/packages/design-system/src/components/EntityHero.tsx
---- a/packages/design-system/src/components/EntityHero.tsx
-+++ b/packages/design-system/src/components/EntityHero.tsx
-@@ -9,6 +9,7 @@ export interface EntityHeroProps {
-   highlights?: ReactNode;
-   accent?: 'brand' | 'neutral' | 'success';
