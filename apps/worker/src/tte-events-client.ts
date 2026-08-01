@@ -135,9 +135,30 @@ function dateOnly(value: unknown): string | null {
     return match?.[1] ?? null;
 }
 
+function textFromDom($: cheerio.CheerioAPI, selectors: string[]): string | null {
+    for (const selector of selectors) {
+        const value = $(selector).first().text().replace(/\s+/g, ' ').trim();
+        if (value) return value;
+    }
+    return null;
+}
+
+function dateFromDom($: cheerio.CheerioAPI, selectors: string[]): string | null {
+    const attributes = ['datetime', 'title', 'content', 'data-start-date', 'data-end-date', 'data-date'];
+    for (const selector of selectors) {
+        const element = $(selector).first();
+        if (element.length === 0) continue;
+        for (const attribute of attributes) {
+            const parsed = dateOnly(element.attr(attribute));
+            if (parsed) return parsed;
+        }
+    }
+    return null;
+}
+
 function parseEnglishDate(value: string): string | null {
     const cleaned = value.replace(/(\d+)(st|nd|rd|th)/gi, '$1').replace(/,/g, '').trim();
-    const match = cleaned.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+    const match = cleaned.match(/^(?:(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+)?(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/i);
     if (!match) return null;
     const months = [
         'january', 'february', 'march', 'april', 'may', 'june',
@@ -152,7 +173,7 @@ function parseEnglishDate(value: string): string | null {
 }
 
 function entryDeadlineFromText(text: string): string | null {
-    const match = text.match(/closing\s+date(?:\s+for\s+entries)?\s*:\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+,?\s+\d{4})/i);
+    const match = text.match(/closing\s+date(?:\s+for\s+entries)?\s*:\s*((?:(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+)?\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+,?\s+\d{4})/i);
     return match ? parseEnglishDate(match[1]) : null;
 }
 
@@ -211,10 +232,21 @@ export function parseTteEventPage(html: string, sourceUrl: string): TteCalendarE
     const pageText = $('body').text().replace(/\s+/g, ' ').trim();
 
     const name = stringValue(event.name)
-        ?? $('h1').first().text().replace(/\s+/g, ' ').trim()
-        ?? null;
-    const startDate = dateOnly(event.startDate);
-    const endDate = dateOnly(event.endDate);
+        ?? textFromDom($, ['h1.tribe-events-single-event-title', 'h1']);
+    const startDate = dateOnly(event.startDate)
+        ?? dateFromDom($, [
+            '[itemprop="startDate"]',
+            '.tribe-events-start-date',
+            '.tribe-event-date-start',
+            'time.tribe-events-start-date',
+        ]);
+    const endDate = dateOnly(event.endDate)
+        ?? dateFromDom($, [
+            '[itemprop="endDate"]',
+            '.tribe-events-end-date',
+            '.tribe-event-date-end',
+            'time.tribe-events-end-date',
+        ]);
 
     if (!sourceKey || !name || !startDate) {
         throw new TteEventParseError(sourceUrl);
@@ -229,10 +261,14 @@ export function parseTteEventPage(html: string, sourceUrl: string): TteCalendarE
         name,
         startDate,
         endDate,
-        venueName: stringValue(location?.name),
-        venueAddress: stringValue(address?.streetAddress),
-        venueTown: stringValue(address?.addressLocality),
-        venuePostcode: stringValue(address?.postalCode),
+        venueName: stringValue(location?.name)
+            ?? textFromDom($, ['.tribe-events-meta-group-venue .tribe-venue', '.tribe-venue']),
+        venueAddress: stringValue(address?.streetAddress)
+            ?? textFromDom($, ['.tribe-events-address .tribe-street-address', '.tribe-street-address']),
+        venueTown: stringValue(address?.addressLocality)
+            ?? textFromDom($, ['.tribe-events-address .tribe-locality', '.tribe-locality']),
+        venuePostcode: stringValue(address?.postalCode)
+            ?? textFromDom($, ['.tribe-events-address .tribe-postal-code', '.tribe-postal-code']),
         categories: categoriesFromDom($),
         entryDeadline: entryDeadlineFromText(pageText),
         entryUrl: findEntryUrl($, sourceUrl),
