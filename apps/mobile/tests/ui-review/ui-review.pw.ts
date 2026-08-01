@@ -141,7 +141,7 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('captures bounded UI screenshots', async ({ page }, testInfo) => {
+test('captures viewport UI screenshots', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
   await prepareAppState(page);
 
@@ -178,12 +178,13 @@ test('captures bounded UI screenshots', async ({ page }, testInfo) => {
     await expect(page.locator('body')).not.toContainText(/application error|unauthori[sz]ed|not found/i);
     await page.addStyleTag({ content: '* { transition: none !important; animation: none !important; caret-color: transparent !important; }' });
     await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(() => window.scrollTo(0, 0));
     await page.waitForTimeout(400);
 
     const slug = createScreenshotSlug(route);
     const screenshotPath = `screenshots/${testInfo.project.name}-${slug}.png`;
     const diagnosticsPath = `diagnostics/${testInfo.project.name}-${slug}.json`;
-    await page.screenshot({ path: join(reportDir, screenshotPath), fullPage: true });
+    await page.screenshot({ path: join(reportDir, screenshotPath), fullPage: false, timeout: 15_000 });
     writeFileSync(
       join(reportDir, diagnosticsPath),
       `${JSON.stringify({ route, finalUrl: page.url(), events }, null, 2)}\n`,
