@@ -87,15 +87,15 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       needs.build-deploy.outputs.deploy_url != ''
     needs: build-deploy
-    runs-on: [self-hosted, linux, x64, gcp-ui-screenshot, playwright]
+    runs-on: [self-hosted, macOS, ARM64, mac-ui-screenshot, playwright]
     timeout-minutes: 60
     concurrency:
       group: ui-screenshots-pr-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     env:
       PREVIEW_URL: ${{ needs.build-deploy.outputs.deploy_url }}
-      PLAYWRIGHT_BROWSERS_PATH: /opt/playwright-browsers
-      TMPDIR: /var/tmp/ui-screenshots
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/playwright-browsers
+      TMPDIR: ${{ runner.temp }}
       UI_REVIEW_REPORT_DIR: ${{ github.workspace }}/ui-review-report
       UI_REVIEW_MAX_ROUTES: 10
 
@@ -141,26 +141,26 @@ jobs:
           rm -rf ui-review-report test-results
           mkdir -p ui-review-report/diagnostics
           {
-            date --iso-8601=seconds
+            date -u +"%Y-%m-%dT%H:%M:%SZ"
             hostname
-            free -h
-            /sbin/swapon --show || true
+            uname -a
+            sysctl -n hw.memsize
+            vm_stat
             df -h
           } > ui-review-report/diagnostics/host-before.txt
 
       - name: Capture UI screenshots
-        run: /usr/local/bin/run-ui-screenshot-serialized -- pnpm --filter @tt-players/mobile exec playwright test --config=../../playwright.ui-review.config.ts
+        run: pnpm --filter @tt-players/mobile exec playwright test --config=../../playwright.ui-review.config.ts
 
       - name: Record host resources after
         if: always()
         run: |
           mkdir -p ui-review-report/diagnostics
           {
-            date --iso-8601=seconds
-            free -h
-            /sbin/swapon --show || true
+            date -u +"%Y-%m-%dT%H:%M:%SZ"
+            vm_stat
             df -h
-            ps --sort=-rss -u gh-ui-runner -o pid,ppid,rss,comm,args | head -40 || true
+            ps -axo pid,ppid,rss,comm,args | sort -nr -k3 | head -40 || true
           } > ui-review-report/diagnostics/host-after.txt
 
       - name: Upload UI review artifact
