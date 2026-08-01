@@ -16,7 +16,7 @@ export interface TournamentCandidateChoice {
     reason: 'matched' | 'review-threshold' | 'ambiguous' | 'below-threshold';
 }
 
-const AMBIGUITY_MARGIN = 0.03;
+const AMBIGUITY_MARGIN = 0.05;
 
 export function chooseTournamentCandidate(
     incoming: TournamentMatchInput,
