@@ -13,7 +13,7 @@
 |---|---|---|---|
 | Shell | `AppShellPage`, `AppPageContent`, `AppHeader`, `AppTabBar` | Canonical | Own safe areas, content clearance and navigation semantics. |
 | Layout | `Stack`, `Inline` | Canonical | Replace one-off flex and gap utilities. |
-| Surface | `Surface`, `PageSection` | Canonical | Explicit canvas, flat, raised and hero roles. |
+| Surface | `Surface`, `PageSection` | Canonical | Explicit canvas, flat, raised and hero roles; `PageSection` also owns primary/standard/secondary heading hierarchy. |
 | Identity | `EntityHero` | Canonical | Player, team, league and tournament identity. |
 | Data | `MetricGrid` | Canonical | Two to four key metrics with responsive fallback. |
 | Filters | `FilterBar`, `SegmentedToggle` | Canonical | Compact controls and narrow-screen horizontal scrolling. |
@@ -31,6 +31,7 @@
 | `List` and legacy `size` values | Compatibility | Use `DesignList density`. |
 | `Avatar` legacy `sm/md/lg` values | Compatibility | Use `DesignAvatar compact/standard/hero`. |
 | `AppCard` | Compatibility | Retain for messages; ordinary screen sections use `PageSection`. |
+| `PageSection note` | Compatibility | Use `description` for copy and `meta` for counts/status. |
 | AppKit classes | Compatibility | Preserve behaviour while removing geometry ownership. |
 
 ## Temporary CSS layers
@@ -51,7 +52,7 @@ Final geometry now lives in `packages/design-system/src/styles/tokens.css` and `
 | Home/root tabs | `App.tsx` | Legacy allowlist; migration pending |
 | Leagues root | `LeaguesTabContent.tsx` | Migrated |
 | Events/Tournaments root | `EventsTabContent.tsx` | Migrated |
-| H2H root | `H2HTabContent.tsx` | Legacy allowlist; migration pending |
+| H2H root | `H2HTabContent.tsx`, `RatingPredictionPanel.tsx` | Migrated; first semantic section-header consumer |
 | Player search/favourites | `App.tsx` player tab content | Legacy allowlist; migration pending |
 | Player profile | `PlayerPage.tsx`, `PlayerRatingPanel.tsx` | Rating panel migrated; main profile pending |
 | Player insights/history | `PlayerInsightsPage.tsx`, `PlayerMatchesPage.tsx`, `PlayerTournamentsPage.tsx`, `MatchJournalPage.tsx` | Matches, tournaments and journal migrated; insights pending |
