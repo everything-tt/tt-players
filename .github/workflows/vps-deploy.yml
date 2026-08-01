@@ -10,6 +10,7 @@ on:
       - 'scripts/benchmark-api.mjs'
       - 'scripts/capture-query-plans.mjs'
       - 'scripts/__tests__/**'
+      - 'scripts/lib/**'
       - 'scripts/migrate-vps-postgres.sh'
       - 'scripts/deploy-vps-release.sh'
       - 'scripts/rollback-vps-release.sh'
@@ -70,6 +71,7 @@ jobs:
 
       - name: Validate deployment scripts
         run: |
+          bash -n scripts/lib/service-recovery.sh
           bash -n scripts/deploy-vps-release.sh
           bash -n scripts/rollback-vps-release.sh
 
