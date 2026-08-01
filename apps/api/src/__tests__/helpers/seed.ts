@@ -32,7 +32,7 @@ import * as m024 from '../../../../../packages/db/src/migrations/024_add_recent_
 import * as m025 from '../../../../../packages/db/src/migrations/025_add_feedback_github_issue_link.js';
 import * as m026 from '../../../../../packages/db/src/migrations/026_create_feedback_attachments.js';
 import * as m027 from '../../../../../packages/db/src/migrations/027_expand_feedback_context_and_attachments.js';
-import * as m030 from '../../../../../packages/db/src/migrations/030_create_tournament_sources.js';
+import * as m032 from '../../../../../packages/db/src/migrations/032_create_tournament_sources.js';
 
 const { Pool } = pg;
 
@@ -70,7 +70,7 @@ class StaticMigrationProvider implements MigrationProvider {
             '025_add_feedback_github_issue_link': m025,
             '026_create_feedback_attachments': m026,
             '027_expand_feedback_context_and_attachments': m027,
-            '030_create_tournament_sources': m030,
+            '032_create_tournament_sources': m032,
         };
     }
 }
@@ -112,8 +112,6 @@ export async function runMigrations(db: Kysely<Database>): Promise<void> {
     if (error) throw error;
 }
 
-// ─── Seed Data ────────────────────────────────────────────────────────────────
-
 export interface SeedIds {
     platformId: string;
     leagueId: string;
@@ -139,11 +137,7 @@ export async function seedTestData(db: Kysely<Database>): Promise<SeedIds> {
 
     const [league] = await db
         .insertInto('leagues')
-        .values({
-            platform_id: platform!.id,
-            external_id: 'ext-league-1',
-            name: 'Test League',
-        })
+        .values({ platform_id: platform!.id, external_id: 'ext-league-1', name: 'Test League' })
         .returning('id')
         .execute();
 
@@ -181,33 +175,13 @@ export async function seedTestData(db: Kysely<Database>): Promise<SeedIds> {
 
     const [standing] = await db
         .insertInto('league_standings')
-        .values({
-            competition_id: competition!.id,
-            team_id: homeTeam!.id,
-            position: 1,
-            played: 5,
-            won: 4,
-            drawn: 0,
-            lost: 1,
-            points: 12,
-            updated_at: new Date(),
-        })
+        .values({ competition_id: competition!.id, team_id: homeTeam!.id, position: 1, played: 5, won: 4, drawn: 0, lost: 1, points: 12, updated_at: new Date() })
         .returning('id')
         .execute();
 
     const [fixture] = await db
         .insertInto('fixtures')
-        .values({
-            competition_id: competition!.id,
-            external_id: 'ext-fixture-1',
-            home_team_id: homeTeam!.id,
-            away_team_id: awayTeam!.id,
-            date_played: '2025-01-15',
-            status: 'completed',
-            round_name: 'Round 1',
-            round_order: 1,
-            updated_at: new Date(),
-        })
+        .values({ competition_id: competition!.id, external_id: 'ext-fixture-1', home_team_id: homeTeam!.id, away_team_id: awayTeam!.id, date_played: '2025-01-15', status: 'completed', round_name: 'Round 1', round_order: 1, updated_at: new Date() })
         .returning('id')
         .execute();
 
@@ -225,31 +199,13 @@ export async function seedTestData(db: Kysely<Database>): Promise<SeedIds> {
 
     const [normalRubber] = await db
         .insertInto('rubbers')
-        .values({
-            fixture_id: fixture!.id,
-            external_id: 'ext-rubber-1',
-            home_player_1_id: homePlayer!.id,
-            away_player_1_id: awayPlayer!.id,
-            home_games_won: 3,
-            away_games_won: 1,
-            outcome_type: 'normal',
-            updated_at: new Date(),
-        })
+        .values({ fixture_id: fixture!.id, external_id: 'ext-rubber-1', home_player_1_id: homePlayer!.id, away_player_1_id: awayPlayer!.id, home_games_won: 3, away_games_won: 1, outcome_type: 'normal', updated_at: new Date() })
         .returning('id')
         .execute();
 
     const [walkoverRubber] = await db
         .insertInto('rubbers')
-        .values({
-            fixture_id: fixture!.id,
-            external_id: 'ext-rubber-walkover',
-            home_player_1_id: homePlayer!.id,
-            away_player_1_id: awayPlayer!.id,
-            home_games_won: 0,
-            away_games_won: 0,
-            outcome_type: 'walkover',
-            updated_at: new Date(),
-        })
+        .values({ fixture_id: fixture!.id, external_id: 'ext-rubber-walkover', home_player_1_id: homePlayer!.id, away_player_1_id: awayPlayer!.id, home_games_won: 0, away_games_won: 0, outcome_type: 'walkover', updated_at: new Date() })
         .returning('id')
         .execute();
 
