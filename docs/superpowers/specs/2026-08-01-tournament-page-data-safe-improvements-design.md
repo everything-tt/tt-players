@@ -1,72 +1,64 @@
-# Tournament Page Data-Safe Improvements
+# Tournament Detail Design-System Migration
 
 ## Goal
 
-Make the tournament detail page more informative and easier to navigate while only presenting facts supported by the imported event and match data.
+Rebuild the tournament detail page with the shared mobile design system and expose only tournament conclusions that can be validated from imported match records.
 
-## Current data boundary
+## Data boundary
 
-The page currently receives tournament metadata plus match records containing player identities, winner side, round name/order, and an optional played time. It derives each player's played, wins, losses, and win percentage from those records.
+The event-detail response provides tournament metadata and match records with player identities, winner side, source round name/order, and optional played time. The UI may derive player records, source stage counts, and a limited knockout result.
 
-The page must not infer or display final standings, champion, runner-up, seed, rating, rating movement, game score statistics, group placement, or bracket structure unless the API later exposes those fields explicitly.
+The page must not infer England ratings, rating changes, seeds, group positions, complete standings, or arbitrary bracket placement.
 
-## Design
+## Page composition
 
-### Tournament summary
+Use the canonical shared components throughout:
 
-Keep the existing name, category, date, match count, source, save, share, and source-link controls. Add compact derived counts for:
+- `EntityHero` for tournament identity, source actions, and headline metrics
+- `MetricGrid` for recorded players, matches, stages, and undefeated players
+- `PageSection` for knockout result, most wins, players, and results
+- `FilterBar` and `AppButton` for narrow-screen filters
+- `DesignList` and `DesignAvatar` for compact player and result rows
+- `Stack` and `Inline` for page rhythm and alignment
+- `EmptyState` for filtered and missing-result states
 
-- unique players
-- distinct named rounds, labelled "recorded rounds"
-- undefeated players in the available result set
+Do not introduce page-specific gutters, card geometry, list row heights, control sizes, or section spacing.
 
-The wording must make clear that these counts describe the imported records, not an official tournament classification.
+## Knockout result
 
-### Leading records
+A knockout result may be shown only when exactly one source stage normalises to `final` and the match has a valid winner side.
 
-Rename "Top Players" to "Most Wins" and remove numbered rank badges. Show up to three players using wins, losses, win percentage, and matches played. Sorting remains deterministic by wins, win percentage, matches played, then name, but the UI must not imply official placement.
+- Winner: winner of that recorded final
+- Runner-up: loser of that recorded final
+- Semi-finalists: losers of exactly two recorded semi-finals, only when both semi-final winners are exactly the two final participants and no third-place match is recorded
 
-### Player exploration
+Call the section `Knockout result`, not `Final standings`. If validation fails, omit the section rather than guessing.
 
-Retain player search and favourite controls. Make player rows clearly actionable for filtering the tournament's match list. Selected-player state should visibly explain that results are filtered and provide a clear reset action.
+## Most wins
 
-Add lightweight record filters only where they can be derived safely:
+Show up to three players sorted by wins, win percentage, matches played, then name. Use a compact list without rank numbers or podium styling. Label the section `Most wins` and state that the figures come from recorded matches.
 
-- all players
-- undefeated players
+## Players
 
-Do not add rating, seed, standing, or placement filters.
+Provide search plus `All` and `Undefeated` filters. Keep the list visible when a player is selected; selected-player state filters results and can be cleared independently. Use canonical compact list and avatar treatments and preserve favourite actions.
 
-### Round exploration
+## Results
 
-Add a compact round selector generated directly from source-provided round names and ordered by `round_order`. It includes an "All" option. Selecting a round filters the results without altering or normalising the source round labels.
+Use a horizontally scrollable canonical `FilterBar` for source stages. Convert source keys such as `quarter_final` and `semi_final` into readable display labels without changing the stored values used for filtering.
 
-Player and round filters compose: selecting both shows only matches for that player in that recorded round.
+Player and stage filters compose. Group results by source stage, use correct singular/plural copy, and show one compact outcome indicator per row rather than duplicating large icons, text, and W/L pills.
 
-### Match results
+## Testing and verification
 
-Continue grouping unfiltered/all-round results by round. When one round is selected, show that round's matches without a duplicate nested heading where practical. Preserve winner highlighting, played time, and player-profile navigation.
+Cover:
 
-Where both players resolve to internal player IDs, expose an H2H navigation action using the existing application route/pattern. Do not show the action for unresolved external players.
+- round label formatting
+- valid final and semi-final derivation
+- incomplete or ambiguous final data
+- invalid semi-final paths
+- third-place-match handling
+- design-system usage guard
+- mobile production build
+- complete mobile test suite
 
-## Empty and incomplete data
-
-- Hide derived summary values that cannot be calculated meaningfully.
-- "Undefeated" means no losses within the imported matches only.
-- Tournaments with no results retain the existing no-results state.
-- Missing round names remain grouped under the existing neutral "General" label; they do not count as named recorded rounds.
-
-## Testing
-
-Add or update tests to verify:
-
-- the section is labelled "Most Wins" and has no implied podium numbering
-- player, match, recorded-round, and undefeated counts are derived correctly
-- round filtering works and composes with player filtering
-- unresolved players do not expose profile/H2H actions
-- no official standings, champion, runner-up, rating, or rating-change labels are rendered
-- empty-result behaviour remains correct
-
-## Scope exclusions
-
-No API or schema changes are required for this iteration. No official standings reconstruction, rating ingestion, game-score analytics, bracket rendering, or LLM-generated tournament narrative is included.
+Run `pnpm check:design-system`, `pnpm mobile:build`, and the mobile tests before completion.
