@@ -5,7 +5,10 @@ import {
     percentile,
     summarizeSamples,
 } from '../benchmark-api.mjs';
-import { summarizePlan } from '../capture-query-plans.mjs';
+import {
+    buildH2HRelevantRubbersPlanQuery,
+    summarizePlan,
+} from '../capture-query-plans.mjs';
 
 test('benchmark arguments are explicit and normalized', () => {
     const config = parseArgs([
@@ -105,4 +108,14 @@ test('query plan summaries include nested buffer and row totals', () => {
         temp_read_blocks: 0,
         temp_written_blocks: 2,
     });
+});
+
+test('H2H plan capture uses raw source-id predicates compatible with partial indexes', () => {
+    const query = buildH2HRelevantRubbersPlanQuery();
+
+    assert.match(query, /home_player_1_id = ANY\(\$1::uuid\[\]\)/);
+    assert.match(query, /away_player_1_id = ANY\(\$2::uuid\[\]\)/);
+    assert.match(query, /is_doubles = false/);
+    assert.match(query, /outcome_type <> 'walkover'/);
+    assert.doesNotMatch(query, /COALESCE\([^)]*canonical_player_id/);
 });
