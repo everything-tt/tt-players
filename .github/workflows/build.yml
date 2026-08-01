@@ -87,7 +87,7 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       needs.build-deploy.outputs.deploy_url != ''
     needs: build-deploy
-    runs-on: [self-hosted, macOS, ARM64, mac-ui-screenshot, playwright]
+    runs-on: [self-hosted, Linux, ARM64, docker-ui-screenshot, playwright]
     timeout-minutes: 60
     concurrency:
       group: ui-screenshots-pr-${{ github.event.pull_request.number }}
@@ -142,8 +142,7 @@ jobs:
             date -u +"%Y-%m-%dT%H:%M:%SZ"
             hostname
             uname -a
-            sysctl -n hw.memsize
-            vm_stat
+            free -h
             df -h
           } > ui-review-report/diagnostics/host-before.txt
 
@@ -156,9 +155,9 @@ jobs:
           mkdir -p ui-review-report/diagnostics
           {
             date -u +"%Y-%m-%dT%H:%M:%SZ"
-            vm_stat
+            free -h
             df -h
-            ps -axo pid,ppid,rss,comm,args | sort -nr -k3 | head -40 || true
+            ps --sort=-rss -eo pid,ppid,rss,comm,args | head -40 || true
           } > ui-review-report/diagnostics/host-after.txt
 
       - name: Upload UI review artifact
