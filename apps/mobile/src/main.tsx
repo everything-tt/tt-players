@@ -8,6 +8,7 @@ import '../../../packages/design-system/src/styles/primitives.css';
 import './native-mobile.css';
 import './density-pass.css';
 import './uncarded-density.css';
+import './h2h.css';
 import { AppRouter } from './AppRouter';
 import { restoreLocalDataBackup } from './local-persistence';
 
