@@ -1,0 +1,37 @@
+name: Apply native search feature patch
+
+on:
+  push:
+    branches:
+      - design/native-search-browse-pages
+    paths:
+      - .github/native-search.patch
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: design/native-search-browse-pages
+          fetch-depth: 0
+
+      - name: Apply patch and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f .github/native-search.patch ]]; then
+            echo "Patch already applied."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git apply --check .github/native-search.patch
+          git apply .github/native-search.patch
+          rm .github/native-search.patch
+          git add -A
+          git commit -m "feat: implement native paged search browse"
+          git push origin HEAD:design/native-search-browse-pages
