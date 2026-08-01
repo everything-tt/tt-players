@@ -32,6 +32,8 @@ type EventPlayerSummary = {
   winRate: number;
 };
 
+const ALL_ROUNDS = 'all';
+
 function EventDetailSkeleton() {
   return (
     <>
@@ -52,7 +54,7 @@ function EventDetailSkeleton() {
           <SkeletonBlock className="tt-skeleton-button" />
         </div>
       </section>
-      <section className="tt-player-section" aria-label="Loading top players">
+      <section className="tt-player-section" aria-label="Loading most wins">
         <div className="tt-player-section-header">
           <SkeletonBlock className="tt-skeleton-text" />
           <SkeletonBlock className="tt-skeleton-text app-skeleton-short" />
@@ -78,34 +80,12 @@ export function EventDetailPage() {
   const { eventId = '' } = useParams<{ eventId: string }>();
   const [playerQuery, setPlayerQuery] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState<EventPlayerSummary | null>(null);
+  const [selectedRound, setSelectedRound] = useState(ALL_ROUNDS);
 
   const detailQuery = useEventDetailQuery(eventId, Boolean(eventId));
   const event = detailQuery.data?.event;
   const results = detailQuery.data?.results ?? [];
   const pageError = detailQuery.error instanceof Error ? detailQuery.error.message : null;
-
-  const filteredResults = useMemo(() => {
-    if (!selectedPlayer) return results;
-    return results.filter((match) => {
-      const homeKey = match.home_player_resolved_id ?? `external:${match.home_player_external_id}`;
-      const awayKey = match.away_player_resolved_id ?? `external:${match.away_player_external_id}`;
-      return homeKey === selectedPlayer.key || awayKey === selectedPlayer.key;
-    });
-  }, [results, selectedPlayer]);
-
-  const groupedResults = useMemo(() => {
-    const groups: Record<string, typeof filteredResults> = {};
-    for (const match of filteredResults) {
-      const groupKey = match.round_name || 'General';
-      if (!groups[groupKey]) groups[groupKey] = [];
-      groups[groupKey].push(match);
-    }
-    return Object.entries(groups).sort((a, b) => {
-      const aOrder = a[1][0]?.round_order ?? 9999;
-      const bOrder = b[1][0]?.round_order ?? 9999;
-      return aOrder - bOrder;
-    });
-  }, [filteredResults]);
 
   const tournamentPlayers = useMemo(() => {
     const players = new Map<string, EventPlayerSummary>();
@@ -150,7 +130,49 @@ export function EventDetailPage() {
     });
   }, [results]);
 
-  const topPlayers = useMemo(() => tournamentPlayers.slice(0, 3), [tournamentPlayers]);
+  const recordedRounds = useMemo(() => {
+    const rounds = new Map<string, number>();
+    for (const match of results) {
+      const name = match.round_name || 'General';
+      const order = match.round_order ?? 9999;
+      rounds.set(name, Math.min(rounds.get(name) ?? order, order));
+    }
+    return Array.from(rounds.entries())
+      .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))
+      .map(([name]) => name);
+  }, [results]);
+
+  const undefeatedCount = useMemo(
+    () => tournamentPlayers.filter((player) => player.played > 0 && player.losses === 0).length,
+    [tournamentPlayers],
+  );
+
+  const mostWinsPlayers = useMemo(() => tournamentPlayers.slice(0, 3), [tournamentPlayers]);
+
+  const filteredResults = useMemo(() => {
+    return results.filter((match) => {
+      const roundName = match.round_name || 'General';
+      if (selectedRound !== ALL_ROUNDS && roundName !== selectedRound) return false;
+      if (!selectedPlayer) return true;
+      const homeKey = match.home_player_resolved_id ?? `external:${match.home_player_external_id}`;
+      const awayKey = match.away_player_resolved_id ?? `external:${match.away_player_external_id}`;
+      return homeKey === selectedPlayer.key || awayKey === selectedPlayer.key;
+    });
+  }, [results, selectedPlayer, selectedRound]);
+
+  const groupedResults = useMemo(() => {
+    const groups: Record<string, typeof filteredResults> = {};
+    for (const match of filteredResults) {
+      const groupKey = match.round_name || 'General';
+      if (!groups[groupKey]) groups[groupKey] = [];
+      groups[groupKey].push(match);
+    }
+    return Object.entries(groups).sort((a, b) => {
+      const aOrder = a[1][0]?.round_order ?? 9999;
+      const bOrder = b[1][0]?.round_order ?? 9999;
+      return aOrder - bOrder;
+    });
+  }, [filteredResults]);
 
   const filteredTournamentPlayers = useMemo(() => {
     if (selectedPlayer) return [selectedPlayer];
@@ -213,7 +235,10 @@ export function EventDetailPage() {
 
               <div className="tt-tournament-summary-meta">
                 <span><i className="fa fa-calendar-alt" />{formatDateOrUnknown(event.event_date)}</span>
+                <span><i className="fa fa-users" />{tournamentPlayers.length} players</span>
                 <span><i className="fa fa-table-tennis" />{event.match_count} matches</span>
+                <span><i className="fa fa-layer-group" />{recordedRounds.length} recorded rounds</span>
+                <span><i className="fa fa-shield-alt" />{undefeatedCount} undefeated</span>
                 <span><i className="fa fa-database" />{event.platform_name}</span>
               </div>
 
@@ -234,14 +259,14 @@ export function EventDetailPage() {
               </div>
             </section>
 
-            {topPlayers.length > 0 ? (
-              <section className="tt-player-section" aria-labelledby="tt-event-top-players-title">
+            {mostWinsPlayers.length > 0 ? (
+              <section className="tt-player-section" aria-labelledby="tt-event-most-wins-title">
                 <div className="tt-player-section-header">
-                  <h2 id="tt-event-top-players-title" className="tt-player-section-title">Top Players</h2>
-                  <span className="tt-player-section-note">By wins</span>
+                  <h2 id="tt-event-most-wins-title" className="tt-player-section-title">Most Wins</h2>
+                  <span className="tt-player-section-note">From recorded matches</span>
                 </div>
                 <div className="tt-event-top-player-grid">
-                  {topPlayers.map((player, index) => (
+                  {mostWinsPlayers.map((player) => (
                     <button
                       key={player.key}
                       type="button"
@@ -249,10 +274,9 @@ export function EventDetailPage() {
                       onClick={selectPlayerFilter(player)}
                       aria-pressed={selectedPlayer?.key === player.key}
                     >
-                      <span className="tt-event-top-player-rank">{index + 1}</span>
                       <span className="tt-event-top-player-name">{player.name}</span>
-                      <span className="tt-event-top-player-record">{player.wins}-{player.losses}</span>
-                      <span className="tt-event-top-player-meta">{player.winRate}% from {player.played}</span>
+                      <span className="tt-event-top-player-record">{player.wins} wins · {player.losses} losses</span>
+                      <span className="tt-event-top-player-meta">{player.winRate}% from {player.played} matches</span>
                     </button>
                   ))}
                 </div>
@@ -274,7 +298,7 @@ export function EventDetailPage() {
               {selectedPlayer ? (
                 <div className="tt-active-filter">
                   <span>Showing matches for <strong>{selectedPlayer.name}</strong></span>
-                  <button type="button" onClick={() => setSelectedPlayer(null)}>Clear</button>
+                  <button type="button" onClick={() => setSelectedPlayer(null)}>Clear player</button>
                 </div>
               ) : null}
               {filteredTournamentPlayers.length === 0 ? (
@@ -288,7 +312,7 @@ export function EventDetailPage() {
                         key={player.key}
                         leading={<Avatar text={getInitials(player.name)} />}
                         title={player.name}
-                        subtitle={`${player.wins}-${player.losses} · ${player.winRate}% · ${player.played} matches`}
+                        subtitle={`${player.wins} wins · ${player.losses} losses · ${player.winRate}% · ${player.played} matches`}
                         active={selectedPlayer?.key === player.key}
                         onClick={() => setSelectedPlayer(player)}
                         trailing={player.playerId ? (
@@ -315,13 +339,46 @@ export function EventDetailPage() {
               <div className="tt-player-section-header">
                 <h2 id="tt-matches-list-title" className="tt-player-section-title">Tournament Results</h2>
                 <span className="tt-player-section-note">
-                  {filteredResults.length}{selectedPlayer ? ` of ${results.length}` : ''} matches
+                  {filteredResults.length}{selectedPlayer || selectedRound !== ALL_ROUNDS ? ` of ${results.length}` : ''} matches
                 </span>
               </div>
 
+              {recordedRounds.length > 1 ? (
+                <div className="tt-player-actions" aria-label="Filter results by recorded round">
+                  <button
+                    type="button"
+                    className={`tt-player-action-pill${selectedRound === ALL_ROUNDS ? ' active' : ''}`}
+                    onClick={() => setSelectedRound(ALL_ROUNDS)}
+                    aria-pressed={selectedRound === ALL_ROUNDS}
+                  >
+                    All rounds
+                  </button>
+                  {recordedRounds.map((roundName) => (
+                    <button
+                      key={roundName}
+                      type="button"
+                      className={`tt-player-action-pill${selectedRound === roundName ? ' active' : ''}`}
+                      onClick={() => setSelectedRound(roundName)}
+                      aria-pressed={selectedRound === roundName}
+                    >
+                      {roundName}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              {selectedRound !== ALL_ROUNDS ? (
+                <div className="tt-active-filter">
+                  <span>Showing recorded round <strong>{selectedRound}</strong></span>
+                  <button type="button" onClick={() => setSelectedRound(ALL_ROUNDS)}>Clear round</button>
+                </div>
+              ) : null}
+
               {groupedResults.length === 0 ? (
                 <p className="tt-player-section-state">
-                  {selectedPlayer ? 'No matches found for this player.' : 'No match results available for this tournament.'}
+                  {selectedPlayer || selectedRound !== ALL_ROUNDS
+                    ? 'No matches found for the active filters.'
+                    : 'No match results available for this tournament.'}
                 </p>
               ) : (
                 groupedResults.map(([roundName, matches]) => (
