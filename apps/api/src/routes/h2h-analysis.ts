@@ -65,8 +65,17 @@ interface CommonRow {
     opponent_name: string;
     p1_played: number;
     p1_wins: number;
+    p1_rate: number;
     p2_played: number;
     p2_wins: number;
+    p2_rate: number;
+    edge: number;
+    total_count: number;
+    player1_advantage: number;
+    player2_advantage: number;
+    even_count: number;
+    aggregate_edge: number;
+    shared_sample_size: number;
 }
 interface FormRow { player_key: number; result: 'W' | 'L' }
 interface RatingRow {
@@ -165,21 +174,39 @@ export function h2hAnalysisRoutes(db: Kysely<Database>): FastifyPluginAsync {
                             FROM singles
                             WHERE opponent_id NOT IN (${identity1.player_id}::uuid, ${identity2.player_id}::uuid)
                             GROUP BY player_key, opponent_id
+                        ), common AS (
+                            SELECT
+                                p1.opponent_id,
+                                COALESCE(canonical.name, external.name) AS opponent_name,
+                                p1.played AS p1_played,
+                                p1.wins AS p1_wins,
+                                ROUND((p1.wins::numeric / NULLIF(p1.played, 0)) * 100)::int AS p1_rate,
+                                p2.played AS p2_played,
+                                p2.wins AS p2_wins,
+                                ROUND((p2.wins::numeric / NULLIF(p2.played, 0)) * 100)::int AS p2_rate
+                            FROM aggregate p1
+                            JOIN aggregate p2 ON p2.opponent_id = p1.opponent_id AND p2.player_key = 2
+                            LEFT JOIN external_players external ON external.id = p1.opponent_id
+                            LEFT JOIN external_players canonical ON canonical.id = COALESCE(external.canonical_player_id, external.id)
+                            WHERE p1.player_key = 1
+                              AND NULLIF(TRIM(COALESCE(canonical.name, external.name)), '') IS NOT NULL
+                        ), scored AS (
+                            SELECT *, (p1_rate - p2_rate)::int AS edge
+                            FROM common
+                        ), summarized AS (
+                            SELECT
+                                *,
+                                COUNT(*) OVER ()::int AS total_count,
+                                COUNT(*) FILTER (WHERE edge >= 10) OVER ()::int AS player1_advantage,
+                                COUNT(*) FILTER (WHERE edge <= -10) OVER ()::int AS player2_advantage,
+                                COUNT(*) FILTER (WHERE edge > -10 AND edge < 10) OVER ()::int AS even_count,
+                                ROUND(AVG(edge) OVER ())::int AS aggregate_edge,
+                                SUM(LEAST(p1_played, p2_played)) OVER ()::int AS shared_sample_size
+                            FROM scored
                         )
-                        SELECT
-                            p1.opponent_id,
-                            COALESCE(canonical.name, external.name) AS opponent_name,
-                            p1.played AS p1_played,
-                            p1.wins AS p1_wins,
-                            p2.played AS p2_played,
-                            p2.wins AS p2_wins
-                        FROM aggregate p1
-                        JOIN aggregate p2 ON p2.opponent_id = p1.opponent_id AND p2.player_key = 2
-                        LEFT JOIN external_players external ON external.id = p1.opponent_id
-                        LEFT JOIN external_players canonical ON canonical.id = COALESCE(external.canonical_player_id, external.id)
-                        WHERE p1.player_key = 1
-                          AND NULLIF(TRIM(COALESCE(canonical.name, external.name)), '') IS NOT NULL
-                        ORDER BY (p1.played + p2.played) DESC, opponent_name ASC
+                        SELECT *
+                        FROM summarized
+                        ORDER BY (p1_played + p2_played) DESC, opponent_name ASC
                         LIMIT ${request.query.common_limit}
                     `.execute(db),
                     sql<FormRow>`
@@ -267,14 +294,14 @@ export function h2hAnalysisRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     const p1Wins = Number(row.p1_wins);
                     const p2Played = Number(row.p2_played);
                     const p2Wins = Number(row.p2_wins);
-                    const p1Rate = percentage(p1Wins, p1Played);
-                    const p2Rate = percentage(p2Wins, p2Played);
+                    const p1Rate = Number(row.p1_rate);
+                    const p2Rate = Number(row.p2_rate);
                     return {
                         opponent_id: row.opponent_id,
                         opponent_name: row.opponent_name,
                         player1: { played: p1Played, wins: p1Wins, losses: p1Played - p1Wins, win_rate: p1Rate },
                         player2: { played: p2Played, wins: p2Wins, losses: p2Played - p2Wins, win_rate: p2Rate },
-                        edge: p1Rate - p2Rate,
+                        edge: Number(row.edge),
                     };
                 });
 
@@ -295,24 +322,24 @@ export function h2hAnalysisRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     };
                 };
 
-                const player1Advantage = common.filter((row) => row.edge >= 10).length;
-                const player2Advantage = common.filter((row) => row.edge <= -10).length;
-                const even = common.length - player1Advantage - player2Advantage;
-                const aggregateEdge = common.length > 0
-                    ? Math.round(common.reduce((sum, row) => sum + row.edge, 0) / common.length)
-                    : 0;
+                const summary = commonResult.rows[0];
+                const totalCommon = Number(summary?.total_count ?? 0);
+                const player1Advantage = Number(summary?.player1_advantage ?? 0);
+                const player2Advantage = Number(summary?.player2_advantage ?? 0);
+                const even = Number(summary?.even_count ?? 0);
+                const aggregateEdge = Number(summary?.aggregate_edge ?? 0);
+                const sharedSampleSize = Number(summary?.shared_sample_size ?? 0);
                 const form1 = buildForm(1);
                 const form2 = buildForm(2);
                 const rating1 = buildRating(1);
                 const rating2 = buildRating(2);
                 const reasons: string[] = [];
-                if (common.length > 0) reasons.push(`${common.length} shared opponents provide indirect matchup evidence.`);
+                if (totalCommon > 0) reasons.push(`${totalCommon} shared opponents provide indirect matchup evidence.`);
                 if (Math.abs(aggregateEdge) >= 5) reasons.push(`${aggregateEdge > 0 ? identity1.player_name : identity2.player_name} has the stronger aggregate record against shared opponents.`);
                 if (Math.abs(form1.win_rate - form2.win_rate) >= 10) reasons.push(`${form1.win_rate > form2.win_rate ? identity1.player_name : identity2.player_name} has the stronger recent form.`);
                 if (rating1.current !== null && rating2.current !== null) reasons.push(`Current ability ratings differ by ${Math.abs(rating1.current - rating2.current)} points.`);
                 if (reasons.length === 0) reasons.push('Available evidence is balanced or limited; treat the prediction cautiously.');
-                const sampleSize = common.reduce((sum, row) => sum + Math.min(row.player1.played, row.player2.played), 0)
-                    + form1.played + form2.played;
+                const sampleSize = sharedSampleSize + form1.played + form2.played;
 
                 return reply.send({
                     players: {
@@ -320,7 +347,7 @@ export function h2hAnalysisRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         player2: { id: identity2.player_id, name: identity2.player_name },
                     },
                     common_opponents: {
-                        total: common.length,
+                        total: totalCommon,
                         player1_advantage: player1Advantage,
                         player2_advantage: player2Advantage,
                         even,
@@ -330,7 +357,7 @@ export function h2hAnalysisRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     form: { player1: form1, player2: form2 },
                     rating: { player1: rating1, player2: rating2 },
                     evidence: {
-                        confidence: evidenceConfidence(sampleSize, common.length),
+                        confidence: evidenceConfidence(sampleSize, totalCommon),
                         sample_size: sampleSize,
                         reasons,
                     },
