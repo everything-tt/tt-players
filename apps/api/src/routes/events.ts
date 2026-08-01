@@ -18,9 +18,14 @@ const EventItemSchema = z.object({
     end_date: z.string().nullable(),
     status: z.string(),
     category: z.string().nullable(),
+    description: z.string().nullable(),
     venue_name: z.string().nullable(),
+    venue_address: z.string().nullable(),
     venue_town: z.string().nullable(),
     venue_postcode: z.string().nullable(),
+    venue_url: z.string().nullable(),
+    organizer_name: z.string().nullable(),
+    organizer_url: z.string().nullable(),
     entry_deadline: z.string().nullable(),
     entry_url: z.string().nullable(),
     information_url: z.string().nullable(),
@@ -145,6 +150,17 @@ function applyEventFilters<T>(builder: T, query: EventQuery): T {
     return filtered as T;
 }
 
+function calendarPayloadField(field: string) {
+    return sql<string | null>`(
+        select nullif(ts.raw_payload ->> ${field}, '')
+        from tournament_sources ts
+        where ts.competition_id = c.id
+          and ts.source_type = 'calendar'
+        order by ts.last_seen_at desc
+        limit 1
+    )`;
+}
+
 function eventSelection() {
     return [
         'c.id',
@@ -157,9 +173,14 @@ function eventSelection() {
         sql<string | null>`c.end_date::text`.as('end_date'),
         sql<string>`coalesce(c.status_override, c.event_status, case when c.event_date < current_date then 'completed' else 'upcoming' end)`.as('status'),
         'c.category',
+        calendarPayloadField('description').as('description'),
         'c.venue_name',
+        'c.venue_address',
         'c.venue_town',
         'c.venue_postcode',
+        calendarPayloadField('venueUrl').as('venue_url'),
+        calendarPayloadField('organizerName').as('organizer_name'),
+        calendarPayloadField('organizerUrl').as('organizer_url'),
         sql<string | null>`c.entry_deadline::text`.as('entry_deadline'),
         'c.entry_url',
         'c.information_url',
@@ -205,9 +226,14 @@ function mapEvent(event: Record<string, unknown>): EventItem {
         end_date: nullableString(event.end_date),
         status: String(event.status),
         category: nullableString(event.category),
+        description: nullableString(event.description),
         venue_name: nullableString(event.venue_name),
+        venue_address: nullableString(event.venue_address),
         venue_town: nullableString(event.venue_town),
         venue_postcode: nullableString(event.venue_postcode),
+        venue_url: nullableString(event.venue_url),
+        organizer_name: nullableString(event.organizer_name),
+        organizer_url: nullableString(event.organizer_url),
         entry_deadline: nullableString(event.entry_deadline),
         entry_url: nullableString(event.entry_url),
         information_url: nullableString(event.information_url),
