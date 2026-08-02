@@ -38,15 +38,12 @@ test('traces the player hero padding cascade', async ({ page }) => {
         for (const rule of Array.from(ruleList)) {
           if (rule instanceof CSSStyleRule) {
             try {
-              if (element.matches(rule.selectorText) && (
-                rule.style.padding
-                || rule.style.paddingLeft
-                || rule.style.paddingRight
-              )) {
+              const cssText = rule.style.cssText;
+              if (element.matches(rule.selectorText) && /padding|(^|;)\s*all\s*:/.test(cssText)) {
                 matchingRules.push({
                   href: sheet.href ?? 'inline',
                   selector: rule.selectorText,
-                  cssText: rule.style.cssText,
+                  cssText,
                 });
               }
             } catch {
@@ -63,8 +60,12 @@ test('traces the player hero padding cascade', async ({ page }) => {
     const style = getComputedStyle(element);
     return {
       className: element.className,
+      padding: style.padding,
       paddingLeft: style.paddingLeft,
       paddingRight: style.paddingRight,
+      paddingInline: style.paddingInline,
+      paddingInlineStart: style.paddingInlineStart,
+      paddingInlineEnd: style.paddingInlineEnd,
       matchingRules,
     };
   });
