@@ -20,6 +20,12 @@ import {
 } from './ui/appkit';
 
 interface PlayersTabContentProps {
+  /** @deprecated Player discovery is global and no longer uses league scope. */
+  selectedLeagueIds?: string[];
+  /** @deprecated Player discovery is global and no longer uses league scope. */
+  allLeaguesCount?: number;
+  /** @deprecated League selection is no longer part of the Players page. */
+  onOpenLeagueSelector?: () => void;
   onOpenPlayer: (playerId: string) => void;
 }
 
