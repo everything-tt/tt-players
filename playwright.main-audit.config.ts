@@ -22,7 +22,7 @@ export default defineConfig({
     timezoneId: 'Europe/London',
     colorScheme: 'light',
     video: 'off',
-    trace: 'retain-on-failure',
+    trace: 'off',
     screenshot: 'only-on-failure',
     navigationTimeout: 30_000,
     actionTimeout: 15_000,
