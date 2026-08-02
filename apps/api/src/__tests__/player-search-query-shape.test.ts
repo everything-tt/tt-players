@@ -5,7 +5,7 @@ describe('player search query shape', () => {
   it('pages global name matches before aggregating their rubbers', async () => {
     const source = await readFile(new URL('../routes/players.ts', import.meta.url), 'utf8');
     const optimizedStart = source.indexOf(
-      'const result = normalizedQuery.length > 0 && leagueIds.length === 0',
+      'if (normalizedQuery.length > 0 && leagueIds.length === 0)',
     );
     const pagedPlayers = source.indexOf('paged_players AS MATERIALIZED', optimizedStart);
     const sourcePlayers = source.indexOf('source_players AS MATERIALIZED', pagedPlayers);
