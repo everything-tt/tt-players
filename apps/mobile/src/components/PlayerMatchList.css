@@ -1,35 +1,10 @@
 .tt-player-match-list .tt-list-item__clickable {
   align-items: center;
+  min-width: 0;
 }
 
 .tt-player-match-row .tt-list-item__content {
   min-width: 0;
-}
-
-.tt-player-match-date {
-  align-items: center;
-  background: var(--accent-subtle);
-  border: 1px solid var(--border-hairline);
-  border-radius: 12px;
-  color: var(--ink);
-  display: grid;
-  flex: 0 0 48px;
-  justify-items: center;
-  line-height: 1;
-  min-height: 54px;
-  padding: 6px 4px;
-}
-
-.tt-player-match-date__day {
-  font-size: 18px;
-  font-weight: 800;
-}
-
-.tt-player-match-date__month,
-.tt-player-match-date__year {
-  color: var(--ink-muted);
-  font-size: 10px;
-  font-weight: 600;
 }
 
 .tt-player-match-title {
@@ -40,32 +15,79 @@
   min-width: 0;
 }
 
+.tt-player-match-meta {
+  align-items: baseline;
+  color: var(--ink-muted);
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tt-player-match-meta__date {
+  color: var(--ink-muted);
+  font-weight: 650;
+}
+
+.tt-player-match-meta__year {
+  color: color-mix(in oklch, var(--ink-muted) 78%, transparent);
+  font-size: 0.82em;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.tt-player-match-meta__separator {
+  margin: 0 5px;
+}
+
+.tt-player-match-meta__source {
+  color: var(--ink-muted);
+}
+
 .tt-player-match-actions {
   align-items: center;
   display: inline-flex;
   flex: 0 0 auto;
-  gap: 2px;
+  gap: 4px;
 }
 
 .tt-player-match-action.tt-btn {
-  height: 36px;
-  min-height: 36px;
-  min-width: 36px;
+  height: 38px;
+  min-height: 38px;
+  min-width: 38px;
   padding: 0;
-  width: 36px;
+  width: 38px;
 }
 
 .tt-player-match-action.tt-btn i {
   margin: 0;
 }
 
+.tt-player-match-action--journal.tt-btn {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.tt-player-match-action--source.tt-btn {
+  border: 1px solid var(--border-hairline);
+  color: var(--ink-muted);
+}
+
+.tt-player-match-action--journal.tt-btn:focus-visible,
+.tt-player-match-action--source.tt-btn:focus-visible {
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
 @media (max-width: 390px) {
   .tt-player-match-actions {
-    gap: 0;
+    gap: 2px;
   }
 
   .tt-player-match-action.tt-btn {
-    min-width: 34px;
-    width: 34px;
+    height: 36px;
+    min-height: 36px;
+    min-width: 36px;
+    width: 36px;
   }
 }
