@@ -33,6 +33,7 @@ import * as m025 from '../../../../../packages/db/src/migrations/025_add_feedbac
 import * as m026 from '../../../../../packages/db/src/migrations/026_create_feedback_attachments.js';
 import * as m027 from '../../../../../packages/db/src/migrations/027_expand_feedback_context_and_attachments.js';
 import * as m036 from '../../../../../packages/db/src/migrations/036_create_tournament_sources.js';
+import * as m038 from '../../../../../packages/db/src/migrations/038_flatten_player_identity_chains.js';
 
 const { Pool } = pg;
 
@@ -71,6 +72,7 @@ class StaticMigrationProvider implements MigrationProvider {
             '026_create_feedback_attachments': m026,
             '027_expand_feedback_context_and_attachments': m027,
             '036_create_tournament_sources': m036,
+            '038_flatten_player_identity_chains': m038,
         };
     }
 }
