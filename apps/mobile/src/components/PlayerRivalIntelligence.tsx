@@ -8,7 +8,14 @@ import type {
   PlayerRivalTabItem,
   PlayerRivalRecord,
 } from '../player-insights-types';
-import { AppButton, SegmentedToggle } from '../ui/appkit';
+import {
+  DesignAvatar,
+  DesignList,
+  ErrorState,
+  ListItem,
+  PageSection,
+  SegmentedToggle,
+} from '../ui/appkit';
 
 interface PlayerRivalIntelligenceProps {
   data: PlayerRivalsResponse | null;
@@ -24,22 +31,10 @@ const TAB_OPTIONS: Array<{ value: PlayerRivalTab; label: string }> = [
   { value: 'improving', label: 'Trending up' },
 ];
 
-const TAB_META: Record<PlayerRivalTab, { title: string; description: string; icon: string }> = {
-  toughest: {
-    title: 'Toughest rivals',
-    description: 'Lowest win rates from opponents faced at least three times.',
-    icon: 'fa fa-bolt',
-  },
-  easiest: {
-    title: 'Easiest rivals',
-    description: 'Highest win rates from opponents faced at least three times.',
-    icon: 'fa fa-smile',
-  },
-  improving: {
-    title: 'Trending up',
-    description: 'Opponents where the more recent half of matches is stronger.',
-    icon: 'fa fa-arrow-trend-up',
-  },
+const TAB_DESCRIPTION: Record<PlayerRivalTab, string> = {
+  toughest: 'Lowest win rates against opponents faced at least three times.',
+  easiest: 'Highest win rates against opponents faced at least three times.',
+  improving: 'Matchups where the recent half of the record is stronger.',
 };
 
 export function PlayerRivalIntelligence({
@@ -51,17 +46,15 @@ export function PlayerRivalIntelligence({
 }: PlayerRivalIntelligenceProps) {
   const [tab, setTab] = useState<PlayerRivalTab>('toughest');
   const items = useMemo(() => data ? getRivalTabItems(data, tab) : [], [data, tab]);
-  const meta = TAB_META[tab];
 
   return (
-    <section className="tt-insights-card tt-rivals" aria-labelledby="tt-rivals-title">
-      <div className="tt-insights-section-heading tt-rivals-heading">
-        <div>
-          <h2 id="tt-rivals-title">Rival Intelligence</h2>
-          <p>Repeated matchups reveal the clearest opponent patterns.</p>
-        </div>
-      </div>
-
+    <PageSection
+      surface="flat"
+      density="compact"
+      className="tt-rivals"
+      title="Rival Intelligence"
+      description="Rankings based on recorded singles meetings."
+    >
       <SegmentedToggle
         options={TAB_OPTIONS}
         value={tab}
@@ -71,40 +64,34 @@ export function PlayerRivalIntelligence({
         className="tt-rivals-toggle"
       />
 
-      <div className={`tt-rivals-panel tt-rivals-panel-${tab}`}>
-        <div className="tt-rivals-panel-title">
-          <span className="tt-rivals-panel-icon"><i className={meta.icon} aria-hidden="true" /></span>
-          <div>
-            <h3>{meta.title}</h3>
-            <p>{meta.description}</p>
-          </div>
-        </div>
+      <p className="tt-rivals-category-note">{TAB_DESCRIPTION[tab]}</p>
 
-        {loading ? (
-          <div className="tt-rivals-state" aria-label="Loading rival intelligence">
-            <i className="fa fa-circle-notch fa-spin" aria-hidden="true" /> Loading rivals…
-          </div>
-        ) : error ? (
-          <div className="tt-rivals-state tt-rivals-state-error">
-            <p>Unable to load rival rankings.</p>
-            <AppButton size="sm" tone="outline" onClick={onRetry}>Retry</AppButton>
-          </div>
-        ) : items.length === 0 ? (
-          <p className="tt-rivals-state">Not enough repeated encounters for this category yet.</p>
-        ) : (
-          <div className="tt-rivals-list">
-            {items.map((item) => (
-              <RivalRow
-                key={item.opponent_id}
-                item={item}
-                tab={tab}
-                onOpen={() => onOpenOpponent(item.opponent_id)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </section>
+      {loading ? (
+        <p className="tt-insights-state" aria-live="polite">
+          <i className="fa fa-circle-notch fa-spin" aria-hidden="true" />
+          Loading rivals…
+        </p>
+      ) : error ? (
+        <ErrorState
+          title="Couldn’t load rival rankings"
+          message={error}
+          onRetry={onRetry}
+        />
+      ) : items.length === 0 ? (
+        <p className="tt-insights-state">Not enough repeated encounters for this category yet.</p>
+      ) : (
+        <DesignList density="compact" divider="hairline" className="tt-rivals-list">
+          {items.map((item) => (
+            <RivalRow
+              key={item.opponent_id}
+              item={item}
+              tab={tab}
+              onOpen={() => onOpenOpponent(item.opponent_id)}
+            />
+          ))}
+        </DesignList>
+      )}
+    </PageSection>
   );
 }
 
@@ -123,23 +110,27 @@ function RivalRow({
   const ranked = tab !== 'improving'
     ? item as PlayerRivalRecord
     : null;
+  const subtitle = improving
+    ? `${improving.first_half_win_rate}% → ${improving.second_half_win_rate}% · ${improving.played} matches`
+    : `${ranked!.wins}W · ${ranked!.losses}L · ${ranked!.played} matches`;
+  const value = improving ? `+${improving.delta_points}` : `${ranked!.win_rate}%`;
+  const label = improving ? 'pts' : 'WR';
 
   return (
-    <button type="button" className="tt-rival-row" onClick={onOpen}>
-      <span className="tt-rival-avatar" aria-hidden="true">{getInitials(item.opponent_name)}</span>
-      <span className="tt-rival-copy">
-        <strong>{item.opponent_name}</strong>
-        <small>
-          {improving
-            ? `${improving.first_half_win_rate}% → ${improving.second_half_win_rate}% · ${improving.played} matches`
-            : `${ranked!.wins}W · ${ranked!.losses}L · ${ranked!.played} matches`}
-        </small>
-      </span>
-      <span className="tt-rival-result">
-        <strong>{improving ? `+${improving.delta_points}` : `${ranked!.win_rate}%`}</strong>
-        <small>{improving ? 'pts' : 'WR'}</small>
-      </span>
-      <i className="fa fa-chevron-right" aria-hidden="true" />
-    </button>
+    <ListItem
+      leading={<DesignAvatar size="compact" text={getInitials(item.opponent_name)} />}
+      title={item.opponent_name}
+      subtitle={subtitle}
+      trailing={(
+        <span className="tt-rival-trailing">
+          <span className="tt-rival-stat">
+            <strong>{value}</strong>
+            <small>{label}</small>
+          </span>
+          <i className="fa fa-angle-right" aria-hidden="true" />
+        </span>
+      )}
+      onClick={onOpen}
+    />
   );
 }
