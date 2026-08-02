@@ -32,7 +32,6 @@ async function prepareAppState(page: Page) {
     localStorage.setItem('tt_players_selected_league_ids', JSON.stringify([]));
     localStorage.setItem('TTPlayers-Theme', 'light-mode');
     localStorage.setItem('pwa-install-dismissed', Date.now().toString());
-    localStorage.removeItem('tt_players_my_player');
   });
 }
 
