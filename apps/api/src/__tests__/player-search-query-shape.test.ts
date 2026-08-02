@@ -20,12 +20,20 @@ describe('player search query shape', () => {
     expect(matchAggregation).not.toContain('JOIN external_players ep');
   });
 
-  it('starts blank recent browse from materialized scoped fixtures', async () => {
+  it('materializes blank recent rubbers through a fixture-indexed lateral lookup', async () => {
     const source = await readFile(new URL('../routes/players.ts', import.meta.url), 'utf8');
     const blankBrowse = source.indexOf('scoped_fixtures AS MATERIALIZED');
-    const rubberJoin = source.indexOf('JOIN rubbers r ON r.fixture_id = sf.id', blankBrowse);
+    const scopedRubbers = source.indexOf('scoped_rubbers AS MATERIALIZED', blankBrowse);
+    const lateralLookup = source.indexOf('CROSS JOIN LATERAL', scopedRubbers);
+    const fixturePredicate = source.indexOf('r.fixture_id = sf.id', lateralLookup);
+    const optimizationBarrier = source.indexOf('OFFSET 0', fixturePredicate);
+    const playerMatches = source.indexOf('player_matches AS MATERIALIZED', optimizationBarrier);
 
     expect(blankBrowse).toBeGreaterThan(-1);
-    expect(rubberJoin).toBeGreaterThan(blankBrowse);
+    expect(scopedRubbers).toBeGreaterThan(blankBrowse);
+    expect(lateralLookup).toBeGreaterThan(scopedRubbers);
+    expect(fixturePredicate).toBeGreaterThan(lateralLookup);
+    expect(optimizationBarrier).toBeGreaterThan(fixturePredicate);
+    expect(playerMatches).toBeGreaterThan(optimizationBarrier);
   });
 });

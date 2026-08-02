@@ -917,37 +917,51 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                               AND f.date_played >= NOW() - INTERVAL '100 days'
                               AND (${leagueIds.length} = 0 OR s.league_id = ANY(${leagueIdArray}))
                         ),
-                        player_matches AS (
+                        scoped_rubbers AS MATERIALIZED (
                             SELECT
-                                ep.canonical_player_id AS player_id,
-                                CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END AS win
+                                r.home_player_1_id,
+                                r.away_player_1_id,
+                                r.home_games_won,
+                                r.away_games_won
                             FROM scoped_fixtures sf
-                            JOIN rubbers r ON r.fixture_id = sf.id
-                            JOIN external_players ep ON ep.id = r.home_player_1_id
-                            WHERE r.is_doubles = false
-                              AND r.deleted_at IS NULL
-                              AND r.outcome_type != 'walkover'
-                              AND ep.deleted_at IS NULL
-                              AND r.home_player_1_id IS NOT NULL
+                            CROSS JOIN LATERAL (
+                                SELECT
+                                    r.home_player_1_id,
+                                    r.away_player_1_id,
+                                    r.home_games_won,
+                                    r.away_games_won
+                                FROM rubbers r
+                                WHERE r.fixture_id = sf.id
+                                  AND r.is_doubles = false
+                                  AND r.deleted_at IS NULL
+                                  AND r.outcome_type != 'walkover'
+                                OFFSET 0
+                            ) r
+                        ),
+                        player_matches AS MATERIALIZED (
+                            SELECT
+                                sr.home_player_1_id AS source_player_id,
+                                CASE WHEN sr.home_games_won > sr.away_games_won THEN 1 ELSE 0 END AS win
+                            FROM scoped_rubbers sr
+                            WHERE sr.home_player_1_id IS NOT NULL
 
                             UNION ALL
 
                             SELECT
-                                ep.canonical_player_id AS player_id,
-                                CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END AS win
-                            FROM scoped_fixtures sf
-                            JOIN rubbers r ON r.fixture_id = sf.id
-                            JOIN external_players ep ON ep.id = r.away_player_1_id
-                            WHERE r.is_doubles = false
-                              AND r.deleted_at IS NULL
-                              AND r.outcome_type != 'walkover'
-                              AND ep.deleted_at IS NULL
-                              AND r.away_player_1_id IS NOT NULL
+                                sr.away_player_1_id AS source_player_id,
+                                CASE WHEN sr.away_games_won > sr.home_games_won THEN 1 ELSE 0 END AS win
+                            FROM scoped_rubbers sr
+                            WHERE sr.away_player_1_id IS NOT NULL
                         ),
                         player_stats AS (
-                            SELECT player_id, COUNT(*)::int AS played, COALESCE(SUM(win), 0)::int AS wins
-                            FROM player_matches
-                            GROUP BY player_id
+                            SELECT
+                                ep.canonical_player_id AS player_id,
+                                COUNT(*)::int AS played,
+                                COALESCE(SUM(pm.win), 0)::int AS wins
+                            FROM player_matches pm
+                            JOIN external_players ep ON ep.id = pm.source_player_id
+                            WHERE ep.deleted_at IS NULL
+                            GROUP BY ep.canonical_player_id
                         )
                         SELECT
                             cp.id,

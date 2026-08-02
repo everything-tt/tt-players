@@ -22,7 +22,7 @@ When league filters are present, candidate matches are checked against scoped fi
 
 ### Fixture-first recent browse
 
-Blank browse is ordered by recent activity, so it cannot page names before calculating activity. It first materializes active fixtures from the last 100 days, then reaches rubbers through the existing fixture index. This avoids scanning every rubber twice while preserving the current `played DESC`, `wins DESC`, `name`, `id` ordering.
+Blank browse is ordered by recent activity, so it cannot page names before calculating activity. It first materializes active fixtures from the last 100 days, then materializes their rubbers through a lateral fixture-id lookup. The lookup includes an optimization barrier so PostgreSQL cannot flatten the query and reorder it into a full-table rubber scan. Home and away appearances are combined before a single canonical-player join. This preserves the current `played DESC`, `wins DESC`, `name`, `id` ordering while restricting work to recent fixtures.
 
 ### Validation
 
@@ -47,7 +47,7 @@ Integration tests cover canonical aliases, saved-only search, league-filtered se
 
 Migration tests verify that a database representing the old migration-022 state receives all six indexes and that a fresh full migration chain remains valid.
 
-Production-shaped verification uses read-only `EXPLAIN (ANALYZE, BUFFERS)` with representative unique and common names. No production schema changes are part of PR verification.
+Production-shaped verification uses read-only `EXPLAIN (ANALYZE, BUFFERS)` with representative unique and common names. The blank-browse plan must show fixture-keyed rubber index scans rather than a sequential scan over all rubbers. No production schema changes are part of PR verification.
 
 ## Operational Safety
 
