@@ -2,18 +2,32 @@
 
 ## Goal
 
-Create one design-system component for compact completed-match records so individual player matches and team fixtures share the same visual hierarchy, spacing, score treatment, actions, accessibility, and responsive behaviour.
+Create one design-system component for compact completed-match records so player matches, team fixtures, H2H meetings, and tournament results share the same score-led hierarchy, spacing, actions, accessibility, and responsive behaviour.
 
-The component replaces page-specific score/date layouts. It does not own table-tennis domain logic, routing, data fetching, pagination, or journal rules.
+The component replaces page-specific compact score/result rows. It does not own table-tennis domain logic, routing, data fetching, pagination, filtering, or journal rules.
 
-## Scope
+## App-wide review and scope
 
-The first version supports both existing completed-result use cases:
+Use `MatchRecordRow` when the UI represents one completed result as a compact list row.
 
-1. **Individual match** — an opponent name, the viewed player's result, competition/date metadata, and optional direct actions.
-2. **Team fixture** — two team names, the fixture score, competition/date metadata, and an optional primary navigation action.
+### Migrate
 
-Upcoming fixtures and live scoring are out of scope.
+1. Player profile — Recent Matches.
+2. Player full match history.
+3. Home — Latest results.
+4. Leagues — Across your leagues.
+5. Team page — completed rows in Matches.
+6. H2H — Meeting history.
+7. Tournament detail — recorded Results.
+
+### Keep existing specialist presentations
+
+- Fixture detail rubber scorecards: these are two-sided detailed layouts and may include doubles pairs.
+- Fixture detail aggregate hero score: this is a summary metric, not a compact record row.
+- Upcoming or postponed fixtures: these are schedule records, not completed results.
+- Standings, form strips, rankings, player summaries, and tournament summary cards.
+
+This boundary prevents the component from becoming a universal sports-row abstraction.
 
 ## Component API
 
@@ -41,33 +55,48 @@ Upcoming fixtures and live scoring are out of scope.
 
 ### Props
 
-- `score.value`: short visible value such as `3–1`, `W`, `L`, or `—`.
+- `score.value`: short visible value such as `3–1`, `W`, `L`, `D`, or `—`.
 - `score.outcome`: `win`, `loss`, or `neutral`; controls semantic tone only.
 - `score.ariaLabel`: complete spoken description.
-- `title`: primary label. The consumer decides whether this is an opponent or two teams.
-- `metadata`: one or two ordered metadata strings. The component handles separators and wrapping.
+- `title`: primary label as text or a React node.
+- `metadata`: one or two ordered text or React-node values. The component owns separators and wrapping.
 - `onClick`: optional primary row action.
 - `actions`: zero to two direct secondary actions.
 - `density`: `compact` by default, with `standard` available for future use.
 - `className`: optional extension hook.
 
-The component accepts rendered React nodes for `title` and metadata values where needed, but the default use should remain plain text.
-
 ## Score behaviour
 
-The score tile has a stable width and height, rounded background, centred typography, and design-token colours matching the current league result tile.
+The score tile has a stable width and height, rounded background, centred typography, and design-token colours based on the current league score tile.
 
-For individual matches, the consumer always presents the viewed player's games first:
+Consumers order the score for their context:
+
+- Player lists: viewed player first.
+- Team page: viewed team first, regardless of home or away.
+- Home and league dashboards: home team first.
+- H2H meeting history: Player A first.
+- Tournament result filtering: selected player first; otherwise winner first.
+
+Supported values:
 
 - detailed win: `3–1`
 - detailed loss: `1–3`
 - outcome-only win: `W`
 - outcome-only loss: `L`
+- draw: detailed score or `D`
 - genuinely unknown result: `—`
 
-The tile never parses domain strings itself. A player-match helper converts API values such as `Won 3-1`, `Lost 1-3`, `Won`, or `Lost` into the design-system score model.
+The component never parses result strings. Application helpers produce the score model.
 
-The existing separate `WON` / `LOST` pill is removed because it duplicates the score tile.
+For player and H2H records, the existing separate `WON` / `LOST` or W/L badge is removed because it duplicates the score tile.
+
+## Tournament data
+
+Tournament results currently expose winner identity but not game scores. The API already reads canonical rubber rows, so the event result contract will add nullable `home_games_won` and `away_games_won` fields.
+
+- When both values are available, tournament rows show the detailed score.
+- When scores are unavailable but the winner is known, rows show `W` or `L`.
+- Existing data remains valid because the new fields are nullable.
 
 ## Visual hierarchy
 
@@ -77,12 +106,12 @@ The row layout is:
 2. flexible title and metadata content
 3. zero, one, or two direct action buttons
 
-The title remains the strongest text. Metadata is muted and may wrap to two lines. The score is prominent but does not exceed the title weight.
+The title remains the strongest text. Metadata is muted and may wrap. The score is prominent but does not exceed the title weight.
 
 On narrow screens:
 
 - score width remains stable
-- actions keep accessible touch targets
+- action buttons retain accessible touch targets
 - title truncates only when necessary
 - metadata wraps before actions are compressed
 - no overflow drawer is introduced
@@ -100,18 +129,28 @@ On narrow screens:
 - Quick Journal is a direct secondary action
 - fixture/event is a direct secondary action
 
-### Team fixture
+### Team fixture lists
 
 - tapping the row opens the fixture
-- no duplicate fixture action is required unless a consuming page needs another primary target
+- team-page completed rows show the score from the viewed team's perspective
+- upcoming and postponed rows retain their schedule presentation
+
+### H2H history
+
+- tapping the row opens the fixture
+- score and outcome are from Player A's perspective
+
+### Tournament results
+
+- tapping a row keeps the existing player-filter behaviour
+- the score orientation follows the selected player when one is active; otherwise it follows the winner-first presentation
 
 Secondary action clicks must not trigger the row action.
 
 ## Accessibility
 
-- Interactive rows use the existing design-system list-item navigation semantics.
-- Score tiles include a complete `aria-label`; visual text alone is not relied on.
-- Outcome is conveyed by text and accessible labels, not colour alone.
+- Interactive rows use existing design-system list-item semantics.
+- Score tiles include a complete `aria-label`; colour is not the only outcome signal.
 - Action buttons have explicit labels such as `Journal match against Lucy Elliott` and `View fixture for match against Lucy Elliott`.
 - Touch targets remain at least the existing design-system action-button size.
 - Keyboard focus order is row first, then direct actions.
@@ -124,34 +163,38 @@ Application code owns:
 
 - parsing and ordering scores
 - deciding `win`, `loss`, or `neutral`
-- route selection
+- route selection and row actions
 - journal availability
-- fixture versus tournament labels
-- loading, errors, pagination, and section headers
+- fixture versus event labels
+- loading, errors, filtering, pagination, and section headers
 
-This keeps the component reusable without embedding TT Players business rules.
+## Migration plan
 
-## Migration
-
-1. Add `MatchRecordRow` and its styles to the design system.
-2. Add score parsing for player rubber records, including scoreless `W` / `L` fallbacks.
-3. Replace the current player match row in both Recent Matches and full match history.
-4. Replace the league completed-fixture row with `MatchRecordRow` while preserving its current text, score, and navigation behaviour.
-5. Remove duplicate page-specific score tile CSS after both consumers use the shared component.
+1. Add `MatchRecordRow` and styles to the design system and export it through the app kit.
+2. Add shared app helpers that parse player result text and construct team, H2H, and tournament score models.
+3. Replace player Recent Matches and full history rows.
+4. Replace Home and Leagues completed fixture rows.
+5. Replace completed Team page rows while preserving upcoming/postponed rows.
+6. Replace H2H Meeting history rows.
+7. Extend tournament API/types with nullable game scores and replace tournament Results rows.
+8. Remove duplicate compact score-badge CSS only after all consumers migrate.
+9. Add design-system examples and focused mobile UI review coverage.
 
 ## Error and edge cases
 
-- Missing opponent ID: render a non-clickable main row while retaining fixture/event actions.
-- Missing source label: use the existing league or event fallback supplied by the consumer.
+- Missing opponent ID: render a non-clickable main row while retaining source actions.
+- Missing source label: use the consumer's existing league, event, round, or status fallback.
 - Long competition names: metadata wraps; action buttons remain visible.
-- Malformed result string: render `W` or `L` when outcome is known, otherwise `—` with neutral tone.
+- Malformed player result string: render `W` or `L` when outcome is known, otherwise `—` neutrally.
+- Missing team score: keep schedule/status treatment instead of pretending a completed score exists.
 - Drawn team fixtures: use neutral tone and the recorded score.
+- Missing tournament score: use winner-derived `W` or `L`.
 
 ## Testing
 
 ### Design-system tests
 
-- detailed score, outcome-only, and unknown score rendering
+- detailed score, outcome-only, draw, and unknown rendering
 - win/loss/neutral tone classes
 - zero, one, and two action layouts
 - primary-row and secondary-action event separation
@@ -160,11 +203,15 @@ This keeps the component reusable without embedding TT Players business rules.
 
 ### Application tests
 
-- player result parser returns `3–1`, `W`, `L`, and `—` correctly
-- viewed player's score is always first
+- player result parser returns `3–1`, `W`, `L`, and `—`
+- viewed player/team/H2H score is ordered first
 - journal action appears only for the identified player
 - fixture/event action remains available
-- team fixtures retain their existing visible score and navigation
+- Home and Leagues use the shared component
+- Team page migrates completed rows but not upcoming/postponed rows
+- H2H history no longer uses a separate outcome badge
+- tournament API maps nullable game scores and UI falls back to W/L
+- Fixture detail rubber scorecards remain unchanged
 
 ### UI review
 
@@ -172,15 +219,20 @@ The focused mobile Playwright scenario captures:
 
 - identified-player row with two direct actions
 - another-player row with one direct action
-- scoreless `W` or `L` fallback
-- team fixture row using the same component
+- scoreless W/L fallback
+- Home or Leagues team result row
+- Team page completed fixture row
+- H2H meeting row
+- tournament result row
 - narrow-screen metadata wrapping
 
 ## Acceptance criteria
 
-- Player and league result lists use the same design-system `MatchRecordRow`.
+- All in-scope compact completed-result lists use `MatchRecordRow`.
 - Detailed player scores appear in a leading score tile.
-- Scoreless player records show `W` or `L` without restoring the result pill.
+- Scoreless individual records show `W` or `L` without restoring a result pill.
 - Unknown results show `—` neutrally.
-- The direct row/action behaviour approved in PR #88 remains unchanged.
-- Existing infinite scrolling, hero content, sections, fixture navigation, and journal prefill continue to work.
+- Team score ordering matches the page context.
+- Tournament rows use detailed scores when available and W/L otherwise.
+- Existing direct row/action behaviour approved in PR #88 remains unchanged.
+- Existing infinite scrolling, filters, navigation, hero content, detailed rubber scorecards, and journal prefill continue to work.
