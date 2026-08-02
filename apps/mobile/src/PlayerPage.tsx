@@ -20,9 +20,9 @@ import { useMyPlayer } from './hooks/useMyPlayer';
 import { usePagedPlayerMatches } from './hooks/usePagedPlayerMatches';
 import { SkeletonBlock, SkeletonList } from './components/Skeleton';
 import { PlayerMatchList } from './components/PlayerMatchList';
+import { PlayerProfileHero } from './components/PlayerProfileHero';
 import { TabShellPage } from './TabShellPage';
 import {
-  AppButton,
   AppButtonLink,
   AppMessageCard,
   AppPageContent,
@@ -31,9 +31,6 @@ import {
   ListItem,
 } from './ui/appkit';
 import { DetailHeader } from './components/DetailHeader';
-import { FavouriteButton } from './components/FavouriteButton';
-import { FormResultPills } from './components/FormResultPills';
-import { PlayerRatingPanel } from './components/PlayerRatingPanel';
 import { buildPlayerShareTarget } from './share-target';
 import { buildQuickJournalPath } from './player-match-list';
 
@@ -71,37 +68,42 @@ function setCanonicalLink(href: string): void {
 function PlayerProfileSkeleton() {
   return (
     <>
-      <section className="tt-player-hero" aria-label="Loading player profile">
-        <div className="tt-player-hero-top">
-          <div className="tt-player-hero-copy">
+      <section className="tt-player-profile-hero" aria-label="Loading player profile">
+        <div className="tt-player-profile-identity">
+          <SkeletonBlock className="tt-skeleton-avatar" />
+          <div className="tt-player-profile-copy">
             <SkeletonBlock className="tt-skeleton-eyebrow" />
             <SkeletonBlock className="tt-skeleton-title" />
             <SkeletonBlock className="tt-skeleton-text mt-2" />
           </div>
-          <SkeletonBlock className="tt-skeleton-avatar" />
         </div>
 
-        <div className="tt-player-spotlight">
-          <div className="tt-player-winrate">
-            <SkeletonBlock className="tt-skeleton-title" />
-            <SkeletonBlock className="tt-skeleton-text mt-2" />
+        <div className="tt-player-profile-actions">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <SkeletonBlock key={index} className="tt-skeleton-button" />
+          ))}
+        </div>
+
+        <div className="tt-player-profile-divider" />
+
+        <div className="tt-player-profile-metrics" aria-label="Loading ability rating">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="tt-player-profile-metric">
+              <SkeletonBlock className="tt-skeleton-stat" />
+            </div>
+          ))}
+          <div className="tt-player-profile-range">
+            <SkeletonBlock className="tt-skeleton-text" />
           </div>
-          <div className="tt-player-hero-stats">
-            <div className="tt-player-hero-stat"><SkeletonBlock className="tt-skeleton-stat" /></div>
-            <div className="tt-player-hero-stat"><SkeletonBlock className="tt-skeleton-stat" /></div>
-            <div className="tt-player-hero-stat"><SkeletonBlock className="tt-skeleton-stat" /></div>
+          <div className="tt-player-profile-metric tt-player-profile-win-rate">
+            <SkeletonBlock className="tt-skeleton-stat" />
           </div>
         </div>
 
-        <div className="tt-player-actions">
-          <SkeletonBlock className="tt-skeleton-button" />
-          <SkeletonBlock className="tt-skeleton-button" />
-        </div>
-
-        <div className="tt-form-recent">
-          <div className="tt-form-recent-list">
-            {Array.from({ length: 8 }).map((_, index) => (
-              <SkeletonBlock key={index} className="tt-skeleton-pill" />
+        <div className="tt-player-profile-form">
+          <div className="tt-player-profile-form-grid">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={index}><SkeletonBlock className="tt-skeleton-stat" /></div>
             ))}
           </div>
         </div>
@@ -113,18 +115,6 @@ function PlayerProfileSkeleton() {
           <SkeletonBlock className="tt-skeleton-text app-skeleton-short" />
         </div>
         <SkeletonList rows={3} />
-      </section>
-
-      <section className="tt-player-section" aria-label="Loading form">
-        <div className="tt-player-section-header">
-          <SkeletonBlock className="tt-skeleton-text" />
-          <SkeletonBlock className="tt-skeleton-text app-skeleton-short" />
-        </div>
-        <div className="tt-player-metric-grid">
-          <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
-          <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
-          <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
-        </div>
       </section>
 
       <section className="tt-player-section" aria-label="Loading recent matches">
@@ -257,78 +247,34 @@ export function PlayerPage() {
           />
         ) : (
           <>
-            <section className="tt-player-hero" aria-labelledby="tt-player-title">
-              <div className="tt-player-hero-top">
-                <div className="tt-player-hero-copy">
-                  <p className="tt-player-eyebrow">Player profile</p>
-                  <h1 id="tt-player-title" className="tt-player-title">{stats.player_name}</h1>
-                  <p className="tt-player-summary-line">
-                    {stats.total} matches, {stats.wins} wins, {winRate}% win rate
-                  </p>
-                </div>
-                <div className="tt-player-summary-avatar" aria-hidden="true">
-                  <span className="tt-player-summary-initials">{getInitials(stats.player_name)}</span>
-                </div>
-              </div>
-
-              <div className="tt-player-spotlight" aria-label="Player summary">
-                <div className="tt-player-winrate">
-                  <span className="tt-player-winrate-value">{winRate}%</span>
-                  <span className="tt-player-winrate-label">Win Rate</span>
-                </div>
-                <div className="tt-player-hero-stats">
-                  <div className="tt-player-hero-stat">
-                    <span className="tt-player-hero-stat-value">{stats.wins}</span>
-                    <span className="tt-player-hero-stat-label">Wins</span>
-                  </div>
-                  <div className="tt-player-hero-stat">
-                    <span className="tt-player-hero-stat-value">{stats.losses}</span>
-                    <span className="tt-player-hero-stat-label">Losses</span>
-                  </div>
-                  <div className="tt-player-hero-stat">
-                    <span className="tt-player-hero-stat-value">{stats.streak || '-'}</span>
-                    <span className="tt-player-hero-stat-label">Streak</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="tt-player-actions">
-                <FavouriteButton
-                  saved={Boolean(isFavourite)}
-                  onToggle={() => {
-                    if (!stats) return;
-                    toggleFavouritePlayer({ id: stats.player_id, name: stats.player_name, played: stats.total, wins: stats.wins });
-                  }}
-                />
-                <AppButtonLink
-                  size="sm"
-                  className="tt-player-action-pill"
-                  tone="outline-highlight"
-                  onClick={openSection(`player/${playerId}/insights`)}
-                >
-                  Insights
-                </AppButtonLink>
-                {isCurrentUser ? (
-                  <AppButton
-                    size="sm"
-                    className="tt-player-action-pill"
-                    tone="outline"
-                    onClick={clearMyPlayer}
-                  >
-                    This isn’t me
-                  </AppButton>
-                ) : null}
-              </div>
-
-              <FormResultPills
-                results={recentResults}
-                label={null}
-                loading={insightsLoading}
-                emptyText="No form yet"
-              />
-            </section>
-
-            <PlayerRatingPanel playerId={stats.player_id} />
+            <PlayerProfileHero
+              playerId={stats.player_id}
+              playerName={stats.player_name}
+              initials={getInitials(stats.player_name)}
+              totalMatches={stats.total}
+              wins={stats.wins}
+              winRate={winRate}
+              isFavourite={Boolean(isFavourite)}
+              isCurrentUser={isCurrentUser}
+              shareTarget={shareTarget}
+              rolling10WinRate={insights?.form.rolling_10_win_rate ?? null}
+              rolling20WinRate={insights?.form.rolling_20_win_rate ?? null}
+              momentum={insights?.form.momentum ?? null}
+              recentResults={recentResults}
+              formLoading={insightsLoading}
+              formError={Boolean(insightsError || (!insights && !insightsLoading))}
+              onToggleFavourite={() => {
+                toggleFavouritePlayer({
+                  id: stats.player_id,
+                  name: stats.player_name,
+                  played: stats.total,
+                  wins: stats.wins,
+                });
+              }}
+              onClearIdentity={clearMyPlayer}
+              onOpenInsights={() => navigateInActiveTab(`player/${playerId}/insights`)}
+              onOpenRatingHistory={() => navigateInActiveTab(`player/${playerId}/insights#rating-history`)}
+            />
 
             <section className="tt-player-section" aria-label="Current season clubs and tournaments">
               <div className="tt-home-leaders-header">
@@ -400,37 +346,6 @@ export function PlayerPage() {
                     </AppButtonLink>
                   ) : null}
                 </>
-              )}
-            </section>
-
-            <section className="tt-player-section" aria-labelledby="tt-player-form-title">
-              <div className="tt-player-section-header">
-                <h2 id="tt-player-form-title" className="tt-player-section-title">Form</h2>
-                <span className="tt-player-section-note">Rolling performance</span>
-              </div>
-              {insightsLoading ? (
-                <div className="tt-player-metric-grid" aria-label="Loading form insights">
-                  <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
-                  <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
-                  <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
-                </div>
-              ) : insightsError || !insights ? (
-                <p className="tt-player-section-state tt-player-section-error">Unable to load form insights.</p>
-              ) : (
-                <div className="tt-player-metric-grid">
-                  <div className="tt-player-metric">
-                    <span className="tt-player-metric-value">{insights.form.rolling_10_win_rate}%</span>
-                    <span className="tt-player-metric-label">Rolling 10</span>
-                  </div>
-                  <div className="tt-player-metric">
-                    <span className="tt-player-metric-value">{insights.form.rolling_20_win_rate}%</span>
-                    <span className="tt-player-metric-label">Rolling 20</span>
-                  </div>
-                  <div className="tt-player-metric">
-                    <span className="tt-player-metric-value text-capitalize">{insights.form.momentum}</span>
-                    <span className="tt-player-metric-label">Momentum</span>
-                  </div>
-                </div>
               )}
             </section>
 
