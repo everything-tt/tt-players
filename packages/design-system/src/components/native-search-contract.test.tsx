@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
+  AppSearchInput,
   AppToggleButton,
   EntityHero,
   SearchToolbar,
@@ -21,6 +22,16 @@ describe('native search browse design-system contracts', () => {
     expect(markup).toContain('tt-search-toolbar__input');
     expect(markup).toContain('tt-search-toolbar__actions');
     expect(markup).toContain('aria-label="Search tournaments"');
+  });
+
+  it('keeps the search input styling owned by the design system', () => {
+    const markup = renderToStaticMarkup(
+      <AppSearchInput aria-label="Search players" placeholder="Search players…" />,
+    );
+
+    expect(markup).toContain('tt-app-search-input');
+    expect(markup).not.toContain('tt-players-search-input');
+    expect(markup).toContain('aria-label="Search players"');
   });
 
   it('exposes a persistent selected state for saved filters', () => {
