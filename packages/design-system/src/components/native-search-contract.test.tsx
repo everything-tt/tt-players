@@ -18,9 +18,10 @@ describe('native search browse design-system contracts', () => {
       </SearchToolbar>,
     );
 
-    expect(markup).toContain('tt-search-toolbar');
-    expect(markup).toContain('tt-search-toolbar__input');
-    expect(markup).toContain('tt-search-toolbar__actions');
+    expect(markup).toContain('tt-app-search-toolbar');
+    expect(markup).toContain('tt-app-search-toolbar__input');
+    expect(markup).toContain('tt-app-search-toolbar__actions');
+    expect(markup).not.toContain('class="tt-search-toolbar"');
     expect(markup).toContain('aria-label="Search tournaments"');
   });
 
