@@ -31,6 +31,10 @@ interface PlayersTabContentProps {
 
 const PAGE_SIZE = 10;
 
+function playerCountLabel(count: number): string {
+  return `${count} ${count === 1 ? 'player' : 'players'}`;
+}
+
 export function PlayersTabContent({ onOpenPlayer }: PlayersTabContentProps) {
   const search = useSearch({ minLength: 3, resetOnDisable: false });
   const { player: myPlayer } = useMyPlayer();
@@ -82,24 +86,25 @@ export function PlayersTabContent({ onOpenPlayer }: PlayersTabContentProps) {
     if (followedPlayers.length === 0) {
       return (
         <EmptyState
-          iconClassName="fa fa-heart-o"
+          iconClassName="far fa-heart"
           title="No followed players yet"
           message="Search for any player above, then tap the heart to follow them here."
         />
       );
     }
 
+    const visibleCount = visibleFollowedPlayers.length;
     return (
       <>
         {renderRows(visibleFollowedPlayers)}
         <InfiniteListFooter
-          hasMore={visibleFollowedPlayers.length < followedPlayers.length}
+          hasMore={visibleCount < followedPlayers.length}
           isLoading={false}
           autoLoad
           onLoadMore={() => setFollowingLimit((current) => Math.min(current + PAGE_SIZE, followedPlayers.length))}
           loadLabel="Load more followed players"
           loadingLabel="Loading more followed players…"
-          endLabel={`All ${visibleFollowedPlayers.length} followed players shown`}
+          endLabel={`All ${visibleCount} followed ${visibleCount === 1 ? 'player' : 'players'} shown`}
         />
       </>
     );
@@ -141,7 +146,7 @@ export function PlayersTabContent({ onOpenPlayer }: PlayersTabContentProps) {
   const searchResultMeta = searchList.total === null
     ? `${searchList.items.length} shown`
     : `${searchList.items.length} of ${searchList.total}`;
-  const followingMeta = `${followedPlayers.length} players`;
+  const followingMeta = playerCountLabel(followedPlayers.length);
 
   return (
     <>
