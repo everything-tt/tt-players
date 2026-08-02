@@ -15,8 +15,52 @@ export interface TournamentListPathOptions {
   offset: number;
 }
 
+export interface PagedResponse<T> {
+  data: T[];
+  total?: number | string;
+  limit?: number | string;
+  offset?: number | string;
+  has_more?: boolean;
+}
+
+export interface NormalizedPage<T> {
+  data: T[];
+  total: number | null;
+  hasMore: boolean;
+}
+
 function sortedUnique(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean))).sort();
+}
+
+function finiteNumber(value: number | string | undefined): number | null {
+  if (value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+/**
+ * Accept both the current paginated API envelope and the older deployed search
+ * response, which only contains `data`. Legacy responses cannot safely request
+ * another page because they ignore limit/offset, so they are treated as a
+ * complete snapshot rather than creating an infinite duplicate-fetch loop.
+ */
+export function normalizePagedResponse<T>(
+  response: PagedResponse<T>,
+  requestedOffset: number,
+): NormalizedPage<T> {
+  const total = finiteNumber(response.total);
+  const hasMore = typeof response.has_more === 'boolean'
+    ? response.has_more
+    : total !== null
+      ? requestedOffset + response.data.length < total
+      : false;
+
+  return {
+    data: response.data,
+    total,
+    hasMore,
+  };
 }
 
 export function buildPlayerSearchPath({
