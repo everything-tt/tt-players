@@ -1,7 +1,8 @@
-import { type FormEvent, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { DetailHeader } from './components/DetailHeader';
 import { useMatchJournal, type JournalOutcome } from './hooks/useMatchJournal';
+import { readJournalPrefill } from './player-match-list';
 import { usePlayerExtendedStatsQuery } from './queries';
 import { TabShellPage } from './TabShellPage';
 import {
@@ -36,16 +37,27 @@ function outcomeLabel(outcome: JournalOutcome): string {
 
 export function MatchJournalPage() {
   const { playerId = '' } = useParams<{ playerId: string }>();
+  const [searchParams] = useSearchParams();
+  const prefill = useMemo(
+    () => readJournalPrefill(searchParams, today()),
+    [searchParams],
+  );
   const statsQuery = usePlayerExtendedStatsQuery(playerId, Boolean(playerId));
   const { entries, add, remove } = useMatchJournal(playerId);
-  const [matchDate, setMatchDate] = useState(today());
-  const [opponent, setOpponent] = useState('');
-  const [outcome, setOutcome] = useState<JournalOutcome>('win');
+  const [matchDate, setMatchDate] = useState(prefill.date);
+  const [opponent, setOpponent] = useState(prefill.opponent);
+  const [outcome, setOutcome] = useState<JournalOutcome>(prefill.outcome);
   const [workedWell, setWorkedWell] = useState('');
   const [mainIssue, setMainIssue] = useState('');
   const [nextGoal, setNextGoal] = useState('');
   const [savedMessage, setSavedMessage] = useState('');
   const playerName = statsQuery.data?.player_name ?? 'Player';
+
+  useEffect(() => {
+    setMatchDate(prefill.date);
+    setOpponent(prefill.opponent);
+    setOutcome(prefill.outcome);
+  }, [prefill.date, prefill.opponent, prefill.outcome]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
