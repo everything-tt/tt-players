@@ -13,6 +13,7 @@ import {
   IconCircle,
   Inline,
   ListItem,
+  MatchRecordRow,
   MetricGrid,
   OutcomeBadge,
   PageSection,
@@ -90,8 +91,44 @@ export function DesignSystemPage() {
         >
           <DesignList density="compact" divider="hairline" paginate={false}>
             <ListItem leading={<DesignAvatar size="compact" text="JS" />} title="Jane Smith" subtitle="Rowhedge · 18 wins" trailing={<Pill tone="accent">72%</Pill>} />
-            <ListItem leading={<OutcomeBadge result="W" variant="icon" />} title="vs Alex Brown · 3–1" subtitle="31 Jul · League" hideChevron />
+            <ListItem leading={<OutcomeBadge result="W" variant="icon" />} title="Form result" subtitle="Use for compact summaries, not match records" hideChevron />
             <ListItem leading={<IconCircle iconClassName="fa fa-trophy" tone="accent" />} title="Summer Open" subtitle="12 matches" />
+          </DesignList>
+        </PageSection>
+
+        <PageSection
+          surface="flat"
+          density="compact"
+          title="Match records"
+          description="Use for compact completed player matches and team fixtures. Consumers own score orientation and navigation."
+          meta={<Pill tone="neutral">Shared</Pill>}
+        >
+          <DesignList density="compact" divider="hairline" paginate={false}>
+            <MatchRecordRow
+              score={{ value: '3–1', outcome: 'win', ariaLabel: 'Won 3 games to 1' }}
+              title="Lucy Elliott"
+              metadata={['County Championships Junior', '11 Apr 2026']}
+              actions={[
+                { iconClassName: 'fa fa-pen', label: 'Quick Journal', onClick: () => undefined, tone: 'accent' },
+                { iconClassName: 'fa fa-calendar', label: 'View fixture', onClick: () => undefined },
+              ]}
+            />
+            <MatchRecordRow
+              score={{ value: 'W', outcome: 'win', ariaLabel: 'Won, detailed score unavailable' }}
+              title="Outcome-only record"
+              metadata={['Score unavailable', '10 Apr 2026']}
+            />
+            <MatchRecordRow
+              score={{ value: '1–3', outcome: 'loss', ariaLabel: 'Lost 1 game to 3' }}
+              title="Another opponent"
+              metadata={['Brentwood & District TTL', '9 Apr 2026']}
+              actions={[{ iconClassName: 'fa fa-calendar', label: 'View fixture', onClick: () => undefined }]}
+            />
+            <MatchRecordRow
+              score={{ value: '—', outcome: 'neutral', ariaLabel: 'Result unavailable' }}
+              title="Unknown result"
+              metadata={['Imported record']}
+            />
           </DesignList>
         </PageSection>
 

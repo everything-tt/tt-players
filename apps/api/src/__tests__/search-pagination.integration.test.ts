@@ -106,6 +106,51 @@ describe('paginated player search', () => {
       .get(`/api/players/search?saved_ids=${encodeURIComponent(oversized)}`)
       .expect(400);
   });
+
+  it('pages a common-name search without changing totals or stable ordering', async () => {
+    await db.insertInto('external_players').values(
+      Array.from({ length: 15 }, (_, index) => ({
+        platform_id: ids.platformId,
+        external_id: `green-search-${index + 1}`,
+        name: `Green Search ${String(index + 1).padStart(2, '0')}`,
+        updated_at: new Date(),
+      })),
+    ).execute();
+
+    const first = await request
+      .get('/api/players/search?q=Green%20Search&limit=10&offset=0')
+      .expect(200);
+
+    expect(first.body).toMatchObject({
+      total: 15,
+      limit: 10,
+      offset: 0,
+      has_more: true,
+    });
+    expect(first.body.data.map((row: { name: string }) => row.name)).toEqual(
+      Array.from(
+        { length: 10 },
+        (_, index) => `Green Search ${String(index + 1).padStart(2, '0')}`,
+      ),
+    );
+
+    const second = await request
+      .get('/api/players/search?q=Green%20Search&limit=10&offset=10')
+      .expect(200);
+
+    expect(second.body).toMatchObject({
+      total: 15,
+      limit: 10,
+      offset: 10,
+      has_more: false,
+    });
+    expect(second.body.data.map((row: { name: string }) => row.name)).toEqual(
+      Array.from(
+        { length: 5 },
+        (_, index) => `Green Search ${String(index + 11).padStart(2, '0')}`,
+      ),
+    );
+  });
 });
 
 describe('paginated tournament search', () => {

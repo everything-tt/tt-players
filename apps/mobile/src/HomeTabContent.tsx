@@ -8,6 +8,7 @@ import {
   ErrorState,
   List,
   ListItem,
+  MatchRecordRow,
   Pill,
   RankBadge,
   SectionHeader,
@@ -222,15 +223,23 @@ export function HomeTabContent({
               <ErrorState message={dashboardError} />
             ) : recentResults.length > 0 ? (
               <List divider="hairline">
-                {recentResults.map((result) => (
-                  <ListItem
-                    key={result.fixture_id}
-                    leading={<span className="tt-score-badge">{result.home_score}-{result.away_score}</span>}
-                    title={formatFixtureTeams(result.home_team_name, result.away_team_name)}
-                    subtitle={`${result.league_name} · ${result.division_name} · ${formatDate(result.date_played)}`}
-                    onClick={() => navigateInTab('leagues', `fixture/${result.fixture_id}`)}
-                  />
-                ))}
+                {recentResults.map((result) => {
+                  const homeName = result.home_team_name ?? 'Home';
+                  const awayName = result.away_team_name ?? 'Away';
+                  return (
+                    <MatchRecordRow
+                      key={result.fixture_id}
+                      score={{
+                        value: `${result.home_score}–${result.away_score}`,
+                        outcome: 'neutral',
+                        ariaLabel: `${homeName} ${result.home_score}, ${awayName} ${result.away_score}`,
+                      }}
+                      title={formatFixtureTeams(result.home_team_name, result.away_team_name)}
+                      metadata={[result.league_name, result.division_name, formatDate(result.date_played)]}
+                      onClick={() => navigateInTab('leagues', `fixture/${result.fixture_id}`)}
+                    />
+                  );
+                })}
               </List>
             ) : (
               <EmptyState iconClassName="fa fa-table-tennis" title="No results yet" message="Completed matches from the selected leagues will appear here." />

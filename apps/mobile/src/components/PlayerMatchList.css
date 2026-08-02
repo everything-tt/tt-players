@@ -1,71 +1,14 @@
-.tt-player-match-list .tt-list-item__clickable {
-  align-items: center;
-}
-
-.tt-player-match-row .tt-list-item__content {
+.tt-player-match-list .tt-match-record-row .tt-list-item__clickable {
   min-width: 0;
 }
 
-.tt-player-match-date {
-  align-items: center;
-  background: var(--accent-subtle);
-  border: 1px solid var(--border-hairline);
-  border-radius: 12px;
-  color: var(--ink);
-  display: grid;
-  flex: 0 0 48px;
-  justify-items: center;
-  line-height: 1;
-  min-height: 54px;
-  padding: 6px 4px;
+.tt-player-match-date-inline {
+  white-space: nowrap;
 }
 
-.tt-player-match-date__day {
-  font-size: 18px;
-  font-weight: 800;
-}
-
-.tt-player-match-date__month,
-.tt-player-match-date__year {
-  color: var(--ink-muted);
-  font-size: 10px;
+.tt-player-match-date-inline__year {
+  color: color-mix(in oklch, var(--ink-muted) 78%, transparent);
+  font-size: 0.82em;
   font-weight: 600;
-}
-
-.tt-player-match-title {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-width: 0;
-}
-
-.tt-player-match-actions {
-  align-items: center;
-  display: inline-flex;
-  flex: 0 0 auto;
-  gap: 2px;
-}
-
-.tt-player-match-action.tt-btn {
-  height: 36px;
-  min-height: 36px;
-  min-width: 36px;
-  padding: 0;
-  width: 36px;
-}
-
-.tt-player-match-action.tt-btn i {
-  margin: 0;
-}
-
-@media (max-width: 390px) {
-  .tt-player-match-actions {
-    gap: 0;
-  }
-
-  .tt-player-match-action.tt-btn {
-    min-width: 34px;
-    width: 34px;
-  }
+  letter-spacing: 0.01em;
 }

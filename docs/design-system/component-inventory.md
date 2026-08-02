@@ -18,10 +18,25 @@
 | Data | `MetricGrid` | Canonical | Two to four key metrics with responsive fallback. |
 | Filters | `FilterBar`, `SegmentedToggle` | Canonical | Compact controls and narrow-screen horizontal scrolling. |
 | Lists | `DesignList`, `DesignAvatar`, `ListItem` | Canonical | Explicit compact or comfortable density. |
+| Match records | `MatchRecordRow` | Canonical | Compact completed player matches and team fixtures with a leading score, metadata, primary row action and up to two direct actions. Consumers own score orientation and business logic. |
 | States | `EmptyState`, `ErrorState`, `AppLoadingCard` | Canonical | Shared loading, empty and error treatments. |
 | Actions | `AppButton`, `MoreButton`, `ExternalLinkButton` | Canonical | Semantic buttons with minimum interaction targets. |
 | Overlay | `BottomSheet` | Canonical | Mobile overlay foundation. |
-| Status | `Pill`, `OutcomeBadge`, `RankBadge`, `IconCircle` | Canonical | Shared sports status and result language. |
+| Status | `Pill`, `OutcomeBadge`, `RankBadge`, `IconCircle` | Canonical | Shared sports status and summary language. Use `OutcomeBadge` for form/summary indicators, not as a duplicate result beside `MatchRecordRow`. |
+
+## `MatchRecordRow` usage boundary
+
+Use it for one compact **completed result**:
+
+- player Recent Matches and full match history;
+- Home and Leagues recent team results;
+- completed Team page fixtures;
+- H2H meeting history;
+- tournament result lists.
+
+Do not use it for standings, rankings, form strips, upcoming fixtures, fixture hero scores, or the detailed two-sided rubber scorecard on `FixturePage`.
+
+Score values may be detailed (`3–1`), outcome-only (`W`, `L`, `D`), or unknown (`—`). The application must orient the score for the page context before passing it to the component.
 
 ## Compatibility components
 
@@ -49,19 +64,19 @@ Final geometry now lives in `packages/design-system/src/styles/tokens.css` and `
 | Journey | Main files | Status |
 |---|---|---|
 | Shared shell and navigation | `AppRouter.tsx`, `TabFooterBar.tsx`, `RootHeader.tsx`, `DetailHeader.tsx`, `MainDrawer.tsx` | Foundation migrated; compatibility cleanup pending |
-| Home/root tabs | `App.tsx` | Legacy allowlist; migration pending |
-| Leagues root | `LeaguesTabContent.tsx` | Migrated |
+| Home/root tabs | `App.tsx`, `HomeTabContent.tsx` | Latest-results records migrated; wider root migration pending |
+| Leagues root | `LeaguesTabContent.tsx` | Migrated, including shared result rows |
 | Events/Tournaments root | `EventsTabContent.tsx` | Migrated |
-| H2H root | `H2HTabContent.tsx`, `RatingPredictionPanel.tsx` | Migrated; first semantic section-header consumer |
+| H2H root | `H2HTabContent.tsx`, `RatingPredictionPanel.tsx` | Migrated, including meeting-history records |
 | Player search/favourites | `App.tsx` player tab content | Legacy allowlist; migration pending |
-| Player profile | `PlayerPage.tsx`, `PlayerRatingPanel.tsx` | Rating panel migrated; main profile pending |
+| Player profile | `PlayerPage.tsx`, `PlayerRatingPanel.tsx`, `PlayerMatchList.tsx` | Rating and match-record presentations migrated; remaining profile cleanup pending |
 | Player insights/history | `PlayerInsightsPage.tsx`, `PlayerMatchesPage.tsx`, `PlayerTournamentsPage.tsx`, `MatchJournalPage.tsx` | Matches, tournaments and journal migrated; insights pending |
 | Ratings | `TopRatingsPage.tsx`, rating panels | Leaderboard and rating panel migrated |
 | League detail | `LeagueDetailPage.tsx` | Migrated |
-| Teams and fixtures | `TeamPage.tsx`, `FixturePage.tsx` | Migrated |
-| Event detail | `EventDetailPage.tsx` | Legacy allowlist; migration pending |
+| Teams and fixtures | `TeamPage.tsx`, `FixturePage.tsx` | Team result rows migrated; specialist fixture scorecards intentionally retained |
+| Event detail | `EventDetailPage.tsx` | Result rows migrated; wider page remains on the legacy allowlist |
 | Utility | `AboutTabContent.tsx`, `DataCoveragePage.tsx` | Migrated |
-| Component catalogue | `DesignSystemPage.tsx` | Added at `/design-system` |
+| Component catalogue | `DesignSystemPage.tsx` | Added at `/design-system`, including `MatchRecordRow` states |
 
 ## Enforcement
 
@@ -77,6 +92,7 @@ A screen is design-system compatible when:
 1. its top-level sections use `PageSection`, `EntityHero` or a documented exception;
 2. repeated flex/gap geometry uses `Stack` or `Inline`;
 3. lists use explicit density through `DesignList`;
-4. card, flat and hero surfaces are selected explicitly rather than inferred by screen classes;
-5. screen CSS contains domain presentation only, not canonical row heights, gutters, header heights, radii or touch-target geometry;
-6. light, dark, reduced-motion and 320px-width checks pass.
+4. completed result rows use `MatchRecordRow` where the usage boundary applies;
+5. card, flat and hero surfaces are selected explicitly rather than inferred by screen classes;
+6. screen CSS contains domain presentation only, not canonical row heights, gutters, header heights, radii or touch-target geometry;
+7. light, dark, reduced-motion and 320px-width checks pass.

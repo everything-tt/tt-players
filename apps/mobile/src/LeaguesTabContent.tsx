@@ -11,6 +11,7 @@ import {
   FilterBar,
   IconCircle,
   ListItem,
+  MatchRecordRow,
   MetricGrid,
   PageSection,
   Pill,
@@ -129,9 +130,23 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
           <PageSection surface="flat" density="compact" title="Across your leagues" note="Latest active-season results">
             {dashboard && dashboard.recent_results.length > 0 ? (
               <DesignList density="compact" divider="hairline" paginate={false}>
-                {dashboard.recent_results.slice(0, 6).map((fixture) => (
-                  <ListItem key={fixture.fixture_id} leading={<span className="tt-score-badge">{fixture.home_score}–{fixture.away_score}</span>} title={`${fixture.home_team_name ?? 'Home'} vs ${fixture.away_team_name ?? 'Away'}`} subtitle={`${fixture.league_name} · ${fixture.division_name} · ${formatDate(fixture.date_played)}`} onClick={() => navigateInTab('leagues', `fixture/${fixture.fixture_id}`)} />
-                ))}
+                {dashboard.recent_results.slice(0, 6).map((fixture) => {
+                  const homeName = fixture.home_team_name ?? 'Home';
+                  const awayName = fixture.away_team_name ?? 'Away';
+                  return (
+                    <MatchRecordRow
+                      key={fixture.fixture_id}
+                      score={{
+                        value: `${fixture.home_score}–${fixture.away_score}`,
+                        outcome: 'neutral',
+                        ariaLabel: `${homeName} ${fixture.home_score}, ${awayName} ${fixture.away_score}`,
+                      }}
+                      title={`${homeName} vs ${awayName}`}
+                      metadata={[fixture.league_name, fixture.division_name, formatDate(fixture.date_played)]}
+                      onClick={() => navigateInTab('leagues', `fixture/${fixture.fixture_id}`)}
+                    />
+                  );
+                })}
               </DesignList>
             ) : (
               <EmptyState iconClassName="fa fa-calendar-check" title="No recent results" message="Completed active-season fixtures will appear here." />

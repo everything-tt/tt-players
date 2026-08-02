@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { PlayerMatchList, createPlayerMatchActionItems } from './components/PlayerMatchList';
+import { PlayerMatchList } from './components/PlayerMatchList';
 import type { RubberItem } from './player-shared';
 import {
   buildQuickJournalPath,
@@ -43,12 +43,12 @@ describe('player match list helpers', () => {
       .toEqual(['b']);
   });
 
-  it('uses subtle semantic result tones', () => {
+  it('keeps the legacy result formatter stable for non-migrated consumers', () => {
     expect(formatMatchResult('Won 3-1', true)).toEqual({ label: 'Won 3-1', tone: 'success' });
     expect(formatMatchResult('Lost 0-3', false)).toEqual({ label: 'Lost 0-3', tone: 'danger' });
   });
 
-  it('formats a compact English date block', () => {
+  it('formats a compact English date', () => {
     expect(formatMatchDateParts('2026-04-13')).toEqual({ day: '13', month: 'Apr', year: '2026' });
   });
 
@@ -90,49 +90,71 @@ describe('PlayerMatchList', () => {
     onRetry: () => undefined,
   };
 
-  it('renders a compact result row with a direct opponent action', () => {
-    const markup = renderToStaticMarkup(
-      <PlayerMatchList
-        playerId="player-1"
-        matches={[matchFixture('a')]}
-        total={1}
-        hasMore={false}
-        isLoadingInitial={false}
-        isLoadingMore={false}
-        error={null}
-        quickJournalEnabled
-        {...callbacks}
-      />,
-    );
+  const renderList = (quickJournalEnabled: boolean, match = matchFixture('a')) => renderToStaticMarkup(
+    <PlayerMatchList
+      playerId="player-1"
+      matches={[match]}
+      total={1}
+      hasMore={false}
+      isLoadingInitial={false}
+      isLoadingMore={false}
+      error={null}
+      quickJournalEnabled={quickJournalEnabled}
+      {...callbacks}
+    />,
+  );
 
-    expect(markup).toContain('tt-player-match-date');
-    expect(markup).toContain('Won 3-1');
-    expect(markup).toContain('View Malcolm Henstock profile');
-    expect(markup).toContain('Match actions for Malcolm Henstock');
-    expect(markup).not.toContain('tt-outcome-badge--icon');
+  it('uses the shared match record row with a leading detailed score', () => {
+    const markup = renderList(false);
+
+    expect(markup).toContain('tt-match-record-row');
+    expect(markup).toContain('tt-match-record-score--win');
+    expect(markup).toContain('3–1');
+    expect(markup).toContain('Won 3 games to 1');
+    expect(markup).toContain('Brentwood &amp; District TTL · Premier Division');
+    expect(markup).toContain('13 Apr');
+    expect(markup).toContain('tt-player-match-date-inline__year');
+    expect(markup).toContain('2026');
+    expect(markup).not.toContain('Won 3-1</span>');
+    expect(markup).not.toContain('tt-player-match-meta');
   });
 
-  it('builds only actions supported by the match and viewed profile', () => {
-    const fullActions = createPlayerMatchActionItems({
-      match: matchFixture('a'),
-      quickJournalEnabled: true,
-      onOpenMatch: callbacks.onOpenMatch,
-      onOpenOpponent: callbacks.onOpenOpponent,
-      onQuickJournal: callbacks.onQuickJournal,
-    });
-    expect(fullActions.map((item) => item.label)).toEqual([
-      'View Opponent',
-      'Quick Journal',
-      'View Fixture',
-    ]);
+  it('uses W or L when the detailed score is unavailable', () => {
+    const winMarkup = renderList(false, matchFixture('win-only', { result: 'Won' }));
+    const lossMarkup = renderList(false, matchFixture('loss-only', { result: 'Lost', isWin: false }));
 
-    const restrictedActions = createPlayerMatchActionItems({
-      match: matchFixture('b', { opponent_id: null }),
-      quickJournalEnabled: false,
-      onOpenMatch: callbacks.onOpenMatch,
-      onOpenOpponent: callbacks.onOpenOpponent,
-      onQuickJournal: callbacks.onQuickJournal,
-    });
-    expect(restrictedActions.map((item) => item.label)).toEqual(['View Fixture']);
+    expect(winMarkup).toContain('>W<');
+    expect(winMarkup).toContain('Won, detailed score unavailable');
+    expect(lossMarkup).toContain('>L<');
+    expect(lossMarkup).toContain('Lost, detailed score unavailable');
+  });
+
+  it('uses the row as the opponent action and direct secondary buttons for my matches', () => {
+    const markup = renderList(true);
+
+    expect(markup).toContain('Open Malcolm Henstock profile');
+    expect(markup).toContain('Journal match against Malcolm Henstock');
+    expect(markup).toContain('View fixture for match against Malcolm Henstock');
+    expect(markup).not.toContain('Match actions for Malcolm Henstock');
+    expect(markup).not.toContain('fa-ellipsis-v');
+  });
+
+  it('shows only the fixture or event action on another player profile', () => {
+    const leagueMarkup = renderList(false);
+    const eventMarkup = renderList(false, matchFixture('event', {
+      source: 'tournament',
+      event_id: 'event-1',
+    }));
+
+    expect(leagueMarkup).toContain('View fixture for match against Malcolm Henstock');
+    expect(leagueMarkup).not.toContain('Journal match against Malcolm Henstock');
+    expect(eventMarkup).toContain('View event for match against Malcolm Henstock');
+  });
+
+  it('keeps the source action available when the opponent profile is unavailable', () => {
+    const markup = renderList(false, matchFixture('missing-opponent', { opponent_id: null }));
+
+    expect(markup).toContain('View fixture for match against Malcolm Henstock');
+    expect(markup).not.toContain('Open Malcolm Henstock profile');
   });
 });

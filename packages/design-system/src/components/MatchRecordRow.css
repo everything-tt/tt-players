@@ -1,0 +1,115 @@
+.tt-match-record-row .tt-list-item__clickable {
+  align-items: center;
+  min-width: 0;
+}
+
+.tt-match-record-row .tt-list-item__content {
+  min-width: 0;
+}
+
+.tt-match-record-row .tt-list-item__title {
+  font-weight: 700;
+  min-width: 0;
+}
+
+.tt-match-record-score {
+  align-items: center;
+  background: var(--surface-subtle-strong);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  display: inline-flex;
+  flex: 0 0 54px;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  justify-content: center;
+  letter-spacing: -0.02em;
+  min-height: 46px;
+  padding: 0 6px;
+}
+
+.tt-match-record-score--win {
+  background: color-mix(in oklch, var(--state-success) 12%, var(--surface-strong));
+  border-color: color-mix(in oklch, var(--state-success) 34%, var(--border-hairline));
+  color: var(--state-success);
+}
+
+.tt-match-record-score--loss {
+  background: color-mix(in oklch, var(--state-danger) 10%, var(--surface-strong));
+  border-color: color-mix(in oklch, var(--state-danger) 28%, var(--border-hairline));
+  color: var(--state-danger);
+}
+
+.tt-match-record-score--neutral {
+  color: var(--ink);
+}
+
+.tt-match-record-meta {
+  color: var(--ink-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 0;
+  min-width: 0;
+}
+
+.tt-match-record-meta__item {
+  min-width: 0;
+}
+
+.tt-match-record-meta__separator {
+  margin: 0 5px;
+}
+
+.tt-match-record-actions {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.tt-match-record-action.tt-btn {
+  height: 38px;
+  min-height: 38px;
+  min-width: 38px;
+  padding: 0;
+  width: 38px;
+}
+
+.tt-match-record-action.tt-btn i {
+  margin: 0;
+}
+
+.tt-match-record-action--accent.tt-btn {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.tt-match-record-action:not(.tt-match-record-action--accent).tt-btn {
+  border: 1px solid var(--border-hairline);
+  color: var(--ink-muted);
+}
+
+.tt-match-record-row--standard .tt-match-record-score {
+  flex-basis: 60px;
+  min-height: 52px;
+}
+
+@media (max-width: 390px) {
+  .tt-match-record-score {
+    flex-basis: 50px;
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  .tt-match-record-actions {
+    gap: 2px;
+  }
+
+  .tt-match-record-action.tt-btn {
+    height: 36px;
+    min-height: 36px;
+    min-width: 36px;
+    width: 36px;
+  }
+}
