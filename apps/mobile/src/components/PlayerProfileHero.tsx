@@ -19,6 +19,7 @@ interface PlayerProfileHeroProps {
   rolling10WinRate: number | null;
   rolling20WinRate: number | null;
   momentum: string | null;
+  recentResults?: unknown;
   formLoading: boolean;
   formError: boolean;
   onToggleFavourite: () => void;
@@ -29,10 +30,6 @@ interface PlayerProfileHeroProps {
 
 function displayPercentage(value: number | null): string {
   return value == null ? '—' : `${value}%`;
-}
-
-function clampPercentage(value: number): number {
-  return Math.max(0, Math.min(100, value));
 }
 
 export function PlayerProfileHero({
@@ -59,11 +56,6 @@ export function PlayerProfileHero({
   const ratingQuery = usePlayerRatingQuery(playerId, Boolean(playerId));
   const rating = ratingQuery.data?.data ?? null;
   const { share, status: shareStatus } = useShareTarget(shareTarget);
-
-  const formScore = clampPercentage(rolling20WinRate ?? rolling10WinRate ?? winRate);
-  const strongShare = Math.max(20, Math.min(75, formScore));
-  const steadyShare = Math.min(25, 100 - strongShare);
-  const weakShare = Math.max(0, 100 - strongShare - steadyShare);
 
   return (
     <section className="tt-player-profile-hero" aria-labelledby="tt-player-title">
@@ -228,9 +220,9 @@ export function PlayerProfileHero({
 
             <div className="tt-player-profile-form-indicator" aria-label="Rolling win rate form indicator">
               <div className="tt-player-profile-form-track" aria-hidden="true">
-                <span className="tt-player-profile-form-strong" style={{ width: `${strongShare}%` }} />
-                <span className="tt-player-profile-form-steady" style={{ width: `${steadyShare}%` }} />
-                <span className="tt-player-profile-form-weak" style={{ width: `${weakShare}%` }} />
+                <span className="tt-player-profile-form-strong" />
+                <span className="tt-player-profile-form-steady" />
+                <span className="tt-player-profile-form-weak" />
               </div>
               <p>
                 <span>Rolling win rate form indicator</span>
