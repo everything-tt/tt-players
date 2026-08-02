@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // PR #84 only. For the next UI PR, replace this filename; do not append to it.
-  testMatch: 'zz-native-search.pw.ts',
+  // PR #86 only. For the next UI PR, replace this filename; do not append to it.
+  testMatch: 'zz-player-match-list.pw.ts',
 
   timeout: 120_000,
   expect: {

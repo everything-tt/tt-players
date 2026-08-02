@@ -1,0 +1,138 @@
+import { readFileSync } from 'node:fs';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it } from 'vitest';
+import { PlayerMatchList, createPlayerMatchActionItems } from './components/PlayerMatchList';
+import type { RubberItem } from './player-shared';
+import {
+  buildQuickJournalPath,
+  formatMatchDateParts,
+  formatMatchResult,
+  mergePlayerMatchPage,
+  readJournalPrefill,
+} from './player-match-list';
+
+export const matchFixture = (id: string, overrides: Partial<RubberItem> = {}): RubberItem => ({
+  id,
+  fixture_id: `fixture-${id}`,
+  date: '2026-04-13',
+  source: 'league',
+  source_label: 'Brentwood & District TTL · Premier Division',
+  event_id: null,
+  event_name: null,
+  league: 'Brentwood & District TTL',
+  opponent: 'Malcolm Henstock',
+  opponent_id: 'opponent-1',
+  result: 'Won 3-1',
+  isWin: true,
+  ...overrides,
+});
+
+const databaseTimestamp = 'Mon Apr 13 2026 00:00:00 GMT+0000 (Coordinated Universal Time)';
+
+describe('player match list helpers', () => {
+  it('appends pages without duplicate match ids', () => {
+    expect(mergePlayerMatchPage(
+      [matchFixture('a'), matchFixture('b')],
+      [matchFixture('b'), matchFixture('c')],
+      false,
+    ).map((item) => item.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('replaces rows when the player or source scope changes', () => {
+    expect(mergePlayerMatchPage([matchFixture('a')], [matchFixture('b')], true).map((item) => item.id))
+      .toEqual(['b']);
+  });
+
+  it('uses subtle semantic result tones', () => {
+    expect(formatMatchResult('Won 3-1', true)).toEqual({ label: 'Won 3-1', tone: 'success' });
+    expect(formatMatchResult('Lost 0-3', false)).toEqual({ label: 'Lost 0-3', tone: 'danger' });
+  });
+
+  it('formats a compact English date block', () => {
+    expect(formatMatchDateParts('2026-04-13')).toEqual({ day: '13', month: 'Apr', year: '2026' });
+  });
+
+  it('formats database timestamp strings without losing their year', () => {
+    expect(formatMatchDateParts(databaseTimestamp)).toEqual({ day: '13', month: 'Apr', year: '2026' });
+  });
+
+  it('builds validated Quick Journal query parameters', () => {
+    expect(buildQuickJournalPath('player-1', matchFixture('a')))
+      .toBe('player/player-1/journal?date=2026-04-13&opponent=Malcolm+Henstock&outcome=win');
+  });
+
+  it('normalises database timestamp strings for Quick Journal', () => {
+    expect(buildQuickJournalPath('player-1', matchFixture('a', { date: databaseTimestamp })))
+      .toBe('player/player-1/journal?date=2026-04-13&opponent=Malcolm+Henstock&outcome=win');
+  });
+
+  it('ignores invalid journal prefill values', () => {
+    expect(readJournalPrefill(
+      new URLSearchParams('date=nope&opponent=%20&outcome=practice'),
+      '2026-08-02',
+    )).toEqual({ date: '2026-08-02', opponent: '', outcome: 'win' });
+  });
+
+  it('pages player matches in batches of twenty and resets by player/source', () => {
+    const source = readFileSync(new URL('./hooks/usePagedPlayerMatches.ts', import.meta.url), 'utf8');
+    expect(source).toContain('pageSize = 20');
+    expect(source).toContain('[playerId, source, pageSize]');
+    expect(source).toContain('mergePlayerMatchPage');
+  });
+});
+
+describe('PlayerMatchList', () => {
+  const callbacks = {
+    onOpenMatch: () => undefined,
+    onOpenOpponent: () => undefined,
+    onQuickJournal: () => undefined,
+    onLoadMore: () => undefined,
+    onRetry: () => undefined,
+  };
+
+  it('renders a compact result row with a direct opponent action', () => {
+    const markup = renderToStaticMarkup(
+      <PlayerMatchList
+        playerId="player-1"
+        matches={[matchFixture('a')]}
+        total={1}
+        hasMore={false}
+        isLoadingInitial={false}
+        isLoadingMore={false}
+        error={null}
+        quickJournalEnabled
+        {...callbacks}
+      />,
+    );
+
+    expect(markup).toContain('tt-player-match-date');
+    expect(markup).toContain('Won 3-1');
+    expect(markup).toContain('View Malcolm Henstock profile');
+    expect(markup).toContain('Match actions for Malcolm Henstock');
+    expect(markup).not.toContain('tt-outcome-badge--icon');
+  });
+
+  it('builds only actions supported by the match and viewed profile', () => {
+    const fullActions = createPlayerMatchActionItems({
+      match: matchFixture('a'),
+      quickJournalEnabled: true,
+      onOpenMatch: callbacks.onOpenMatch,
+      onOpenOpponent: callbacks.onOpenOpponent,
+      onQuickJournal: callbacks.onQuickJournal,
+    });
+    expect(fullActions.map((item) => item.label)).toEqual([
+      'View Opponent',
+      'Quick Journal',
+      'View Fixture',
+    ]);
+
+    const restrictedActions = createPlayerMatchActionItems({
+      match: matchFixture('b', { opponent_id: null }),
+      quickJournalEnabled: false,
+      onOpenMatch: callbacks.onOpenMatch,
+      onOpenOpponent: callbacks.onOpenOpponent,
+      onQuickJournal: callbacks.onQuickJournal,
+    });
+    expect(restrictedActions.map((item) => item.label)).toEqual(['View Fixture']);
+  });
+});

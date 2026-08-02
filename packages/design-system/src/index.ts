@@ -92,6 +92,12 @@ export {
 } from './components/States';
 
 export { BottomSheet, type BottomSheetProps } from './components/BottomSheet';
+export {
+  ActionMenu,
+  type ActionMenuItem,
+  type ActionMenuProps,
+  type ActionMenuTone,
+} from './components/ActionMenu';
 export { MoreButton, ExternalLinkButton, type MoreButtonProps, type ExternalLinkButtonProps } from './components/Actions';
 export { OutcomeBadge, type OutcomeBadgeProps, type OutcomeResult, type OutcomeVariant } from './components/OutcomeBadge';
 export { AppListGroup, AppListItem, type AppListGroupProps, type AppListItemProps, type AppListSize } from './components/AppList';

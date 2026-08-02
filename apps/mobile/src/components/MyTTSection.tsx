@@ -3,6 +3,7 @@ import { useMyPlayer } from '../hooks/useMyPlayer';
 import { useTabNavigation } from '../navigation/tab-navigation';
 import { usePlayerExtendedStatsQuery, usePlayerInsightsQuery } from '../queries';
 import {
+  ActionMenu,
   AppButton,
   Avatar,
   EmptyState,
@@ -20,13 +21,12 @@ interface MyTTSectionProps {
 export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
   const { navigateInTab } = useTabNavigation();
   const { player: myPlayer, setMyPlayer } = useMyPlayer();
-  const { players: favouritePlayers } = useFavouritePlayers();
+  const { players: favouritePlayers, remove } = useFavouritePlayers();
   const statsQuery = usePlayerExtendedStatsQuery(myPlayer?.id ?? '', Boolean(myPlayer));
   const insightsQuery = usePlayerInsightsQuery(myPlayer?.id ?? '', Boolean(myPlayer));
 
-  const followedPlayers = favouritePlayers
-    .filter((player) => player.id !== myPlayer?.id)
-    .slice(0, 4);
+  const followedPlayers = favouritePlayers.filter((player) => player.id !== myPlayer?.id);
+  const visibleFollowedPlayers = followedPlayers.slice(0, 4);
   const rollingWinRate = insightsQuery.data?.form.rolling_10_win_rate ?? null;
 
   if (!myPlayer && favouritePlayers.length === 0) {
@@ -88,11 +88,11 @@ export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
         </div>
       ) : null}
 
-      {followedPlayers.length > 0 ? (
+      {visibleFollowedPlayers.length > 0 ? (
         <div className="mt-3">
-          <SectionHeader title="Following" note={`${favouritePlayers.length} saved`} />
+          <SectionHeader title="Following" note={`${followedPlayers.length} followed`} />
           <List divider="hairline" size="lg">
-            {followedPlayers.map((player) => (
+            {visibleFollowedPlayers.map((player) => (
               <ListItem
                 key={player.id}
                 leading={<Avatar text={initials(player.name)} />}
@@ -100,17 +100,31 @@ export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
                 subtitle={`${player.wins}W · ${player.played} played`}
                 onClick={() => onOpenPlayer(player.id)}
                 trailing={(
-                  <AppButton
-                    size="sm"
-                    tone="outline"
-                    aria-label={`Set ${player.name} as my player`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setMyPlayer({ id: player.id, name: player.name });
-                    }}
-                  >
-                    This is me
-                  </AppButton>
+                  <span className="d-flex align-items-center gap-2">
+                    {!myPlayer ? (
+                      <AppButton
+                        size="sm"
+                        tone="outline"
+                        aria-label={`Set ${player.name} as my player`}
+                        onClick={() => setMyPlayer({ id: player.id, name: player.name })}
+                      >
+                        This is me
+                      </AppButton>
+                    ) : null}
+                    <ActionMenu
+                      label={`Following actions for ${player.name}`}
+                      title={player.name}
+                      items={[
+                        {
+                          id: 'unfollow',
+                          label: 'Unfollow',
+                          iconClassName: 'fa fa-user-minus',
+                          tone: 'danger',
+                          onSelect: () => remove(player.id),
+                        },
+                      ]}
+                    />
+                  </span>
                 )}
               />
             ))}
