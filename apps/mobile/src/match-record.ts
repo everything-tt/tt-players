@@ -60,11 +60,11 @@ export function perspectiveScore(
 }
 
 export function tournamentScore(input: {
-  firstScore: number | null;
-  secondScore: number | null;
+  firstScore: number | null | undefined;
+  secondScore: number | null | undefined;
   won: boolean;
 }): MatchRecordScore {
-  if (input.firstScore !== null && input.secondScore !== null) {
+  if (typeof input.firstScore === 'number' && typeof input.secondScore === 'number') {
     return detailedGameScore(input.firstScore, input.secondScore, input.won ? 'win' : 'loss');
   }
   return input.won
