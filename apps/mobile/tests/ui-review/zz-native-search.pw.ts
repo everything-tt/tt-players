@@ -105,7 +105,7 @@ async function capture(page: Page, testInfo: TestInfo, title: string) {
 
 async function expectVisibleSavedToggle(page: Page, accessibleName: RegExp, searchLabel: string) {
   const button = page.getByRole('button', { name: accessibleName });
-  const search = page.getByLabel(searchLabel);
+  const search = page.getByRole('textbox', { name: searchLabel });
   await expect(button).toBeVisible();
   await expect(button.locator('span')).toBeVisible();
   await expect(button.locator('span')).toHaveText('Saved');
@@ -133,7 +133,7 @@ test('exercises native browse search, saved filters, and tournament detail layou
   const playerSaved = await expectVisibleSavedToggle(page, /show saved players only/i, 'Search players');
   await expect(playerSaved).toHaveAttribute('aria-pressed', 'false');
 
-  const playerSearch = page.getByLabel('Search players');
+  const playerSearch = page.getByRole('textbox', { name: 'Search players' });
   const graceResponse = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return url.pathname.endsWith('/api/players/search')
