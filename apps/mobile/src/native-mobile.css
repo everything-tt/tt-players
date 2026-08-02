@@ -25,6 +25,7 @@ h6 {
 .tt-sheet__close,
 .tt-external-link,
 .tt-search-input__clear,
+.tt-league-scope__clear-search,
 .tt-picker-remove,
 .tt-player-remove-badge,
 .tt-feedback-attachment-preview button {
@@ -131,8 +132,160 @@ button.tt-backdrop {
   width: 36px;
 }
 
+.tt-sheet__heading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tt-sheet__description {
+  color: var(--ink-muted);
+  font-size: 14px;
+  line-height: 1.45;
+  margin: 8px 0 0;
+  max-width: 48rem;
+}
+
 .tt-sheet__body {
+  min-height: 0;
   overscroll-behavior: contain;
+}
+
+.tt-sheet__footer {
+  background: var(--surface-strong);
+  border-top: 1px solid var(--border-hairline);
+  flex: 0 0 auto;
+  padding: 12px var(--space-card-pad) max(12px, env(safe-area-inset-bottom));
+}
+
+/* Information-dense workflows use the same modal mechanics in a page presentation. */
+.tt-sheet--page {
+  animation: tt-page-modal-enter 160ms ease-out;
+  border-radius: 0;
+  height: 100dvh;
+  inset: 0;
+  max-height: 100dvh;
+  padding-bottom: 0;
+  transform-origin: center;
+  width: 100vw;
+}
+
+.tt-sheet--page .tt-sheet__top {
+  padding-top: max(18px, calc(env(safe-area-inset-top) + 12px));
+}
+
+.tt-sheet--page .tt-sheet__body {
+  overflow-y: auto;
+  padding: 0;
+}
+
+/* Full-page league scope: fixed controls and completion action around one scroll region. */
+.tt-league-scope__controls {
+  background: var(--surface-strong);
+  border-bottom: 1px solid var(--border-hairline);
+  padding: 12px var(--space-card-pad);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.tt-league-scope__search {
+  min-width: 0;
+  position: relative;
+}
+
+.tt-league-scope__search-input {
+  border-color: var(--border-hairline);
+  box-shadow: none;
+  min-height: 48px;
+  padding-right: 52px;
+}
+
+.tt-league-scope__search-input input {
+  font-size: 16px;
+  font-weight: 500;
+  min-height: 46px;
+}
+
+.tt-league-scope__search-input:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.tt-league-scope__clear-search {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink-muted);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 18px;
+  justify-content: center;
+  padding: 0;
+  position: absolute;
+  right: 4px;
+  top: 2px;
+}
+
+.tt-league-scope__clear-search:active {
+  background: var(--surface-subtle);
+  color: var(--ink);
+}
+
+.tt-league-scope__controls .tt-segmented {
+  margin-top: 10px;
+  width: 100%;
+}
+
+.tt-league-scope__content {
+  padding: 16px var(--space-card-pad) 24px;
+}
+
+.tt-league-scope__content .tt-section-header {
+  margin-bottom: 10px;
+}
+
+.tt-league-scope__list {
+  background: var(--surface-strong);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.tt-league-scope__list .tt-list-item {
+  min-height: 64px;
+}
+
+.tt-league-scope__list .tt-list-item__clickable {
+  min-height: 44px;
+}
+
+.tt-league-scope__list .tt-list-item--disabled {
+  opacity: 0.5;
+}
+
+.tt-league-scope__footer {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.tt-league-scope__selection-summary {
+  color: var(--ink-muted);
+  flex: 1 1 auto;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+  margin: 0;
+  min-width: 0;
+}
+
+.tt-league-scope__footer .tt-btn {
+  flex: 0 0 auto;
+  min-width: 112px;
 }
 
 /* PWA prompts grow to fit their content while remaining usable on short screens. */
@@ -235,6 +388,11 @@ button.tt-backdrop {
   }
 }
 
+@keyframes tt-page-modal-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 /* Preserve useful context instead of truncating every data row to one line. */
 .tt-list-item__title,
 .tt-list-item__subtitle {
@@ -251,6 +409,31 @@ button.tt-backdrop {
 
 .tt-list-item__subtitle {
   -webkit-line-clamp: 2;
+}
+
+@media (min-width: 720px) {
+  .tt-sheet--page {
+    border-radius: var(--radius-xl);
+    height: min(900px, calc(100dvh - 32px));
+    inset: 50% auto auto 50%;
+    max-height: calc(100dvh - 32px);
+    transform: translate(-50%, -50%);
+    width: min(720px, calc(100vw - 32px));
+  }
+
+  .tt-sheet--page .tt-sheet__top {
+    padding-top: 20px;
+  }
+}
+
+@media (max-width: 380px) {
+  .tt-league-scope__footer {
+    gap: 8px;
+  }
+
+  .tt-league-scope__footer .tt-btn {
+    min-width: 96px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
