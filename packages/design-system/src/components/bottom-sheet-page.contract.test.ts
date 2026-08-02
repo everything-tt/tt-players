@@ -9,8 +9,8 @@ describe('BottomSheet page presentation contract', () => {
     expect(source).toContain('description?: ReactNode;');
     expect(source).toContain('footer?: ReactNode;');
     expect(source).toContain("presentation = 'sheet'");
-    expect(source).toContain("'tt-sheet--page': presentation === 'page'");
-    expect(source).toContain("'tt-sheet--standard': presentation === 'sheet'");
+    expect(source).toContain("presentation === 'page' && 'tt-sheet--page'");
+    expect(source).toContain("presentation === 'sheet' && 'tt-sheet--standard'");
   });
 
   it('renders dedicated description, body and footer regions for sticky page layout', () => {
