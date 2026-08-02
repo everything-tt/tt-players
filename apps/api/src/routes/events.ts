@@ -63,6 +63,8 @@ const EventResultRowSchema = z.object({
     home_player_external_id: z.string().nullable(),
     away_player_name: z.string(),
     away_player_external_id: z.string().nullable(),
+    home_games_won: z.coerce.number().int().nullable(),
+    away_games_won: z.coerce.number().int().nullable(),
     winner_side: z.string(),
     canonical_rubber_id: z.string().uuid().nullable(),
     home_player_resolved_id: z.string().uuid().nullable(),
@@ -228,6 +230,10 @@ function nullableString(value: unknown): string | null {
     return value === null || value === undefined ? null : String(value);
 }
 
+function nullableNumber(value: unknown): number | null {
+    return value === null || value === undefined ? null : Number(value);
+}
+
 function mapEvent(event: Record<string, unknown>): EventItem {
     return {
         id: String(event.id),
@@ -290,6 +296,8 @@ function mapResult(result: Record<string, unknown>): EventResultItem {
         home_player_external_id: nullableString(result.home_player_external_id),
         away_player_name: String(result.away_player_name),
         away_player_external_id: nullableString(result.away_player_external_id),
+        home_games_won: nullableNumber(result.home_games_won),
+        away_games_won: nullableNumber(result.away_games_won),
         winner_side: String(result.winner_side),
         canonical_rubber_id: nullableString(result.canonical_rubber_id),
         home_player_resolved_id: nullableString(result.home_player_resolved_id),
@@ -411,6 +419,8 @@ export function eventsRoutes(db: Kysely<any>): FastifyPluginAsync {
                         .select([
                             'r.id',
                             'r.played_at',
+                            'r.home_games_won',
+                            'r.away_games_won',
                             'f.round_name',
                             'f.round_order',
                             sql<string>`COALESCE(hp1.name, 'Unknown')`.as('home_player_name'),
