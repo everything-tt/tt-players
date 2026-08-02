@@ -1,3 +1,30 @@
+.tt-h2h-player-card__select {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  padding-inline: var(--tt-space-6);
+  width: 100%;
+}
+
+.tt-h2h-player-card__label {
+  justify-self: start;
+}
+
+.tt-h2h-player-card__empty {
+  align-items: center;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  justify-self: stretch;
+  text-align: center;
+  width: 100%;
+}
+
+.tt-h2h-page > .tt-section--emphasis-primary + .tt-section--emphasis-secondary {
+  margin-top: calc(var(--tt-section-gap-flat) + var(--tt-space-2)) !important;
+}
+
 .tt-h2h-verdict {
   display: grid;
   gap: 14px;
