@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 const DEFAULT_CHUNK_SIZE = 3000;
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 60;
 
-interface SupabaseTokenResponse {
+export interface SupabaseTokenResponse {
   access_token?: string;
   refresh_token?: string;
   token_type?: string;
@@ -13,12 +13,16 @@ interface SupabaseTokenResponse {
   [key: string]: unknown;
 }
 
-export interface SyntheticUserOptions {
+export interface SyntheticSessionOptions {
   supabaseUrl: string;
   publishableKey: string;
   email: string;
   password: string;
+  fetchImpl?: typeof fetch;
+  nowSeconds?: number;
 }
+
+export type SyntheticUserOptions = SyntheticSessionOptions;
 
 export interface StoredSessionChunk {
   name: string;
@@ -70,23 +74,27 @@ function requireOption(value: string, label: string): string {
   return trimmed;
 }
 
-export async function signInSyntheticUser(page: Page, options: SyntheticUserOptions): Promise<void> {
+export async function requestSyntheticSession(
+  options: SyntheticSessionOptions,
+): Promise<SupabaseTokenResponse> {
   const supabaseUrl = requireOption(options.supabaseUrl, 'Supabase URL').replace(/\/$/, '');
   const publishableKey = requireOption(options.publishableKey, 'Supabase publishable key');
   const email = requireOption(options.email, 'UI audit email');
   const password = requireOption(options.password, 'UI audit password');
+  const fetchImpl = options.fetchImpl ?? fetch;
 
-  const response = await page.request.post(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+  const response = await fetchImpl(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
     headers: {
       apikey: publishableKey,
       Authorization: `Bearer ${publishableKey}`,
       'Content-Type': 'application/json',
     },
-    data: { email, password },
+    body: JSON.stringify({ email, password }),
   });
 
-  if (!response.ok()) {
-    throw new Error(`Synthetic Supabase login failed with status ${response.status()}`);
+  if (!response.ok) {
+    throw new Error(`Synthetic Supabase login failed with status ${response.status}`);
   }
 
   const token = await response.json() as SupabaseTokenResponse;
@@ -94,12 +102,18 @@ export async function signInSyntheticUser(page: Page, options: SyntheticUserOpti
     throw new Error('Synthetic Supabase login returned an incomplete session');
   }
 
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  const session: SupabaseTokenResponse = {
+  const nowSeconds = options.nowSeconds ?? Math.floor(Date.now() / 1000);
+  return {
     ...token,
     expires_at: token.expires_at
       ?? (typeof token.expires_in === 'number' ? nowSeconds + token.expires_in : undefined),
   };
+}
+
+export async function signInSyntheticUser(page: Page, options: SyntheticUserOptions): Promise<void> {
+  const supabaseUrl = requireOption(options.supabaseUrl, 'Supabase URL').replace(/\/$/, '');
+  const nowSeconds = options.nowSeconds ?? Math.floor(Date.now() / 1000);
+  const session = await requestSyntheticSession({ ...options, supabaseUrl, nowSeconds });
   const storageKey = buildSupabaseStorageKey(supabaseUrl);
   const chunks = chunkStoredSession(storageKey, JSON.stringify(session));
   const applicationUrl = new URL(page.url());
