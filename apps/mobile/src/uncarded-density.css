@@ -11,8 +11,8 @@
 
 /* Direct page sections should own one modest gutter rather than inheriting
  * page + section + child insets. Premium hero/card surfaces are excluded. */
-.tt-page-content > section:not(.tt-player-hero):not(.tt-hero):not(.tt-card):not(.tt-home-summary):not(.tt-players-search-panel):not(.tt-entity-hero):not(.tt-section--raised):not(.tt-section--hero),
-.tt-root-content > section:not(.tt-player-hero):not(.tt-hero):not(.tt-card):not(.tt-home-summary):not(.tt-players-search-panel):not(.tt-entity-hero):not(.tt-section--raised):not(.tt-section--hero),
+.tt-page-content > section:not(.tt-player-hero):not(.tt-player-profile-hero):not(.tt-hero):not(.tt-card):not(.tt-home-summary):not(.tt-players-search-panel):not(.tt-entity-hero):not(.tt-section--raised):not(.tt-section--hero),
+.tt-root-content > section:not(.tt-player-hero):not(.tt-player-profile-hero):not(.tt-hero):not(.tt-card):not(.tt-home-summary):not(.tt-players-search-panel):not(.tt-entity-hero):not(.tt-section--raised):not(.tt-section--hero),
 .tt-player-section {
   box-sizing: border-box;
   width: auto !important;
@@ -21,8 +21,8 @@
   padding-inline: 0 !important;
 }
 
-.tt-page-content > section:not(.tt-player-hero):not(.tt-hero):not(.tt-card):not(.tt-home-summary):not(.tt-players-search-panel):not(.tt-entity-hero):not(.tt-section--raised):not(.tt-section--hero) + section,
-.tt-root-content > section:not(.tt-player-hero):not(.tt-hero):not(.tt-card):not(.tt-home-summary):not(.tt-players-search-panel):not(.tt-entity-hero):not(.tt-section--raised):not(.tt-section--hero) + section,
+.tt-page-content > section:not(.tt-player-hero):not(.tt-player-profile-hero):not(.tt-hero):not(.tt-card):not(.tt-home-summary):not(.tt-players-search-panel):not(.tt-entity-hero):not(.tt-section--raised):not(.tt-section--hero) + section,
+.tt-root-content > section:not(.tt-player-hero):not(.tt-player-profile-hero):not(.tt-hero):not(.tt-card):not(.tt-home-summary):not(.tt-players-search-panel):not(.tt-entity-hero):not(.tt-section--raised):not(.tt-section--hero) + section,
 .tt-player-section + .tt-player-section {
   margin-top: var(--tt-uncarded-section-gap) !important;
 }
@@ -125,6 +125,7 @@
 /* Keep premium cards visually distinct from the denser canvas sections. */
 .tt-card,
 .tt-player-hero,
+.tt-player-profile-hero,
 .tt-hero,
 .tt-home-summary,
 .tt-players-search-panel,
