@@ -1,0 +1,131 @@
+name: Main UI Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: HTTPS deployment URL to audit
+        required: true
+        default: https://ttp.tourneypilot.com
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: main-ui-audit-manual
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: [self-hosted, Linux, ARM64, docker-ui-screenshot, playwright]
+    timeout-minutes: 60
+    env:
+      PREVIEW_URL: ${{ inputs.target_url }}
+      UI_REVIEW_REPORT_DIR: ${{ github.workspace }}/ui-review-report
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      UI_AUDIT_EMAIL: ${{ secrets.UI_AUDIT_EMAIL }}
+      UI_AUDIT_PASSWORD: ${{ secrets.UI_AUDIT_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.24.0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter @tt-players/mobile exec playwright install chromium
+
+      - name: Wait for target deployment
+        run: |
+          set -euo pipefail
+          case "$PREVIEW_URL" in
+            https://*) ;;
+            *) echo "Target URL must use HTTPS: $PREVIEW_URL" >&2; exit 64 ;;
+          esac
+          for attempt in $(seq 1 60); do
+            if curl -fsS --max-time 10 "$PREVIEW_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Target deployment did not become ready: $PREVIEW_URL" >&2
+          exit 1
+
+      - name: Record host resources before
+        run: |
+          rm -rf ui-review-report test-results/main-audit
+          mkdir -p ui-review-report/diagnostics test-results/main-audit
+          {
+            date -u +"%Y-%m-%dT%H:%M:%SZ"
+            hostname
+            uname -a
+            free -h
+            df -h
+          } > ui-review-report/diagnostics/host-before.txt
+
+      - name: Run main UI audit
+        run: pnpm --filter @tt-players/mobile exec playwright test --config=../../playwright.main-audit.config.ts
+
+      - name: Record host resources after
+        if: always()
+        run: |
+          mkdir -p ui-review-report/diagnostics
+          {
+            date -u +"%Y-%m-%dT%H:%M:%SZ"
+            free -h
+            df -h
+            ps --sort=-rss -eo pid,ppid,rss,comm,args | head -40 || true
+          } > ui-review-report/diagnostics/host-after.txt
+
+      - name: Upload main UI audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: main-ui-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            ui-review-report/
+            test-results/main-audit/
+
+      - name: Add main UI audit summary
+        if: always()
+        env:
+          ARTIFACT_NAME: main-ui-audit-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          captured=0
+          skipped=0
+          failed=0
+          if [[ -f ui-review-report/manifest.json ]]; then
+            read -r captured skipped failed < <(node -e '
+              const fs = require("node:fs");
+              const items = JSON.parse(fs.readFileSync("ui-review-report/manifest.json", "utf8"));
+              const count = (status) => items.filter((item) => item.status === status).length;
+              process.stdout.write(`${count("captured")} ${count("skipped")} ${count("failed")}`);
+            ')
+          fi
+          {
+            echo "## Main UI audit"
+            echo
+            echo "- Target: $PREVIEW_URL"
+            echo "- Commit: \`${GITHUB_SHA::7}\`"
+            echo "- Captured screens: $captured"
+            echo "- Skipped screens: $skipped"
+            echo "- Failed screens: $failed"
+            echo "- Artifact: \`$ARTIFACT_NAME\`"
+            echo "- Open \`ui-review-report/index.html\` from the artifact for the screenshot report."
+          } >> "$GITHUB_STEP_SUMMARY"
