@@ -595,6 +595,8 @@ export interface EventResultRow {
   home_player_external_id: string;
   away_player_name: string;
   away_player_external_id: string;
+  home_games_won: number | null;
+  away_games_won: number | null;
   winner_side: string;
   canonical_rubber_id: string | null;
   home_player_resolved_id: string | null;

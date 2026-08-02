@@ -24,8 +24,8 @@ import {
   IconCircle,
   Inline,
   ListItem,
+  MatchRecordRow,
   MetricGrid,
-  OutcomeBadge,
   PageSection,
   Pill,
   Stack,
@@ -35,6 +35,7 @@ import { useFavouritePlayers } from './hooks/useFavouritePlayers';
 import { DetailHeader } from './components/DetailHeader';
 import { FavouriteButton } from './components/FavouriteButton';
 import { buildTournamentShareTarget } from './share-target';
+import { tournamentScore } from './match-record';
 import {
   deriveKnockoutResult,
   deriveTournamentPageState,
@@ -619,17 +620,24 @@ export function EventDetailPage() {
                               const primaryKey = primaryIsHome ? homeKey : awayKey;
                               const secondaryName = primaryIsHome ? match.away_player_name : match.home_player_name;
                               const primaryWon = match.winner_side === (primaryIsHome ? 'home' : 'away');
-                              const timeLabel = match.played_at ? ` · ${formatTime(match.played_at)}` : '';
+                              const primaryScore = primaryIsHome ? match.home_games_won : match.away_games_won;
+                              const secondaryScore = primaryIsHome ? match.away_games_won : match.home_games_won;
                               const player = tournamentPlayers.find((item) => item.key === primaryKey) ?? null;
 
                               return (
-                                <ListItem
+                                <MatchRecordRow
                                   key={match.id}
-                                  leading={<OutcomeBadge result={primaryWon ? 'W' : 'L'} variant="icon" />}
+                                  score={tournamentScore({
+                                    firstScore: primaryScore,
+                                    secondScore: secondaryScore,
+                                    won: primaryWon,
+                                  })}
                                   title={primaryName}
-                                  subtitle={`${primaryWon ? 'Defeated' : 'Lost to'} ${secondaryName}${timeLabel}`}
+                                  metadata={[
+                                    `${primaryWon ? 'Defeated' : 'Lost to'} ${secondaryName}`,
+                                    match.played_at ? formatTime(match.played_at) : null,
+                                  ]}
                                   onClick={player ? () => togglePlayerFilter(player) : undefined}
-                                  hideChevron
                                 />
                               );
                             })}
