@@ -1,3 +1,4 @@
+import '../ratings-ui.css';
 import { useMemo, useState, type KeyboardEvent } from 'react';
 import {
   ratingConfidenceLabel,
