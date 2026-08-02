@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { PlayerMatchList, createPlayerMatchActionItems } from './components/PlayerMatchList';
 import type { RubberItem } from './player-shared';
 import {
   buildQuickJournalPath,
@@ -65,5 +67,61 @@ describe('player match list helpers', () => {
     expect(source).toContain('pageSize = 20');
     expect(source).toContain('[playerId, source, pageSize]');
     expect(source).toContain('mergePlayerMatchPage');
+  });
+});
+
+describe('PlayerMatchList', () => {
+  const callbacks = {
+    onOpenMatch: () => undefined,
+    onOpenOpponent: () => undefined,
+    onQuickJournal: () => undefined,
+    onLoadMore: () => undefined,
+    onRetry: () => undefined,
+  };
+
+  it('renders a compact result row with a direct opponent action', () => {
+    const markup = renderToStaticMarkup(
+      <PlayerMatchList
+        playerId="player-1"
+        matches={[matchFixture('a')]}
+        total={1}
+        hasMore={false}
+        isLoadingInitial={false}
+        isLoadingMore={false}
+        error={null}
+        quickJournalEnabled
+        {...callbacks}
+      />,
+    );
+
+    expect(markup).toContain('tt-player-match-date');
+    expect(markup).toContain('Won 3-1');
+    expect(markup).toContain('View Malcolm Henstock profile');
+    expect(markup).toContain('Match actions for Malcolm Henstock');
+    expect(markup).not.toContain('tt-outcome-badge--icon');
+  });
+
+  it('builds only actions supported by the match and viewed profile', () => {
+    const fullActions = createPlayerMatchActionItems({
+      match: matchFixture('a'),
+      quickJournalEnabled: true,
+      onOpenMatch: callbacks.onOpenMatch,
+      onOpenOpponent: callbacks.onOpenOpponent,
+      onQuickJournal: callbacks.onQuickJournal,
+    });
+    expect(fullActions.map((item) => item.label)).toEqual([
+      'View Opponent',
+      'Quick Journal',
+      'View Fixture',
+    ]);
+
+    const restrictedActions = createPlayerMatchActionItems({
+      match: matchFixture('b', { opponent_id: null }),
+      quickJournalEnabled: false,
+      onOpenMatch: callbacks.onOpenMatch,
+      onOpenOpponent: callbacks.onOpenOpponent,
+      onQuickJournal: callbacks.onQuickJournal,
+    });
+    expect(restrictedActions.map((item) => item.label)).toEqual(['View Fixture']);
   });
 });
