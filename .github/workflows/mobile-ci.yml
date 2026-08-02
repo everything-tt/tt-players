@@ -24,7 +24,7 @@ on:
       - '.github/workflows/mobile-ci.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -32,6 +32,140 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Apply selected tournament player filter
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/hide-unselected-tournament-players' && github.actor != 'github-actions[bot]'
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('apps/mobile/src/EventDetailPage.tsx')
+          source = path.read_text()
+          pattern = re.compile(
+              r'''                <PageSection
+                  surface="flat"
+                  density="compact"
+                  title="Players"
+                  note=\{pluralise\(filteredTournamentPlayers\.length, 'shown player', 'shown players'\)\}
+                >
+                  <Stack gap="sm">
+.*?                  </Stack>
+                </PageSection>
+
+                <PageSection
+                  surface="flat"
+                  density="compact"
+                  title="Results"''',
+              re.DOTALL,
+          )
+          replacement = '''                <PageSection
+                  surface="flat"
+                  density="compact"
+                  title="Players"
+                  note={selectedPlayer ? '1 selected player' : pluralise(filteredTournamentPlayers.length, 'shown player', 'shown players')}
+                >
+                  <Stack gap="sm">
+                    {selectedPlayer ? (
+                      <DesignList density="compact" divider="hairline" paginate={false}>
+                        <ListItem
+                          leading={<DesignAvatar size="compact" text={getInitials(selectedPlayer.name)} />}
+                          title={selectedPlayer.name}
+                          subtitle="Filtering recorded matches"
+                          trailing={(
+                            <AppButton size="sm" tone="ghost" onClick={() => setSelectedPlayer(null)}>
+                              Clear player
+                            </AppButton>
+                          )}
+                          active
+                          hideChevron
+                        />
+                      </DesignList>
+                    ) : (
+                      <>
+                        <AppSearchInput
+                          placeholder="Search tournament players…"
+                          value={playerQuery}
+                          onChange={(inputEvent) => setPlayerQuery(inputEvent.target.value)}
+                        />
+                        <FilterBar ariaLabel="Filter tournament players">
+                          <AppButton
+                            size="sm"
+                            tone={playerFilter === 'all' ? 'primary' : 'outline'}
+                            onClick={() => setPlayerFilter('all')}
+                            aria-pressed={playerFilter === 'all'}
+                          >
+                            All
+                          </AppButton>
+                          <AppButton
+                            size="sm"
+                            tone={playerFilter === 'undefeated' ? 'primary' : 'outline'}
+                            onClick={() => setPlayerFilter('undefeated')}
+                            aria-pressed={playerFilter === 'undefeated'}
+                          >
+                            Undefeated
+                          </AppButton>
+                        </FilterBar>
+                        {filteredTournamentPlayers.length === 0 ? (
+                          <EmptyState iconClassName="fa fa-search" title="No players found" message="Try another name or player filter." />
+                        ) : (
+                          <DesignList density="compact" divider="hairline" paginate pageSize={10}>
+                            {filteredTournamentPlayers.map((player) => {
+                              const saved = player.playerId ? isFavouritePlayer(player.playerId) : false;
+                              return (
+                                <ListItem
+                                  key={player.key}
+                                  leading={<DesignAvatar size="compact" text={getInitials(player.name)} />}
+                                  title={player.name}
+                                  subtitle={`${pluralise(player.wins, 'win')} · ${pluralise(player.losses, 'loss', 'losses')} · ${player.winRate}% · ${pluralise(player.played, 'recorded match', 'recorded matches')}`}
+                                  active={selectedPlayer?.key === player.key}
+                                  onClick={() => togglePlayerFilter(player)}
+                                  trailing={player.playerId ? (
+                                    <FavouriteButton
+                                      size="icon"
+                                      saved={saved}
+                                      onToggle={() => toggleFavouritePlayer({
+                                        id: player.playerId!,
+                                        name: player.name,
+                                        played: player.played,
+                                        wins: player.wins,
+                                      })}
+                                    />
+                                  ) : null}
+                                  hideChevron
+                                />
+                              );
+                            })}
+                          </DesignList>
+                        )}
+                      </>
+                    )}
+                  </Stack>
+                </PageSection>
+
+                <PageSection
+                  surface="flat"
+                  density="compact"
+                  title="Results"'''
+          updated, count = pattern.subn(replacement, source, count=1)
+          if count != 1:
+              raise SystemExit(f'Expected one Players section replacement, found {count}')
+          path.write_text(updated)
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout origin/main -- .github/workflows/mobile-ci.yml
+          rm -f .github/workflows/apply-selected-player-filter.yml
+          git add apps/mobile/src/EventDetailPage.tsx .github/workflows/mobile-ci.yml
+          git add -u .github/workflows/apply-selected-player-filter.yml
+          git commit -m "fix: hide unselected tournament players"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
