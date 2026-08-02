@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // PR #102. Replace this filename for the next UI PR.
-  testMatch: 'zz-player-match-h2h-action.pw.ts',
+  // Temporary diagnostic for PR #102; restore the focused UI scenario after root-cause analysis.
+  testMatch: 'zz-h2h-data-diagnostic.pw.ts',
 
   timeout: 120_000,
   expect: {
