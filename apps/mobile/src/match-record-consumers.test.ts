@@ -43,3 +43,30 @@ describe('app-wide MatchRecordRow consumers', () => {
     expect(content).not.toContain('MatchRecordRow');
   });
 });
+
+describe('H2H common opponent exploration', () => {
+  it('requests only five opponents for the H2H preview', () => {
+    const content = source('./h2h-analysis-query.ts');
+    expect(content).toContain('common_limit=5');
+  });
+
+  it('renders a fixed five-row preview without the in-memory list footer', () => {
+    const content = source('./components/RatingPredictionPanel.tsx');
+    expect(content).toContain('analysis.common_opponents.data.slice(0, 5)');
+    expect(content).toContain('divider="hairline" paginate={false}');
+    expect(content).toContain('View all');
+    expect(content).not.toContain('initialVisibleCount={5}');
+    expect(content).not.toContain('pageSize={5}');
+  });
+
+  it('registers the full common-opponents page and all approved sort options', () => {
+    const page = source('./CommonOpponentsPage.tsx');
+    const router = source('./AppRouter.tsx');
+    expect(router).toContain('h2h/:playerAId/:playerBId/common-opponents');
+    expect(page).toContain("value: 'evidence', label: 'Most evidence'");
+    expect(page).toContain("value: 'recent', label: 'Most recent'");
+    expect(page).toContain("value: 'edge', label: 'Largest edge'");
+    expect(page).toContain("value: 'closest', label: 'Closest record'");
+    expect(page).not.toContain('All ${');
+  });
+});
