@@ -550,7 +550,6 @@ export function EventDetailPage() {
                                   leading={<DesignAvatar size="compact" text={getInitials(player.name)} />}
                                   title={player.name}
                                   subtitle={`${pluralise(player.wins, 'win')} · ${pluralise(player.losses, 'loss', 'losses')} · ${player.winRate}% · ${pluralise(player.played, 'recorded match', 'recorded matches')}`}
-                                  active={selectedPlayer?.key === player.key}
                                   onClick={() => togglePlayerFilter(player)}
                                   trailing={player.playerId ? (
                                     <FavouriteButton
