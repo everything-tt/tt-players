@@ -282,7 +282,7 @@ test('keeps league scope usable through browsing, typing, tab changes and a narr
   await expect(search).toHaveValue('Bristol');
   await dialog.getByRole('button', { name: 'Clear search' }).click();
   await expect(search).toHaveValue('');
-  await expect(dialog.getByRole('heading', { name: 'Areas' })).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: 'Areas', exact: true })).toBeVisible();
   await expect(dialog.getByText('East of England')).toBeVisible();
 
   const footerTopBeforeScroll = await dialog.locator('.tt-sheet__footer').evaluate((element) => element.getBoundingClientRect().top);
