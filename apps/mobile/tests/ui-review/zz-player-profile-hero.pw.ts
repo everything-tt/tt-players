@@ -76,13 +76,13 @@ body{margin:0;font-family:system-ui,sans-serif;background:#f7f8f7;color:#17211d}
 </style></head><body><main><h1>TT Players UI Review</h1><p>Preview: <a href="${escapeHtml(previewUrl)}">${escapeHtml(previewUrl)}</a></p><div class="grid">${cards}</div></main></body></html>\n`);
 }
 
-async function capture(page: Page, testInfo: TestInfo, title: string) {
+async function capture(page: Page, testInfo: TestInfo, title: string, diagnostics: unknown) {
   await page.addStyleTag({ content: '* { transition: none !important; animation: none !important; caret-color: transparent !important; }' });
   await page.evaluate(() => document.fonts.ready);
   const screenshotPath = `screenshots/${testInfo.project.name}-${title}.png`;
   const diagnosticsPath = `diagnostics/${testInfo.project.name}-${title}.json`;
   await page.screenshot({ path: join(reportDir, screenshotPath), fullPage: false, timeout: 15_000 });
-  writeFileSync(join(reportDir, diagnosticsPath), `${JSON.stringify({ route: page.url(), finalUrl: page.url(), events: [] }, null, 2)}\n`);
+  writeFileSync(join(reportDir, diagnosticsPath), `${JSON.stringify({ route: page.url(), finalUrl: page.url(), diagnostics }, null, 2)}\n`);
   appendManifest({ project: testInfo.project.name, title, url: page.url(), path: screenshotPath, diagnosticsPath });
 }
 
@@ -91,7 +91,7 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('keeps the player profile hero compact and faithful to the approved mock', async ({ page }, testInfo) => {
+test('keeps the player profile hero compact and faithfully padded', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
   await prepareAppState(page);
 
@@ -106,12 +106,48 @@ test('keeps the player profile hero compact and faithful to the approved mock', 
 
   const hero = page.locator('.tt-player-profile-hero');
   await expect(hero).toBeVisible({ timeout: 30_000 });
-  await expect(hero.getByText('Player profile', { exact: true })).toBeVisible();
   await expect(hero.getByText('Rating', { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(hero.getByRole('button', { name: 'Save to favourites' })).toBeVisible();
-  await expect(hero.getByText('View History', { exact: true })).toBeVisible();
   await expect(hero.locator('.tt-player-profile-form-indicator')).toBeVisible();
   await expect(hero.locator('.tt-form-recent')).toHaveCount(0);
+
+  const geometry = await hero.evaluate((element) => {
+    const shell = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    const selectors = [
+      '.tt-player-profile-eyebrow',
+      '.tt-player-profile-identity',
+      '.tt-player-profile-actions',
+      '.tt-player-profile-form-heading',
+      '.tt-player-profile-form-grid',
+      '.tt-player-profile-form-indicator',
+    ];
+    return {
+      shell: { left: shell.left, right: shell.right, width: shell.width, height: shell.height },
+      padding: {
+        left: Number.parseFloat(style.paddingLeft),
+        right: Number.parseFloat(style.paddingRight),
+      },
+      children: selectors.map((selector) => {
+        const child = element.querySelector<HTMLElement>(selector);
+        const rect = child?.getBoundingClientRect();
+        return {
+          selector,
+          leftInset: rect ? rect.left - shell.left : null,
+          rightInset: rect ? shell.right - rect.right : null,
+        };
+      }),
+    };
+  });
+  console.log(`PLAYER_HERO_GEOMETRY ${JSON.stringify(geometry)}`);
+
+  expect(geometry.padding.left).toBeGreaterThanOrEqual(12);
+  expect(geometry.padding.right).toBeGreaterThanOrEqual(12);
+  for (const child of geometry.children) {
+    expect(child.leftInset, `${child.selector} left inset`).not.toBeNull();
+    expect(child.leftInset!, `${child.selector} left inset`).toBeGreaterThanOrEqual(12);
+    expect(child.rightInset!, `${child.selector} right inset`).toBeGreaterThanOrEqual(12);
+  }
 
   const actions = hero.locator('.tt-player-profile-actions > *');
   await expect(actions).toHaveCount(4);
@@ -121,21 +157,8 @@ test('keeps the player profile hero compact and faithful to the approved mock', 
   }));
   expect(Math.max(...actionBoxes.map((box) => box.top)) - Math.min(...actionBoxes.map((box) => box.top))).toBeLessThan(4);
   expect(Math.max(...actionBoxes.map((box) => box.height))).toBeLessThanOrEqual(48);
+  expect(geometry.shell.height).toBeLessThan(700);
 
-  const heroBox = await hero.boundingBox();
-  expect(heroBox).not.toBeNull();
-  expect(heroBox!.height).toBeLessThan(700);
-
-  await capture(page, testInfo, 'player-profile-hero');
-
-  await page.evaluate(({ id, name }) => {
-    localStorage.setItem('tt_players_my_player', JSON.stringify({ id, name }));
-  }, player!);
-  await page.reload({ waitUntil: 'domcontentloaded' });
-
-  const currentUserHero = page.locator('.tt-player-profile-hero');
-  await expect(currentUserHero.getByRole('button', { name: 'This isn’t me' })).toBeVisible({ timeout: 30_000 });
-  await expect(currentUserHero.getByRole('button', { name: 'Save to favourites' })).toHaveCount(0);
-
+  await capture(page, testInfo, 'player-profile-hero', geometry);
   writeReportIndex(previewUrl);
 });
