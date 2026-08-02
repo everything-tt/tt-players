@@ -9,6 +9,8 @@ import {
 } from 'react';
 import { cx } from '../utils/cx';
 
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+
 // ── Slot components (leading/trailing) ────────────────────────────────────────
 
 export interface AvatarProps {
@@ -206,11 +208,11 @@ export function List({
   const itemKeys = items.map(childKey);
   const keySignature = itemKeys.join('\u001f');
 
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     setVisibleCount(normalizedPageSize);
   }, [normalizedPageSize]);
 
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const previousKeys = previousKeysRef.current;
     const isAppendOnly = previousKeys.length > 0
       && previousKeys.length <= itemKeys.length
@@ -314,7 +316,7 @@ export function ListItem({
     : (hideChevron ? null : <span className="tt-list-item__trailing" aria-hidden="true"><i className="fa fa-angle-right" /></span>);
 
   return (
-    <div className={cx("tt-list-item", active && "tt-list-item--active", disabled && "tt-list-item--disabled", className)}>
+    <div className={cx('tt-list-item', active && 'tt-list-item--active', disabled && 'tt-list-item--disabled', className)}>
       {clickableEl}
       {trailingEl ? <span className="tt-list-item__trailing">{trailingEl}</span> : null}
     </div>
