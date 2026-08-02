@@ -35,6 +35,7 @@ test('benchmark arguments are explicit and normalized', () => {
 test('percentiles use nearest-rank semantics', () => {
     const values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     assert.equal(percentile(values, 0.5), 5);
+    assert.equal(percentile(values, 0.95), 10);
     assert.equal(percentile([], 0.95), null);
 });
 
