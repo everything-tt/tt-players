@@ -7,6 +7,7 @@ on:
       - 'packages/design-system/**'
       - 'playwright.main-audit.config.ts'
       - 'scripts/check-design-system-usage.mjs'
+      - 'scripts/generate-match-record-migration.mjs'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -32,6 +33,16 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Generate migration sources
+        run: node scripts/generate-match-record-migration.mjs
+
+      - name: Upload migration sources
+        uses: actions/upload-artifact@v4
+        with:
+          name: match-record-migration-${{ github.sha }}
+          retention-days: 1
+          path: generated-match-record-migration/
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
