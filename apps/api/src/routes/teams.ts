@@ -404,16 +404,29 @@ export function teamsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         .limit(1)
                         .executeTakeFirst(),
                     sql<any>`
-                        SELECT f.home_team_id, f.away_team_id,
-                            SUM(CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END) as home_score,
-                            SUM(CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END) as away_score
-                        FROM fixtures f
+                        WITH recent_fixtures AS MATERIALIZED (
+                            SELECT
+                                f.id,
+                                f.home_team_id,
+                                f.away_team_id,
+                                f.date_played
+                            FROM fixtures f
+                            WHERE (f.home_team_id = ${id} OR f.away_team_id = ${id})
+                              AND f.status = 'completed'
+                              AND f.deleted_at IS NULL
+                            ORDER BY f.date_played DESC NULLS LAST, f.id DESC
+                            LIMIT 10
+                        )
+                        SELECT
+                            f.home_team_id,
+                            f.away_team_id,
+                            SUM(CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END) AS home_score,
+                            SUM(CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END) AS away_score
+                        FROM recent_fixtures f
                         JOIN rubbers r ON r.fixture_id = f.id
-                        WHERE (f.home_team_id = ${id} OR f.away_team_id = ${id})
-                          AND f.status = 'completed'
-                          AND r.deleted_at IS NULL
+                        WHERE r.deleted_at IS NULL
                         GROUP BY f.id, f.date_played, f.home_team_id, f.away_team_id
-                        ORDER BY f.date_played DESC
+                        ORDER BY f.date_played DESC NULLS LAST, f.id DESC
                     `.execute(db),
                 ]);
 
