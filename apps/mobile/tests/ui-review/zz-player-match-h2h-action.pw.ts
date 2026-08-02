@@ -15,14 +15,22 @@ interface PlayerSearchResponse {
   data: Array<{ id: string; name: string }>;
 }
 
+interface PlayerRubber {
+  fixture_id: string;
+  opponent: string;
+  opponent_id: string | null;
+  source: 'league' | 'tournament';
+  event_id: string | null;
+}
+
 interface PlayerRubbersResponse {
-  data: Array<{
-    fixture_id: string;
-    opponent: string;
-    opponent_id: string | null;
-    source: 'league' | 'tournament';
-    event_id: string | null;
-  }>;
+  data: PlayerRubber[];
+}
+
+interface H2HResponse {
+  player1_wins: number;
+  player2_wins: number;
+  encounters: unknown[];
 }
 
 const reportDir = process.env.UI_REVIEW_REPORT_DIR ?? 'ui-review-report';
@@ -105,10 +113,33 @@ async function findPlayer(page: Page, previewUrl: string) {
 }
 
 async function loadRubbers(page: Page, previewUrl: string, playerId: string) {
-  const params = new URLSearchParams({ limit: '20', offset: '0', source: 'all' });
+  const params = new URLSearchParams({ limit: '100', offset: '0', source: 'all' });
   const response = await page.request.get(`${previewUrl}/api/players/${playerId}/rubbers?${params.toString()}`);
   expect(response.ok()).toBe(true);
   return response.json() as Promise<PlayerRubbersResponse>;
+}
+
+async function findMatchWithDirectH2H(
+  page: Page,
+  previewUrl: string,
+  playerId: string,
+  matches: PlayerRubber[],
+): Promise<{ match: PlayerRubber; h2h: H2HResponse }> {
+  const checked = new Set<string>();
+  for (const match of matches) {
+    const opponentId = match.opponent_id;
+    const hasDestination = match.source === 'tournament' ? Boolean(match.event_id) : Boolean(match.fixture_id);
+    if (!opponentId || !hasDestination || checked.has(opponentId)) continue;
+    checked.add(opponentId);
+
+    const response = await page.request.get(`${previewUrl}/api/players/${playerId}/h2h/${opponentId}`);
+    if (!response.ok()) continue;
+    const h2h = await response.json() as H2HResponse;
+    if (h2h.encounters.length > 0) return { match, h2h };
+    if (checked.size >= 20) break;
+  }
+
+  throw new Error('No match row with a verified direct H2H record was available for UI review.');
 }
 
 function recentMatchesSection(page: Page) {
@@ -159,15 +190,16 @@ test('reviews direct match, opponent, journal and H2H actions', async ({ page },
   await prepareAppState(page);
   const player = await findPlayer(page, previewUrl);
   const rubbers = await loadRubbers(page, previewUrl, player.id);
-  const match = rubbers.data.find((item) => (
-    Boolean(item.opponent_id)
-      && (item.source === 'league' ? Boolean(item.fixture_id) : Boolean(item.event_id))
-  ));
-  expect(match?.opponent_id).toBeTruthy();
+  const { match, h2h: verifiedH2H } = await findMatchWithDirectH2H(
+    page,
+    previewUrl,
+    player.id,
+    rubbers.data,
+  );
 
-  const opponentId = match!.opponent_id!;
-  const opponentName = match!.opponent;
-  const destination = match!.source === 'tournament' && match!.event_id ? 'event' : 'fixture';
+  const opponentId = match.opponent_id!;
+  const opponentName = match.opponent;
+  const destination = match.source === 'tournament' && match.event_id ? 'event' : 'fixture';
   const primaryLabel = `View ${destination} for match against ${opponentName}`;
   const profileLabel = `Open ${opponentName} profile`;
   const h2hLabel = `Open head to head with ${opponentName}`;
@@ -193,20 +225,24 @@ test('reviews direct match, opponent, journal and H2H actions', async ({ page },
 
   row = await openPlayer(page, previewUrl, player.id, opponentName);
   await row.getByRole('button', { name: primaryLabel }).click();
-  const expectedMatchPath = match!.source === 'tournament' && match!.event_id
-    ? `/tabs/players/event/${match!.event_id}`
-    : `/tabs/leagues/fixture/${match!.fixture_id}`;
+  const expectedMatchPath = match.source === 'tournament' && match.event_id
+    ? `/tabs/players/event/${match.event_id}`
+    : `/tabs/leagues/fixture/${match.fixture_id}`;
   await expect(page).toHaveURL(new RegExp(`${expectedMatchPath}(?:$|[/?#])`));
 
   row = await openPlayer(page, previewUrl, player.id, opponentName);
-  const h2hResponse = page.waitForResponse((response) => (
+  const h2hResponsePromise = page.waitForResponse((response) => (
     new URL(response.url()).pathname.endsWith(`/api/players/${player.id}/h2h/${opponentId}`)
       && response.status() === 200
   ));
   await row.getByRole('button', { name: h2hLabel }).click();
   await expect(page).toHaveURL(new RegExp(`/tabs/h2h/h2h/${player.id}/${opponentId}(?:$|[/?#])`));
-  await h2hResponse;
-  await expect(page.getByText('Head to Head', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+  const h2hResponse = await h2hResponsePromise;
+  const directH2H = await h2hResponse.json() as H2HResponse;
+  expect(directH2H.encounters.length).toBe(verifiedH2H.encounters.length);
+  expect(directH2H.encounters.length).toBeGreaterThan(0);
+  await expect(page.getByText(`${directH2H.encounters.length} meetings`, { exact: true }).first())
+    .toBeVisible({ timeout: 30_000 });
   await capture(page, testInfo, 'direct-h2h-destination');
 
   await page.goto(`${previewUrl}/tabs/home`, { waitUntil: 'domcontentloaded' });
