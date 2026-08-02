@@ -102,9 +102,19 @@ async function expectTextContrast(locator: Locator, minimum = 4.5) {
   const result = await locator.evaluate((element) => {
     type Rgba = [number, number, number, number];
 
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) throw new Error('Canvas 2D context is unavailable');
+
     const parse = (value: string): Rgba => {
-      const parts = value.match(/[\d.]+/g)?.map(Number) ?? [];
-      return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0, parts[3] ?? 1];
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = 'rgba(0, 0, 0, 0)';
+      context.fillStyle = value;
+      context.fillRect(0, 0, 1, 1);
+      const pixel = context.getImageData(0, 0, 1, 1).data;
+      return [pixel[0], pixel[1], pixel[2], pixel[3] / 255];
     };
     const blend = (foreground: Rgba, background: Rgba): Rgba => {
       const alpha = foreground[3] + background[3] * (1 - foreground[3]);
@@ -141,11 +151,12 @@ async function expectTextContrast(locator: Locator, minimum = 4.5) {
       + 0.0722 * channel(colour[2]);
 
     const background = effectiveBackground(element);
-    const foreground = blend(parse(getComputedStyle(element).color), background);
+    const computedForeground = getComputedStyle(element).color;
+    const foreground = blend(parse(computedForeground), background);
     const lighter = Math.max(luminance(foreground), luminance(background));
     const darker = Math.min(luminance(foreground), luminance(background));
     return {
-      foreground: getComputedStyle(element).color,
+      foreground: computedForeground,
       background,
       ratio: (lighter + 0.05) / (darker + 0.05),
     };
