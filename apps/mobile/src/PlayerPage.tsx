@@ -3,36 +3,39 @@ import { useParams } from 'react-router-dom';
 import './app-shell.css';
 import { useTabNavigation } from './navigation/tab-navigation';
 import {
-  formatMatchDate,
   formatDateOrUnknown,
   getInitials,
   groupTournamentMatches,
+  type RubberItem,
 } from './player-shared';
 import {
   usePlayerCurrentSeasonAffiliationsQuery,
   usePlayerExtendedStatsQuery,
   usePlayerInsightsQuery,
-  usePlayerRubbersQuery,
   usePlayerTournamentsQuery,
 } from './queries';
 import { SegmentedToggle } from './components/SegmentedToggle';
 import { useFavouritePlayers } from './hooks/useFavouritePlayers';
+import { useMyPlayer } from './hooks/useMyPlayer';
+import { usePagedPlayerMatches } from './hooks/usePagedPlayerMatches';
 import { SkeletonBlock, SkeletonList } from './components/Skeleton';
+import { PlayerMatchList } from './components/PlayerMatchList';
 import { TabShellPage } from './TabShellPage';
 import {
+  AppButton,
   AppButtonLink,
   AppMessageCard,
   AppPageContent,
   IconCircle,
   List,
   ListItem,
-  OutcomeBadge,
 } from './ui/appkit';
 import { DetailHeader } from './components/DetailHeader';
 import { FavouriteButton } from './components/FavouriteButton';
 import { FormResultPills } from './components/FormResultPills';
 import { PlayerRatingPanel } from './components/PlayerRatingPanel';
 import { buildPlayerShareTarget } from './share-target';
+import { buildQuickJournalPath } from './player-match-list';
 
 const APP_NAME = 'TT Players';
 function setPageMeta(name: string, content: string): void {
@@ -140,11 +143,17 @@ export function PlayerPage() {
   const { playerId = '' } = useParams<{ playerId: string }>();
 
   const { isFavourite: isFavouritePlayer, toggle: toggleFavouritePlayer } = useFavouritePlayers();
+  const { isMyPlayer, clear: clearMyPlayer } = useMyPlayer();
   const [seasonPanelMode, setSeasonPanelMode] = useState<'clubs' | 'tournaments'>('clubs');
 
   const statsQuery = usePlayerExtendedStatsQuery(playerId, Boolean(playerId));
   const affiliationsQuery = usePlayerCurrentSeasonAffiliationsQuery(playerId, Boolean(playerId));
-  const recentMatchesQuery = usePlayerRubbersQuery(playerId, 10, 0, Boolean(playerId), 'all');
+  const recentMatchesState = usePagedPlayerMatches({
+    playerId,
+    source: 'all',
+    enabled: Boolean(playerId),
+    pageSize: 20,
+  });
   const insightsQuery = usePlayerInsightsQuery(playerId, Boolean(playerId));
   const tournamentsQuery = usePlayerTournamentsQuery(playerId, Boolean(playerId));
 
@@ -157,10 +166,6 @@ export function PlayerPage() {
   const affiliations = affiliationsQuery.data?.data ?? [];
   const affiliationsError = affiliationsQuery.error instanceof Error ? affiliationsQuery.error.message : null;
   const affiliationsLoading = affiliationsQuery.isLoading;
-
-  const recentMatches = recentMatchesQuery.data?.data ?? [];
-  const recentMatchesError = recentMatchesQuery.error instanceof Error ? recentMatchesQuery.error.message : null;
-  const recentMatchesLoading = recentMatchesQuery.isLoading;
 
   const insights = insightsQuery.data ?? null;
   const insightsError = insightsQuery.error instanceof Error ? insightsQuery.error.message : null;
@@ -176,6 +181,7 @@ export function PlayerPage() {
   }, [stats]);
 
   const isFavourite = stats ? isFavouritePlayer(stats.player_id) : false;
+  const isCurrentUser = isMyPlayer(playerId);
   const recentResults = useMemo(() => (insights?.form.recent_results ?? []).slice(0, 10), [insights]);
   const tournamentsPlayed = useMemo(() => groupTournamentMatches(tournamentMatches), [tournamentMatches]);
   const recentTournaments = useMemo(() => tournamentsPlayed.slice(0, 5), [tournamentsPlayed]);
@@ -213,7 +219,6 @@ export function PlayerPage() {
     switchTab('home', 'root');
   };
 
-
   const openSection =
     (relativePath: string) =>
     (event: MouseEvent<HTMLAnchorElement>) => {
@@ -221,12 +226,20 @@ export function PlayerPage() {
       navigateInActiveTab(relativePath);
     };
 
-  const openMatch = (match: { source: 'league' | 'tournament'; fixture_id: string; event_id: string | null }) => () => {
+  const openMatch = (match: RubberItem) => {
     if (match.source === 'tournament' && match.event_id) {
       navigateInActiveTab(`event/${match.event_id}`);
       return;
     }
     navigateInTab('leagues', `fixture/${match.fixture_id}`);
+  };
+
+  const openOpponent = (opponentId: string) => {
+    navigateInActiveTab(`player/${opponentId}`);
+  };
+
+  const openQuickJournal = (match: RubberItem) => {
+    navigateInActiveTab(buildQuickJournalPath(playerId, match));
   };
 
   return (
@@ -295,6 +308,16 @@ export function PlayerPage() {
                 >
                   Insights
                 </AppButtonLink>
+                {isCurrentUser ? (
+                  <AppButton
+                    size="sm"
+                    className="tt-player-action-pill"
+                    tone="outline"
+                    onClick={clearMyPlayer}
+                  >
+                    This isn’t me
+                  </AppButton>
+                ) : null}
               </div>
 
               <FormResultPills
@@ -353,18 +376,18 @@ export function PlayerPage() {
                 <>
                   <List divider="hairline" size="lg" className="tt-player-list">
                     {recentTournaments.map((event) => {
-                    const dateStr = formatDateOrUnknown(event.event_date);
-                    const lossCount = event.played - event.wins;
-                    return (
-                      <ListItem
-                        key={event.event_id}
-                        leading={<IconCircle iconClassName="fa fa-trophy" tone="accent" />}
-                        title={event.event_name}
-                        subtitle={`${dateStr} · ${event.category ?? 'Tournament'} · ${event.wins}-${lossCount} from ${event.played}`}
-                        onClick={() => navigateInActiveTab(`event/${event.event_id}`)}
-                      />
-                    );
-                  })}
+                      const dateStr = formatDateOrUnknown(event.event_date);
+                      const lossCount = event.played - event.wins;
+                      return (
+                        <ListItem
+                          key={event.event_id}
+                          leading={<IconCircle iconClassName="fa fa-trophy" tone="accent" />}
+                          title={event.event_name}
+                          subtitle={`${dateStr} · ${event.category ?? 'Tournament'} · ${event.wins}-${lossCount} from ${event.played}`}
+                          onClick={() => navigateInActiveTab(`event/${event.event_id}`)}
+                        />
+                      );
+                    })}
                   </List>
                   {tournamentsPlayed.length > 0 ? (
                     <AppButtonLink
@@ -413,38 +436,28 @@ export function PlayerPage() {
 
             <section className="tt-player-section" aria-labelledby="tt-player-matches-title">
               <div className="tt-player-section-header">
-                <h2 id="tt-player-matches-title" className="tt-player-section-title">Last 10 Matches</h2>
-                <span className="tt-player-section-note">{recentMatches.length} matches</span>
+                <h2 id="tt-player-matches-title" className="tt-player-section-title">Recent Matches</h2>
+                <span className="tt-player-section-note">
+                  {recentMatchesState.total > 0
+                    ? `${recentMatchesState.matches.length} of ${recentMatchesState.total}`
+                    : 'Latest results'}
+                </span>
               </div>
-              {recentMatchesLoading ? (
-                <SkeletonList rows={4} />
-              ) : recentMatchesError ? (
-                <p className="tt-player-section-state tt-player-section-error">Unable to load recent matches.</p>
-              ) : recentMatches.length === 0 ? (
-                <p className="tt-player-section-state">No recent matches found.</p>
-              ) : (
-                <>
-                  <List divider="hairline" size="lg" className="tt-player-list">
-                    {recentMatches.map((match: any) => (
-                      <ListItem
-                        key={match.id}
-                        leading={<OutcomeBadge result={match.isWin ? 'W' : 'L'} variant="icon" />}
-                        title={`${match.opponent} · ${match.result}`}
-                        subtitle={`${formatMatchDate(match.date)} · ${match.source_label}`}
-                        onClick={openMatch(match)}
-                      />
-                    ))}
-                  </List>
-                  <AppButtonLink
-                    full
-                    size="sm"
-                    className="tt-player-full-list-button"
-                    onClick={openSection(`player/${playerId}/matches`)}
-                  >
-                    View Full Match List
-                  </AppButtonLink>
-                </>
-              )}
+              <PlayerMatchList
+                playerId={playerId}
+                matches={recentMatchesState.matches}
+                total={recentMatchesState.total}
+                hasMore={recentMatchesState.hasMore}
+                isLoadingInitial={recentMatchesState.isLoadingInitial}
+                isLoadingMore={recentMatchesState.isLoadingMore}
+                error={recentMatchesState.error}
+                quickJournalEnabled={isCurrentUser}
+                onOpenMatch={openMatch}
+                onOpenOpponent={openOpponent}
+                onQuickJournal={openQuickJournal}
+                onLoadMore={recentMatchesState.loadMore}
+                onRetry={recentMatchesState.retry}
+              />
             </section>
           </>
         )}
