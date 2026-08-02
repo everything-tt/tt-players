@@ -104,7 +104,7 @@ export function PlayersTabContent({
       const hasQuery = search.normalizedQuery.length >= 3;
       return (
         <EmptyState
-          iconClassName={savedOnly ? 'fa fa-heart-o' : 'fa fa-search'}
+          iconClassName={savedOnly ? 'fa fa-heart-o' : hasQuery ? 'fa fa-search' : 'fa fa-search'}
           title={savedOnly ? 'No saved players found' : hasQuery ? 'No players found' : 'No recent players'}
           message={hasQuery
             ? `No players matching “${search.normalizedQuery}” in this scope.`
@@ -124,6 +124,7 @@ export function PlayersTabContent({
     <>
       <div className="tt-browse-controls">
         <SegmentedToggle
+          full
           ariaLabel="Player search scope"
           value={scope}
           onChange={setScope}
