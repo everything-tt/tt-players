@@ -47,7 +47,7 @@ Following and identity are separate concepts.
 
 When viewing the profile currently identified as the user, expose a **This isn’t me** action. This action calls the existing `useMyPlayer().clear()` behaviour.
 
-The action belongs on the player profile, not on Home. It should be visually secondary and must not alter the existing hero layout beyond adding the supported profile action.
+The action belongs on the player profile, not on Home. It must use the existing profile action area and must not redesign or restructure the hero.
 
 ## Recent Match Section
 
@@ -67,7 +67,7 @@ Rename the section to **Recent Matches** because it will no longer be limited to
 - Show an end-of-history state when all matches are loaded.
 - On a later-page failure, retain existing rows and show a retry action.
 
-The separate `PlayerMatchesPage` route may remain available. Shared pagination and rendering logic should be extracted where practical so the profile and full-history page do not drift.
+The separate `PlayerMatchesPage` route remains available. Both pages must share the same pagination hook and match-row component so their behaviour and styling do not drift.
 
 ## Compact Match Row
 
@@ -88,7 +88,7 @@ Each row contains:
 - Losses use restrained danger text or a subtle danger badge.
 - Do not use large solid green or red leading circles.
 - Date, source, and division remain neutral.
-- All colours and spacing must use existing design-system tokens and components.
+- All colours, spacing, badges, menus, and row actions must use design-system components and tokens rather than page-specific visual patterns.
 
 ### Main row action
 
@@ -105,7 +105,7 @@ Nested actions must stop propagation so they do not also trigger the main row ac
 
 When `opponent_id` is present, a visible player icon opens `player/{opponent_id}` in the active Players tab.
 
-When `opponent_id` is absent, omit or disable the action rather than attempting name-based navigation.
+When `opponent_id` is absent, omit the action rather than attempting name-based navigation.
 
 ### Overflow menu
 
@@ -116,6 +116,8 @@ The row overflow menu provides explicit labelled actions:
 3. **View Fixture** or **View Event** — label and destination depend on match source.
 
 Repeating **View Opponent** in the menu is intentional: the visible icon supports fast use, while the labelled menu item improves discoverability and accessibility.
+
+If the design system does not already expose an appropriate overflow/action-menu primitive, add one to the design system and consume it from the match row. Do not implement a page-local menu variant.
 
 ## Quick Journal
 
@@ -132,20 +134,17 @@ It must not appear on another player’s profile, even when that player is follo
 
 Quick Journal reuses the existing journal page rather than introducing a second form.
 
-Navigate to the existing journal route with prefill data encoded in route state or query parameters:
+Navigate to the existing journal route with validated query parameters:
 
-- match date;
-- opponent name;
-- result mapped to `win` or `loss`;
-- optional match ID and source reference for future traceability.
+- `date` — match date in ISO `YYYY-MM-DD` form;
+- `opponent` — opponent display name;
+- `outcome` — `win` or `loss`.
 
-`MatchJournalPage` reads and validates these values, pre-populates the current fields, and leaves the remaining reflection fields for the user to complete.
+`MatchJournalPage` reads and validates these values, pre-populates the current fields, and leaves the remaining reflection fields for the user to complete. Invalid or missing values fall back to the journal’s existing defaults.
 
 Opening Quick Journal must not save an entry automatically.
 
 ## Components and Boundaries
-
-Prefer these implementation boundaries:
 
 ### `usePagedPlayerMatches`
 
@@ -178,7 +177,7 @@ It receives whether Quick Journal is enabled instead of reading identity state i
 
 ### Full-history integration
 
-`PlayerMatchesPage` may consume the same paged hook and list component while retaining its existing source filter.
+`PlayerMatchesPage` consumes the same paged hook and list component while retaining its existing source filter.
 
 ## Error and Empty States
 
@@ -217,6 +216,7 @@ It receives whether Quick Journal is enabled instead of reading identity state i
 - Nested actions do not trigger row navigation.
 - Quick Journal appears only on the identified user’s profile.
 - Quick Journal pre-populates date, opponent, and result without auto-saving.
+- Invalid prefill query parameters fall back safely.
 - Load-more failure preserves existing rows and supports retry.
 
 ### Visual checks
