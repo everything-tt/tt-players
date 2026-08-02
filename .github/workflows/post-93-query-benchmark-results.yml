@@ -1,0 +1,140 @@
+name: Post-93 query benchmark results
+
+on:
+  push:
+    branches:
+      - perf/post-93-benchmark-results
+
+permissions:
+  contents: write
+
+jobs:
+  benchmark:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tt_players_benchmark?sslmode=disable
+      NODE_ENV: test
+      API_SLOW_REQUEST_MS: 999999
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.24.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run before-and-after benchmark
+        shell: bash
+        run: |
+          cp scripts/.post93-seed.sql /tmp/post93-seed.sql
+          cp scripts/.post93-benchmark.ts /tmp/post93-benchmark.ts
+          : > /tmp/post93-benchmark.log
+
+          set +e
+          (
+            set -euo pipefail
+
+            benchmark_ref() {
+              local ref="$1"
+              local label="$2"
+
+              git checkout --force "$ref"
+              cp /tmp/post93-benchmark.ts scripts/.post93-benchmark.ts
+
+              psql postgresql://postgres:postgres@localhost:5432/postgres \
+                -v ON_ERROR_STOP=1 \
+                -c 'DROP DATABASE IF EXISTS tt_players_benchmark'
+              psql postgresql://postgres:postgres@localhost:5432/postgres \
+                -v ON_ERROR_STOP=1 \
+                -c 'CREATE DATABASE tt_players_benchmark'
+
+              pnpm run db:migrate
+              psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /tmp/post93-seed.sql
+              pnpm --filter @tt-players/api exec tsx ../../scripts/.post93-benchmark.ts "$label"
+              rm -f scripts/.post93-benchmark.ts
+            }
+
+            benchmark_ref e0bbe478c2613f8642d64b1a11fbe5e21173b0a3 before
+            benchmark_ref 6617c482e96c4985ab160b6aefce6de5b9fc795d after
+          ) 2>&1 | tee /tmp/post93-benchmark.log
+          benchmark_status=${PIPESTATUS[0]}
+          echo "$benchmark_status" > /tmp/post93-benchmark.status
+          exit 0
+
+      - name: Persist benchmark result
+        if: always()
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const log = fs.existsSync('/tmp/post93-benchmark.log')
+            ? fs.readFileSync('/tmp/post93-benchmark.log', 'utf8')
+            : '';
+          const status = fs.existsSync('/tmp/post93-benchmark.status')
+            ? Number(fs.readFileSync('/tmp/post93-benchmark.status', 'utf8').trim())
+            : 1;
+          const results = log
+            .split('\n')
+            .filter((line) => line.startsWith('POST93_RESULT '))
+            .map((line) => JSON.parse(line.slice('POST93_RESULT '.length)));
+          const document = {
+            generated_at: new Date().toISOString(),
+            status: status === 0 && results.length === 6 ? 'success' : 'failed',
+            exit_code: status,
+            dataset: {
+              leagues: 40,
+              competitions: 160,
+              teams: 1600,
+              players: 8000,
+              fixtures: 11800,
+              rubbers: 94400,
+              selected_league_fixtures: 4000,
+              selected_team_completed_fixtures: 900,
+            },
+            before_commit: 'e0bbe478c2613f8642d64b1a11fbe5e21173b0a3',
+            after_commit: '6617c482e96c4985ab160b6aefce6de5b9fc795d',
+            results,
+            log_tail: log.split('\n').slice(-80),
+          };
+          fs.writeFileSync('/tmp/post93-benchmark.json', JSON.stringify(document, null, 2) + '\n');
+          NODE
+
+          git fetch origin perf/post-93-benchmark-results
+          git checkout -B perf/post-93-benchmark-results origin/perf/post-93-benchmark-results
+          mkdir -p artifacts
+          cp /tmp/post93-benchmark.json artifacts/post93-benchmark.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add artifacts/post93-benchmark.json
+          git commit -m 'chore: record post-93 benchmark results'
+          git push origin HEAD:perf/post-93-benchmark-results
+
+      - name: Fail unsuccessful benchmark
+        if: always()
+        shell: bash
+        run: |
+          test "$(cat /tmp/post93-benchmark.status 2>/dev/null || echo 1)" = "0"
