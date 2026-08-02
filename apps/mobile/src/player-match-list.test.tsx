@@ -112,7 +112,9 @@ describe('PlayerMatchList', () => {
     expect(markup).toContain('3–1');
     expect(markup).toContain('Won 3 games to 1');
     expect(markup).toContain('Brentwood &amp; District TTL · Premier Division');
-    expect(markup).toContain('13 Apr 2026');
+    expect(markup).toContain('13 Apr');
+    expect(markup).toContain('tt-player-match-date-inline__year');
+    expect(markup).toContain('2026');
     expect(markup).not.toContain('Won 3-1</span>');
     expect(markup).not.toContain('tt-player-match-meta');
   });
