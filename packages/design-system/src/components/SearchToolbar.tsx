@@ -17,13 +17,13 @@ export function SearchToolbar({
 }: SearchToolbarProps) {
   return (
     <section
-      className={cx('tt-search-toolbar', className)}
+      className={cx('tt-app-search-toolbar', className)}
       role="search"
       aria-label={ariaLabel}
     >
-      <div className="tt-search-toolbar__input">{children}</div>
+      <div className="tt-app-search-toolbar__input">{children}</div>
       {actions ? (
-        <div className="tt-search-toolbar__actions">{actions}</div>
+        <div className="tt-app-search-toolbar__actions">{actions}</div>
       ) : null}
     </section>
   );
