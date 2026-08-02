@@ -1,11 +1,12 @@
 name: Apply league snapshot single pass
 
 on:
-  push:
+  pull_request:
     branches:
-      - perf/league-snapshot-single-pass
+      - main
     paths:
       - .github/workflows/apply-league-snapshot-single-pass.yml
+      - apps/api/src/__tests__/query-shape-guardrails.test.ts
 
 permissions:
   contents: write
