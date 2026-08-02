@@ -68,9 +68,12 @@ export function PlayerCareerStory({ insights }: PlayerCareerStoryProps) {
               <strong role="cell">{year.year}</strong>
               <span role="cell">{year.played}</span>
               <span className="tt-career-rate" role="cell">
-                <span className="tt-career-rate-track" aria-hidden="true">
-                  <span style={{ width: `${Math.max(7, (year.played / maxPlayed) * 100)}%` }} />
-                </span>
+                <progress
+                  className="tt-career-rate-track"
+                  value={year.played}
+                  max={maxPlayed}
+                  aria-label={`${year.year} match volume: ${year.played} matches`}
+                />
                 <strong>{year.win_rate}%</strong>
               </span>
               <span className="tt-career-record" role="cell">{year.wins}W · {year.losses}L</span>
