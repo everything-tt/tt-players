@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { PlayerMatchList } from './components/PlayerMatchList';
+import { TabNavigationProvider } from './navigation/tab-navigation';
 import type { RubberItem } from './player-shared';
 import {
   buildQuickJournalPath,
@@ -91,17 +93,21 @@ describe('PlayerMatchList', () => {
   };
 
   const renderList = (quickJournalEnabled: boolean, match = matchFixture('a')) => renderToStaticMarkup(
-    <PlayerMatchList
-      playerId="player-1"
-      matches={[match]}
-      total={1}
-      hasMore={false}
-      isLoadingInitial={false}
-      isLoadingMore={false}
-      error={null}
-      quickJournalEnabled={quickJournalEnabled}
-      {...callbacks}
-    />,
+    <MemoryRouter initialEntries={['/tabs/players/player/player-1']}>
+      <TabNavigationProvider>
+        <PlayerMatchList
+          playerId="player-1"
+          matches={[match]}
+          total={1}
+          hasMore={false}
+          isLoadingInitial={false}
+          isLoadingMore={false}
+          error={null}
+          quickJournalEnabled={quickJournalEnabled}
+          {...callbacks}
+        />
+      </TabNavigationProvider>
+    </MemoryRouter>,
   );
 
   it('uses the shared match record row with a leading detailed score', () => {
