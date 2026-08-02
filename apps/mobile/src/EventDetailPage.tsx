@@ -355,7 +355,7 @@ export function EventDetailPage() {
                 />
                 {event.entry_deadline ? (
                   <ListItem
-                    leading={<IconCircle iconClassName="fa fa-clock-o" />}
+                    leading={<IconCircle iconClassName="fa fa-clock" />}
                     title={formatDateOrUnknown(event.entry_deadline)}
                     subtitle="Entry deadline"
                     trailing={event.entry_url ? (
