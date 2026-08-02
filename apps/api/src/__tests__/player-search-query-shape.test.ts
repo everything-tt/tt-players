@@ -2,22 +2,38 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 describe('player search query shape', () => {
-  it('pages global name matches before aggregating their rubbers', async () => {
+  it('expands paged canonical players through the indexed canonical id', async () => {
     const source = await readFile(new URL('../routes/players.ts', import.meta.url), 'utf8');
-    const optimizedStart = source.indexOf(
-      'if (normalizedQuery.length > 0 && leagueIds.length === 0)',
-    );
-    const pagedPlayers = source.indexOf('paged_players AS MATERIALIZED', optimizedStart);
+    const pagedPlayers = source.indexOf('paged_players AS MATERIALIZED');
     const sourcePlayers = source.indexOf('source_players AS MATERIALIZED', pagedPlayers);
     const playerMatches = source.indexOf('player_matches AS', sourcePlayers);
     const playerStats = source.indexOf('player_stats AS', playerMatches);
+    const sourceExpansion = source.slice(sourcePlayers, playerMatches);
     const matchAggregation = source.slice(playerMatches, playerStats);
 
-    expect(optimizedStart).toBeGreaterThan(-1);
-    expect(pagedPlayers).toBeGreaterThan(optimizedStart);
+    expect(pagedPlayers).toBeGreaterThan(-1);
     expect(sourcePlayers).toBeGreaterThan(pagedPlayers);
     expect(playerMatches).toBeGreaterThan(sourcePlayers);
+    expect(sourceExpansion).toContain('ON ep.canonical_player_id = pp.id');
+    expect(sourceExpansion).not.toContain('COALESCE(ep.canonical_player_id, ep.id) = pp.id');
     expect(matchAggregation.match(/FROM source_players sp/g)).toHaveLength(2);
     expect(matchAggregation).not.toContain('JOIN external_players ep');
+  });
+
+  it('materializes blank recent rubbers through a fixture-indexed lateral lookup', async () => {
+    const source = await readFile(new URL('../routes/players.ts', import.meta.url), 'utf8');
+    const blankBrowse = source.indexOf('scoped_fixtures AS MATERIALIZED');
+    const scopedRubbers = source.indexOf('scoped_rubbers AS MATERIALIZED', blankBrowse);
+    const lateralLookup = source.indexOf('CROSS JOIN LATERAL', scopedRubbers);
+    const fixturePredicate = source.indexOf('r.fixture_id = sf.id', lateralLookup);
+    const optimizationBarrier = source.indexOf('OFFSET 0', fixturePredicate);
+    const playerMatches = source.indexOf('player_matches AS MATERIALIZED', optimizationBarrier);
+
+    expect(blankBrowse).toBeGreaterThan(-1);
+    expect(scopedRubbers).toBeGreaterThan(blankBrowse);
+    expect(lateralLookup).toBeGreaterThan(scopedRubbers);
+    expect(fixturePredicate).toBeGreaterThan(lateralLookup);
+    expect(optimizationBarrier).toBeGreaterThan(fixturePredicate);
+    expect(playerMatches).toBeGreaterThan(optimizationBarrier);
   });
 });

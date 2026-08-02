@@ -32,6 +32,20 @@ afterAll(async () => {
 }, 15_000);
 
 describe('paginated player search', () => {
+  it('rejects non-empty text searches shorter than three trimmed characters', async () => {
+    await request.get('/api/players/search?q=ab').expect(400);
+    await request.get('/api/players/search?q=%20%20').expect(200);
+    await request.get('/api/players/search?q=Ali').expect(200);
+  });
+
+  it('treats SQL wildcard characters as literal search text', async () => {
+    const percent = await request.get('/api/players/search?q=%25%25%25').expect(200);
+    const underscore = await request.get('/api/players/search?q=___').expect(200);
+
+    expect(percent.body).toMatchObject({ data: [], total: 0 });
+    expect(underscore.body).toMatchObject({ data: [], total: 0 });
+  });
+
   it('returns a stable pagination envelope for named searches', async () => {
     await db.insertInto('external_players').values([
       {
@@ -149,6 +163,158 @@ describe('paginated player search', () => {
         { length: 5 },
         (_, index) => `Green Search ${String(index + 11).padStart(2, '0')}`,
       ),
+    );
+  });
+
+  it('keeps canonical alias statistics inside the selected league', async () => {
+    const [canonical] = await db.insertInto('external_players').values({
+      platform_id: ids.platformId,
+      external_id: 'scoped-search-canonical',
+      name: 'Scoped Search Player',
+      updated_at: new Date(),
+    }).returning('id').execute();
+    const [alias] = await db.insertInto('external_players').values({
+      platform_id: ids.platformId,
+      external_id: 'scoped-search-alias',
+      canonical_player_id: canonical!.id,
+      name: 'Scoped Search Alias',
+      updated_at: new Date(),
+    }).returning('id').execute();
+
+    await db.insertInto('rubbers').values({
+      fixture_id: ids.fixtureId,
+      external_id: 'scoped-search-rubber',
+      home_player_1_id: alias!.id,
+      away_player_1_id: ids.awayPlayerId,
+      home_games_won: 3,
+      away_games_won: 1,
+      outcome_type: 'normal',
+      updated_at: new Date(),
+    }).execute();
+
+    const otherLeague = await db.insertInto('leagues').values({
+      platform_id: ids.platformId,
+      external_id: 'scoped-search-other-league',
+      name: 'Scoped Search Other League',
+    }).returning('id').executeTakeFirstOrThrow();
+    const otherSeason = await db.insertInto('seasons').values({
+      league_id: otherLeague.id,
+      external_id: 'scoped-search-other-season',
+      name: 'Scoped Search Other Season',
+      is_active: true,
+    }).returning('id').executeTakeFirstOrThrow();
+    const otherCompetition = await db.insertInto('competitions').values({
+      season_id: otherSeason.id,
+      external_id: 'scoped-search-other-competition',
+      name: 'Scoped Search Other Competition',
+      type: 'league',
+    }).returning('id').executeTakeFirstOrThrow();
+    const otherFixture = await db.insertInto('fixtures').values({
+      competition_id: otherCompetition.id,
+      external_id: 'scoped-search-other-fixture',
+      date_played: new Date().toISOString().slice(0, 10),
+      status: 'completed',
+      updated_at: new Date(),
+    }).returning('id').executeTakeFirstOrThrow();
+    await db.insertInto('rubbers').values({
+      fixture_id: otherFixture.id,
+      external_id: 'scoped-search-other-rubber',
+      home_player_1_id: alias!.id,
+      away_player_1_id: ids.awayPlayerId,
+      home_games_won: 3,
+      away_games_won: 0,
+      outcome_type: 'normal',
+      updated_at: new Date(),
+    }).execute();
+
+    const response = await request
+      .get(`/api/players/search?q=Scoped%20Search&league_ids=${ids.leagueId}`)
+      .expect(200);
+
+    expect(response.body).toMatchObject({ total: 1 });
+    expect(response.body.data).toEqual([expect.objectContaining({
+      id: canonical!.id,
+      name: 'Scoped Search Player',
+      played: 1,
+      wins: 1,
+    })]);
+  });
+
+  it('orders blank browse by activity from recent scoped fixtures', async () => {
+    const players = await db.insertInto('external_players').values([
+      {
+        platform_id: ids.platformId,
+        external_id: 'recent-browse-busy',
+        name: 'Recent Browse Busy',
+        updated_at: new Date(),
+      },
+      {
+        platform_id: ids.platformId,
+        external_id: 'recent-browse-quiet',
+        name: 'Recent Browse Quiet',
+        updated_at: new Date(),
+      },
+    ]).returning('id').execute();
+    const [fixture] = await db.insertInto('fixtures').values({
+      competition_id: ids.competitionId,
+      external_id: 'recent-browse-fixture',
+      date_played: new Date().toISOString().slice(0, 10),
+      status: 'completed',
+      updated_at: new Date(),
+    }).returning('id').execute();
+
+    await db.insertInto('rubbers').values([
+      {
+        fixture_id: fixture!.id,
+        external_id: 'recent-browse-rubber-1',
+        home_player_1_id: players[0]!.id,
+        away_player_1_id: players[1]!.id,
+        home_games_won: 3,
+        away_games_won: 1,
+        outcome_type: 'normal',
+        updated_at: new Date(),
+      },
+      {
+        fixture_id: fixture!.id,
+        external_id: 'recent-browse-rubber-2',
+        home_player_1_id: players[0]!.id,
+        away_player_1_id: ids.awayPlayerId,
+        home_games_won: 3,
+        away_games_won: 2,
+        outcome_type: 'normal',
+        updated_at: new Date(),
+      },
+    ]).execute();
+
+    const oldDate = new Date();
+    oldDate.setUTCDate(oldDate.getUTCDate() - 150);
+    const oldFixture = await db.insertInto('fixtures').values({
+      competition_id: ids.competitionId,
+      external_id: 'old-browse-fixture',
+      date_played: oldDate.toISOString().slice(0, 10),
+      status: 'completed',
+      updated_at: new Date(),
+    }).returning('id').executeTakeFirstOrThrow();
+    await db.insertInto('rubbers').values({
+      fixture_id: oldFixture.id,
+      external_id: 'old-browse-rubber',
+      home_player_1_id: players[0]!.id,
+      away_player_1_id: players[1]!.id,
+      home_games_won: 3,
+      away_games_won: 0,
+      outcome_type: 'normal',
+      updated_at: new Date(),
+    }).execute();
+
+    const response = await request
+      .get('/api/players/search?limit=10&offset=0')
+      .expect(200);
+
+    expect(response.body.data[0]).toEqual(
+      expect.objectContaining({ id: players[0]!.id, played: 2, wins: 2 }),
+    );
+    expect(response.body.data).toContainEqual(
+      expect.objectContaining({ id: players[1]!.id, played: 1, wins: 0 }),
     );
   });
 });
