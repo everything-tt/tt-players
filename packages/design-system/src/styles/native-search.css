@@ -76,6 +76,17 @@
   text-align: center;
 }
 
+/* The bundled page does not load the Font Awesome v4 shim everywhere. Keep
+ * the existing fa-heart-o call sites visible by defining the regular glyph. */
+.tt-toggle-button .fa-heart-o {
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 400;
+}
+
+.tt-toggle-button .fa-heart-o::before {
+  content: "\f004";
+}
+
 .tt-toggle-button--sm {
   min-height: 40px;
   padding-inline: var(--tt-space-2);
