@@ -51,4 +51,4 @@ Production-shaped verification uses read-only `EXPLAIN (ANALYZE, BUFFERS)` with 
 
 ## Operational Safety
 
-The application query change is backward-compatible at the response level. Index creation is idempotent, but building the four rubber indexes over approximately 2.7 million rows may consume I/O and briefly affect writes; deployment should monitor the migration and worker services. The API's existing statement and lock timeouts remain unchanged.
+The application query change is backward-compatible at the response level. Index creation is idempotent, but building the four rubber indexes over approximately 2.7 million rows may consume substantial I/O and uses regular `CREATE INDEX` inside the transactional Kysely migration. The VPS release workflow stops the API and worker before running migrations, so this migration requires that existing maintenance window and services must not be restarted until it completes. Deployment should monitor PostgreSQL and the migration process. The API's existing statement and lock timeouts remain unchanged.

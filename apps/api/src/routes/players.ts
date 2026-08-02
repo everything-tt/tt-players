@@ -714,7 +714,8 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 const { limit, offset } = request.query;
                 const leagueIdArray = uuidArray(leagueIds);
                 const savedIdArray = uuidArray(savedIds);
-                const searchPattern = `%${normalizedQuery}%`;
+                const escapedQuery = normalizedQuery.replace(/[\\%_]/g, '\\$&');
+                const searchPattern = `%${escapedQuery}%`;
                 const requireActivity = normalizedQuery.length === 0 || leagueIds.length > 0;
 
                 // Named searches page globally when activity does not affect eligibility.
@@ -735,7 +736,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                                 JOIN external_players cp ON cp.id = ep.canonical_player_id
                                 WHERE ep.deleted_at IS NULL
                                   AND cp.deleted_at IS NULL
-                                  AND ep.name ILIKE ${searchPattern}
+                                  AND ep.name ILIKE ${searchPattern} ESCAPE '\'
                                   AND (${savedIds.length} = 0 OR cp.id = ANY(${savedIdArray}))
                                 GROUP BY cp.id, cp.name
                             ),
@@ -824,7 +825,7 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                                 JOIN external_players cp ON cp.id = ep.canonical_player_id
                                 WHERE ep.deleted_at IS NULL
                                   AND cp.deleted_at IS NULL
-                                  AND (${normalizedQuery} = '' OR ep.name ILIKE ${searchPattern})
+                                  AND (${normalizedQuery} = '' OR ep.name ILIKE ${searchPattern} ESCAPE '\')
                                   AND (${savedIds.length} = 0 OR cp.id = ANY(${savedIdArray}))
                                 GROUP BY cp.id, cp.name
                             ),
