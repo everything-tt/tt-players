@@ -7,9 +7,12 @@ on:
       - 'packages/design-system/**'
       - 'playwright.main-audit.config.ts'
       - 'scripts/check-design-system-usage.mjs'
+      - 'scripts/__tests__/main-ui-audit-workflow.test.mjs'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
+      - '.github/workflows/build.yml'
+      - '.github/workflows/main-ui-audit.yml'
       - '.github/workflows/mobile-ci.yml'
   push:
     branches: [main]
@@ -18,9 +21,12 @@ on:
       - 'packages/design-system/**'
       - 'playwright.main-audit.config.ts'
       - 'scripts/check-design-system-usage.mjs'
+      - 'scripts/__tests__/main-ui-audit-workflow.test.mjs'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
+      - '.github/workflows/build.yml'
+      - '.github/workflows/main-ui-audit.yml'
       - '.github/workflows/mobile-ci.yml'
 
 permissions:
@@ -46,6 +52,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Check main audit workflow contract
+        run: node --test scripts/__tests__/main-ui-audit-workflow.test.mjs
 
       - name: Check design-system usage
         run: pnpm check:design-system
