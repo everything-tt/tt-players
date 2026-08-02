@@ -26,6 +26,13 @@ describe('MatchRecordRow', () => {
     expect(markup).toContain('11 Apr 2026');
   });
 
+  it('renders a two-digit team score as one complete value', () => {
+    const markup = renderScore('15–13', 'neutral', 'Home 15, Away 13');
+
+    expect(markup).toContain('15–13');
+    expect(markup).toContain('Home 15, Away 13');
+  });
+
   it.each([
     ['W', 'win', 'Won, detailed score unavailable'],
     ['L', 'loss', 'Lost, detailed score unavailable'],
@@ -58,15 +65,17 @@ describe('MatchRecordRow', () => {
     expect(markup).toContain('tt-match-record-actions');
   });
 
-  it('uses one compact player-list-sized badge for detailed and outcome-only scores', () => {
+  it('uses one wider, shorter badge for detailed and outcome-only scores', () => {
     const css = readFileSync(
       new URL('../../../packages/design-system/src/components/MatchRecordRow.css', import.meta.url),
       'utf8',
     );
 
-    expect(css).toContain('flex: 0 0 44px;');
-    expect(css).toContain('height: 44px;');
-    expect(css).toContain('width: 44px;');
+    expect(css).toContain('flex: 0 0 64px;');
+    expect(css).toContain('height: 40px;');
+    expect(css).toContain('min-height: 40px;');
+    expect(css).toContain('width: 64px;');
+    expect(css).toContain('white-space: nowrap;');
     expect(css).toContain('border-radius: var(--radius-sm);');
     expect(css).not.toContain('.tt-match-record-row--standard .tt-match-record-score');
   });
