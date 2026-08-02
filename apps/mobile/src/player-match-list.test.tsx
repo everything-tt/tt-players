@@ -27,6 +27,8 @@ export const matchFixture = (id: string, overrides: Partial<RubberItem> = {}): R
   ...overrides,
 });
 
+const databaseTimestamp = 'Mon Apr 13 2026 00:00:00 GMT+0000 (Coordinated Universal Time)';
+
 describe('player match list helpers', () => {
   it('appends pages without duplicate match ids', () => {
     expect(mergePlayerMatchPage(
@@ -50,8 +52,17 @@ describe('player match list helpers', () => {
     expect(formatMatchDateParts('2026-04-13')).toEqual({ day: '13', month: 'Apr', year: '2026' });
   });
 
+  it('formats database timestamp strings without losing their year', () => {
+    expect(formatMatchDateParts(databaseTimestamp)).toEqual({ day: '13', month: 'Apr', year: '2026' });
+  });
+
   it('builds validated Quick Journal query parameters', () => {
     expect(buildQuickJournalPath('player-1', matchFixture('a')))
+      .toBe('player/player-1/journal?date=2026-04-13&opponent=Malcolm+Henstock&outcome=win');
+  });
+
+  it('normalises database timestamp strings for Quick Journal', () => {
+    expect(buildQuickJournalPath('player-1', matchFixture('a', { date: databaseTimestamp })))
       .toBe('player/player-1/journal?date=2026-04-13&opponent=Malcolm+Henstock&outcome=win');
   });
 
