@@ -176,7 +176,7 @@ test('exercises the player following hub, tournament browse, and tournament deta
       && !url.searchParams.has('q')
       && response.status() === 200;
   });
-  await page.getByRole('button', { name: 'Save to favourites' }).first().click();
+  await page.getByRole('link', { name: 'Save to favourites' }).first().click();
   await playerSearch.fill('');
   await followedResponse;
   await expect(page.getByRole('heading', { name: 'Following' })).toBeVisible();
