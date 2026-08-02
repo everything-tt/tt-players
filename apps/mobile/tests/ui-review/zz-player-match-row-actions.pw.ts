@@ -24,6 +24,10 @@ interface PlayerRubbersResponse {
   }>;
 }
 
+interface H2HResponse {
+  encounters: unknown[];
+}
+
 interface LeaguesResponse {
   data: Array<{ id: string }>;
 }
@@ -119,14 +123,42 @@ async function capture(page: Page, testInfo: TestInfo, title: string) {
   appendManifest({ project: testInfo.project.name, title, url: page.url(), path: screenshotPath, diagnosticsPath });
 }
 
-async function findPlayer(page: Page, previewUrl: string) {
-  const params = new URLSearchParams({ q: 'Wudong Liu', limit: '10', offset: '0' });
+async function searchPlayers(page: Page, previewUrl: string, query: string) {
+  const params = new URLSearchParams({ q: query, limit: '10', offset: '0' });
   const response = await page.request.get(`${previewUrl}/api/players/search?${params.toString()}`);
   expect(response.ok()).toBe(true);
-  const payload = await response.json() as PlayerSearchResponse;
+  return response.json() as Promise<PlayerSearchResponse>;
+}
+
+async function findPlayer(page: Page, previewUrl: string) {
+  const payload = await searchPlayers(page, previewUrl, 'Wudong Liu');
   const player = payload.data.find((item) => item.name === 'Wudong Liu') ?? payload.data[0];
   expect(player).toBeTruthy();
   return player!;
+}
+
+async function findH2HOpponent(
+  page: Page,
+  previewUrl: string,
+  playerId: string,
+  opponentNames: string[],
+) {
+  const uniqueNames = Array.from(new Set(opponentNames)).slice(0, 12);
+  for (const opponentName of uniqueNames) {
+    const search = await searchPlayers(page, previewUrl, opponentName);
+    const candidates = [...search.data].sort((a, b) => (
+      Number(b.name.toLowerCase() === opponentName.toLowerCase())
+      - Number(a.name.toLowerCase() === opponentName.toLowerCase())
+    ));
+    for (const candidate of candidates) {
+      if (candidate.id === playerId) continue;
+      const response = await page.request.get(`${previewUrl}/api/players/${playerId}/h2h/${candidate.id}`);
+      if (!response.ok()) continue;
+      const h2h = await response.json() as H2HResponse;
+      if (h2h.encounters.length > 0) return candidate;
+    }
+  }
+  throw new Error('No canonical opponent with direct meetings was available for H2H UI review.');
 }
 
 async function findLeagueWithResult(page: Page, previewUrl: string, leagueIds: string[]) {
@@ -280,11 +312,17 @@ test('reviews score-led match records across the app', async ({ page }, testInfo
   await assertScoreLedRow(teamMatches.locator('.tt-match-record-row').first());
   await capture(page, testInfo, 'team-completed-results');
 
+  const h2hOpponent = await findH2HOpponent(
+    page,
+    previewUrl,
+    player.id,
+    rubbers.data.map((match) => match.opponent),
+  );
   const h2hResponse = page.waitForResponse((response) => (
-    new URL(response.url()).pathname.endsWith(`/api/players/${player.id}/h2h/${opponentId}`)
+    new URL(response.url()).pathname.endsWith(`/api/players/${player.id}/h2h/${h2hOpponent.id}`)
       && response.status() === 200
   ));
-  await page.goto(`${previewUrl}/h2h/${player.id}/${opponentId}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${previewUrl}/h2h/${player.id}/${h2hOpponent.id}`, { waitUntil: 'domcontentloaded' });
   await h2hResponse;
   const meetingHistory = sectionWithHeading(page, 'Meeting history');
   await meetingHistory.scrollIntoViewIfNeeded();
