@@ -80,6 +80,14 @@ export {
 } from './components/List';
 
 export {
+  MatchRecordRow,
+  type MatchRecordRowProps,
+  type MatchRecordScore,
+  type MatchRecordAction,
+  type MatchRecordOutcome,
+} from './components/MatchRecordRow';
+
+export {
   EmptyState,
   ErrorState,
   SectionHeader,

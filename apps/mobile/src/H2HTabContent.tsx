@@ -14,8 +14,8 @@ import {
   ErrorState,
   Inline,
   ListItem,
+  MatchRecordRow,
   MetricGrid,
-  OutcomeBadge,
   PageSection,
   Pill,
   Stack,
@@ -37,6 +37,7 @@ import {
   h2hPredictionQueryKey,
   primeReverseMatchupCache,
 } from './h2h-matchup-cache';
+import { playerMatchScore } from './match-record';
 import './h2h-ui.css';
 
 function getWinRate(player: Pick<PlayerSearchItem, 'wins' | 'played'>): number {
@@ -343,11 +344,11 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
           <PageSection surface="flat" density="compact" title="Meeting history" description="Most recent first">
             <DesignList density="compact" divider="hairline">
               {h2h.encounters.map((encounter) => (
-                <ListItem
+                <MatchRecordRow
                   key={encounter.id}
-                  leading={<OutcomeBadge result={encounter.isWin ? 'W' : 'L'} variant="badge" />}
-                  title={encounter.result}
-                  subtitle={`${formatMatchDate(encounter.date)} · ${encounter.league}`}
+                  score={playerMatchScore(encounter.result, encounter.isWin)}
+                  title={encounter.opponent}
+                  metadata={[formatMatchDate(encounter.date), encounter.league]}
                   onClick={() => navigateInTab('leagues', `fixture/${encounter.fixture_id}`)}
                 />
               ))}
