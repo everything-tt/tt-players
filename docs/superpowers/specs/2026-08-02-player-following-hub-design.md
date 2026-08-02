@@ -1,7 +1,7 @@
 # Player Following Hub Design
 
 **Date:** 2026-08-02  
-**Status:** Approved for implementation  
+**Status:** Implemented in PR #87  
 **Scope:** Mobile Players root tab and the root-header league action shown on that tab
 
 This design supersedes the Players-screen interaction model in `2026-08-02-native-search-browse-pages-design.md`. The Tournaments design remains unchanged.
@@ -75,12 +75,12 @@ When no current player has been selected, omit the section entirely rather than 
 
 ## 5. Following section
 
-Followed players come from `useFavouritePlayers()` and are refreshed through the existing paginated player-search API using `saved_ids` with no league filter. This keeps wins and played values current while retaining the user's local following membership.
+Followed players come directly from the reactive local `useFavouritePlayers()` state. The default page therefore renders immediately without waiting for a network request. Each saved record already contains the player name, wins, and played count captured when the player was followed.
 
 The section:
 
-- initially loads 10 followed players;
-- supports progressive loading when more than 10 are followed;
+- initially displays 10 followed players;
+- progressively reveals 10 more through `InfiniteListFooter` when more than 10 are followed;
 - displays the number of locally followed players in section metadata;
 - uses `DesignList`, `ListItem`, `DesignAvatar`, and `FavouriteButton`;
 - removes an unfollowed row from the visible list immediately;
@@ -91,7 +91,7 @@ When there are no followed players other than the optional current player, show:
 - title: `No followed players yet`;
 - message: `Search for any player above, then tap the heart to follow them here.`
 
-A following-list request failure preserves the search field and optional My player section and provides Retry.
+The current player is excluded from Following to avoid duplication with the `My player` section.
 
 ## 6. Search-result and state presentation
 
@@ -127,17 +127,19 @@ No new CSS is required. No page-specific visual primitive should be added.
 
 Touch targets, focus states, theming, spacing, list dividers, and typography continue to come from the design system.
 
+`FavouriteButton` uses the design-system `AppButton`, giving the save action native button semantics while preserving the existing visual treatment.
+
 ## 8. Accessibility
 
 - Search has an explicit accessible label `Search all players`.
 - My player and followed-player rows are keyboard/touch navigable through `ListItem`.
-- Favourite controls retain their accessible saved/unsaved labels.
+- Favourite controls are real buttons with accessible saved/unsaved labels and `aria-pressed` state.
 - The root-header league action is absent rather than disabled, preventing a control that has no effect.
 - Loading, error, empty, and pagination states retain existing design-system semantics.
 
 ## 9. Testing
 
-Add unit coverage for the player-tab view model:
+Unit coverage for the player-tab view model verifies:
 
 - empty query selects following mode;
 - one/two-character queries select short-query mode;
@@ -145,17 +147,29 @@ Add unit coverage for the player-tab view model:
 - the current player is excluded from followed IDs;
 - other followed IDs retain their order.
 
-Regression verification:
+Playwright UI review verifies:
 
-- mobile unit tests pass;
-- mobile TypeScript/Vite build passes;
-- design-system usage check passes;
-- Players no longer receives league-scope props;
-- RootHeader renders no league action on Players while other tabs keep it.
+- league scope controls and the Players league-filter action are absent;
+- the empty Following state is presented correctly;
+- global search returns paginated results;
+- following a search result changes the favourite action state;
+- clearing search immediately places the followed player in the Following list;
+- existing tournament browse and detail screenshots remain valid.
+
+Regression verification includes:
+
+- mobile unit tests;
+- mobile TypeScript/Vite build;
+- design-system usage check;
+- Netlify preview deployment;
+- automated mobile screenshot capture.
+
+The application currently keeps the former league-related `PlayersTabContent` props as optional deprecated compatibility inputs while the root integration is migrated independently. They are ignored and do not affect the page or search requests.
 
 ## 10. Out of scope
 
 - new recommendation, popularity, recently viewed, or rating-discovery feeds;
+- live refresh of saved-player summary values on the default page;
 - redesigning the player detail page;
 - changing Home's `My TT` content;
 - changing tournament browse behaviour;
