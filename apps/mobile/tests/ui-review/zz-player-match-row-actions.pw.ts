@@ -24,6 +24,25 @@ interface PlayerRubbersResponse {
   }>;
 }
 
+interface LeaguesResponse {
+  data: Array<{ id: string }>;
+}
+
+interface LeagueCollectionDashboardResponse {
+  recent_results: Array<{ fixture_id: string }>;
+}
+
+interface FixtureRubbersResponse {
+  fixture: {
+    home_team_id: string | null;
+    away_team_id: string | null;
+  };
+}
+
+interface EventsResponse {
+  data: Array<{ id: string; match_count: number }>;
+}
+
 const reportDir = process.env.UI_REVIEW_REPORT_DIR ?? 'ui-review-report';
 const screenshotsDir = join(reportDir, 'screenshots');
 const diagnosticsDir = join(reportDir, 'diagnostics');
@@ -40,7 +59,6 @@ function requirePreviewUrl(): string {
 async function prepareAppState(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem('tt_players_league_onboarding_complete', 'true');
-    localStorage.setItem('tt_players_selected_league_ids', JSON.stringify([]));
     localStorage.setItem('TTPlayers-Theme', 'light-mode');
     localStorage.setItem('pwa-install-dismissed', Date.now().toString());
   });
@@ -132,17 +150,29 @@ function recentMatchesSection(page: Page) {
   });
 }
 
+function sectionWithHeading(page: Page, name: string) {
+  return page.locator('section').filter({ has: page.getByRole('heading', { name }) }).first();
+}
+
+async function assertScoreLedRow(row: ReturnType<Page['locator']>) {
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  const score = row.locator('.tt-match-record-score');
+  await expect(score).toBeVisible();
+  await expect(score).toHaveText(/^(?:\d+–\d+|W|L|D|—)$/);
+  await expect(row.locator('.tt-outcome-badge')).toHaveCount(0);
+}
+
 test.beforeAll(() => {
   mkdirSync(screenshotsDir, { recursive: true });
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('reviews inline dates and direct match actions', async ({ page }, testInfo) => {
+test('reviews score-led match records across the app', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
   await prepareAppState(page);
   const player = await findPlayer(page, previewUrl);
 
-  await page.goto(previewUrl, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${previewUrl}/tabs/home`, { waitUntil: 'domcontentloaded' });
   await page.evaluate(({ id, name }) => {
     localStorage.setItem('tt_players_my_player', JSON.stringify({ id, name }));
   }, player);
@@ -154,17 +184,17 @@ test('reviews inline dates and direct match actions', async ({ page }, testInfo)
   const ownSection = recentMatchesSection(page);
   await ownSection.scrollIntoViewIfNeeded();
   const firstRow = ownSection.locator('.tt-player-match-row').first();
-  await expect(firstRow).toBeVisible({ timeout: 30_000 });
+  await assertScoreLedRow(firstRow);
   await expect(firstRow.locator('.tt-player-match-date')).toHaveCount(0);
-  await expect(firstRow.locator('.tt-player-match-meta')).toBeVisible();
-  await expect(firstRow.locator('.tt-player-match-meta__year')).toHaveText(/^\d{4}$/);
+  await expect(firstRow.locator('.tt-player-match-meta')).toHaveCount(0);
+  await expect(firstRow.locator('.tt-player-match-date-inline__year')).toHaveText(/^\d{4}$/);
   await expect(firstRow.getByRole('button', { name: /Journal match against/ })).toBeVisible();
   await expect(firstRow.getByRole('button', { name: /View (?:fixture|event) for match against/ })).toBeVisible();
   await expect(firstRow.getByRole('button', { name: /Match actions for/ })).toHaveCount(0);
 
   const fontSizes = await firstRow.evaluate((row) => {
-    const date = row.querySelector<HTMLElement>('.tt-player-match-meta__date');
-    const year = row.querySelector<HTMLElement>('.tt-player-match-meta__year');
+    const date = row.querySelector<HTMLElement>('.tt-player-match-date-inline');
+    const year = row.querySelector<HTMLElement>('.tt-player-match-date-inline__year');
     return {
       date: date ? Number.parseFloat(getComputedStyle(date).fontSize) : 0,
       year: year ? Number.parseFloat(getComputedStyle(year).fontSize) : 0,
@@ -172,7 +202,7 @@ test('reviews inline dates and direct match actions', async ({ page }, testInfo)
   });
   expect(fontSizes.year).toBeGreaterThan(0);
   expect(fontSizes.year).toBeLessThan(fontSizes.date);
-  await capture(page, testInfo, 'my-player-direct-actions');
+  await capture(page, testInfo, 'my-player-score-actions');
 
   const opponentId = firstMatch!.opponent_id!;
   const opponentName = firstMatch!.opponent;
@@ -185,10 +215,10 @@ test('reviews inline dates and direct match actions', async ({ page }, testInfo)
   const otherSection = recentMatchesSection(page);
   await otherSection.scrollIntoViewIfNeeded();
   const otherFirstRow = otherSection.locator('.tt-player-match-row').first();
-  await expect(otherFirstRow).toBeVisible({ timeout: 30_000 });
+  await assertScoreLedRow(otherFirstRow);
   await expect(otherFirstRow.getByRole('button', { name: /Journal match against/ })).toHaveCount(0);
   await expect(otherFirstRow.getByRole('button', { name: /View (?:fixture|event) for match against/ })).toBeVisible();
-  await capture(page, testInfo, 'other-player-single-action');
+  await capture(page, testInfo, 'other-player-score-action');
 
   await page.evaluate(({ id, name }) => {
     localStorage.setItem('tt_players_my_player', JSON.stringify({ id, name }));
@@ -202,6 +232,78 @@ test('reviews inline dates and direct match actions', async ({ page }, testInfo)
   await expect(page.getByLabel('Match or session date')).toHaveValue(journalUrl.searchParams.get('date') ?? '');
   await expect(page.getByLabel('Opponent or session (optional)')).toHaveValue(journalUrl.searchParams.get('opponent') ?? '');
   await capture(page, testInfo, 'direct-quick-journal');
+
+  const leaguesResponse = await page.request.get(`${previewUrl}/api/leagues`);
+  expect(leaguesResponse.ok()).toBe(true);
+  const leagues = await leaguesResponse.json() as LeaguesResponse;
+  const leagueIds = leagues.data.map((league) => league.id);
+  expect(leagueIds.length).toBeGreaterThan(0);
+
+  const dashboardResponse = await page.request.get(`${previewUrl}/api/leagues/dashboard`);
+  expect(dashboardResponse.ok()).toBe(true);
+  const dashboard = await dashboardResponse.json() as LeagueCollectionDashboardResponse;
+  expect(dashboard.recent_results.length).toBeGreaterThan(0);
+  const recentFixtureId = dashboard.recent_results[0]!.fixture_id;
+
+  await page.goto(`${previewUrl}/tabs/home`, { waitUntil: 'domcontentloaded' });
+  await page.evaluate((ids) => {
+    localStorage.setItem('tt_players_selected_league_ids', JSON.stringify(ids));
+  }, leagueIds);
+  const homeDashboardResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname.endsWith('/api/leagues/dashboard') && response.status() === 200;
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await homeDashboardResponse;
+  const latestResults = sectionWithHeading(page, 'Latest results');
+  await latestResults.scrollIntoViewIfNeeded();
+  await assertScoreLedRow(latestResults.locator('.tt-match-record-row').first());
+  await capture(page, testInfo, 'home-latest-results');
+
+  const fixtureResponse = await page.request.get(`${previewUrl}/api/fixtures/${recentFixtureId}/rubbers`);
+  expect(fixtureResponse.ok()).toBe(true);
+  const fixture = await fixtureResponse.json() as FixtureRubbersResponse;
+  const teamId = fixture.fixture.home_team_id ?? fixture.fixture.away_team_id;
+  expect(teamId).toBeTruthy();
+
+  const teamFixturesResponse = page.waitForResponse((response) => (
+    new URL(response.url()).pathname.endsWith(`/api/teams/${teamId}/fixtures`)
+      && response.status() === 200
+  ));
+  await page.goto(`${previewUrl}/tabs/leagues/team/${teamId}`, { waitUntil: 'domcontentloaded' });
+  await teamFixturesResponse;
+  const teamMatches = sectionWithHeading(page, 'Matches');
+  await teamMatches.scrollIntoViewIfNeeded();
+  await assertScoreLedRow(teamMatches.locator('.tt-match-record-row').first());
+  await capture(page, testInfo, 'team-completed-results');
+
+  const h2hResponse = page.waitForResponse((response) => (
+    new URL(response.url()).pathname.endsWith(`/api/players/${player.id}/h2h/${opponentId}`)
+      && response.status() === 200
+  ));
+  await page.goto(`${previewUrl}/h2h/${player.id}/${opponentId}`, { waitUntil: 'domcontentloaded' });
+  await h2hResponse;
+  const meetingHistory = sectionWithHeading(page, 'Meeting history');
+  await meetingHistory.scrollIntoViewIfNeeded();
+  await assertScoreLedRow(meetingHistory.locator('.tt-match-record-row').first());
+  await capture(page, testInfo, 'h2h-meeting-history');
+
+  const eventsResponse = await page.request.get(`${previewUrl}/api/events?status=completed&limit=20&offset=0`);
+  expect(eventsResponse.ok()).toBe(true);
+  const events = await eventsResponse.json() as EventsResponse;
+  const event = events.data.find((item) => item.match_count > 0);
+  expect(event).toBeTruthy();
+
+  const eventDetailResponse = page.waitForResponse((response) => (
+    new URL(response.url()).pathname.endsWith(`/api/events/${event!.id}`)
+      && response.status() === 200
+  ));
+  await page.goto(`${previewUrl}/tabs/events/event/${event!.id}`, { waitUntil: 'domcontentloaded' });
+  await eventDetailResponse;
+  const tournamentResults = sectionWithHeading(page, 'Results');
+  await tournamentResults.scrollIntoViewIfNeeded();
+  await assertScoreLedRow(tournamentResults.locator('.tt-match-record-row').first());
+  await capture(page, testInfo, 'tournament-results');
 
   writeReportIndex(previewUrl);
 });
