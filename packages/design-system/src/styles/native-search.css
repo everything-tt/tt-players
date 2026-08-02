@@ -13,7 +13,8 @@
 
 .tt-search-toolbar {
   box-sizing: border-box;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: stretch;
   gap: var(--tt-space-2);
   width: auto;
@@ -21,14 +22,22 @@
   margin: var(--tt-space-2) var(--tt-gutter-flat) var(--tt-space-3);
 }
 
+/* app-shell.css still contains a vertical legacy SearchPanel rule. Root browse
+ * screens use the native toolbar and must remain an inline search + filter row. */
+.tt-root-content .tt-search-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  flex-direction: row;
+}
+
 .tt-search-toolbar__input {
-  flex: 1 1 auto;
   min-width: 0;
 }
 
 .tt-search-toolbar__input > * {
   box-sizing: border-box;
   width: 100%;
+  min-width: 0;
   min-height: 44px;
   margin: 0;
 }
@@ -38,6 +47,7 @@
   flex: 0 0 auto;
   align-items: stretch;
   gap: var(--tt-space-2);
+  min-width: 0;
 }
 
 .tt-toggle-button {
@@ -57,6 +67,13 @@
   font-size: 14px;
   font-weight: 700;
   line-height: 1;
+  white-space: nowrap;
+}
+
+.tt-toggle-button i {
+  width: 1em;
+  flex: 0 0 auto;
+  text-align: center;
 }
 
 .tt-toggle-button--sm {
@@ -100,13 +117,13 @@
 }
 
 @media (max-width: 420px) {
-  .tt-search-toolbar__actions .tt-toggle-button span {
-    display: none;
+  .tt-search-toolbar {
+    gap: var(--tt-space-1);
   }
 
   .tt-search-toolbar__actions .tt-toggle-button {
-    width: 44px;
-    padding: 0;
+    padding-inline: var(--tt-space-2);
+    font-size: 13px;
   }
 
   .tt-entity-hero--actions-auto .tt-entity-hero__main {
@@ -116,5 +133,13 @@
   .tt-entity-hero--actions-auto .tt-entity-hero__actions {
     flex: 1 0 100%;
     flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 340px) {
+  .tt-search-toolbar__actions .tt-toggle-button {
+    gap: var(--tt-space-1);
+    padding-inline: 7px;
+    font-size: 12px;
   }
 }
