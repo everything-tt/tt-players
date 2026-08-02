@@ -25,7 +25,7 @@ on:
       - '.github/workflows/mobile-ci.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -33,6 +33,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Generate migration sources
         run: node scripts/generate-match-record-migration.mjs
@@ -43,6 +45,27 @@ jobs:
           name: match-record-migration-${{ github.sha }}
           retention-days: 1
           path: generated-match-record-migration/
+
+      - name: Commit generated sources
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.actor != 'github-actions[bot]'
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
+        run: |
+          cp generated-match-record-migration/apps/mobile/src/H2HTabContent.tsx apps/mobile/src/H2HTabContent.tsx
+          cp generated-match-record-migration/apps/mobile/src/EventDetailPage.tsx apps/mobile/src/EventDetailPage.tsx
+          cp generated-match-record-migration/apps/mobile/src/player-shared.ts apps/mobile/src/player-shared.ts
+          git add apps/mobile/src/H2HTabContent.tsx apps/mobile/src/EventDetailPage.tsx apps/mobile/src/player-shared.ts
+          if git diff --cached --quiet; then
+            echo "Generated sources already committed."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "feat: migrate H2H and tournament match records"
+            git push origin "HEAD:${HEAD_BRANCH}"
+          fi
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
