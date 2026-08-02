@@ -3,6 +3,7 @@ import {
   buildPlayerSearchPath,
   buildTournamentListPath,
   mergePageById,
+  normalizePagedResponse,
 } from './paged-search';
 
 describe('paged search helpers', () => {
@@ -36,6 +37,30 @@ describe('paged search helpers', () => {
       limit: 10,
       offset: 10,
     })).toBe('/events?status=completed&q=Birmingham&saved_ids=00000000-0000-0000-0000-000000000004&limit=10&offset=10');
+  });
+
+  it('normalizes the current paginated response envelope', () => {
+    expect(normalizePagedResponse({
+      data: [{ id: 'a' }, { id: 'b' }],
+      total: 3,
+      limit: 2,
+      offset: 0,
+      has_more: true,
+    }, 0)).toEqual({
+      data: [{ id: 'a' }, { id: 'b' }],
+      total: 3,
+      hasMore: true,
+    });
+  });
+
+  it('treats a legacy data-only response as a complete snapshot', () => {
+    expect(normalizePagedResponse({
+      data: [{ id: 'a' }, { id: 'b' }],
+    }, 0)).toEqual({
+      data: [{ id: 'a' }, { id: 'b' }],
+      total: null,
+      hasMore: false,
+    });
   });
 
   it('appends pages without duplicating ids', () => {
