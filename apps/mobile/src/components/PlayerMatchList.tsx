@@ -5,6 +5,7 @@ import {
   InfiniteListFooter,
   MatchRecordRow,
 } from '../ui/appkit';
+import { useTabNavigation } from '../navigation/tab-navigation';
 import { formatMatchDateParts } from '../player-match-list';
 import { playerMatchScore } from '../match-record';
 import type { RubberItem } from '../player-shared';
@@ -42,6 +43,8 @@ export function PlayerMatchList({
   onLoadMore,
   onRetry,
 }: PlayerMatchListProps) {
+  const { navigateInTab } = useTabNavigation();
+
   if (isLoadingInitial && matches.length === 0) {
     return <SkeletonList rows={6} />;
   }
@@ -85,12 +88,12 @@ export function PlayerMatchList({
               onClick: () => onQuickJournal(match),
               tone: 'accent' as const,
             }] : []),
-            {
-              iconClassName: 'fa fa-calendar',
-              label: `View ${destination} for match against ${match.opponent}`,
-              onClick: () => onOpenMatch(match),
+            ...(opponentId ? [{
+              iconClassName: 'fa fa-people-arrows',
+              label: `Open head to head with ${match.opponent}`,
+              onClick: () => navigateInTab('h2h', `h2h/${playerId}/${opponentId}`),
               tone: 'neutral' as const,
-            },
+            }] : []),
           ];
 
           return (
@@ -98,12 +101,7 @@ export function PlayerMatchList({
               key={match.id}
               className="tt-player-match-row"
               score={playerMatchScore(match.result, match.isWin)}
-              title={(
-                <>
-                  <span>{match.opponent}</span>
-                  {opponentId ? <span className="visually-hidden">Open {match.opponent} profile</span> : null}
-                </>
-              )}
+              title={match.opponent}
               metadata={[
                 sourceLabel,
                 <span key="date" className="tt-player-match-date-inline">
@@ -111,7 +109,12 @@ export function PlayerMatchList({
                   <span className="tt-player-match-date-inline__year">{date.year}</span>
                 </span>,
               ]}
-              onClick={opponentId ? () => onOpenOpponent(opponentId) : undefined}
+              onClick={() => onOpenMatch(match)}
+              primaryActionLabel={`View ${destination} for match against ${match.opponent}`}
+              titleAction={opponentId ? {
+                label: `Open ${match.opponent} profile`,
+                onClick: () => onOpenOpponent(opponentId),
+              } : undefined}
               actions={actions}
             />
           );
