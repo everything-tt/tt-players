@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { Page, TestInfo } from '@playwright/test';
+import type { Locator, Page, TestInfo } from '@playwright/test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -97,6 +97,63 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.body, JSON.stringify(overflow)).toBeLessThanOrEqual(overflow.viewport + 1);
 }
 
+async function expectTextContrast(locator: Locator, minimum = 4.5) {
+  await expect(locator).toBeVisible();
+  const result = await locator.evaluate((element) => {
+    type Rgba = [number, number, number, number];
+
+    const parse = (value: string): Rgba => {
+      const parts = value.match(/[\d.]+/g)?.map(Number) ?? [];
+      return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0, parts[3] ?? 1];
+    };
+    const blend = (foreground: Rgba, background: Rgba): Rgba => {
+      const alpha = foreground[3] + background[3] * (1 - foreground[3]);
+      if (alpha === 0) return [0, 0, 0, 0];
+      return [
+        (foreground[0] * foreground[3] + background[0] * background[3] * (1 - foreground[3])) / alpha,
+        (foreground[1] * foreground[3] + background[1] * background[3] * (1 - foreground[3])) / alpha,
+        (foreground[2] * foreground[3] + background[2] * background[3] * (1 - foreground[3])) / alpha,
+        alpha,
+      ];
+    };
+    const effectiveBackground = (start: Element): Rgba => {
+      let current: Element | null = start;
+      let colour: Rgba = [255, 255, 255, 1];
+      const layers: Rgba[] = [];
+      while (current) {
+        const candidate = parse(getComputedStyle(current).backgroundColor);
+        if (candidate[3] > 0) layers.push(candidate);
+        current = current.parentElement;
+      }
+      for (let index = layers.length - 1; index >= 0; index -= 1) {
+        colour = blend(layers[index], colour);
+      }
+      return colour;
+    };
+    const channel = (value: number) => {
+      const normalized = value / 255;
+      return normalized <= 0.04045
+        ? normalized / 12.92
+        : ((normalized + 0.055) / 1.055) ** 2.4;
+    };
+    const luminance = (colour: Rgba) => 0.2126 * channel(colour[0])
+      + 0.7152 * channel(colour[1])
+      + 0.0722 * channel(colour[2]);
+
+    const background = effectiveBackground(element);
+    const foreground = blend(parse(getComputedStyle(element).color), background);
+    const lighter = Math.max(luminance(foreground), luminance(background));
+    const darker = Math.min(luminance(foreground), luminance(background));
+    return {
+      foreground: getComputedStyle(element).color,
+      background,
+      ratio: (lighter + 0.05) / (darker + 0.05),
+    };
+  });
+
+  expect(result.ratio, JSON.stringify(result)).toBeGreaterThanOrEqual(minimum);
+}
+
 async function expectPlayerProfile(page: Page, playerName: string) {
   await expect(page.getByRole('heading', { name: playerName, level: 1 })).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.tt-entity-hero')).toHaveCount(1);
@@ -153,6 +210,8 @@ test('reviews the canonical root shell and player profile', async ({ page }, tes
   });
   await expect(page.locator('body')).toHaveClass(/theme-dark/);
   await expectPlayerProfile(page, player!.name);
+  await expectTextContrast(page.locator('.tt-entity-hero__subtitle'));
+  await expectTextContrast(page.locator('.tt-section-header__description').first());
   await capture(page, testInfo, 'player-profile-dark');
 
   writeReportIndex(previewUrl);
