@@ -1,4 +1,4 @@
-import { AppButtonLink, cx } from '../ui/appkit';
+import { AppButton, cx } from '../ui/appkit';
 
 export interface FavouriteButtonProps {
   saved: boolean;
@@ -13,7 +13,7 @@ export interface FavouriteButtonProps {
  */
 export function FavouriteButton({ saved, onToggle, size = 'sm', className }: FavouriteButtonProps) {
   return (
-    <AppButtonLink
+    <AppButton
       tone={saved ? 'primary' : 'outline'}
       size="sm"
       onClick={(event) => { event.preventDefault(); event.stopPropagation(); onToggle(); }}
@@ -23,6 +23,6 @@ export function FavouriteButton({ saved, onToggle, size = 'sm', className }: Fav
     >
       <i className={`fa fa-heart${saved ? '' : ' far'}`} />
       {size === 'sm' ? <span>{saved ? 'Saved' : 'Save'}</span> : null}
-    </AppButtonLink>
+    </AppButton>
   );
 }
