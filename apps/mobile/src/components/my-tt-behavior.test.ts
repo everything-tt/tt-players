@@ -12,10 +12,14 @@ describe('My TT identity behaviour', () => {
   });
 
   it('clears identity only from the identified player profile', () => {
-    const source = read('../PlayerPage.tsx');
-    expect(source).toContain('This isn’t me');
-    expect(source).toContain('clearMyPlayer');
-    expect(source).toContain('isMyPlayer(playerId)');
+    const pageSource = read('../PlayerPage.tsx');
+    const heroSource = read('./PlayerProfileHero.tsx');
+
+    expect(pageSource).toContain('isMyPlayer(playerId)');
+    expect(pageSource).toContain('clearMyPlayer');
+    expect(pageSource).toContain('onClearIdentity={clearMyPlayer}');
+    expect(heroSource).toContain('isCurrentUser ?');
+    expect(heroSource).toContain('This isn’t me');
   });
 
   it('prefills the existing journal form from validated query parameters', () => {
