@@ -38,4 +38,12 @@ describe('app-wide design-system completion', () => {
     expect(source).toContain('const legacySectionAllowlist = new Set([]);');
     expect(source).toContain('const inlineGeometryAllowlist = new Set([]);');
   });
+
+  it('overrides semantic text tokens in dark mode', () => {
+    const source = read('../../../packages/design-system/src/styles/tokens.css');
+    const darkTheme = source.match(/body\.theme-dark\s*\{(?<body>[\s\S]*?)\}/)?.groups?.body ?? '';
+
+    expect(darkTheme).toContain('--tt-text-primary:');
+    expect(darkTheme).toContain('--tt-text-muted:');
+  });
 });
