@@ -8,7 +8,7 @@ interface SplitActionListItemProps {
   trailing?: ReactNode;
   primaryActionLabel: string;
   onPrimaryClick: () => void;
-  titleAction: {
+  titleAction?: {
     label: string;
     onClick: () => void;
   };
@@ -37,18 +37,22 @@ export function SplitActionListItem({
       <div className="tt-list-item__clickable tt-list-item__clickable--split">
         {leading ? <span className="tt-list-item__leading">{leading}</span> : null}
         <span className="tt-list-item__content">
-          <button
-            type="button"
-            className="tt-list-item__title tt-list-item__title-action"
-            aria-label={titleAction.label}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              titleAction.onClick();
-            }}
-          >
-            {title}
-          </button>
+          {titleAction ? (
+            <button
+              type="button"
+              className="tt-list-item__title tt-list-item__title-action"
+              aria-label={titleAction.label}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                titleAction.onClick();
+              }}
+            >
+              {title}
+            </button>
+          ) : (
+            <span className="tt-list-item__title">{title}</span>
+          )}
           {subtitle ? <span className="tt-list-item__subtitle">{subtitle}</span> : null}
         </span>
       </div>
