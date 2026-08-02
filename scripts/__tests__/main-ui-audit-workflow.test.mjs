@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const workflowUrl = new URL('../../.github/workflows/build.yml', import.meta.url);
+const playwrightConfigUrl = new URL('../../playwright.main-audit.config.ts', import.meta.url);
 
 function extractJob(workflow, jobName) {
   const marker = `  ${jobName}:\n`;
@@ -33,4 +34,11 @@ test('main UI audit always publishes evidence without creating PR comments', asy
   assert.match(job, /alias:\s*ui-audit-main/);
   assert.match(job, /GITHUB_STEP_SUMMARY/);
   assert.doesNotMatch(job, /Comment UI screenshots on PR/);
+});
+
+test('main UI audit never retains browser traces containing authenticated traffic', async () => {
+  const config = await readFile(playwrightConfigUrl, 'utf8');
+
+  assert.match(config, /trace:\s*'off'/);
+  assert.doesNotMatch(config, /trace:\s*'retain-on-failure'/);
 });
