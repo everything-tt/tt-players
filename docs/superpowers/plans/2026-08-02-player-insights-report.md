@@ -1,123 +1,240 @@
-# Player Insights Report Implementation Plan
+# Player Insights Design-System Alignment Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the approved balanced player-insights report with summary, enhanced rating/form, ranked rival groups, and career story.
+**Goal:** Re-implement the Player Insights mobile page so it retains the approved information while matching the established TT Players design system: flat sections, compact shared metrics, standard lists, and minimal custom geometry.
 
-**Architecture:** Add a separate canonical-player rival endpoint backed by a pure ranking helper, then consume it through TanStack Query. Build the mobile page from focused components and pure view-model helpers while retaining the existing rating-history chart and design-system shell.
+**Architecture:** Keep the existing rival API and pure insight view models. Recompose the mobile page from exported design-system primitives (`PageSection`, `MetricGrid`, `SegmentedToggle`, `DesignList`, `ListItem`, `DesignAvatar`, `Pill`, and state components), then reduce `player-insights.css` to chart-specific and responsive alignment only. Use the focused Playwright scenario as the visual contract for the absence of nested cards and narrow-screen overflow.
 
-**Tech Stack:** TypeScript, Fastify, Kysely/PostgreSQL, Zod, React 18, TanStack Query, Vitest, Playwright, CSS design tokens.
+**Tech Stack:** TypeScript, React 18, TanStack Query, TT Players design system, Vitest, Playwright, CSS semantic tokens.
 
 ## Global Constraints
 
 - Singles records only; do not present doubles analysis.
-- Keep the existing rating-history chart behaviour and range controls.
-- Show at most four rivals per category.
-- Use existing semantic CSS variables and AppKit primitives where appropriate.
-- Every material mobile UI change must have one focused Playwright review scenario.
+- Keep the existing rating-history chart behaviour, range controls, point selection, confidence band, and keyboard interaction.
+- Keep at most four rivals per category and retain the existing H2H navigation.
+- Use one continuous page surface with flat sections and hairline separation.
+- Do not introduce section shadows, elevated card shells, nested cards, decorative category tiles, or custom season progress bars.
+- Use shared design-system components before page-specific markup.
+- Custom CSS is limited to chart geometry, compact alignment, and responsive behaviour that shared primitives cannot express.
+- Verify no horizontal overflow at 390px and 360px.
 
 ---
 
-### Task 1: Define rival ranking behaviour
+### Task 1: Define the design-system UI contract
 
 **Files:**
-- Create: `apps/api/src/player-rivals-ranking.ts`
-- Create: `apps/api/src/__tests__/player-rivals-ranking.test.ts`
+- Modify: `apps/mobile/tests/ui-review/zz-player-insights-report.pw.ts`
 
 **Interfaces:**
-- Produces: `rankPlayerRivals(encounters, limit)` returning `{ toughest, easiest, improving }`.
+- Consumes: rendered Player Insights DOM.
+- Produces: assertions that reject the old card-heavy class structure and verify canonical section/list/metric structures.
 
-- [ ] Write tests proving minimum encounter thresholds, deterministic ordering, top-four limits, and first-half versus second-half improvement.
-- [ ] Run the focused API test and confirm it fails because the ranking module does not exist.
-- [ ] Implement the smallest pure ranking module that satisfies the tests.
-- [ ] Run the focused test and API typecheck.
-- [ ] Commit the ranking behaviour.
+- [ ] **Step 1: Replace old card assertions with the new contract**
 
-### Task 2: Add the rival endpoint
+Add assertions equivalent to:
+
+```ts
+await expect(page.locator('.tt-insights-card')).toHaveCount(0);
+await expect(page.locator('.tt-rivals-panel')).toHaveCount(0);
+await expect(page.locator('.tt-career-highlight')).toHaveCount(0);
+await expect(page.locator('.tt-career-table')).toHaveCount(0);
+await expect(page.locator('.tt-insights-page .tt-section')).toHaveCount(4);
+await expect(page.getByLabel('Insights summary metrics').locator('.tt-metric')).toHaveCount(4);
+```
+
+For rivals, assert the shared list exposes buttons named for the mocked opponents. For career, assert the shared metric grid has four metrics and at least one informational season row without an interactive chevron.
+
+- [ ] **Step 2: Push the test-only change and verify it fails**
+
+Expected failure: old `.tt-insights-card`, `.tt-rivals-panel`, `.tt-career-highlight`, or `.tt-career-table` elements still exist, and canonical `.tt-section`/`.tt-metric` counts do not match.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add apps/mobile/tests/ui-review/zz-player-insights-report.pw.ts
+git commit -m "test: require design-system player insights layout"
+```
+
+### Task 2: Recompose summary and career with shared primitives
 
 **Files:**
-- Create: `apps/api/src/routes/player-rivals.ts`
-- Modify: `apps/api/src/app.ts`
+- Modify: `apps/mobile/src/components/PlayerInsightsSummary.tsx`
+- Modify: `apps/mobile/src/components/PlayerCareerStory.tsx`
 
 **Interfaces:**
-- Consumes: `rankPlayerRivals` from Task 1.
-- Produces: `GET /api/players/:id/rivals` with canonical ranked rival arrays.
+- Consumes: `ExtendedPlayerStats`, `PlayerInsightsReport`, existing model formatters.
+- Produces: flat `PageSection` components with canonical `MetricGrid` and `DesignList` output.
 
-- [ ] Add a route-level test or schema assertion for the response contract.
-- [ ] Confirm the test fails before route registration.
-- [ ] Query canonical singles encounters, exclude walkovers/deleted rows, rank the result, and register the plugin under `/api/players`.
-- [ ] Run API tests and build.
-- [ ] Commit the endpoint.
+- [ ] **Step 1: Rebuild the summary**
 
-### Task 3: Define the mobile report view model
+Use this component structure:
+
+```tsx
+<PageSection
+  surface="flat"
+  density="compact"
+  title="Insights Summary"
+  description="The headline view of form and career performance."
+>
+  <MetricGrid
+    ariaLabel="Insights summary metrics"
+    columns={4}
+    density="compact"
+    metrics={[
+      { label: 'Overall WR', value: `${winRate}%`, hint: `${stats.wins} wins from ${stats.total}` },
+      { label: 'Current form', value: momentumLabel(momentum), hint: `Last ${recentCount} matches` },
+      { label: 'Matches', value: stats.total.toLocaleString('en-GB'), hint: activeYearsCopy },
+      { label: 'Best season', value: bestSeason?.year ?? '—', hint: bestSeasonCopy },
+    ]}
+  />
+  <p className="tt-insights-takeaway">{takeaway}</p>
+</PageSection>
+```
+
+Do not use custom metric articles, icons, or semantic colour for neutral category decoration.
+
+- [ ] **Step 2: Rebuild Career Story**
+
+Use `PageSection`, one four-item `MetricGrid`, and `DesignList`/`ListItem` season rows. Build each subtitle as:
+
+```ts
+`${year.played} played · ${year.win_rate}% win rate · ${year.wins}W–${year.losses}L`
+```
+
+Use an optional neutral/accent `Pill` trailing element only when `year.year === insights.peaks.best_season?.year`. Set `hideChevron` for informational rows.
+
+- [ ] **Step 3: Run focused model tests and mobile typecheck/build**
+
+Expected: existing formatter/model tests remain green; no component-specific data contract changes.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add apps/mobile/src/components/PlayerInsightsSummary.tsx apps/mobile/src/components/PlayerCareerStory.tsx
+git commit -m "refactor: use shared metrics and lists for insights"
+```
+
+### Task 3: Recompose rival intelligence and rating summary
 
 **Files:**
-- Create: `apps/mobile/src/player-insights-model.ts`
-- Create: `apps/mobile/src/player-insights-model.test.ts`
-- Modify: `apps/mobile/src/player-shared.ts`
-- Modify: `apps/mobile/src/queries.ts`
-
-**Interfaces:**
-- Produces: typed rival response/query plus helpers for takeaway copy, month labels, milestones, and rival tabs.
-
-- [ ] Write failing tests for summary copy, month formatting, milestone fallback, and rival tab selection.
-- [ ] Implement the pure helpers and API types/query hook.
-- [ ] Run the focused mobile tests and mobile TypeScript build.
-- [ ] Commit the client data model.
-
-### Task 4: Enhance rating history with form context
-
-**Files:**
+- Modify: `apps/mobile/src/components/PlayerRivalIntelligence.tsx`
 - Modify: `apps/mobile/src/components/PlayerRatingHistoryChart.tsx`
-- Modify: `apps/mobile/src/ratings-ui.css`
 
 **Interfaces:**
-- `PlayerRatingHistoryChart` accepts optional `recentResults` and derives current, peak, and range change from loaded points.
+- Consumes: existing rival response/types and rating-history summary.
+- Produces: flat sections with shared segmented control, shared list rows, and shared metric grid.
 
-- [ ] Add a focused component-contract test for the new prop and summary labels.
-- [ ] Confirm it fails against the existing component.
-- [ ] Add result pills and compact rating summary metrics without changing chart range selection or point interaction.
-- [ ] Run mobile tests/build.
-- [ ] Commit the rating/form enhancement.
+- [ ] **Step 1: Replace the rival panel**
 
-### Task 5: Build the report page
+Use `PageSection` with title/description, followed by `SegmentedToggle`, category helper text, and a direct `DesignList density="compact" divider="hairline"`.
+
+Each opponent uses:
+
+```tsx
+<ListItem
+  leading={<DesignAvatar size="compact" text={getInitials(item.opponent_name)} />}
+  title={item.opponent_name}
+  subtitle={subtitle}
+  trailing={<span className="tt-rival-stat"><strong>{value}</strong><small>{label}</small></span>}
+  onClick={() => onOpenOpponent(item.opponent_id)}
+/>
+```
+
+Use shared `EmptyState`/`ErrorState` or compact neutral state copy rather than a custom bordered inner panel.
+
+- [ ] **Step 2: Replace boxed rating metrics**
+
+Import `MetricGrid` and render current, peak, and range change as one compact canonical metric grid. Preserve the existing chart, filters, result pills, selected-week detail, range state, and keyboard handlers.
+
+- [ ] **Step 3: Run mobile tests/build and design-system usage check**
+
+Expected: no type errors; existing chart summary tests pass; design-system check accepts shared components.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add apps/mobile/src/components/PlayerRivalIntelligence.tsx apps/mobile/src/components/PlayerRatingHistoryChart.tsx
+git commit -m "refactor: flatten rating and rival insight sections"
+```
+
+### Task 4: Flatten the page shell and remove obsolete geometry
 
 **Files:**
-- Create: `apps/mobile/src/player-insights.css`
-- Create: `apps/mobile/src/components/PlayerInsightsSummary.tsx`
-- Create: `apps/mobile/src/components/PlayerRivalIntelligence.tsx`
-- Create: `apps/mobile/src/components/PlayerCareerStory.tsx`
 - Modify: `apps/mobile/src/PlayerInsightsPage.tsx`
+- Modify: `apps/mobile/src/player-insights.css`
+- Delete: `apps/mobile/src/player-insights-progress.css`
 
 **Interfaces:**
-- Consumes player stats, insights, ranked rivals, and the existing navigation API.
+- Consumes: four `PageSection`-based feature components.
+- Produces: a continuous page matching Player Profile spacing and dividers.
 
-- [ ] Replace the hero/list presentation with summary, rating/form, segmented rival list, and career story.
-- [ ] Keep rival loading/error/empty states local to the section.
-- [ ] Make rival rows open the existing H2H route.
-- [ ] Verify compact and narrow layouts have no horizontal overflow.
-- [ ] Run mobile tests/build and design-system check.
-- [ ] Commit the page redesign.
+- [ ] **Step 1: Use the canonical page container**
 
-### Task 6: Add focused UI review coverage
+Replace the custom nested `div.page-content` with `AppPageContent` and a simple `Stack` or `.tt-insights-page` wrapper. Remove the progress stylesheet import.
+
+Skeleton sections must be flat and should not use `.tt-insights-card`.
+
+- [ ] **Step 2: Reduce CSS**
+
+Delete all rules for:
+
+```text
+.tt-insights-card
+.tt-insights-metric
+.tt-rivals-panel*
+.tt-rival-row
+.tt-rival-avatar
+.tt-career-highlight*
+.tt-career-table*
+.tt-career-rate-track
+```
+
+Retain only layout rules needed for the takeaway, rating toolbar/chart/detail, rival trailing statistic, section spacing, and 360px responsive wrapping. No box shadow or large section border radius may remain in `player-insights.css`.
+
+- [ ] **Step 3: Delete the obsolete progress stylesheet**
+
+Remove `player-insights-progress.css` and confirm no imports or class references remain.
+
+- [ ] **Step 4: Run mobile tests/build and Playwright collection**
+
+Expected: compilation succeeds and the focused scenario is collected.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/mobile/src/PlayerInsightsPage.tsx apps/mobile/src/player-insights.css apps/mobile/src/player-insights-progress.css
+git commit -m "style: align player insights with flat page sections"
+```
+
+### Task 5: Visual verification and PR completion
 
 **Files:**
-- Create: `apps/mobile/tests/ui-review/player-insights-report.pw.ts`
-- Modify: `apps/mobile/playwright.ui-review.config.ts`
+- Modify if diagnostics require it: `apps/mobile/tests/ui-review/zz-player-insights-report.pw.ts`
+- Modify: PR #89 description.
 
 **Interfaces:**
-- Produces the PR-only Playwright screenshots and responsive assertions.
+- Produces: passing mobile/API CI, updated Netlify preview, and refreshed screenshots for summary/rating, rivals, and narrow career story.
 
-- [ ] Follow an existing UI-review scenario's manifest/report helpers.
-- [ ] Navigate to a representative player insights page and wait on stable API/rendered-state signals.
-- [ ] Assert summary metrics, rating history, rival tab switching, career rows, and no viewport overflow.
-- [ ] Capture phone and narrow-phone screenshots.
-- [ ] Point `testMatch` only to `player-insights-report.pw.ts`.
-- [ ] Run Playwright collection and the focused scenario in CI.
-- [ ] Commit UI review coverage.
+- [ ] **Step 1: Run/inspect CI for the final head SHA**
 
-### Task 7: Final verification and PR
+Required checks:
 
-- [ ] Run API tests/build, mobile tests/build, design-system check, and Playwright `--list`.
-- [ ] Review the final diff for unsupported claims, misleading actions, and duplicated data.
-- [ ] Open a PR with implementation summary, API contract, and verification evidence.
+```text
+Mobile CI
+Backend CI
+Build and Deploy Frontend
+focused Playwright UI review
+```
+
+- [ ] **Step 2: Inspect all three screenshots**
+
+Confirm flat section dividers, compact metrics, standard rival rows, informational career rows, correct 360px wrapping, and no horizontal overflow.
+
+- [ ] **Step 3: Review the diff**
+
+Check for unsupported claims, misleading interactive affordances, duplicated data, obsolete CSS selectors, and any new generic component that should not exist.
+
+- [ ] **Step 4: Update PR #89**
+
+Describe the retained data improvements, the design-system reimplementation, and exact verification evidence. Keep the PR open and ready for human review.
