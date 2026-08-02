@@ -109,7 +109,6 @@ export async function signInSyntheticUser(page: Page, options: SyntheticUserOpti
     name: chunk.name,
     value: encodeURIComponent(chunk.value),
     url: applicationUrl.origin,
-    path: '/',
     secure: applicationUrl.protocol === 'https:',
     sameSite: 'Lax' as const,
     expires,
