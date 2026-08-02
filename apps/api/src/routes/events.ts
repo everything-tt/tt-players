@@ -80,6 +80,11 @@ const ErrorSchema = z.object({
     statusCode: z.number(),
 });
 
+const SavedIdsSchema = z.string().refine((value) => {
+    const ids = value.split(',').map((id) => id.trim()).filter(Boolean);
+    return ids.length <= 200 && ids.every((id) => z.string().uuid().safeParse(id).success);
+}, 'saved_ids must contain at most 200 comma-separated UUIDs');
+
 const QuerySchema = z.object({
     q: z.string().optional(),
     status: z.enum([
@@ -94,6 +99,7 @@ const QuerySchema = z.object({
     from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     category: z.string().optional(),
+    saved_ids: SavedIdsSchema.optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
     offset: z.coerce.number().int().min(0).default(0),
 });
@@ -108,6 +114,14 @@ function applyEventFilters<T>(builder: T, query: EventQuery): T {
     filtered = filtered
         .where('c.type', '=', 'individual')
         .where('c.deleted_at', 'is', null);
+
+    const savedIds = (query.saved_ids ?? '')
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+    if (savedIds.length > 0) {
+        filtered = filtered.where('c.id', 'in', savedIds);
+    }
 
     if (query.q) {
         filtered = filtered.where(

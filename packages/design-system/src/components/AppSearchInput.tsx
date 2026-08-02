@@ -13,7 +13,7 @@ export function AppSearchInput({
   ...props
 }: AppSearchInputProps) {
   return (
-    <label className={cx('tt-players-search-input', containerClassName)}>
+    <label className={cx('tt-app-search-input', containerClassName)}>
       <i className={iconClassName} aria-hidden="true" />
       <input type="text" className={className} {...props} />
     </label>

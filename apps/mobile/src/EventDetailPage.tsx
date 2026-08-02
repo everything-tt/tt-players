@@ -293,6 +293,7 @@ export function EventDetailPage() {
         ) : (
           <Stack gap="md" className="tt-tournament-detail-page">
             <EntityHero
+              actionPlacement="below"
               eyebrow={event.category || 'Tournament'}
               title={event.name}
               subtitle={`${formatEventDateRange(event)} · ${event.platform_name}`}

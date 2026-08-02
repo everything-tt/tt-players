@@ -1,0 +1,196 @@
+.tt-browse-controls {
+  box-sizing: border-box;
+  width: auto;
+  min-width: 0;
+  margin: var(--tt-space-2) var(--tt-gutter-flat) 0;
+}
+
+.tt-browse-controls > .tt-segmented,
+.tt-browse-controls > .tt-segmented-control {
+  width: 100%;
+  margin: 0;
+}
+
+.tt-app-search-toolbar {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: var(--tt-space-2);
+  width: auto;
+  min-width: 0;
+  margin: var(--tt-space-2) var(--tt-gutter-flat) var(--tt-space-3);
+}
+
+.tt-app-search-toolbar__input {
+  min-width: 0;
+}
+
+.tt-app-search-toolbar__input > * {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+}
+
+.tt-app-search-toolbar__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  gap: var(--tt-space-2);
+  min-width: 0;
+}
+
+.tt-app-search-input {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid var(--accent-border-strong, var(--tt-border));
+  border-radius: 16px;
+  background: var(--surface-strong, var(--tt-surface-raised));
+  box-shadow: 0 10px 28px oklch(21% 0.034 158 / 0.08);
+}
+
+.tt-app-search-input i {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 17px;
+  line-height: 1;
+}
+
+.tt-app-search-input input {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  min-height: 50px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink, var(--tt-text));
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.tt-app-search-input input::placeholder {
+  color: var(--ink-muted, var(--tt-text-muted));
+}
+
+.tt-app-search-input:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-ring), 0 12px 30px oklch(21% 0.034 158 / 0.1);
+}
+
+.tt-toggle-button {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--tt-space-2);
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--tt-space-3);
+  border: 1px solid var(--tt-border);
+  border-radius: 999px;
+  background: var(--tt-surface-raised);
+  color: var(--tt-text, var(--ink));
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.tt-toggle-button i {
+  width: 1em;
+  flex: 0 0 auto;
+  text-align: center;
+}
+
+/* The bundled page does not load the Font Awesome v4 shim everywhere. Keep
+ * the existing fa-heart-o call sites visible by defining the regular glyph. */
+.tt-toggle-button .fa-heart-o {
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 400;
+}
+
+.tt-toggle-button .fa-heart-o::before {
+  content: "\f004";
+}
+
+.tt-toggle-button--sm {
+  min-height: 40px;
+  padding-inline: var(--tt-space-2);
+  font-size: 13px;
+}
+
+.tt-toggle-button--pressed {
+  border-color: color-mix(in oklch, var(--accent) 45%, var(--tt-border));
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.tt-toggle-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.tt-toggle-button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.tt-entity-hero__title {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.tt-entity-hero--actions-below > .tt-entity-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--tt-space-2);
+  min-width: 0;
+  margin-top: var(--tt-space-3);
+}
+
+.tt-entity-hero--actions-below > .tt-entity-hero__actions > .tt-inline {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 420px) {
+  .tt-app-search-toolbar {
+    gap: var(--tt-space-1);
+  }
+
+  .tt-app-search-toolbar__actions .tt-toggle-button {
+    padding-inline: var(--tt-space-2);
+    font-size: 13px;
+  }
+
+  .tt-entity-hero--actions-auto .tt-entity-hero__main {
+    flex-wrap: wrap;
+  }
+
+  .tt-entity-hero--actions-auto .tt-entity-hero__actions {
+    flex: 1 0 100%;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 340px) {
+  .tt-app-search-toolbar__actions .tt-toggle-button {
+    gap: var(--tt-space-1);
+    padding-inline: 7px;
+    font-size: 12px;
+  }
+}
