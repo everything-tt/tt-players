@@ -120,6 +120,19 @@ async function expectVisibleSavedToggle(page: Page, accessibleName: RegExp, sear
   return button;
 }
 
+async function expectEvenSegmentWidths(page: Page, ariaLabel: string) {
+  const group = page.getByRole('radiogroup', { name: ariaLabel });
+  const tabs = group.getByRole('radio');
+  await expect(group).toBeVisible();
+  await expect(tabs).toHaveCount(2);
+  const widths = await tabs.evaluateAll((elements) =>
+    elements.map((element) => element.getBoundingClientRect().width),
+  );
+  expect(widths[0]).toBeGreaterThan(120);
+  expect(widths[1]).toBeGreaterThan(120);
+  expect(Math.abs(widths[0]! - widths[1]!)).toBeLessThan(2);
+}
+
 test.beforeAll(() => {
   mkdirSync(screenshotsDir, { recursive: true });
   mkdirSync(diagnosticsDir, { recursive: true });
@@ -130,6 +143,7 @@ test('exercises native browse search, saved filters, and tournament detail layou
   await prepareAppState(page);
 
   await page.goto(`${previewUrl}/tabs/players`, { waitUntil: 'domcontentloaded' });
+  await expectEvenSegmentWidths(page, 'Player search scope');
   const playerSaved = await expectVisibleSavedToggle(page, /show saved players only/i, 'Search players');
   await expect(playerSaved).toHaveAttribute('aria-pressed', 'false');
 
@@ -158,6 +172,7 @@ test('exercises native browse search, saved filters, and tournament detail layou
   });
   await page.goto(`${previewUrl}/tabs/events`, { waitUntil: 'domcontentloaded' });
   await upcomingResponse;
+  await expectEvenSegmentWidths(page, 'Tournament status');
   await expectVisibleSavedToggle(page, /show saved tournaments only/i, 'Search upcoming tournaments');
   await expect(page.locator('.tt-list-item__title').first()).toBeVisible({ timeout: 30_000 });
   await capture(page, testInfo, 'tournaments-native-browse');
