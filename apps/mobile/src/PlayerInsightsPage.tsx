@@ -1,12 +1,11 @@
 import './app-shell.css';
 import './player-insights.css';
-import './player-insights-progress.css';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PlayerCareerStory } from './components/PlayerCareerStory';
 import { PlayerInsightsSummary } from './components/PlayerInsightsSummary';
 import { PlayerRatingHistoryChart } from './components/PlayerRatingHistoryChart';
 import { PlayerRivalIntelligence } from './components/PlayerRivalIntelligence';
-import { SectionSkeleton, SkeletonBlock } from './components/Skeleton';
+import { SkeletonBlock } from './components/Skeleton';
 import { getQueryError } from './player-shared';
 import {
   usePlayerExtendedStatsQuery,
@@ -15,22 +14,21 @@ import {
 } from './queries';
 import { TabShellPage } from './TabShellPage';
 import { DetailHeader } from './components/DetailHeader';
-import { ErrorState } from './ui/appkit';
+import { AppPageContent, ErrorState, PageSection } from './ui/appkit';
 
 function PlayerInsightsSkeleton() {
   return (
     <div className="tt-insights-page" aria-label="Loading player insights">
-      <section className="tt-insights-card">
-        <SkeletonBlock className="tt-skeleton-text" />
-        <div className="tt-insights-summary-grid mt-2">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <SkeletonBlock key={index} className="tt-skeleton-stat" />
-          ))}
-        </div>
-      </section>
-      <SectionSkeleton rows={3} />
-      <SectionSkeleton rows={4} />
-      <SectionSkeleton rows={4} />
+      {Array.from({ length: 4 }).map((_, sectionIndex) => (
+        <PageSection key={sectionIndex} surface="flat" density="compact">
+          <SkeletonBlock className="tt-skeleton-text" />
+          <div className="tt-insights-skeleton-metrics">
+            {Array.from({ length: sectionIndex === 0 || sectionIndex === 3 ? 4 : 3 }).map((__, metricIndex) => (
+              <SkeletonBlock key={metricIndex} className="tt-skeleton-stat" />
+            ))}
+          </div>
+        </PageSection>
+      ))}
     </div>
   );
 }
@@ -56,13 +54,13 @@ export function PlayerInsightsPage() {
   return (
     <TabShellPage>
       <DetailHeader title={stats?.player_name ?? 'Insights'} backFallback={playerId ? `player/${playerId}` : ''} />
-      <div className="page-content app-shell-content tt-insights-page">
+      <AppPageContent>
         {isLoading ? (
           <PlayerInsightsSkeleton />
         ) : error || !stats || !insights ? (
           <ErrorState message="Failed to load player insights." onRetry={retryPrimaryData} />
         ) : (
-          <>
+          <div className="tt-insights-page">
             <PlayerInsightsSummary stats={stats} insights={insights} />
 
             <PlayerRatingHistoryChart
@@ -79,9 +77,9 @@ export function PlayerInsightsPage() {
             />
 
             <PlayerCareerStory insights={insights} />
-          </>
+          </div>
         )}
-      </div>
+      </AppPageContent>
     </TabShellPage>
   );
 }
