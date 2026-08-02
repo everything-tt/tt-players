@@ -5,6 +5,7 @@ on:
     paths:
       - 'apps/mobile/**'
       - 'packages/design-system/**'
+      - 'playwright.main-audit.config.ts'
       - 'scripts/check-design-system-usage.mjs'
       - 'package.json'
       - 'pnpm-lock.yaml'
@@ -15,6 +16,7 @@ on:
     paths:
       - 'apps/mobile/**'
       - 'packages/design-system/**'
+      - 'playwright.main-audit.config.ts'
       - 'scripts/check-design-system-usage.mjs'
       - 'package.json'
       - 'pnpm-lock.yaml'
@@ -53,6 +55,9 @@ jobs:
 
       - name: Run mobile tests
         run: pnpm --filter @tt-players/mobile test -- --passWithNoTests
+
+      - name: Validate main audit collection
+        run: pnpm --filter @tt-players/mobile exec playwright test --config=../../playwright.main-audit.config.ts --list
 
       - name: Reject fake action links
         shell: bash

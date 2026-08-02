@@ -67,4 +67,19 @@ Required agent workflow for a UI PR:
 7. Keep previous scenario files in the repository for examples and optional manual regression testing. Removing a scenario from the config does **not** mean deleting its file.
 8. Confirm the focused Playwright job and generated screenshot report pass before declaring the UI PR ready for review.
 
-The comment block in `playwright.ui-review.config.ts` is the operational source of truth for this selection convention. Broad or full-app visual audits must be run separately from the normal UI PR pipeline.
+The comment block in `playwright.ui-review.config.ts` is the operational source of truth for this selection convention.
+
+## Main Deployment UI Audit
+
+The broad application walkthrough is separate from pull-request review. After a successful frontend deployment from a `main` push, the `main-ui-audit` job runs `playwright.main-audit.config.ts` against the deployed URL.
+
+Operational rules:
+
+1. The job is post-deploy and non-blocking (`continue-on-error: true`). An audit failure must not reverse or block a successful production deployment.
+2. The walkthrough captures representative anonymous root, static, player, tournament, league, team, fixture and H2H screens. Missing representative production data is recorded as skipped rather than aborting the remaining audit.
+3. Authenticated coverage uses a dedicated synthetic Supabase account. Configure repository secrets `UI_AUDIT_EMAIL` and `UI_AUDIT_PASSWORD`; never use a personal account.
+4. Authentication uses the public `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Never expose or pass a Supabase service-role key to Playwright.
+5. If either synthetic-user credential is absent, anonymous coverage still runs and authenticated coverage is skipped.
+6. Authentication state is in-memory browser cookie state only. Do not commit it or include it in artifacts, diagnostics or screenshots beyond the account email visibly rendered by the application.
+7. The job uploads a 30-day `main-ui-audit-<sha>` artifact, publishes the latest report under the `ui-audit-main` Netlify alias and adds the report URL to the GitHub Actions job summary.
+8. Pull requests may validate that the main audit test is collectable with Playwright `--list`, but they must not execute the broad walkthrough or publish its screenshots.
