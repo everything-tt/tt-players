@@ -8,7 +8,11 @@ export interface BottomSheetProps {
   onClose: () => void;
   title: ReactNode;
   eyebrow?: string;
-  /** Height as CSS length or percentage. Default '70%'. */
+  description?: ReactNode;
+  footer?: ReactNode;
+  /** Sheet is the default mobile bottom-sheet treatment; page fills the mobile visual viewport. */
+  presentation?: 'sheet' | 'page';
+  /** Height as CSS length or percentage. Default '70%'. Ignored for page presentation. */
   height?: string | number;
   /** Disable backdrop and Escape close (e.g. mandatory onboarding). */
   disableBackdropClose?: boolean;
@@ -43,14 +47,21 @@ function lockApplicationLayer(): () => void {
 }
 
 /**
- * Shared mobile bottom sheet with a backdrop, modal semantics, focus trapping,
+ * Shared modal surface with a backdrop, modal semantics, focus trapping,
  * safe-area spacing, body scroll locking and focus restoration.
+ *
+ * The default presentation remains a mobile bottom sheet. Use `page` for
+ * information-dense selection workflows that need a fixed header/footer and a
+ * scrollable body while the mobile keyboard is visible.
  */
 export function BottomSheet({
   isOpen,
   onClose,
   title,
   eyebrow,
+  description,
+  footer,
+  presentation = 'sheet',
   height = '70%',
   disableBackdropClose = false,
   disableCloseButton = false,
@@ -61,6 +72,7 @@ export function BottomSheet({
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
   const titleId = useId();
+  const descriptionId = useId();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -124,15 +136,22 @@ export function BottomSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
-        className={cx('tt-sheet', className)}
-        style={{ height }}
+        className={cx(
+          'tt-sheet',
+          presentation === 'page' && 'tt-sheet--page',
+          presentation === 'sheet' && 'tt-sheet--standard',
+          className,
+        )}
+        style={presentation === 'sheet' ? { height } : undefined}
       >
-        <div className="tt-sheet__handle" aria-hidden="true" />
+        {presentation === 'sheet' ? <div className="tt-sheet__handle" aria-hidden="true" /> : null}
         <div className="tt-sheet__top">
-          <div>
+          <div className="tt-sheet__heading">
             {eyebrow ? <p className="tt-eyebrow">{eyebrow}</p> : null}
             <h2 id={titleId} className="tt-sheet__title">{title}</h2>
+            {description ? <p id={descriptionId} className="tt-sheet__description">{description}</p> : null}
           </div>
           {!disableCloseButton ? (
             <button
@@ -146,6 +165,7 @@ export function BottomSheet({
           ) : null}
         </div>
         <div className="tt-sheet__body">{children}</div>
+        {footer ? <div className="tt-sheet__footer">{footer}</div> : null}
       </div>
     </div>,
     document.body,
