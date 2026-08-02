@@ -8,10 +8,13 @@ function transform(path, replacements) {
   const inputPath = join(root, path);
   let content = readFileSync(inputPath, 'utf8');
   for (const [from, to, label] of replacements) {
-    if (!content.includes(from)) {
+    if (content.includes(from)) {
+      content = content.replace(from, to);
+      continue;
+    }
+    if (!content.includes(to)) {
       throw new Error(`Missing ${label} in ${path}`);
     }
-    content = content.replace(from, to);
   }
   const outputPath = join(outputRoot, path);
   mkdirSync(dirname(outputPath), { recursive: true });
