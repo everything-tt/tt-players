@@ -38,7 +38,6 @@ import {
   primeReverseMatchupCache,
 } from './h2h-matchup-cache';
 import { playerMatchScore } from './match-record';
-import { playerMatchScore } from './match-record';
 import './h2h-ui.css';
 
 function getWinRate(player: Pick<PlayerSearchItem, 'wins' | 'played'>): number {
