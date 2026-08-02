@@ -18,9 +18,15 @@ import { AppPageContent, ErrorState, PageSection } from './ui/appkit';
 
 function PlayerInsightsSkeleton() {
   return (
-    <div className="tt-insights-page" aria-label="Loading player insights">
+    <>
       {Array.from({ length: 4 }).map((_, sectionIndex) => (
-        <PageSection key={sectionIndex} surface="flat" density="compact">
+        <PageSection
+          key={sectionIndex}
+          surface="flat"
+          density="compact"
+          ariaLabelledby={undefined}
+          className="tt-insights-skeleton-section"
+        >
           <SkeletonBlock className="tt-skeleton-text" />
           <div className="tt-insights-skeleton-metrics">
             {Array.from({ length: sectionIndex === 0 || sectionIndex === 3 ? 4 : 3 }).map((__, metricIndex) => (
@@ -29,7 +35,7 @@ function PlayerInsightsSkeleton() {
           </div>
         </PageSection>
       ))}
-    </div>
+    </>
   );
 }
 
@@ -54,13 +60,13 @@ export function PlayerInsightsPage() {
   return (
     <TabShellPage>
       <DetailHeader title={stats?.player_name ?? 'Insights'} backFallback={playerId ? `player/${playerId}` : ''} />
-      <AppPageContent>
+      <AppPageContent className="tt-insights-page">
         {isLoading ? (
           <PlayerInsightsSkeleton />
         ) : error || !stats || !insights ? (
           <ErrorState message="Failed to load player insights." onRetry={retryPrimaryData} />
         ) : (
-          <div className="tt-insights-page">
+          <>
             <PlayerInsightsSummary stats={stats} insights={insights} />
 
             <PlayerRatingHistoryChart
@@ -77,7 +83,7 @@ export function PlayerInsightsPage() {
             />
 
             <PlayerCareerStory insights={insights} />
-          </div>
+          </>
         )}
       </AppPageContent>
     </TabShellPage>
