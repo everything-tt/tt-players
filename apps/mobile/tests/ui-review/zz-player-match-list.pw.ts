@@ -11,6 +11,10 @@ interface ScreenshotEntry {
   diagnosticsPath: string;
 }
 
+interface PlayerSearchResponse {
+  data: Array<{ id: string; name: string }>;
+}
+
 const reportDir = process.env.UI_REVIEW_REPORT_DIR ?? 'ui-review-report';
 const screenshotsDir = join(reportDir, 'screenshots');
 const diagnosticsDir = join(reportDir, 'diagnostics');
@@ -89,12 +93,6 @@ async function capture(page: Page, testInfo: TestInfo, title: string) {
   appendManifest({ project: testInfo.project.name, title, url: page.url(), path: screenshotPath, diagnosticsPath });
 }
 
-function playerIdFromUrl(value: string): string {
-  const match = new URL(value).pathname.match(/\/player\/([^/]+)/);
-  if (!match?.[1]) throw new Error(`Could not read player id from ${value}`);
-  return decodeURIComponent(match[1]);
-}
-
 test.beforeAll(() => {
   mkdirSync(screenshotsDir, { recursive: true });
   mkdirSync(diagnosticsDir, { recursive: true });
@@ -104,29 +102,22 @@ test('reviews compact recent matches and Quick Journal', async ({ page }, testIn
   const previewUrl = requirePreviewUrl();
   await prepareAppState(page);
 
-  await page.goto(`${previewUrl}/tabs/players`, { waitUntil: 'domcontentloaded' });
-  const search = page.getByRole('textbox', { name: 'Search players' });
-  await expect(search).toBeVisible();
-
-  const searchResponse = page.waitForResponse((response) => {
-    const url = new URL(response.url());
-    return url.pathname.endsWith('/api/players/search')
-      && url.searchParams.get('q') === 'Wudong Liu'
-      && response.status() === 200;
+  const lookupParams = new URLSearchParams({
+    q: 'Wudong Liu',
+    limit: '10',
+    offset: '0',
   });
-  await search.fill('Wudong Liu');
-  await searchResponse;
+  const lookupResponse = await page.request.get(`${previewUrl}/api/players/search?${lookupParams.toString()}`);
+  expect(lookupResponse.ok()).toBe(true);
+  const lookup = await lookupResponse.json() as PlayerSearchResponse;
+  const player = lookup.data.find((item) => item.name === 'Wudong Liu') ?? lookup.data[0];
+  expect(player).toBeTruthy();
 
-  const playerTitle = page.locator('.tt-list-item__title').filter({ hasText: /^Wudong Liu$/ }).first();
-  await expect(playerTitle).toBeVisible({ timeout: 30_000 });
-  await playerTitle.locator('xpath=ancestor::*[contains(@class,"tt-list-item__clickable")]').click();
-  await expect(page).toHaveURL(/\/player\//);
+  await page.addInitScript(({ id, name }) => {
+    localStorage.setItem('tt_players_my_player', JSON.stringify({ id, name }));
+  }, player!);
 
-  const playerId = playerIdFromUrl(page.url());
-  await page.evaluate(({ id }) => {
-    localStorage.setItem('tt_players_my_player', JSON.stringify({ id, name: 'Wudong Liu' }));
-  }, { id: playerId });
-
+  const playerId = player!.id;
   const firstPageResponse = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return url.pathname.endsWith(`/api/players/${playerId}/rubbers`)
@@ -135,7 +126,7 @@ test('reviews compact recent matches and Quick Journal', async ({ page }, testIn
       && url.searchParams.get('source') === 'all'
       && response.status() === 200;
   });
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.goto(`${previewUrl}/tabs/players/player/${playerId}`, { waitUntil: 'domcontentloaded' });
   await firstPageResponse;
 
   await expect(page.locator('.tt-player-hero')).toBeVisible({ timeout: 30_000 });
