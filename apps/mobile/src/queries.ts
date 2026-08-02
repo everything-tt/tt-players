@@ -14,7 +14,6 @@ import {
   type LeaguesResponse,
   type PlayerCountResponse,
   type PlayerCurrentSeasonAffiliationsResponse,
-  type PlayerInsights,
   type PlayerSearchResponse,
   type RosterResponse,
   type RubbersResponse,
@@ -25,6 +24,10 @@ import {
   type EventDetailResponse,
   type PlayerTournamentsResponse,
 } from './player-shared';
+import type {
+  PlayerInsightsReport,
+  PlayerRivalsResponse,
+} from './player-insights-types';
 
 export function useLeaguesQuery(seasonId?: string, enabled = true) {
   return useQuery({
@@ -170,7 +173,15 @@ export function usePlayerRubbersQuery(
 export function usePlayerInsightsQuery(playerId: string, enabled = true) {
   return useQuery({
     queryKey: ['players', playerId, 'insights'],
-    queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<PlayerInsights>(`/players/${playerId}/insights`, signal),
+    queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<PlayerInsightsReport>(`/players/${playerId}/insights`, signal),
+    enabled: enabled && Boolean(playerId),
+  });
+}
+
+export function usePlayerRivalsQuery(playerId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['players', playerId, 'rivals'],
+    queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<PlayerRivalsResponse>(`/players/${playerId}/rivals`, signal),
     enabled: enabled && Boolean(playerId),
   });
 }
