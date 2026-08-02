@@ -71,15 +71,17 @@ The comment block in `playwright.ui-review.config.ts` is the operational source 
 
 ## Main Deployment UI Audit
 
-The broad application walkthrough is separate from pull-request review. After a successful frontend deployment from a `main` push, the `main-ui-audit` job runs `playwright.main-audit.config.ts` against the deployed URL.
+The broad application walkthrough is separate from pull-request review and frontend deployment. Run the **Main UI Audit** workflow manually from GitHub Actions. Its `target_url` input defaults to `https://ttp.tourneypilot.com` and may be changed to another HTTPS deployment URL.
 
 Operational rules:
 
-1. The job is post-deploy and non-blocking (`continue-on-error: true`). An audit failure must not reverse or block a successful production deployment.
+1. The audit is manual and independent of deployment. Its result must not reverse or block an already successful production deployment.
 2. The walkthrough captures representative anonymous root, static, player, tournament, league, team, fixture and H2H screens. Missing representative production data is recorded as skipped rather than aborting the remaining audit.
 3. Authenticated coverage uses a dedicated synthetic Supabase account. Configure repository secrets `UI_AUDIT_EMAIL` and `UI_AUDIT_PASSWORD`; never use a personal account.
 4. Authentication uses the public `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Never expose or pass a Supabase service-role key to Playwright.
 5. If either synthetic-user credential is absent, anonymous coverage still runs and authenticated coverage is skipped.
 6. Authentication state is in-memory browser cookie state only. Do not commit it or include it in artifacts, diagnostics or screenshots beyond the account email visibly rendered by the application.
-7. The job uploads a 30-day `main-ui-audit-<sha>` artifact, publishes the latest report under the `ui-audit-main` Netlify alias and adds the report URL to the GitHub Actions job summary.
-8. Pull requests may validate that the main audit test is collectable with Playwright `--list`, but they must not execute the broad walkthrough or publish its screenshots.
+7. Browser traces remain disabled because authenticated traffic must not be retained.
+8. Severe browser events are recorded with their screenshot and diagnostics. The audit continues collecting the remaining screens, then fails with a consolidated error summary.
+9. Every run uploads a 30-day `main-ui-audit-<run-id>-<attempt>` artifact containing `ui-review-report/` and `test-results/main-audit/`. Open `ui-review-report/index.html` from the artifact for the screenshot report.
+10. Pull requests validate the workflow contract and that the main audit test is collectable with Playwright `--list`; they do not execute the broad production walkthrough.
