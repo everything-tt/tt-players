@@ -888,47 +888,35 @@ export function leaguesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         WHERE ls.deleted_at IS NULL
                         GROUP BY ls.competition_id
                     ),
-                    player_appearances AS MATERIALIZED (
-                        SELECT f.competition_id, r.home_player_1_id AS player_id
-                        FROM fixtures f
-                        JOIN active_competitions ac ON ac.id = f.competition_id
+                    player_appearances AS (
+                        SELECT
+                            f.competition_id,
+                            player_slot.player_id
+                        FROM active_competitions ac
+                        JOIN fixtures f ON f.competition_id = ac.id
                         JOIN rubbers r ON r.fixture_id = f.id
+                        CROSS JOIN LATERAL unnest(ARRAY[
+                            r.home_player_1_id,
+                            r.home_player_2_id,
+                            r.away_player_1_id,
+                            r.away_player_2_id
+                        ]) AS player_slot(player_id)
                         WHERE f.deleted_at IS NULL
                           AND r.deleted_at IS NULL
-                          AND r.home_player_1_id IS NOT NULL
-                        UNION ALL
-                        SELECT f.competition_id, r.home_player_2_id AS player_id
-                        FROM fixtures f
-                        JOIN active_competitions ac ON ac.id = f.competition_id
-                        JOIN rubbers r ON r.fixture_id = f.id
-                        WHERE f.deleted_at IS NULL
-                          AND r.deleted_at IS NULL
-                          AND r.home_player_2_id IS NOT NULL
-                        UNION ALL
-                        SELECT f.competition_id, r.away_player_1_id AS player_id
-                        FROM fixtures f
-                        JOIN active_competitions ac ON ac.id = f.competition_id
-                        JOIN rubbers r ON r.fixture_id = f.id
-                        WHERE f.deleted_at IS NULL
-                          AND r.deleted_at IS NULL
-                          AND r.away_player_1_id IS NOT NULL
-                        UNION ALL
-                        SELECT f.competition_id, r.away_player_2_id AS player_id
-                        FROM fixtures f
-                        JOIN active_competitions ac ON ac.id = f.competition_id
-                        JOIN rubbers r ON r.fixture_id = f.id
-                        WHERE f.deleted_at IS NULL
-                          AND r.deleted_at IS NULL
-                          AND r.away_player_2_id IS NOT NULL
+                          AND player_slot.player_id IS NOT NULL
                     ),
                     player_counts AS (
-                        SELECT competition_id, COUNT(DISTINCT player_id)::int AS players
+                        SELECT
+                            competition_id,
+                            COUNT(DISTINCT player_id)::int AS players,
+                            GROUPING(competition_id)::int AS grouping_level
                         FROM player_appearances
-                        GROUP BY competition_id
+                        GROUP BY GROUPING SETS ((competition_id), ())
                     ),
                     total_players AS (
-                        SELECT COUNT(DISTINCT player_id)::int AS players
-                        FROM player_appearances
+                        SELECT players
+                        FROM player_counts
+                        WHERE grouping_level = 1
                     )
                     SELECT
                         ac.id AS division_id,
@@ -940,7 +928,9 @@ export function leaguesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     FROM active_competitions ac
                     CROSS JOIN total_players
                     LEFT JOIN standing_counts sc ON sc.competition_id = ac.id
-                    LEFT JOIN player_counts pc ON pc.competition_id = ac.id
+                    LEFT JOIN player_counts pc
+                      ON pc.competition_id = ac.id
+                     AND pc.grouping_level = 0
                     ORDER BY ac.name ASC
                 `.execute(db);
 

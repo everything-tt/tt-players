@@ -1,18 +1,55 @@
 name: Backend CI
 
 on:
+  push:
+    branches:
+      - 'agent/**'
+    paths:
+      - 'apps/api/**'
+      - 'apps/worker/**'
+      - 'infra/**'
+      - 'scripts/benchmark-api.mjs'
+      - 'scripts/capture-query-plans.mjs'
+      - 'scripts/__tests__/**'
+      - 'scripts/lib/**'
+      - 'scripts/migrate-vps-postgres.sh'
+      - 'scripts/deploy-vps-release.sh'
+      - 'scripts/rollback-vps-release.sh'
+      - 'packages/db/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/backend-ci.yml'
+      - '.github/workflows/vps-deploy.yml'
+      - '.github/workflows/vps-rollback.yml'
+      - '.github/workflows/tte-calendar-sync.yml'
   pull_request:
     branches: [main]
     paths:
       - 'apps/api/**'
+      - 'apps/worker/**'
+      - 'infra/**'
+      - 'scripts/benchmark-api.mjs'
+      - 'scripts/capture-query-plans.mjs'
+      - 'scripts/__tests__/**'
+      - 'scripts/lib/**'
+      - 'scripts/migrate-vps-postgres.sh'
+      - 'scripts/deploy-vps-release.sh'
+      - 'scripts/rollback-vps-release.sh'
+      - 'packages/db/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/backend-ci.yml'
+      - '.github/workflows/vps-deploy.yml'
+      - '.github/workflows/vps-rollback.yml'
+      - '.github/workflows/tte-calendar-sync.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply_snapshot:
-    if: github.head_ref == 'perf/league-snapshot-single-pass'
+  validate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -32,11 +69,8 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Checkout implementation branch
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: perf/league-snapshot-single-pass
-          fetch-depth: 0
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -50,58 +84,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Apply query rewrite and correctness test
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import base64
-          import re
-
-          route_path = Path('apps/api/src/routes/leagues.ts')
-          route = route_path.read_text()
-          pattern = re.compile(
-              r"                    player_appearances AS MATERIALIZED \(.*?"
-              r"                    total_players AS \(\n"
-              r"                        SELECT COUNT\(DISTINCT player_id\)::int AS players\n"
-              r"                        FROM player_appearances\n"
-              r"                    \)",
-              re.S,
-          )
-          replacement = base64.b64decode('ICAgICAgICAgICAgICAgICAgICBwbGF5ZXJfYXBwZWFyYW5jZXMgQVMgKAogICAgICAgICAgICAgICAgICAgICAgICBTRUxFQ1QKICAgICAgICAgICAgICAgICAgICAgICAgICAgIGYuY29tcGV0aXRpb25faWQsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICBwbGF5ZXJfc2xvdC5wbGF5ZXJfaWQKICAgICAgICAgICAgICAgICAgICAgICAgRlJPTSBhY3RpdmVfY29tcGV0aXRpb25zIGFjCiAgICAgICAgICAgICAgICAgICAgICAgIEpPSU4gZml4dHVyZXMgZiBPTiBmLmNvbXBldGl0aW9uX2lkID0gYWMuaWQKICAgICAgICAgICAgICAgICAgICAgICAgSk9JTiBydWJiZXJzIHIgT04gci5maXh0dXJlX2lkID0gZi5pZAogICAgICAgICAgICAgICAgICAgICAgICBDUk9TUyBKT0lOIExBVEVSQUwgdW5uZXN0KEFSUkFZWwogICAgICAgICAgICAgICAgICAgICAgICAgICAgci5ob21lX3BsYXllcl8xX2lkLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgci5ob21lX3BsYXllcl8yX2lkLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgci5hd2F5X3BsYXllcl8xX2lkLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgci5hd2F5X3BsYXllcl8yX2lkCiAgICAgICAgICAgICAgICAgICAgICAgIF0pIEFTIHBsYXllcl9zbG90KHBsYXllcl9pZCkKICAgICAgICAgICAgICAgICAgICAgICAgV0hFUkUgZi5kZWxldGVkX2F0IElTIE5VTEwKICAgICAgICAgICAgICAgICAgICAgICAgICBBTkQgci5kZWxldGVkX2F0IElTIE5VTEwKICAgICAgICAgICAgICAgICAgICAgICAgICBBTkQgcGxheWVyX3Nsb3QucGxheWVyX2lkIElTIE5PVCBOVUxMCiAgICAgICAgICAgICAgICAgICAgKSwKICAgICAgICAgICAgICAgICAgICBwbGF5ZXJfY291bnRzIEFTICgKICAgICAgICAgICAgICAgICAgICAgICAgU0VMRUNUCiAgICAgICAgICAgICAgICAgICAgICAgICAgICBjb21wZXRpdGlvbl9pZCwKICAgICAgICAgICAgICAgICAgICAgICAgICAgIENPVU5UKERJU1RJTkNUIHBsYXllcl9pZCk6OmludCBBUyBwbGF5ZXJzLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgR1JPVVBJTkcoY29tcGV0aXRpb25faWQpOjppbnQgQVMgZ3JvdXBpbmdfbGV2ZWwKICAgICAgICAgICAgICAgICAgICAgICAgRlJPTSBwbGF5ZXJfYXBwZWFyYW5jZXMKICAgICAgICAgICAgICAgICAgICAgICAgR1JPVVAgQlkgR1JPVVBJTkcgU0VUUyAoKGNvbXBldGl0aW9uX2lkKSwgKCkpCiAgICAgICAgICAgICAgICAgICAgKSwKICAgICAgICAgICAgICAgICAgICB0b3RhbF9wbGF5ZXJzIEFTICgKICAgICAgICAgICAgICAgICAgICAgICAgU0VMRUNUIHBsYXllcnMKICAgICAgICAgICAgICAgICAgICAgICAgRlJPTSBwbGF5ZXJfY291bnRzCiAgICAgICAgICAgICAgICAgICAgICAgIFdIRVJFIGdyb3VwaW5nX2xldmVsID0gMQogICAgICAgICAgICAgICAgICAgICk=').decode()
-          route, count = pattern.subn(replacement, route, count=1)
-          if count != 1:
-              raise SystemExit(f'Expected one snapshot player block, replaced {count}')
-          route = route.replace(
-              '                    LEFT JOIN player_counts pc ON pc.competition_id = ac.id\n',
-              '                    LEFT JOIN player_counts pc\n'
-              '                      ON pc.competition_id = ac.id\n'
-              '                     AND pc.grouping_level = 0\n',
-              1,
-          )
-          route_path.write_text(route)
-
-          test_content = base64.b64decode('aW1wb3J0IHsgYWZ0ZXJBbGwsIGJlZm9yZUFsbCwgZGVzY3JpYmUsIGV4cGVjdCwgaXQgfSBmcm9tICd2aXRlc3QnOwppbXBvcnQgc3VwZXJ0ZXN0IGZyb20gJ3N1cGVydGVzdCc7CmltcG9ydCB0eXBlIHsgS3lzZWx5IH0gZnJvbSAna3lzZWx5JzsKaW1wb3J0IHR5cGUgeyBEYXRhYmFzZSB9IGZyb20gJ0B0dC1wbGF5ZXJzL2RiJzsKaW1wb3J0IHsgYnVpbGRBcHAgfSBmcm9tICcuLi9hcHAuanMnOwppbXBvcnQgewogIGNyZWF0ZVRlc3REYXRhYmFzZSwKICBjcmVhdGVUZXN0S3lzZWx5LAogIGRyb3BUZXN0RGF0YWJhc2UsCiAgcnVuTWlncmF0aW9ucywKICBzZWVkVGVzdERhdGEsCiAgdHlwZSBTZWVkSWRzLAp9IGZyb20gJy4vaGVscGVycy9zZWVkLmpzJzsKCmxldCBkYjogS3lzZWx5PERhdGFiYXNlPjsKbGV0IHJlcXVlc3Q6IFJldHVyblR5cGU8dHlwZW9mIHN1cGVydGVzdD47CmxldCBpZHM6IFNlZWRJZHM7CgpiZWZvcmVBbGwoYXN5bmMgKCkgPT4gewogIGF3YWl0IGNyZWF0ZVRlc3REYXRhYmFzZSgpOwogIGRiID0gY3JlYXRlVGVzdEt5c2VseSgpOwogIGF3YWl0IHJ1bk1pZ3JhdGlvbnMoZGIpOwogIGlkcyA9IGF3YWl0IHNlZWRUZXN0RGF0YShkYik7CgogIGNvbnN0IGFwcCA9IGF3YWl0IGJ1aWxkQXBwKGRiKTsKICBhd2FpdCBhcHAucmVhZHkoKTsKICByZXF1ZXN0ID0gc3VwZXJ0ZXN0KGFwcC5zZXJ2ZXIpOwp9LCAzMF8wMDApOwoKYWZ0ZXJBbGwoYXN5bmMgKCkgPT4gewogIGF3YWl0IGRyb3BUZXN0RGF0YWJhc2UoZGIpOwp9LCAxNV8wMDApOwoKZGVzY3JpYmUoJ0dFVCAvYXBpL2xlYWd1ZXMvOmlkL3NuYXBzaG90IHBsYXllciBjb3VudHMnLCAoKSA9PiB7CiAgaXQoJ2NvdW50cyBhbGwgZm91ciBydWJiZXIgc2xvdHMgcGVyIGRpdmlzaW9uIGFuZCBkZWR1cGxpY2F0ZXMgbGVhZ3VlIHRvdGFscycsIGFzeW5jICgpID0+IHsKICAgIGNvbnN0IFtjb21wZXRpdGlvbl0gPSBhd2FpdCBkYgogICAgICAuaW5zZXJ0SW50bygnY29tcGV0aXRpb25zJykKICAgICAgLnZhbHVlcyh7CiAgICAgICAgc2Vhc29uX2lkOiBpZHMuc2Vhc29uSWQsCiAgICAgICAgZXh0ZXJuYWxfaWQ6ICdzbmFwc2hvdC1kaXZpc2lvbi0yJywKICAgICAgICBuYW1lOiAnRGl2aXNpb24gMicsCiAgICAgICAgdHlwZTogJ2xlYWd1ZScsCiAgICAgIH0pCiAgICAgIC5yZXR1cm5pbmcoJ2lkJykKICAgICAgLmV4ZWN1dGUoKTsKCiAgICBjb25zdCB0ZWFtcyA9IGF3YWl0IGRiCiAgICAgIC5pbnNlcnRJbnRvKCd0ZWFtcycpCiAgICAgIC52YWx1ZXMoWwogICAgICAgIHsgY29tcGV0aXRpb25faWQ6IGNvbXBldGl0aW9uIS5pZCwgZXh0ZXJuYWxfaWQ6ICdzbmFwc2hvdC10ZWFtLWhvbWUnLCBuYW1lOiAnU25hcHNob3QgSG9tZScgfSwKICAgICAgICB7IGNvbXBldGl0aW9uX2lkOiBjb21wZXRpdGlvbiEuaWQsIGV4dGVybmFsX2lkOiAnc25hcHNob3QtdGVhbS1hd2F5JywgbmFtZTogJ1NuYXBzaG90IEF3YXknIH0sCiAgICAgIF0pCiAgICAgIC5yZXR1cm5pbmcoJ2lkJykKICAgICAgLmV4ZWN1dGUoKTsKCiAgICBjb25zdCBbZml4dHVyZV0gPSBhd2FpdCBkYgogICAgICAuaW5zZXJ0SW50bygnZml4dHVyZXMnKQogICAgICAudmFsdWVzKHsKICAgICAgICBjb21wZXRpdGlvbl9pZDogY29tcGV0aXRpb24hLmlkLAogICAgICAgIGV4dGVybmFsX2lkOiAnc25hcHNob3QtZml4dHVyZScsCiAgICAgICAgaG9tZV90ZWFtX2lkOiB0ZWFtc1swXSEuaWQsCiAgICAgICAgYXdheV90ZWFtX2lkOiB0ZWFtc1sxXSEuaWQsCiAgICAgICAgZGF0ZV9wbGF5ZWQ6ICcyMDI1LTAyLTAxJywKICAgICAgICBzdGF0dXM6ICdjb21wbGV0ZWQnLAogICAgICAgIHVwZGF0ZWRfYXQ6IG5ldyBEYXRlKCksCiAgICAgIH0pCiAgICAgIC5yZXR1cm5pbmcoJ2lkJykKICAgICAgLmV4ZWN1dGUoKTsKCiAgICBjb25zdCBwYXJ0bmVycyA9IGF3YWl0IGRiCiAgICAgIC5pbnNlcnRJbnRvKCdleHRlcm5hbF9wbGF5ZXJzJykKICAgICAgLnZhbHVlcyhbCiAgICAgICAgeyBwbGF0Zm9ybV9pZDogaWRzLnBsYXRmb3JtSWQsIGV4dGVybmFsX2lkOiAnc25hcHNob3QtaG9tZS1wYXJ0bmVyJywgbmFtZTogJ0hvbWUgUGFydG5lcicsIHVwZGF0ZWRfYXQ6IG5ldyBEYXRlKCkgfSwKICAgICAgICB7IHBsYXRmb3JtX2lkOiBpZHMucGxhdGZvcm1JZCwgZXh0ZXJuYWxfaWQ6ICdzbmFwc2hvdC1hd2F5LXBhcnRuZXInLCBuYW1lOiAnQXdheSBQYXJ0bmVyJywgdXBkYXRlZF9hdDogbmV3IERhdGUoKSB9LAogICAgICBdKQogICAgICAucmV0dXJuaW5nKCdpZCcpCiAgICAgIC5leGVjdXRlKCk7CgogICAgYXdhaXQgZGIKICAgICAgLmluc2VydEludG8oJ3J1YmJlcnMnKQogICAgICAudmFsdWVzKHsKICAgICAgICBmaXh0dXJlX2lkOiBmaXh0dXJlIS5pZCwKICAgICAgICBleHRlcm5hbF9pZDogJ3NuYXBzaG90LWRvdWJsZXMtcnViYmVyJywKICAgICAgICBpc19kb3VibGVzOiB0cnVlLAogICAgICAgIGhvbWVfcGxheWVyXzFfaWQ6IGlkcy5ob21lUGxheWVySWQsCiAgICAgICAgaG9tZV9wbGF5ZXJfMl9pZDogcGFydG5lcnNbMF0hLmlkLAogICAgICAgIGF3YXlfcGxheWVyXzFfaWQ6IGlkcy5hd2F5UGxheWVySWQsCiAgICAgICAgYXdheV9wbGF5ZXJfMl9pZDogcGFydG5lcnNbMV0hLmlkLAogICAgICAgIGhvbWVfZ2FtZXNfd29uOiAzLAogICAgICAgIGF3YXlfZ2FtZXNfd29uOiAxLAogICAgICAgIG91dGNvbWVfdHlwZTogJ25vcm1hbCcsCiAgICAgICAgdXBkYXRlZF9hdDogbmV3IERhdGUoKSwKICAgICAgfSkKICAgICAgLmV4ZWN1dGUoKTsKCiAgICBjb25zdCByZXNwb25zZSA9IGF3YWl0IHJlcXVlc3QKICAgICAgLmdldChgL2FwaS9sZWFndWVzLyR7aWRzLmxlYWd1ZUlkfS9zbmFwc2hvdGApCiAgICAgIC5leHBlY3QoMjAwKTsKCiAgICBleHBlY3QocmVzcG9uc2UuYm9keS5kaXZpc2lvbnMpLnRvRXF1YWwoWwogICAgICBleHBlY3Qub2JqZWN0Q29udGFpbmluZyh7IGRpdmlzaW9uTmFtZTogJ0RpdmlzaW9uIDEnLCBwbGF5ZXJzOiAyIH0pLAogICAgICBleHBlY3Qub2JqZWN0Q29udGFpbmluZyh7IGRpdmlzaW9uTmFtZTogJ0RpdmlzaW9uIDInLCBwbGF5ZXJzOiA0IH0pLAogICAgXSk7CiAgICBleHBlY3QocmVzcG9uc2UuYm9keS50b3RhbHMpLnRvRXF1YWwoZXhwZWN0Lm9iamVjdENvbnRhaW5pbmcoewogICAgICBkaXZpc2lvbnM6IDIsCiAgICAgIHBsYXllcnM6IDQsCiAgICB9KSk7CiAgfSk7Cn0pOwo=').decode()
-          Path('apps/api/src/__tests__/league-snapshot-player-counts.integration.test.ts').write_text(test_content)
-          PY
-
-      - name: Validate focused and full backend suites
+      - name: Backend quality gate
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
-        run: |
-          pnpm --filter @tt-players/api exec vitest run \
-            src/__tests__/query-shape-guardrails.test.ts \
-            src/__tests__/league-snapshot-player-counts.integration.test.ts
-          pnpm run check:backend
+        run: pnpm run check:backend
 
-      - name: Commit validated implementation
+      - name: Validate VPS scripts
         run: |
-          git show origin/main:.github/workflows/backend-ci.yml > .github/workflows/backend-ci.yml
-          rm .github/workflows/apply-league-snapshot-single-pass.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/api/src/routes/leagues.ts \
-            apps/api/src/__tests__/league-snapshot-player-counts.integration.test.ts \
-            .github/workflows/backend-ci.yml \
-            .github/workflows/apply-league-snapshot-single-pass.yml
-          git commit -m "perf(api): compute league snapshot player counts in one pass"
-          git push origin HEAD:perf/league-snapshot-single-pass
+          bash -n scripts/lib/service-recovery.sh
+          bash -n scripts/deploy-vps-release.sh
+          bash -n scripts/rollback-vps-release.sh
