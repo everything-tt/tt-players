@@ -3,16 +3,8 @@ import path from 'node:path';
 
 const root = process.cwd();
 const mobileSrc = path.join(root, 'apps/mobile/src');
-const legacySectionAllowlist = new Set([
-  'App.tsx',
-  'EventDetailPage.tsx',
-  'H2HTabContent.tsx',
-  'PlayerPage.tsx',
-  'components/Skeleton.tsx',
-]);
-const inlineGeometryAllowlist = new Set([
-  'H2HTabContent.tsx',
-]);
+const legacySectionAllowlist = new Set([]);
+const inlineGeometryAllowlist = new Set([]);
 const compatibilityCss = new Set([
   'mobile-polish.css',
   'density-pass.css',
