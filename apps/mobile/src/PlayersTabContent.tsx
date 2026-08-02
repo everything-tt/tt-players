@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { FavouriteButton } from './components/FavouriteButton';
 import { useFavouritePlayers } from './hooks/useFavouritePlayers';
 import { useMyPlayer } from './hooks/useMyPlayer';
@@ -35,19 +35,19 @@ export function PlayersTabContent({ onOpenPlayer }: PlayersTabContentProps) {
   const search = useSearch({ minLength: 3, resetOnDisable: false });
   const { player: myPlayer } = useMyPlayer();
   const { players: favouritePlayers, isFavourite, toggle: toggleFavourite } = useFavouritePlayers();
+  const [followingLimit, setFollowingLimit] = useState(PAGE_SIZE);
   const mode = getPlayersTabMode(search.normalizedQuery);
   const followedIds = useMemo(
     () => getFollowedPlayerIds(favouritePlayers, myPlayer?.id),
     [favouritePlayers, myPlayer?.id],
   );
-
-  const followingList = usePlayerList({
-    search: '',
-    leagueIds: [],
-    savedIds: followedIds,
-    pageSize: PAGE_SIZE,
-    enabled: mode === 'following' && followedIds.length > 0,
-  });
+  const followedPlayers = useMemo(() => {
+    const playersById = new Map(favouritePlayers.map((player) => [player.id, player]));
+    return followedIds
+      .map((playerId) => playersById.get(playerId))
+      .filter((player): player is NonNullable<typeof player> => Boolean(player));
+  }, [favouritePlayers, followedIds]);
+  const visibleFollowedPlayers = followedPlayers.slice(0, followingLimit);
 
   const searchList = usePlayerList({
     search: search.debouncedQuery,
@@ -57,11 +57,7 @@ export function PlayersTabContent({ onOpenPlayer }: PlayersTabContentProps) {
     enabled: mode === 'search' && search.isReady,
   });
 
-  const visibleFollowedPlayers = followingList.items.filter(
-    (player) => player.id !== myPlayer?.id && isFavourite(player.id),
-  );
-
-  const renderRows = (players: typeof searchList.items) => (
+  const renderRows = (players: typeof favouritePlayers) => (
     <DesignList density="compact" divider="hairline" paginate={false}>
       {players.map((player) => (
         <ListItem
@@ -83,7 +79,7 @@ export function PlayersTabContent({ onOpenPlayer }: PlayersTabContentProps) {
   );
 
   const renderFollowing = () => {
-    if (followedIds.length === 0) {
+    if (followedPlayers.length === 0) {
       return (
         <EmptyState
           iconClassName="fa fa-heart-o"
@@ -92,31 +88,16 @@ export function PlayersTabContent({ onOpenPlayer }: PlayersTabContentProps) {
         />
       );
     }
-    if (followingList.error && visibleFollowedPlayers.length === 0) {
-      return <ErrorState message={followingList.error} onRetry={() => void followingList.retry()} />;
-    }
-    if (followingList.isLoadingInitial) {
-      return <EmptyState iconClassName="fa fa-spinner fa-spin" title="Loading followed players…" />;
-    }
-    if (visibleFollowedPlayers.length === 0) {
-      return (
-        <EmptyState
-          iconClassName="fa fa-heart-o"
-          title="Followed players unavailable"
-          message="These saved player profiles could not be found right now."
-        />
-      );
-    }
 
     return (
       <>
         {renderRows(visibleFollowedPlayers)}
         <InfiniteListFooter
-          hasMore={followingList.hasMore}
-          isLoading={followingList.isLoadingMore}
-          autoLoad={!followingList.error}
-          onLoadMore={followingList.loadMore}
-          loadLabel={followingList.error ? 'Retry loading followed players' : 'Load more followed players'}
+          hasMore={visibleFollowedPlayers.length < followedPlayers.length}
+          isLoading={false}
+          autoLoad
+          onLoadMore={() => setFollowingLimit((current) => Math.min(current + PAGE_SIZE, followedPlayers.length))}
+          loadLabel="Load more followed players"
           loadingLabel="Loading more followed players…"
           endLabel={`All ${visibleFollowedPlayers.length} followed players shown`}
         />
@@ -160,7 +141,7 @@ export function PlayersTabContent({ onOpenPlayer }: PlayersTabContentProps) {
   const searchResultMeta = searchList.total === null
     ? `${searchList.items.length} shown`
     : `${searchList.items.length} of ${searchList.total}`;
-  const followingMeta = `${followingList.total ?? followedIds.length} players`;
+  const followingMeta = `${followedPlayers.length} players`;
 
   return (
     <>
@@ -195,7 +176,7 @@ export function PlayersTabContent({ onOpenPlayer }: PlayersTabContentProps) {
           surface="flat"
           density="compact"
           title="Following"
-          meta={followedIds.length > 0 ? followingMeta : undefined}
+          meta={followedPlayers.length > 0 ? followingMeta : undefined}
         >
           {renderFollowing()}
         </PageSection>
