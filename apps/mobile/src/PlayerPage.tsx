@@ -18,7 +18,7 @@ import { SegmentedToggle } from './components/SegmentedToggle';
 import { useFavouritePlayers } from './hooks/useFavouritePlayers';
 import { useMyPlayer } from './hooks/useMyPlayer';
 import { usePagedPlayerMatches } from './hooks/usePagedPlayerMatches';
-import { SkeletonBlock, SkeletonList } from './components/Skeleton';
+import { SectionSkeleton, SkeletonBlock, SkeletonList } from './components/Skeleton';
 import { PlayerMatchList } from './components/PlayerMatchList';
 import { TabShellPage } from './TabShellPage';
 import {
@@ -26,9 +26,17 @@ import {
   AppButtonLink,
   AppMessageCard,
   AppPageContent,
+  DesignAvatar,
+  DesignList,
+  EmptyState,
+  EntityHero,
+  ErrorState,
   IconCircle,
-  List,
+  Inline,
   ListItem,
+  MetricGrid,
+  PageSection,
+  Stack,
 } from './ui/appkit';
 import { DetailHeader } from './components/DetailHeader';
 import { FavouriteButton } from './components/FavouriteButton';
@@ -38,6 +46,7 @@ import { buildPlayerShareTarget } from './share-target';
 import { buildQuickJournalPath } from './player-match-list';
 
 const APP_NAME = 'TT Players';
+
 function setPageMeta(name: string, content: string): void {
   let tag = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
   if (!tag) {
@@ -69,72 +78,60 @@ function setCanonicalLink(href: string): void {
 }
 
 function PlayerProfileSkeleton() {
+  const loadingMetric = <SkeletonBlock className="tt-skeleton-stat" />;
+
   return (
-    <>
-      <section className="tt-player-hero" aria-label="Loading player profile">
-        <div className="tt-player-hero-top">
-          <div className="tt-player-hero-copy">
-            <SkeletonBlock className="tt-skeleton-eyebrow" />
-            <SkeletonBlock className="tt-skeleton-title" />
-            <SkeletonBlock className="tt-skeleton-text mt-2" />
-          </div>
-          <SkeletonBlock className="tt-skeleton-avatar" />
-        </div>
+    <Stack gap="md" aria-label="Loading player profile">
+      <EntityHero
+        eyebrow={<SkeletonBlock className="tt-skeleton-eyebrow" />}
+        leading={<SkeletonBlock className="tt-skeleton-avatar" />}
+        title={<SkeletonBlock className="tt-skeleton-title" />}
+        subtitle={<SkeletonBlock className="tt-skeleton-text" />}
+        actionPlacement="below"
+        actions={(
+          <Inline gap="xs" align="center" wrap>
+            <SkeletonBlock className="tt-skeleton-button" />
+            <SkeletonBlock className="tt-skeleton-button" />
+          </Inline>
+        )}
+        highlights={(
+          <MetricGrid
+            density="compact"
+            columns={4}
+            ariaLabel="Loading player summary"
+            metrics={[
+              { label: 'Win rate', value: loadingMetric },
+              { label: 'Wins', value: loadingMetric },
+              { label: 'Losses', value: loadingMetric },
+              { label: 'Streak', value: loadingMetric },
+            ]}
+          />
+        )}
+      />
 
-        <div className="tt-player-spotlight">
-          <div className="tt-player-winrate">
-            <SkeletonBlock className="tt-skeleton-title" />
-            <SkeletonBlock className="tt-skeleton-text mt-2" />
-          </div>
-          <div className="tt-player-hero-stats">
-            <div className="tt-player-hero-stat"><SkeletonBlock className="tt-skeleton-stat" /></div>
-            <div className="tt-player-hero-stat"><SkeletonBlock className="tt-skeleton-stat" /></div>
-            <div className="tt-player-hero-stat"><SkeletonBlock className="tt-skeleton-stat" /></div>
-          </div>
-        </div>
+      <SectionSkeleton rows={3} />
+      <SectionSkeleton rows={3} />
 
-        <div className="tt-player-actions">
-          <SkeletonBlock className="tt-skeleton-button" />
-          <SkeletonBlock className="tt-skeleton-button" />
-        </div>
+      <PageSection
+        surface="flat"
+        density="compact"
+        title={<SkeletonBlock className="tt-skeleton-text" />}
+        meta={<SkeletonBlock className="tt-skeleton-text app-skeleton-short" />}
+      >
+        <MetricGrid
+          density="compact"
+          columns={3}
+          ariaLabel="Loading form insights"
+          metrics={[
+            { label: 'Rolling 10', value: loadingMetric },
+            { label: 'Rolling 20', value: loadingMetric },
+            { label: 'Momentum', value: loadingMetric },
+          ]}
+        />
+      </PageSection>
 
-        <div className="tt-form-recent">
-          <div className="tt-form-recent-list">
-            {Array.from({ length: 8 }).map((_, index) => (
-              <SkeletonBlock key={index} className="tt-skeleton-pill" />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="tt-player-section" aria-label="Loading current season">
-        <div className="tt-player-section-header">
-          <SkeletonBlock className="tt-skeleton-text" />
-          <SkeletonBlock className="tt-skeleton-text app-skeleton-short" />
-        </div>
-        <SkeletonList rows={3} />
-      </section>
-
-      <section className="tt-player-section" aria-label="Loading form">
-        <div className="tt-player-section-header">
-          <SkeletonBlock className="tt-skeleton-text" />
-          <SkeletonBlock className="tt-skeleton-text app-skeleton-short" />
-        </div>
-        <div className="tt-player-metric-grid">
-          <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
-          <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
-          <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
-        </div>
-      </section>
-
-      <section className="tt-player-section" aria-label="Loading recent matches">
-        <div className="tt-player-section-header">
-          <SkeletonBlock className="tt-skeleton-text" />
-          <SkeletonBlock className="tt-skeleton-text app-skeleton-short" />
-        </div>
-        <SkeletonList rows={4} />
-      </section>
-    </>
+      <SectionSkeleton rows={4} />
+    </Stack>
   );
 }
 
@@ -256,82 +253,71 @@ export function PlayerPage() {
             action={{ label: 'Back Home', onClick: goHome }}
           />
         ) : (
-          <>
-            <section className="tt-player-hero" aria-labelledby="tt-player-title">
-              <div className="tt-player-hero-top">
-                <div className="tt-player-hero-copy">
-                  <p className="tt-player-eyebrow">Player profile</p>
-                  <h1 id="tt-player-title" className="tt-player-title">{stats.player_name}</h1>
-                  <p className="tt-player-summary-line">
-                    {stats.total} matches, {stats.wins} wins, {winRate}% win rate
-                  </p>
-                </div>
-                <div className="tt-player-summary-avatar" aria-hidden="true">
-                  <span className="tt-player-summary-initials">{getInitials(stats.player_name)}</span>
-                </div>
-              </div>
-
-              <div className="tt-player-spotlight" aria-label="Player summary">
-                <div className="tt-player-winrate">
-                  <span className="tt-player-winrate-value">{winRate}%</span>
-                  <span className="tt-player-winrate-label">Win Rate</span>
-                </div>
-                <div className="tt-player-hero-stats">
-                  <div className="tt-player-hero-stat">
-                    <span className="tt-player-hero-stat-value">{stats.wins}</span>
-                    <span className="tt-player-hero-stat-label">Wins</span>
-                  </div>
-                  <div className="tt-player-hero-stat">
-                    <span className="tt-player-hero-stat-value">{stats.losses}</span>
-                    <span className="tt-player-hero-stat-label">Losses</span>
-                  </div>
-                  <div className="tt-player-hero-stat">
-                    <span className="tt-player-hero-stat-value">{stats.streak || '-'}</span>
-                    <span className="tt-player-hero-stat-label">Streak</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="tt-player-actions">
-                <FavouriteButton
-                  saved={Boolean(isFavourite)}
-                  onToggle={() => {
-                    if (!stats) return;
-                    toggleFavouritePlayer({ id: stats.player_id, name: stats.player_name, played: stats.total, wins: stats.wins });
-                  }}
-                />
-                <AppButtonLink
-                  size="sm"
-                  className="tt-player-action-pill"
-                  tone="outline-highlight"
-                  onClick={openSection(`player/${playerId}/insights`)}
-                >
-                  Insights
-                </AppButtonLink>
-                {isCurrentUser ? (
-                  <AppButton
+          <Stack gap="md" className="tt-player-profile-page">
+            <EntityHero
+              eyebrow="Player profile"
+              leading={<DesignAvatar size="hero" text={getInitials(stats.player_name)} />}
+              title={stats.player_name}
+              subtitle={`${stats.total} matches · ${stats.wins} wins · ${winRate}% win rate`}
+              actionPlacement="below"
+              actions={(
+                <Inline gap="xs" align="center" wrap>
+                  <FavouriteButton
+                    saved={Boolean(isFavourite)}
+                    onToggle={() => toggleFavouritePlayer({
+                      id: stats.player_id,
+                      name: stats.player_name,
+                      played: stats.total,
+                      wins: stats.wins,
+                    })}
+                  />
+                  <AppButtonLink
                     size="sm"
-                    className="tt-player-action-pill"
-                    tone="outline"
-                    onClick={clearMyPlayer}
+                    tone="outline-highlight"
+                    onClick={openSection(`player/${playerId}/insights`)}
                   >
-                    This isn’t me
-                  </AppButton>
-                ) : null}
-              </div>
-
-              <FormResultPills
-                results={recentResults}
-                label={null}
-                loading={insightsLoading}
-                emptyText="No form yet"
-              />
-            </section>
+                    Insights
+                  </AppButtonLink>
+                  {isCurrentUser ? (
+                    <AppButton size="sm" tone="outline" onClick={clearMyPlayer}>
+                      This isn’t me
+                    </AppButton>
+                  ) : null}
+                </Inline>
+              )}
+              highlights={(
+                <Stack gap="sm">
+                  <MetricGrid
+                    density="compact"
+                    columns={4}
+                    ariaLabel="Player summary"
+                    metrics={[
+                      { label: 'Win rate', value: `${winRate}%` },
+                      { label: 'Wins', value: stats.wins },
+                      { label: 'Losses', value: stats.losses },
+                      { label: 'Streak', value: stats.streak || '—' },
+                    ]}
+                  />
+                  <FormResultPills
+                    results={recentResults}
+                    label={null}
+                    loading={insightsLoading}
+                    emptyText="No form yet"
+                  />
+                </Stack>
+              )}
+            />
 
             <PlayerRatingPanel playerId={stats.player_id} />
 
-            <section className="tt-player-section" aria-label="Current season clubs and tournaments">
-              <div className="tt-home-leaders-header">
+            <PageSection
+              surface="flat"
+              density="compact"
+              title="Current season"
+              meta={seasonPanelMode === 'clubs'
+                ? `${affiliations.length} ${affiliations.length === 1 ? 'team' : 'teams'}`
+                : `${tournamentsPlayed.length} ${tournamentsPlayed.length === 1 ? 'event' : 'events'}`}
+              action={(
                 <SegmentedToggle
                   ariaLabel="Choose current season view"
                   value={seasonPanelMode}
@@ -341,21 +327,26 @@ export function PlayerPage() {
                     { value: 'tournaments', label: 'Tournaments' },
                   ]}
                 />
-                <span className="tt-home-leaders-desc">
-                  {seasonPanelMode === 'clubs' ? `${affiliations.length} teams` : `${tournamentsPlayed.length} events`}
-                </span>
-              </div>
-
+              )}
+            >
               {seasonPanelMode === 'clubs' ? (
                 affiliationsLoading ? (
                   <SkeletonList rows={3} />
                 ) : affiliationsError ? (
-                  <p className="tt-player-section-state tt-player-section-error">Unable to load current season clubs.</p>
+                  <ErrorState
+                    title="Couldn’t load current-season clubs"
+                    message={affiliationsError}
+                    onRetry={() => void affiliationsQuery.refetch()}
+                  />
                 ) : affiliations.length === 0 ? (
-                  <p className="tt-player-section-state">No active-season clubs found.</p>
+                  <EmptyState
+                    iconClassName="fa fa-table-tennis"
+                    title="No active-season clubs"
+                    message="No club affiliations are recorded for the current season."
+                  />
                 ) : (
-                  <List divider="hairline" size="lg" className="tt-player-list">
-                    {affiliations.map((affiliation: any) => (
+                  <DesignList density="compact" divider="hairline" paginate={false}>
+                    {affiliations.map((affiliation) => (
                       <ListItem
                         key={`${affiliation.team_id}-${affiliation.competition_name}-${affiliation.season_id}`}
                         leading={<IconCircle iconClassName="fa fa-table-tennis" tone="accent" />}
@@ -364,17 +355,25 @@ export function PlayerPage() {
                         onClick={() => navigateInTab('leagues', `team/${affiliation.team_id}`)}
                       />
                     ))}
-                  </List>
+                  </DesignList>
                 )
               ) : tournamentMatchesLoading ? (
                 <SkeletonList rows={3} />
               ) : tournamentMatchesError ? (
-                <p className="tt-player-section-state tt-player-section-error">Unable to load tournaments.</p>
+                <ErrorState
+                  title="Couldn’t load tournaments"
+                  message={tournamentMatchesError}
+                  onRetry={() => void tournamentsQuery.refetch()}
+                />
               ) : recentTournaments.length === 0 ? (
-                <p className="tt-player-section-state">No tournament appearances found.</p>
+                <EmptyState
+                  iconClassName="fa fa-trophy"
+                  title="No tournament appearances"
+                  message="No tournament results are recorded for this player yet."
+                />
               ) : (
-                <>
-                  <List divider="hairline" size="lg" className="tt-player-list">
+                <Stack gap="sm">
+                  <DesignList density="compact" divider="hairline" paginate={false}>
                     {recentTournaments.map((event) => {
                       const dateStr = formatDateOrUnknown(event.event_date);
                       const lossCount = event.played - event.wins;
@@ -388,61 +387,64 @@ export function PlayerPage() {
                         />
                       );
                     })}
-                  </List>
-                  {tournamentsPlayed.length > 0 ? (
-                    <AppButtonLink
-                      full
-                      size="sm"
-                      className="tt-player-full-list-button"
-                      onClick={openSection(`player/${playerId}/tournaments`)}
-                    >
-                      View All Tournaments
-                    </AppButtonLink>
-                  ) : null}
-                </>
+                  </DesignList>
+                  <AppButtonLink
+                    full
+                    size="sm"
+                    tone="outline"
+                    onClick={openSection(`player/${playerId}/tournaments`)}
+                  >
+                    View all tournaments
+                  </AppButtonLink>
+                </Stack>
               )}
-            </section>
+            </PageSection>
 
-            <section className="tt-player-section" aria-labelledby="tt-player-form-title">
-              <div className="tt-player-section-header">
-                <h2 id="tt-player-form-title" className="tt-player-section-title">Form</h2>
-                <span className="tt-player-section-note">Rolling performance</span>
-              </div>
+            <PageSection
+              surface="flat"
+              density="compact"
+              title="Form"
+              description="Rolling performance"
+            >
               {insightsLoading ? (
-                <div className="tt-player-metric-grid" aria-label="Loading form insights">
-                  <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
-                  <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
-                  <div className="tt-player-metric"><SkeletonBlock className="tt-skeleton-stat" /></div>
-                </div>
+                <MetricGrid
+                  density="compact"
+                  columns={3}
+                  ariaLabel="Loading form insights"
+                  metrics={[
+                    { label: 'Rolling 10', value: <SkeletonBlock className="tt-skeleton-stat" /> },
+                    { label: 'Rolling 20', value: <SkeletonBlock className="tt-skeleton-stat" /> },
+                    { label: 'Momentum', value: <SkeletonBlock className="tt-skeleton-stat" /> },
+                  ]}
+                />
               ) : insightsError || !insights ? (
-                <p className="tt-player-section-state tt-player-section-error">Unable to load form insights.</p>
+                <ErrorState
+                  title="Couldn’t load form insights"
+                  message={insightsError ?? 'Form insights are not available for this player yet.'}
+                  onRetry={() => void insightsQuery.refetch()}
+                />
               ) : (
-                <div className="tt-player-metric-grid">
-                  <div className="tt-player-metric">
-                    <span className="tt-player-metric-value">{insights.form.rolling_10_win_rate}%</span>
-                    <span className="tt-player-metric-label">Rolling 10</span>
-                  </div>
-                  <div className="tt-player-metric">
-                    <span className="tt-player-metric-value">{insights.form.rolling_20_win_rate}%</span>
-                    <span className="tt-player-metric-label">Rolling 20</span>
-                  </div>
-                  <div className="tt-player-metric">
-                    <span className="tt-player-metric-value text-capitalize">{insights.form.momentum}</span>
-                    <span className="tt-player-metric-label">Momentum</span>
-                  </div>
-                </div>
+                <MetricGrid
+                  density="compact"
+                  columns={3}
+                  ariaLabel="Rolling player form"
+                  metrics={[
+                    { label: 'Rolling 10', value: `${insights.form.rolling_10_win_rate}%` },
+                    { label: 'Rolling 20', value: `${insights.form.rolling_20_win_rate}%` },
+                    { label: 'Momentum', value: insights.form.momentum },
+                  ]}
+                />
               )}
-            </section>
+            </PageSection>
 
-            <section className="tt-player-section" aria-labelledby="tt-player-matches-title">
-              <div className="tt-player-section-header">
-                <h2 id="tt-player-matches-title" className="tt-player-section-title">Recent Matches</h2>
-                <span className="tt-player-section-note">
-                  {recentMatchesState.total > 0
-                    ? `${recentMatchesState.matches.length} of ${recentMatchesState.total}`
-                    : 'Latest results'}
-                </span>
-              </div>
+            <PageSection
+              surface="flat"
+              density="compact"
+              title="Recent matches"
+              meta={recentMatchesState.total > 0
+                ? `${recentMatchesState.matches.length} of ${recentMatchesState.total}`
+                : 'Latest results'}
+            >
               <PlayerMatchList
                 playerId={playerId}
                 matches={recentMatchesState.matches}
@@ -458,8 +460,8 @@ export function PlayerPage() {
                 onLoadMore={recentMatchesState.loadMore}
                 onRetry={recentMatchesState.retry}
               />
-            </section>
-          </>
+            </PageSection>
+          </Stack>
         )}
       </AppPageContent>
     </TabShellPage>
