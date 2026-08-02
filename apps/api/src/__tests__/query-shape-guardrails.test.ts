@@ -35,6 +35,7 @@ describe('expensive query guardrails', () => {
     expect(upcoming).toBeGreaterThan(standings);
   });
 
+  // Protect the measured snapshot path from returning to multi-scan aggregation.
   it('scans league snapshot rubbers once for division and total player counts', async () => {
     const source = await readRoute('leagues');
     const routeStart = source.indexOf("'/:id/snapshot'");
