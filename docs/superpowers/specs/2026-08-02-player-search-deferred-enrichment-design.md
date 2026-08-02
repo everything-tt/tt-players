@@ -76,11 +76,13 @@ Response:
 Rules:
 
 - accept at most 50 unique canonical player IDs;
-- return one row for every requested active player, using zero counts where no eligible singles exist;
+- return one row for every requested active player, using zero counts where that player has no eligible singles;
+- omit IDs that do not identify an active canonical player;
 - exclude doubles, deleted records, and walkovers consistently with the existing search statistics;
 - preserve canonical/alias aggregation;
 - use one database request for the complete batch;
-- set dynamic public cache headers, keyed naturally by the ordered ID query string.
+- sort and deduplicate IDs before sending the request so equivalent visible sets share a cache key;
+- set dynamic public cache headers.
 
 The implementation must compare indexed query shapes for the ten-ID case rather than copying the current slow search CTE without measurement. Candidate shapes include a bounded source-ID relation with indexed home/away scans and per-player lateral aggregates.
 
@@ -89,10 +91,10 @@ The implementation must compare indexed query shapes for the ten-ID case rather 
 1. `useSearch` continues to debounce the typed query and enforce the three-character minimum.
 2. `usePlayerList` requests the names endpoint and renders its page immediately.
 3. A separate React Query request starts when the current debounced query has a successful names page and its visible ID list is non-empty.
-4. The enrichment query key includes the normalized query and ordered visible IDs.
+4. The enrichment query key includes the normalized query and sorted unresolved visible IDs.
 5. React Query aborts the request when the query or visible IDs change.
 6. The UI merges enrichment by player ID without reordering or replacing the name rows.
-7. Loading more names triggers enrichment for the newly visible unresolved IDs; already enriched IDs are retained.
+7. Loading more names triggers enrichment for newly visible unresolved IDs; already enriched IDs are retained.
 
 No additional timer is required after the existing search debounce. A completed names response for the current debounced query defines a stable result set.
 
@@ -105,12 +107,12 @@ No additional timer is required after the existing search debounce. A completed 
 - Name-search failure continues to use the existing retryable list error state.
 - Late enrichment from an old query must never update the current results.
 
-Search results use a dedicated type with nullable enrichment rather than pretending missing statistics are zero. Favourite storage remains backward compatible; newly followed name-only results may omit statistics until enrichment arrives, and following-list rendering must tolerate absent statistics.
+Search results use a dedicated type with nullable enrichment rather than pretending missing statistics are zero. `FavouritePlayer.played` and `FavouritePlayer.wins` become optional for backward-compatible storage. Newly followed name-only results persist `id` and `name`; following-list rows omit the subtitle until statistics are available. Existing stored favourites with numeric statistics remain valid.
 
 ## Error handling
 
 - Invalid or excessive enrichment IDs return HTTP 400.
-- Missing/deleted player IDs do not fail the whole batch; they are omitted or returned with zero counts according to the final endpoint contract, tested consistently.
+- Missing or deleted IDs are omitted from the batch response.
 - Database errors return the existing generic HTTP 500 response.
 - Client cancellation is silent.
 - Enrichment retry is handled by React Query and must not block the row.
@@ -123,7 +125,8 @@ Search results use a dedicated type with nullable enrichment rather than pretend
 - Query-shape guard proves the name endpoint contains no `rubbers` access.
 - Enrichment returns correct wins/played values for aliases and canonical players.
 - Enrichment excludes doubles and walkovers.
-- Enrichment validates the ID limit and deduplicates repeated IDs.
+- Enrichment returns zeros for active players without eligible singles.
+- Enrichment validates the ID limit, deduplicates repeated IDs, and omits inactive IDs.
 
 ### Mobile
 
@@ -132,6 +135,7 @@ Search results use a dedicated type with nullable enrichment rather than pretend
 - Changing the query prevents stale enrichment from appearing.
 - An enrichment failure leaves rows navigable and followable.
 - Infinite loading enriches only unresolved visible IDs.
+- Name-only favourites persist and render without fake zero statistics.
 
 ## Performance validation
 
