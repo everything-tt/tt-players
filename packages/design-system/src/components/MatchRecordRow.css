@@ -20,16 +20,17 @@
   box-sizing: border-box;
   color: var(--ink);
   display: inline-flex;
-  flex: 0 0 44px;
+  flex: 0 0 64px;
   font-size: 17px;
   font-variant-numeric: tabular-nums;
   font-weight: 800;
-  height: 44px;
+  height: 40px;
   justify-content: center;
   letter-spacing: -0.02em;
-  min-height: 44px;
+  min-height: 40px;
   padding: 0 4px;
-  width: 44px;
+  white-space: nowrap;
+  width: 64px;
 }
 
 .tt-match-record-score--win {
