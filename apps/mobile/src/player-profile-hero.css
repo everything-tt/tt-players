@@ -418,14 +418,17 @@
 
 .tt-player-profile-form-strong {
   background: var(--state-success);
+  width: 55%;
 }
 
 .tt-player-profile-form-steady {
   background: var(--state-warning);
+  width: 25%;
 }
 
 .tt-player-profile-form-weak {
   background: var(--state-danger);
+  width: 20%;
 }
 
 .tt-player-profile-form-indicator p {
