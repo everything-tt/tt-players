@@ -39,6 +39,13 @@ describe('LeagueSelectionPage full-page scope experience', () => {
     expect(source).not.toContain("title=\"Search leagues\"");
   });
 
+  it('uses the design-system list density without page-specific row styling', () => {
+    expect(source).toContain('DesignList,');
+    expect(source.match(/<DesignList density="compact" divider="hairline">/g)).toHaveLength(3);
+    expect(source).not.toContain('<List className="tt-league-scope__list"');
+    expect(css).not.toContain('.tt-league-scope__list');
+  });
+
   it('keeps page controls and completion action visible around a scrollable body', () => {
     const page = cssRule('.tt-sheet--page');
     const controls = cssRule('.tt-league-scope__controls');
