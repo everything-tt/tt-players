@@ -1,6 +1,4 @@
-import type { ActionMenuItem } from '../ui/appkit';
 import {
-  ActionMenu,
   AppButton,
   DesignList,
   EmptyState,
@@ -13,53 +11,6 @@ import { formatMatchDateParts, formatMatchResult } from '../player-match-list';
 import type { RubberItem } from '../player-shared';
 import { SkeletonList } from './Skeleton';
 import './PlayerMatchList.css';
-
-interface PlayerMatchActionOptions {
-  match: RubberItem;
-  quickJournalEnabled: boolean;
-  onOpenMatch: (match: RubberItem) => void;
-  onOpenOpponent: (opponentId: string) => void;
-  onQuickJournal: (match: RubberItem) => void;
-}
-
-export function createPlayerMatchActionItems({
-  match,
-  quickJournalEnabled,
-  onOpenMatch,
-  onOpenOpponent,
-  onQuickJournal,
-}: PlayerMatchActionOptions): ActionMenuItem[] {
-  const items: ActionMenuItem[] = [];
-
-  if (match.opponent_id) {
-    const opponentId = match.opponent_id;
-    items.push({
-      id: 'opponent',
-      label: 'View Opponent',
-      iconClassName: 'fa fa-user',
-      onSelect: () => onOpenOpponent(opponentId),
-    });
-  }
-
-  if (quickJournalEnabled) {
-    items.push({
-      id: 'journal',
-      label: 'Quick Journal',
-      iconClassName: 'fa fa-pen',
-      tone: 'accent',
-      onSelect: () => onQuickJournal(match),
-    });
-  }
-
-  items.push({
-    id: 'match',
-    label: match.source === 'tournament' && match.event_id ? 'View Event' : 'View Fixture',
-    iconClassName: 'fa fa-angle-right',
-    onSelect: () => onOpenMatch(match),
-  });
-
-  return items;
-}
 
 export interface PlayerMatchListProps {
   playerId: string;
@@ -126,53 +77,60 @@ export function PlayerMatchList({
         {matches.map((match) => {
           const date = formatMatchDateParts(match.date);
           const result = formatMatchResult(match.result, match.isWin);
-          const actions = createPlayerMatchActionItems({
-            match,
-            quickJournalEnabled,
-            onOpenMatch,
-            onOpenOpponent,
-            onQuickJournal,
-          });
+          const opponentId = match.opponent_id;
+          const destination = match.source === 'tournament' && match.event_id ? 'event' : 'fixture';
+          const sourceLabel = match.source_label ?? match.league;
 
           return (
             <ListItem
               key={match.id}
               className="tt-player-match-row"
-              leading={(
-                <span className="tt-player-match-date" aria-label={match.date.slice(0, 10)}>
-                  <span className="tt-player-match-date__day">{date.day}</span>
-                  <span className="tt-player-match-date__month">{date.month}</span>
-                  <span className="tt-player-match-date__year">{date.year}</span>
-                </span>
-              )}
               title={(
                 <span className="tt-player-match-title">
                   <span>{match.opponent}</span>
                   <Pill tone={result.tone} size="xs">{result.label}</Pill>
+                  {opponentId ? (
+                    <span className="visually-hidden">Open {match.opponent} profile</span>
+                  ) : null}
                 </span>
               )}
-              subtitle={match.source_label}
-              onClick={() => onOpenMatch(match)}
+              subtitle={(
+                <span className="tt-player-match-meta">
+                  <span className="tt-player-match-meta__date">{date.day} {date.month}</span>
+                  {' '}
+                  <span className="tt-player-match-meta__year">{date.year}</span>
+                  <span className="tt-player-match-meta__separator" aria-hidden="true">·</span>
+                  <span className="tt-player-match-meta__source">{sourceLabel}</span>
+                </span>
+              )}
+              onClick={opponentId ? () => onOpenOpponent(opponentId) : undefined}
               hideChevron
               trailing={(
                 <span className="tt-player-match-actions">
-                  {match.opponent_id ? (
+                  {quickJournalEnabled ? (
                     <AppButton
                       tone="ghost"
                       size="s"
-                      className="tt-player-match-action"
-                      aria-label={`View ${match.opponent} profile`}
-                      onClick={() => onOpenOpponent(match.opponent_id!)}
+                      rounded="m"
+                      className="tt-player-match-action tt-player-match-action--journal"
+                      aria-label={`Journal match against ${match.opponent}`}
+                      title="Quick Journal"
+                      onClick={() => onQuickJournal(match)}
                     >
-                      <i className="fa fa-user" aria-hidden="true" />
+                      <i className="fa fa-pen" aria-hidden="true" />
                     </AppButton>
                   ) : null}
-                  <ActionMenu
-                    label={`Match actions for ${match.opponent}`}
-                    title={`Match against ${match.opponent}`}
-                    items={actions}
-                    triggerClassName="tt-player-match-action"
-                  />
+                  <AppButton
+                    tone="ghost"
+                    size="s"
+                    rounded="m"
+                    className="tt-player-match-action tt-player-match-action--source"
+                    aria-label={`View ${destination} for match against ${match.opponent}`}
+                    title={`View ${destination}`}
+                    onClick={() => onOpenMatch(match)}
+                  >
+                    <i className="fa fa-calendar" aria-hidden="true" />
+                  </AppButton>
                 </span>
               )}
             />
