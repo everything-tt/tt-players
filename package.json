@@ -15,7 +15,8 @@
     "check:backend": "pnpm run typecheck:backend && pnpm run test:backend",
     "check:design-system": "node scripts/check-design-system-usage.mjs",
     "perf:api": "node scripts/benchmark-api.mjs",
-    "perf:plans": "node scripts/capture-query-plans.mjs",
+    "perf:plans": "node scripts/capture-query-plans.mjs && node scripts/capture-player-rivals-plan.mjs",
+    "perf:plans:rivals": "node scripts/capture-player-rivals-plan.mjs",
     "api:test": "pnpm --filter @tt-players/api run test",
     "mobile:dev": "pnpm --filter @tt-players/mobile run dev",
     "mobile:build": "pnpm --filter @tt-players/mobile run build"

@@ -9,6 +9,7 @@ import {
     buildH2HRelevantRubbersPlanQuery,
     summarizePlan,
 } from '../capture-query-plans.mjs';
+import { buildPlayerRivalsPlanQuery } from '../capture-player-rivals-plan.mjs';
 
 test('benchmark arguments are explicit and normalized', () => {
     const config = parseArgs([
@@ -118,4 +119,19 @@ test('H2H plan capture uses raw source-id predicates compatible with partial ind
     assert.match(query, /is_doubles = false/);
     assert.match(query, /outcome_type <> 'walkover'/);
     assert.doesNotMatch(query, /COALESCE\([^)]*canonical_player_id/);
+});
+
+test('player-rivals plan ranks bounded opponent aggregates inside PostgreSQL', () => {
+    const query = buildPlayerRivalsPlanQuery();
+
+    assert.match(query, /WITH relevant AS MATERIALIZED/);
+    assert.match(query, /home_player_1_id = ANY\(\$1::uuid\[\]\)/);
+    assert.match(query, /away_player_1_id = ANY\(\$1::uuid\[\]\)/);
+    assert.match(query, /ROW_NUMBER\(\) OVER \(\s*PARTITION BY opponent_id/);
+    assert.match(query, /COUNT\(\*\) OVER \(PARTITION BY opponent_id\)/);
+    assert.match(query, /FILTER \(WHERE sequence_number <= split_at\)/);
+    assert.match(query, /category_rank <= 4/);
+    assert.match(query, /'toughest'::text AS category/);
+    assert.match(query, /'easiest'::text AS category/);
+    assert.match(query, /'improving'::text AS category/);
 });

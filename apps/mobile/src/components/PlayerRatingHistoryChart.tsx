@@ -1,3 +1,4 @@
+import '../ratings-ui.css';
 import { useMemo, useState, type KeyboardEvent } from 'react';
 import {
   ratingConfidenceLabel,
@@ -5,11 +6,14 @@ import {
   type RatingHistoryRange,
   usePlayerRatingHistoryQuery,
 } from '../rating-queries';
-import { FilterBar, PageSection } from '../ui/appkit';
+import { buildRatingHistorySummary } from '../rating-history-summary';
+import { FilterBar, MetricGrid, PageSection } from '../ui/appkit';
+import { FormResultPills } from './FormResultPills';
 import { SkeletonBlock } from './Skeleton';
 
 interface PlayerRatingHistoryChartProps {
   playerId: string;
+  recentResults?: Array<'W' | 'L'>;
 }
 
 interface ChartPoint extends PlayerRatingHistoryPoint {
@@ -34,13 +38,17 @@ const CHART_RIGHT = 8;
 const CHART_TOP = 12;
 const CHART_BOTTOM = 24;
 
-export function PlayerRatingHistoryChart({ playerId }: PlayerRatingHistoryChartProps) {
+export function PlayerRatingHistoryChart({
+  playerId,
+  recentResults = [],
+}: PlayerRatingHistoryChartProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [range, setRange] = useState<RatingHistoryRange>('1y');
   const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
   const historyQuery = usePlayerRatingHistoryQuery(playerId, range, Boolean(playerId));
   const history = historyQuery.data?.data ?? [];
   const geometry = useMemo(() => buildChartGeometry(history), [history]);
+  const summary = useMemo(() => buildRatingHistorySummary(history), [history]);
   const selected = history.find((point) => point.week_start === selectedWeek)
     ?? history[history.length - 1]
     ?? null;
@@ -57,9 +65,9 @@ export function PlayerRatingHistoryChart({ playerId }: PlayerRatingHistoryChartP
     <PageSection
       surface="flat"
       density="compact"
-      className="tt-rating-history"
-      title="Rating History"
-      note="Latest calculated rating in each active week"
+      className="tt-rating-history tt-insights-section"
+      title="Rating & Form"
+      description="Weekly calculated rating and the latest singles results."
       action={(
         <button
           type="button"
@@ -68,29 +76,37 @@ export function PlayerRatingHistoryChart({ playerId }: PlayerRatingHistoryChartP
           aria-controls={contentId}
           onClick={() => setIsOpen((open) => !open)}
         >
-          <span>{isOpen ? 'Hide history' : 'Show history'}</span>
+          <span>{isOpen ? 'Hide' : 'Show'}</span>
           <i className={`fa fa-chevron-${isOpen ? 'up' : 'down'}`} aria-hidden="true" />
         </button>
       )}
     >
       {isOpen ? (
         <div id={contentId} className="tt-rating-history-content">
-          <FilterBar ariaLabel="Rating history range" className="tt-rating-history-ranges">
-            {RANGE_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                className={range === option.value ? 'is-active' : undefined}
-                aria-pressed={range === option.value}
-                onClick={() => {
-                  setRange(option.value);
-                  setSelectedWeek(null);
-                }}
-              >
-                {option.label}
-              </button>
-            ))}
-          </FilterBar>
+          <div className="tt-rating-history-toolbar">
+            <FilterBar ariaLabel="Rating history range" className="tt-rating-history-ranges">
+              {RANGE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={range === option.value ? 'is-active' : undefined}
+                  aria-pressed={range === option.value}
+                  onClick={() => {
+                    setRange(option.value);
+                    setSelectedWeek(null);
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </FilterBar>
+
+            <FormResultPills
+              results={recentResults.slice(0, 8)}
+              label="Last 8"
+              emptyText="No recent form"
+            />
+          </div>
 
           {historyQuery.isLoading ? (
             <div className="tt-rating-history-loading" aria-label="Loading rating history">
@@ -101,10 +117,38 @@ export function PlayerRatingHistoryChart({ playerId }: PlayerRatingHistoryChartP
               <span>Unable to load rating history.</span>
               <button type="button" onClick={() => historyQuery.refetch()}>Retry</button>
             </div>
-          ) : history.length === 0 || !geometry ? (
+          ) : history.length === 0 || !geometry || !summary ? (
             <p className="tt-rating-history-state">Weekly history will appear after the rating-history rebuild has processed this player.</p>
           ) : (
             <>
+              <MetricGrid
+                ariaLabel="Rating summary for selected range"
+                columns={3}
+                density="compact"
+                className="tt-rating-history-summary"
+                metrics={[
+                  {
+                    label: 'Current',
+                    value: summary.current.toLocaleString('en-GB'),
+                    hint: 'latest rating',
+                  },
+                  {
+                    label: 'Peak',
+                    value: summary.peak.toLocaleString('en-GB'),
+                    hint: formatShortDate(summary.peakDate),
+                  },
+                  {
+                    label: 'Range change',
+                    value: (
+                      <span className={changeClassName(summary.rangeChange)}>
+                        {formatChange(summary.rangeChange)}
+                      </span>
+                    ),
+                    hint: rangeLabel(range),
+                  },
+                ]}
+              />
+
               <div className="tt-rating-history-chart-wrap">
                 <svg className="tt-rating-history-chart" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} role="img" aria-label={`Weekly rating history with ${history.length} points`}>
                   <line className="tt-rating-history-gridline" x1={CHART_LEFT} x2={CHART_WIDTH - CHART_RIGHT} y1={CHART_TOP} y2={CHART_TOP} />
@@ -185,4 +229,13 @@ function formatChange(value: number | null): string {
 function changeClassName(value: number | null): string | undefined {
   if (value === null || Math.round(value) === 0) return undefined;
   return value > 0 ? 'is-positive' : 'is-negative';
+}
+function rangeLabel(range: RatingHistoryRange): string {
+  switch (range) {
+    case '3m': return 'last 3 months';
+    case '1y': return 'last year';
+    case '3y': return 'last 3 years';
+    case '10y': return 'last 10 years';
+    default: return 'all recorded history';
+  }
 }

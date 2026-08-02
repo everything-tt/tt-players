@@ -1,0 +1,168 @@
+.tt-insights-page > .tt-section {
+  background: var(--canvas-parchment);
+  border-bottom: 1px solid var(--border-hairline);
+  padding-block: 16px;
+}
+
+.tt-insights-page > .tt-section:first-child {
+  padding-top: 12px;
+}
+
+.tt-insights-takeaway {
+  border-top: 1px solid var(--border-hairline);
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 12px 0 0;
+  padding-top: 10px;
+}
+
+.tt-insights-skeleton-metrics {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.tt-rating-history-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  display: inline-flex;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 4px;
+}
+
+.tt-rating-history-content {
+  min-width: 0;
+}
+
+.tt-rating-history-toolbar {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.tt-rating-history-toolbar .tt-form-recent {
+  margin: 0;
+}
+
+.tt-rating-history-toolbar .tt-form-recent-list {
+  flex-wrap: nowrap;
+}
+
+.tt-rating-history-summary {
+  margin: 12px 0 2px;
+}
+
+.tt-rating-history-summary .tt-metric__value .is-positive,
+.tt-rating-history-detail strong.is-positive {
+  color: var(--state-success-text, var(--state-success));
+}
+
+.tt-rating-history-summary .tt-metric__value .is-negative,
+.tt-rating-history-detail strong.is-negative {
+  color: var(--state-danger);
+}
+
+.tt-rivals-toggle {
+  margin-bottom: 0;
+}
+
+.tt-rivals-category-note {
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 0 0 6px;
+}
+
+.tt-insights-state,
+.tt-insights-empty {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 10px 0 0;
+}
+
+.tt-insights-state {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-height: 72px;
+  justify-content: center;
+  text-align: center;
+}
+
+.tt-rival-trailing {
+  align-items: center;
+  display: inline-flex;
+  gap: 10px;
+}
+
+.tt-rival-trailing > i {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.tt-rival-stat {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  min-width: 38px;
+}
+
+.tt-rival-stat strong {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.tt-rival-stat small {
+  color: var(--ink-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-top: 3px;
+  text-transform: uppercase;
+}
+
+.tt-career-season-list {
+  margin-top: 10px;
+}
+
+.tt-career-season-row .tt-pill {
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .tt-rating-history-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tt-rating-history-toolbar .tt-form-recent-list {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 420px) {
+  .tt-insights-skeleton-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tt-rival-trailing {
+    gap: 7px;
+  }
+
+  .tt-career-season-row .tt-list-item__subtitle {
+    white-space: normal;
+  }
+}
