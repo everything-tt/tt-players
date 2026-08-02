@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, getQueryError, type PlayerSearchItem } from '../player-shared';
-import { buildPlayerSearchPath, mergePageById } from '../paged-search';
+import {
+  buildPlayerSearchPath,
+  mergePageById,
+  normalizePagedResponse,
+  type PagedResponse,
+} from '../paged-search';
 
-interface PlayerSearchPage {
-  data: PlayerSearchItem[];
-  total: number;
-  limit: number;
-  offset: number;
-  has_more: boolean;
-}
+type PlayerSearchPage = PagedResponse<PlayerSearchItem>;
 
 interface UsePlayerListOptions {
   search: string;
@@ -33,12 +32,14 @@ export function usePlayerList({
   const savedKey = useMemo(() => [...savedIds].sort().join(','), [savedIds]);
   const [items, setItems] = useState<PlayerSearchItem[]>([]);
   const [offset, setOffset] = useState(0);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal] = useState<number | null>(null);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
     setOffset(0);
     setItems([]);
-    setTotal(0);
+    setTotal(null);
+    setHasMore(false);
   }, [normalizedSearch, leagueKey, savedKey, pageSize]);
 
   const query = useQuery({
@@ -68,11 +69,12 @@ export function usePlayerList({
 
   useEffect(() => {
     if (!query.data) return;
-    setTotal(query.data.total);
-    setItems((previous) => mergePageById(previous, query.data!.data, offset === 0));
+    const page = normalizePagedResponse(query.data, offset);
+    setTotal(page.total);
+    setHasMore(page.hasMore);
+    setItems((previous) => mergePageById(previous, page.data, offset === 0));
   }, [offset, query.data]);
 
-  const hasMore = items.length < total;
   const isLoadingInitial = enabled && query.isLoading && offset === 0;
   const isLoadingMore = enabled && query.isFetching && offset > 0;
   const error = getQueryError(query.error);
