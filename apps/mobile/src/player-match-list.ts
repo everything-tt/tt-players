@@ -35,29 +35,44 @@ export function formatMatchResult(
   };
 }
 
+function parseMatchDate(value: string): Date | null {
+  const isoCandidate = value.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(isoCandidate)) {
+    const isoDate = new Date(`${isoCandidate}T12:00:00Z`);
+    if (!Number.isNaN(isoDate.getTime())) return isoDate;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export function normaliseMatchDate(value: string): string | null {
+  const parsed = parseMatchDate(value);
+  return parsed ? parsed.toISOString().slice(0, 10) : null;
+}
+
 export function formatMatchDateParts(value: string): MatchDateParts {
-  const isoDate = value.slice(0, 10);
-  const parsed = new Date(`${isoDate}T12:00:00`);
-  if (Number.isNaN(parsed.getTime())) {
+  const parsed = parseMatchDate(value);
+  if (!parsed) {
     return { day: '--', month: '---', year: '----' };
   }
 
   return {
-    day: new Intl.DateTimeFormat('en-GB', { day: '2-digit' }).format(parsed),
-    month: new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(parsed),
-    year: new Intl.DateTimeFormat('en-GB', { year: 'numeric' }).format(parsed),
+    day: new Intl.DateTimeFormat('en-GB', { day: '2-digit', timeZone: 'UTC' }).format(parsed),
+    month: new Intl.DateTimeFormat('en-GB', { month: 'short', timeZone: 'UTC' }).format(parsed),
+    year: new Intl.DateTimeFormat('en-GB', { year: 'numeric', timeZone: 'UTC' }).format(parsed),
   };
 }
 
 function isValidIsoDate(value: string | null): value is string {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const parsed = new Date(`${value}T12:00:00`);
+  const parsed = new Date(`${value}T12:00:00Z`);
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
 export function buildQuickJournalPath(playerId: string, match: RubberItem): string {
   const params = new URLSearchParams({
-    date: match.date.slice(0, 10),
+    date: normaliseMatchDate(match.date) ?? '',
     opponent: match.opponent,
     outcome: match.isWin ? 'win' : 'loss',
   });
