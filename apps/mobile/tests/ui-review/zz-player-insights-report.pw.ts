@@ -160,7 +160,11 @@ test('reviews summary, rating, ranked rivals and career story', async ({ page },
   await capture(page, testInfo, 'player-insights-rivals');
 
   await page.setViewportSize({ width: 360, height: 800 });
-  await page.getByRole('heading', { name: 'Career Story' }).scrollIntoViewIfNeeded();
+  const careerSection = page.locator('.tt-career-story');
+  await careerSection.evaluate((element) => element.scrollIntoView({ block: 'start' }));
+  await page.evaluate(() => window.scrollBy(0, -86));
+  await expect.poll(async () => (await careerSection.boundingBox())?.y ?? Number.POSITIVE_INFINITY)
+    .toBeLessThan(130);
   await expect(page.locator('.tt-career-highlight')).toHaveCount(4);
   await expect(page.locator('.tt-career-row').first()).toBeVisible();
   await expectNoHorizontalOverflow(page);
