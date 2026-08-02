@@ -116,6 +116,9 @@ export function PlayersTabContent({
   };
 
   const state = emptyState();
+  const resultMeta = list.total === null
+    ? `${list.items.length} shown`
+    : `${list.items.length} of ${list.total}`;
 
   return (
     <>
@@ -159,7 +162,7 @@ export function PlayersTabContent({
         surface="flat"
         density="compact"
         title={search.normalizedQuery ? 'Search results' : 'Players'}
-        meta={state ? undefined : `${list.items.length} of ${list.total}`}
+        meta={state ? undefined : resultMeta}
       >
         {state ?? (
           <>
