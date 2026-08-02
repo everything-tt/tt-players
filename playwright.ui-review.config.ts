@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // PR #107. Player profile hero alignment with the approved H2H-style mock.
-  testMatch: 'zz-player-profile-hero.pw.ts',
+  // PR #107 diagnostic: trace the winning padding rule before applying a fix.
+  testMatch: 'zz-player-profile-padding-rules.pw.ts',
 
   timeout: 120_000,
   expect: {
