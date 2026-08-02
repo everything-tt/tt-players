@@ -11,7 +11,7 @@
   margin: 0;
 }
 
-.tt-search-toolbar {
+.tt-app-search-toolbar {
   box-sizing: border-box;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -22,19 +22,11 @@
   margin: var(--tt-space-2) var(--tt-gutter-flat) var(--tt-space-3);
 }
 
-/* app-shell.css still contains a vertical legacy SearchPanel rule. Root browse
- * screens use the native toolbar and must remain an inline search + filter row. */
-.tt-root-content .tt-search-toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  flex-direction: row;
-}
-
-.tt-search-toolbar__input {
+.tt-app-search-toolbar__input {
   min-width: 0;
 }
 
-.tt-search-toolbar__input > * {
+.tt-app-search-toolbar__input > * {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -42,19 +34,60 @@
   margin: 0;
 }
 
-/* The legacy AppSearchInput style is loaded after this design-system layer and
- * adds a 16px top margin. Use a deliberately more-specific native-toolbar rule
- * so the field and trailing action share one grid row and equal top alignment. */
-.tt-root-content .tt-search-toolbar__input > .tt-players-search-input {
-  margin: 0;
-}
-
-.tt-search-toolbar__actions {
+.tt-app-search-toolbar__actions {
   display: flex;
   flex: 0 0 auto;
   align-items: stretch;
   gap: var(--tt-space-2);
   min-width: 0;
+}
+
+.tt-app-search-input {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid var(--accent-border-strong, var(--tt-border));
+  border-radius: 16px;
+  background: var(--surface-strong, var(--tt-surface-raised));
+  box-shadow: 0 10px 28px oklch(21% 0.034 158 / 0.08);
+}
+
+.tt-app-search-input i {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 17px;
+  line-height: 1;
+}
+
+.tt-app-search-input input {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  min-height: 50px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink, var(--tt-text));
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.tt-app-search-input input::placeholder {
+  color: var(--ink-muted, var(--tt-text-muted));
+}
+
+.tt-app-search-input:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-ring), 0 12px 30px oklch(21% 0.034 158 / 0.1);
 }
 
 .tt-toggle-button {
@@ -135,11 +168,11 @@
 }
 
 @media (max-width: 420px) {
-  .tt-search-toolbar {
+  .tt-app-search-toolbar {
     gap: var(--tt-space-1);
   }
 
-  .tt-search-toolbar__actions .tt-toggle-button {
+  .tt-app-search-toolbar__actions .tt-toggle-button {
     padding-inline: var(--tt-space-2);
     font-size: 13px;
   }
@@ -155,7 +188,7 @@
 }
 
 @media (max-width: 340px) {
-  .tt-search-toolbar__actions .tt-toggle-button {
+  .tt-app-search-toolbar__actions .tt-toggle-button {
     gap: var(--tt-space-1);
     padding-inline: 7px;
     font-size: 12px;
