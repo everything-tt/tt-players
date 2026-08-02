@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useTabNavigation } from '../navigation/tab-navigation';
 import { ratingConfidenceLabel, useRatingPredictionQuery } from '../rating-queries';
 import { usePlayerH2HQuery } from '../queries';
 import { useH2HAnalysisQuery } from '../h2h-analysis-query';
@@ -44,9 +45,12 @@ export function RatingPredictionPanel({
   encounterCount = 0,
   onOpenCommonOpponents,
 }: RatingPredictionPanelProps) {
+  const { navigateInTab } = useTabNavigation();
   const predictionQuery = useRatingPredictionQuery(playerA.id, playerB.id, true);
   const h2hQuery = usePlayerH2HQuery(playerA.id, playerB.id, true);
   const analysisQuery = useH2HAnalysisQuery(playerA.id, playerB.id, true);
+  const openCommonOpponents = onOpenCommonOpponents ?? (() =>
+    navigateInTab('h2h', `h2h/${playerA.id}/${playerB.id}/common-opponents`));
 
   const prediction = predictionQuery.data ?? null;
   const h2h = h2hQuery.data ?? null;
@@ -177,7 +181,7 @@ export function RatingPredictionPanel({
               trailing={analysis.common_opponents.total > 0
                 ? <strong>{edgeLabel(analysis.common_opponents.aggregate_edge, playerA.name, playerB.name)}</strong>
                 : undefined}
-              onClick={analysis.common_opponents.total > 0 ? onOpenCommonOpponents : undefined}
+              onClick={analysis.common_opponents.total > 0 ? openCommonOpponents : undefined}
               hideChevron
             />
             <ListItem
@@ -208,11 +212,11 @@ export function RatingPredictionPanel({
                 : 'Indirect comparison'}
             </Pill>
           )}
-          action={analysis.common_opponents.total > 0 && onOpenCommonOpponents ? (
+          action={analysis.common_opponents.total > 0 ? (
             <AppButton
               size="s"
               tone="ghost"
-              onClick={onOpenCommonOpponents}
+              onClick={openCommonOpponents}
               aria-label={`View all ${analysis.common_opponents.total} common opponents`}
             >
               View all
