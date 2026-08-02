@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // PR #96. Replace this filename for the next UI PR.
-  testMatch: 'zz-full-page-league-scope.pw.ts',
+  // PR #107. Player profile hero alignment with the approved H2H-style mock.
+  testMatch: 'zz-player-profile-hero.pw.ts',
 
   timeout: 120_000,
   expect: {
