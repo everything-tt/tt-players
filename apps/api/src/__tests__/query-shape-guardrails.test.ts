@@ -35,14 +35,18 @@ describe('expensive query guardrails', () => {
     expect(upcoming).toBeGreaterThan(standings);
   });
 
-  it('reuses one materialized player appearance relation for league snapshot totals', async () => {
+  // Keep the measured snapshot path on a single rubber scan.
+  it('scans league snapshot rubbers once for division and total player counts', async () => {
     const source = await readRoute('leagues');
     const routeStart = source.indexOf("'/:id/snapshot'");
     const route = source.slice(routeStart);
 
-    expect(route).toContain('player_appearances AS MATERIALIZED');
-    expect(route.match(/player_appearances AS MATERIALIZED/g)).toHaveLength(1);
+    expect(routeStart).toBeGreaterThan(-1);
+    expect(route.match(/JOIN rubbers/g)).toHaveLength(1);
+    expect(route).toContain('CROSS JOIN LATERAL unnest(ARRAY[');
+    expect(route).toContain('GROUP BY GROUPING SETS ((competition_id), ())');
+    expect(route).toContain('GROUPING(competition_id)');
+    expect(route).not.toContain('player_appearances AS MATERIALIZED');
     expect(route).not.toContain('const [snapshot, totalPlayerIds] = await Promise.all');
-    expect(route).toContain('total_players');
   });
 });
