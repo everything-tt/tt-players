@@ -495,69 +495,82 @@ export function EventDetailPage() {
                   surface="flat"
                   density="compact"
                   title="Players"
-                  note={pluralise(filteredTournamentPlayers.length, 'shown player', 'shown players')}
+                  note={selectedPlayer ? '1 selected player' : pluralise(filteredTournamentPlayers.length, 'shown player', 'shown players')}
                 >
                   <Stack gap="sm">
-                    <AppSearchInput
-                      placeholder="Search tournament players…"
-                      value={playerQuery}
-                      onChange={(inputEvent) => setPlayerQuery(inputEvent.target.value)}
-                    />
-                    <FilterBar ariaLabel="Filter tournament players">
-                      <AppButton
-                        size="sm"
-                        tone={playerFilter === 'all' ? 'primary' : 'outline'}
-                        onClick={() => setPlayerFilter('all')}
-                        aria-pressed={playerFilter === 'all'}
-                      >
-                        All
-                      </AppButton>
-                      <AppButton
-                        size="sm"
-                        tone={playerFilter === 'undefeated' ? 'primary' : 'outline'}
-                        onClick={() => setPlayerFilter('undefeated')}
-                        aria-pressed={playerFilter === 'undefeated'}
-                      >
-                        Undefeated
-                      </AppButton>
-                    </FilterBar>
                     {selectedPlayer ? (
-                      <Inline gap="sm" align="center" justify="between" wrap>
-                        <Pill tone="accent">Matches for {selectedPlayer.name}</Pill>
-                        <AppButton size="sm" tone="ghost" onClick={() => setSelectedPlayer(null)}>Clear player</AppButton>
-                      </Inline>
-                    ) : null}
-                    {filteredTournamentPlayers.length === 0 ? (
-                      <EmptyState iconClassName="fa fa-search" title="No players found" message="Try another name or player filter." />
-                    ) : (
-                      <DesignList density="compact" divider="hairline" paginate pageSize={10}>
-                        {filteredTournamentPlayers.map((player) => {
-                          const saved = player.playerId ? isFavouritePlayer(player.playerId) : false;
-                          return (
-                            <ListItem
-                              key={player.key}
-                              leading={<DesignAvatar size="compact" text={getInitials(player.name)} />}
-                              title={player.name}
-                              subtitle={`${pluralise(player.wins, 'win')} · ${pluralise(player.losses, 'loss', 'losses')} · ${player.winRate}% · ${pluralise(player.played, 'recorded match', 'recorded matches')}`}
-                              active={selectedPlayer?.key === player.key}
-                              onClick={() => togglePlayerFilter(player)}
-                              trailing={player.playerId ? (
-                                <FavouriteButton
-                                  size="icon"
-                                  saved={saved}
-                                  onToggle={() => toggleFavouritePlayer({
-                                    id: player.playerId!,
-                                    name: player.name,
-                                    played: player.played,
-                                    wins: player.wins,
-                                  })}
-                                />
-                              ) : null}
-                              hideChevron
-                            />
-                          );
-                        })}
+                      <DesignList density="compact" divider="hairline" paginate={false}>
+                        <ListItem
+                          leading={<DesignAvatar size="compact" text={getInitials(selectedPlayer.name)} />}
+                          title={selectedPlayer.name}
+                          subtitle="Filtering recorded matches"
+                          trailing={(
+                            <AppButton size="sm" tone="ghost" onClick={() => setSelectedPlayer(null)}>
+                              Clear player
+                            </AppButton>
+                          )}
+                          active
+                          hideChevron
+                        />
                       </DesignList>
+                    ) : (
+                      <>
+                        <AppSearchInput
+                          placeholder="Search tournament players…"
+                          value={playerQuery}
+                          onChange={(inputEvent) => setPlayerQuery(inputEvent.target.value)}
+                        />
+                        <FilterBar ariaLabel="Filter tournament players">
+                          <AppButton
+                            size="sm"
+                            tone={playerFilter === 'all' ? 'primary' : 'outline'}
+                            onClick={() => setPlayerFilter('all')}
+                            aria-pressed={playerFilter === 'all'}
+                          >
+                            All
+                          </AppButton>
+                          <AppButton
+                            size="sm"
+                            tone={playerFilter === 'undefeated' ? 'primary' : 'outline'}
+                            onClick={() => setPlayerFilter('undefeated')}
+                            aria-pressed={playerFilter === 'undefeated'}
+                          >
+                            Undefeated
+                          </AppButton>
+                        </FilterBar>
+                        {filteredTournamentPlayers.length === 0 ? (
+                          <EmptyState iconClassName="fa fa-search" title="No players found" message="Try another name or player filter." />
+                        ) : (
+                          <DesignList density="compact" divider="hairline" paginate pageSize={10}>
+                            {filteredTournamentPlayers.map((player) => {
+                              const saved = player.playerId ? isFavouritePlayer(player.playerId) : false;
+                              return (
+                                <ListItem
+                                  key={player.key}
+                                  leading={<DesignAvatar size="compact" text={getInitials(player.name)} />}
+                                  title={player.name}
+                                  subtitle={`${pluralise(player.wins, 'win')} · ${pluralise(player.losses, 'loss', 'losses')} · ${player.winRate}% · ${pluralise(player.played, 'recorded match', 'recorded matches')}`}
+                                  active={selectedPlayer?.key === player.key}
+                                  onClick={() => togglePlayerFilter(player)}
+                                  trailing={player.playerId ? (
+                                    <FavouriteButton
+                                      size="icon"
+                                      saved={saved}
+                                      onToggle={() => toggleFavouritePlayer({
+                                        id: player.playerId!,
+                                        name: player.name,
+                                        played: player.played,
+                                        wins: player.wins,
+                                      })}
+                                    />
+                                  ) : null}
+                                  hideChevron
+                                />
+                              );
+                            })}
+                          </DesignList>
+                        )}
+                      </>
                     )}
                   </Stack>
                 </PageSection>
