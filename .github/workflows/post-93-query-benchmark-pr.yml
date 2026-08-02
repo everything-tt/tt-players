@@ -1,0 +1,89 @@
+name: Post-93 query benchmark PR
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tt_players_benchmark?sslmode=disable
+      NODE_ENV: test
+      API_SLOW_REQUEST_MS: 999999
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.24.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Compare pre-fix and merged route latency
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp scripts/.post93-seed.sql /tmp/post93-seed.sql
+          cp scripts/.post93-benchmark.ts /tmp/post93-benchmark.ts
+          : > /tmp/post93-benchmark.log
+
+          benchmark_ref() {
+            local ref="$1"
+            local label="$2"
+
+            git checkout --force "$ref"
+            cp /tmp/post93-benchmark.ts scripts/.post93-benchmark.ts
+
+            psql postgresql://postgres:postgres@localhost:5432/postgres \
+              -v ON_ERROR_STOP=1 \
+              -c 'DROP DATABASE IF EXISTS tt_players_benchmark'
+            psql postgresql://postgres:postgres@localhost:5432/postgres \
+              -v ON_ERROR_STOP=1 \
+              -c 'CREATE DATABASE tt_players_benchmark'
+
+            pnpm run db:migrate
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /tmp/post93-seed.sql
+            pnpm --filter @tt-players/api exec tsx ../../scripts/.post93-benchmark.ts "$label" \
+              | tee -a /tmp/post93-benchmark.log
+            rm -f scripts/.post93-benchmark.ts
+          }
+
+          benchmark_ref e0bbe478c2613f8642d64b1a11fbe5e21173b0a3 before
+          benchmark_ref 6617c482e96c4985ab160b6aefce6de5b9fc795d after
+
+          echo '--- Benchmark results ---'
+          grep 'POST93_RESULT' /tmp/post93-benchmark.log
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-93-query-benchmark-pr
+          path: /tmp/post93-benchmark.log
