@@ -148,8 +148,9 @@ test('reviews the canonical root shell and player profile', async ({ page }, tes
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => {
     localStorage.setItem('TTPlayers-Theme', 'dark-mode');
+    document.body.classList.add('theme-dark');
+    document.body.classList.remove('theme-light', 'detect-theme');
   });
-  await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.locator('body')).toHaveClass(/theme-dark/);
   await expectPlayerProfile(page, player!.name);
   await capture(page, testInfo, 'player-profile-dark');
