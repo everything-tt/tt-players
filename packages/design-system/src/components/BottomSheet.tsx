@@ -71,8 +71,18 @@ export function BottomSheet({
 }: BottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  const disableBackdropCloseRef = useRef(disableBackdropClose);
   const titleId = useId();
   const descriptionId = useId();
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    disableBackdropCloseRef.current = disableBackdropClose;
+  }, [disableBackdropClose]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -80,9 +90,9 @@ export function BottomSheet({
     const unlockApplicationLayer = lockApplicationLayer();
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !disableBackdropClose) {
+      if (event.key === 'Escape' && !disableBackdropCloseRef.current) {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key === 'Tab' && sheetRef.current) {
@@ -120,7 +130,7 @@ export function BottomSheet({
       unlockApplicationLayer();
       previouslyFocused.current?.focus?.();
     };
-  }, [autoFocus, disableBackdropClose, isOpen, onClose]);
+  }, [autoFocus, isOpen]);
 
   if (!isOpen || typeof document === 'undefined') return null;
 
