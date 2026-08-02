@@ -107,7 +107,7 @@ describe('paginated player search', () => {
       .expect(400);
   });
 
-it('pages a common-name search without changing totals or stable ordering', async () => {
+  it('pages a common-name search without changing totals or stable ordering', async () => {
     await db.insertInto('external_players').values(
       Array.from({ length: 15 }, (_, index) => ({
         platform_id: ids.platformId,
@@ -151,7 +151,6 @@ it('pages a common-name search without changing totals or stable ordering', asyn
       ),
     );
   });
-
 });
 
 describe('paginated tournament search', () => {
