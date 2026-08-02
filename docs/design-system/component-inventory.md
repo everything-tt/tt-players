@@ -12,15 +12,16 @@
 | Area | Component | Status | Notes |
 |---|---|---|---|
 | Shell | `AppShellPage`, `AppPageContent`, `AppHeader`, `AppTabBar` | Canonical | Own safe areas, content clearance and navigation semantics. |
+| Page layouts | `BrowsePage`, `DetailPage` | Canonical | Standard root and detail page structures. |
 | Layout | `Stack`, `Inline` | Canonical | Replace one-off flex and gap utilities. |
-| Surface | `Surface`, `PageSection` | Canonical | Explicit canvas, flat, raised and hero roles; `PageSection` also owns primary/standard/secondary heading hierarchy. |
+| Surface | `Surface`, `PageSection` | Canonical | Explicit canvas, flat, raised and hero roles; `PageSection` also owns heading hierarchy. |
 | Identity | `EntityHero` | Canonical | Player, team, league and tournament identity. |
 | Data | `MetricGrid` | Canonical | Two to four key metrics with responsive fallback. |
-| Filters | `FilterBar`, `SegmentedToggle` | Canonical | Compact controls and narrow-screen horizontal scrolling. |
+| Filters | `FilterBar`, `SegmentedToggle`, `SearchToolbar` | Canonical | Compact controls and narrow-screen horizontal scrolling. |
 | Lists | `DesignList`, `DesignAvatar`, `ListItem` | Canonical | Explicit compact or comfortable density. |
 | Match records | `MatchRecordRow` | Canonical | Compact completed player matches and team fixtures with a leading score, metadata, primary row action and up to two direct actions. Consumers own score orientation and business logic. |
-| States | `EmptyState`, `ErrorState`, `AppLoadingCard` | Canonical | Shared loading, empty and error treatments. |
-| Actions | `AppButton`, `MoreButton`, `ExternalLinkButton` | Canonical | Semantic buttons with minimum interaction targets. |
+| States | `EmptyState`, `ErrorState`, `AppLoadingCard`, `SectionSkeleton` | Canonical | Shared loading, empty and error treatments. |
+| Actions | `AppButton`, `MoreButton`, `ExternalLinkButton`, `ActionMenu` | Canonical | Semantic buttons with minimum interaction targets. |
 | Overlay | `BottomSheet` | Canonical | Mobile overlay foundation. |
 | Status | `Pill`, `OutcomeBadge`, `RankBadge`, `IconCircle` | Canonical | Shared sports status and summary language. Use `OutcomeBadge` for form/summary indicators, not as a duplicate result beside `MatchRecordRow`. |
 
@@ -42,7 +43,7 @@ Score values may be detailed (`3–1`), outcome-only (`W`, `L`, `D`), or unknown
 
 | Component | Status | Migration direction |
 |---|---|---|
-| `HeroCard` | Compatibility | Replace with `EntityHero` or `PageSection surface="raised"`. |
+| `HeroCard` | Compatibility | Replace with `EntityHero` or `PageSection surface="raised"` when touched. |
 | `List` and legacy `size` values | Compatibility | Use `DesignList density`. |
 | `Avatar` legacy `sm/md/lg` values | Compatibility | Use `DesignAvatar compact/standard/hero`. |
 | `AppCard` | Compatibility | Retain for messages; ordinary screen sections use `PageSection`. |
@@ -51,37 +52,43 @@ Score values may be detailed (`3–1`), outcome-only (`W`, `L`, `D`), or unknown
 
 ## Temporary CSS layers
 
-The following files remain compatibility-only until the final large legacy screens migrate:
+The following files remain compatibility-only while their remaining domain selectors are reduced:
 
 - `apps/mobile/src/mobile-polish.css`
 - `apps/mobile/src/density-pass.css`
 - `apps/mobile/src/uncarded-density.css`
 
-Final geometry now lives in `packages/design-system/src/styles/tokens.css` and `primitives.css`. Compatibility files may consume those values but must not become the source of truth.
+Final geometry lives in `packages/design-system/src/styles/tokens.css` and `primitives.css`. Compatibility files may consume those values but must not become the source of truth.
 
 ## Screen migration matrix
 
 | Journey | Main files | Status |
 |---|---|---|
-| Shared shell and navigation | `AppRouter.tsx`, `TabFooterBar.tsx`, `RootHeader.tsx`, `DetailHeader.tsx`, `MainDrawer.tsx` | Foundation migrated; compatibility cleanup pending |
-| Home/root tabs | `App.tsx`, `HomeTabContent.tsx` | Latest-results records migrated; wider root migration pending |
+| Shared shell and navigation | `App.tsx`, `TabFooterBar.tsx`, `RootHeader.tsx`, `DetailHeader.tsx`, `MainDrawer.tsx` | Migrated to canonical shell, header and navigation primitives |
+| Home/root tabs | `App.tsx`, `HomeTabContent.tsx` | Migrated, including canonical shell and shared result rows |
+| Players root | `PlayersTabContent.tsx` | Migrated: following-first search, shared sections, lists and states |
 | Leagues root | `LeaguesTabContent.tsx` | Migrated, including shared result rows |
 | Events/Tournaments root | `EventsTabContent.tsx` | Migrated |
-| H2H root | `H2HTabContent.tsx`, `RatingPredictionPanel.tsx` | Migrated, including meeting-history records |
-| Player search/favourites | `App.tsx` player tab content | Legacy allowlist; migration pending |
-| Player profile | `PlayerPage.tsx`, `PlayerRatingPanel.tsx`, `PlayerMatchList.tsx` | Rating and match-record presentations migrated; remaining profile cleanup pending |
-| Player insights/history | `PlayerInsightsPage.tsx`, `PlayerMatchesPage.tsx`, `PlayerTournamentsPage.tsx`, `MatchJournalPage.tsx` | Matches, tournaments and journal migrated; insights pending |
-| Ratings | `TopRatingsPage.tsx`, rating panels | Leaderboard and rating panel migrated |
+| H2H root | `H2HTabContent.tsx`, `RatingPredictionPanel.tsx` | Migrated, including meeting-history records; dynamic evidence bars remain a documented domain composition |
+| Player profile | `PlayerPage.tsx`, `PlayerRatingPanel.tsx`, `PlayerMatchList.tsx` | Migrated: `EntityHero`, `MetricGrid`, `PageSection`, explicit list density and shared states |
+| Player insights/history | `PlayerInsightsPage.tsx`, `PlayerMatchesPage.tsx`, `PlayerTournamentsPage.tsx`, `MatchJournalPage.tsx` | Migrated |
+| Ratings | `TopRatingsPage.tsx`, rating panels | Migrated |
 | League detail | `LeagueDetailPage.tsx` | Migrated |
-| Teams and fixtures | `TeamPage.tsx`, `FixturePage.tsx` | Team result rows migrated; specialist fixture scorecards intentionally retained |
-| Event detail | `EventDetailPage.tsx` | Result rows migrated; wider page remains on the legacy allowlist |
+| Teams and fixtures | `TeamPage.tsx`, `FixturePage.tsx` | Migrated shell and result rows; specialist fixture scorecards intentionally retained |
+| Event detail | `EventDetailPage.tsx` | Migrated: identity hero, event information, players, filters and results use canonical compositions |
 | Utility | `AboutTabContent.tsx`, `DataCoveragePage.tsx` | Migrated |
 | Component catalogue | `DesignSystemPage.tsx` | Added at `/design-system`, including `MatchRecordRow` states |
 
+## Documented specialist exceptions
+
+- `FixturePage` keeps the two-sided rubber scorecard because it represents detailed match scoring rather than a generic list row.
+- H2H keeps its paired player picker and proportional direct-record bar because ownership by Player A and Player B must remain explicit.
+- Journal and other data-entry surfaces may use domain form composition while consuming shared controls, states and geometry tokens.
+
 ## Enforcement
 
-- `pnpm check:design-system` prevents new non-allowlisted legacy section wrappers.
-- It rejects inline canonical geometry outside documented temporary exceptions.
+- `pnpm check:design-system` rejects every new legacy `tt-player-section` wrapper; the source allowlist is empty.
+- It rejects inline canonical geometry; the source allowlist is empty.
 - It rejects canonical token declarations outside the design-system token layer.
 - Mobile CI runs this guard before build and tests.
 
@@ -89,7 +96,7 @@ Final geometry now lives in `packages/design-system/src/styles/tokens.css` and `
 
 A screen is design-system compatible when:
 
-1. its top-level sections use `PageSection`, `EntityHero` or a documented exception;
+1. its top-level sections use `PageSection`, `EntityHero` or a documented specialist exception;
 2. repeated flex/gap geometry uses `Stack` or `Inline`;
 3. lists use explicit density through `DesignList`;
 4. completed result rows use `MatchRecordRow` where the usage boundary applies;
