@@ -42,6 +42,13 @@
   margin: 0;
 }
 
+/* The legacy AppSearchInput style is loaded after this design-system layer and
+ * adds a 16px top margin. Use a deliberately more-specific native-toolbar rule
+ * so the field and trailing action share one grid row and equal top alignment. */
+.tt-root-content .tt-search-toolbar__input > .tt-players-search-input {
+  margin: 0;
+}
+
 .tt-search-toolbar__actions {
   display: flex;
   flex: 0 0 auto;
