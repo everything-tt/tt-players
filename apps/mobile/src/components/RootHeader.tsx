@@ -23,6 +23,7 @@ export function RootHeader({
   const leagueAriaLabel = selectedCount > 0
     ? `Select leagues, ${selectedCount} selected`
     : 'Select leagues';
+  const showLeagueAction = Boolean(onOpenLeagues) && title !== 'Players';
 
   return (
     <header className={`tt-root-header${isCompact ? ' tt-root-header--compact' : ''}`} role="banner">
@@ -34,7 +35,7 @@ export function RootHeader({
         <h1 className="tt-root-header__title">{title}</h1>
 
         <div className="tt-root-header__actions">
-          {onOpenLeagues ? (
+          {showLeagueAction ? (
             <button
               type="button"
               className="tt-root-header__action tt-root-header__filter"
