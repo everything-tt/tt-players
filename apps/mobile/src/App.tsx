@@ -16,7 +16,7 @@ import { ShareSheet } from './components/ShareSheet';
 import { useTabNavigation } from './navigation/tab-navigation';
 import { useLeaguesQuery } from './queries';
 import { usePWAInstallContext } from './PWAInstallContext';
-import { useTheme } from './ui/appkit';
+import { AppPageContent, AppShellPage, useTheme } from './ui/appkit';
 import { getQueryError, TAB_METADATA, type LeagueWithDivisions } from './player-shared';
 import { buildHomeShareTarget, buildWebShareLinks, shareTarget } from './share-target';
 import { LEAGUE_ONBOARDING_STORAGE_KEY, LEAGUES_STORAGE_KEY, restoreLocalDataBackup } from './local-persistence';
@@ -282,7 +282,7 @@ function App() {
 
   return (
     <>
-      <div id="page" className="app-shell-page">
+      <AppShellPage>
         {!isLeagueSelectorOpen ? (
           <>
             <RootHeader
@@ -296,7 +296,7 @@ function App() {
 
             <TabFooterBar reselectBehavior="root" />
 
-            <main className="page-content app-shell-content tt-root-content">
+            <AppPageContent className="tt-root-content">
               {activeTab === 'home' ? (
                 <HomeTabContent
                   allLeagues={allLeagues}
@@ -319,7 +319,7 @@ function App() {
               {activeTab === 'leagues' ? <LeaguesTabContent selectedLeagueIds={selectedLeagueIds} /> : null}
               {activeTab === 'h2h' ? <H2HTabContent onOpenPlayer={(playerId) => navigateInActiveTab(`player/${playerId}`)} /> : null}
               {activeTab === 'events' ? <EventsTabContent /> : null}
-            </main>
+            </AppPageContent>
           </>
         ) : null}
 
@@ -341,7 +341,7 @@ function App() {
         ) : null}
 
         {isFeedbackSheetOpen ? <QuickFeedbackSheet onClose={() => setIsFeedbackSheetOpen(false)} /> : null}
-      </div>
+      </AppShellPage>
 
       <MainDrawer
         isOpen={isMainMenuOpen}
