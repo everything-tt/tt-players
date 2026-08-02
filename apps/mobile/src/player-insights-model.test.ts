@@ -5,7 +5,7 @@ import {
   formatMilestoneHits,
   getRivalTabItems,
 } from './player-insights-model';
-import type { PlayerRivalsResponse } from './player-shared';
+import type { PlayerRivalsResponse } from './player-insights-types';
 
 const rivals: PlayerRivalsResponse = {
   player_id: 'player-1',
