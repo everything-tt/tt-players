@@ -4,6 +4,7 @@ import { FormResultPills } from './components/FormResultPills';
 import { SectionSkeleton, SkeletonBlock, SkeletonList } from './components/Skeleton';
 import { useTabNavigation } from './navigation/tab-navigation';
 import { formatMatchDate, getInitials, getQueryError } from './player-shared';
+import { perspectiveScore } from './match-record';
 import { useTeamFixturesQuery, useTeamFormQuery, useTeamRosterQuery, useTeamSummaryQuery } from './queries';
 import { TabShellPage } from './TabShellPage';
 import { DetailHeader } from './components/DetailHeader';
@@ -20,8 +21,8 @@ import {
   FilterBar,
   IconCircle,
   ListItem,
+  MatchRecordRow,
   MetricGrid,
-  OutcomeBadge,
   PageSection,
   Pill,
   SegmentedToggle,
@@ -193,14 +194,30 @@ export function TeamPage() {
                 <DesignList density="compact" divider="hairline" paginate={false}>
                   {filteredFixtures.map(({ fixture, isHome, teamScore, opponentScore, result }) => {
                     const opponent = isHome ? fixture.away_team_name : fixture.home_team_name;
-                    const score = teamScore === null || opponentScore === null ? null : `${teamScore}–${opponentScore}`;
+                    const title = opponent
+                      ? `${isHome ? 'Home' : 'Away'} vs ${opponent}`
+                      : `${fixture.home_team_name ?? 'Home'} vs ${fixture.away_team_name ?? 'Away'}`;
+                    const score = perspectiveScore(teamScore, opponentScore, result);
+
+                    if (fixture.status === 'completed' && score) {
+                      return (
+                        <MatchRecordRow
+                          key={fixture.id}
+                          score={score}
+                          title={title}
+                          metadata={[formatMatchDate(fixture.date_played), fixture.round_name ?? 'Completed']}
+                          onClick={() => navigateInActiveTab(`fixture/${fixture.id}`)}
+                        />
+                      );
+                    }
+
                     return (
                       <ListItem
                         key={fixture.id}
-                        leading={result ? <OutcomeBadge result={result} variant="icon" /> : <IconCircle iconClassName="fa fa-calendar" tone="neutral" />}
-                        title={opponent ? `${isHome ? 'Home' : 'Away'} vs ${opponent}` : `${fixture.home_team_name} vs ${fixture.away_team_name}`}
+                        leading={<IconCircle iconClassName="fa fa-calendar" tone="neutral" />}
+                        title={title}
                         subtitle={`${formatMatchDate(fixture.date_played)} · ${fixture.round_name ?? fixture.status}`}
-                        trailing={score ? <Pill tone={result === 'W' ? 'accent' : 'neutral'}>{score}</Pill> : <Pill tone="neutral">{fixture.status}</Pill>}
+                        trailing={<Pill tone="neutral">{fixture.status}</Pill>}
                         onClick={() => navigateInActiveTab(`fixture/${fixture.id}`)}
                       />
                     );
