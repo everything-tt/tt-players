@@ -294,53 +294,65 @@ export function leaguesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     upcoming_fixtures: number;
                     last_scraped_at: Date | null;
                 }>`
-                    WITH standing_summary AS (
+                    WITH selected_competitions AS MATERIALIZED (
                         SELECT
                             c.id AS competition_id,
-                            COUNT(DISTINCT ls.team_id)::int AS teams,
-                            COALESCE(ROUND(SUM(ls.played)::numeric / 2), 0)::int AS matches_played
-                        FROM competitions c
-                        LEFT JOIN league_standings ls
-                          ON ls.competition_id = c.id
-                         AND ls.deleted_at IS NULL
-                        WHERE c.type = 'league'
-                          AND c.deleted_at IS NULL
-                        GROUP BY c.id
+                            c.last_scraped_at,
+                            l.id AS league_id,
+                            l.name AS league_name,
+                            s.id AS season_id,
+                            s.name AS season_name
+                        FROM leagues l
+                        JOIN seasons s
+                          ON s.league_id = l.id
+                         AND s.is_active = true
+                         AND s.deleted_at IS NULL
+                        JOIN competitions c
+                          ON c.season_id = s.id
+                         AND c.type = 'league'
+                         AND c.deleted_at IS NULL
+                        WHERE l.deleted_at IS NULL
+                          AND (${leagueIds.length} = 0 OR l.id = ANY(${sql`ARRAY[${sql.join(leagueIds.map((id) => sql`${id}::uuid`))}]::uuid[]`}))
+                    ),
+                    standing_summary AS (
+                        SELECT
+                            selected.competition_id,
+                            COUNT(DISTINCT standings.team_id)::int AS teams,
+                            COALESCE(ROUND(SUM(standings.played)::numeric / 2), 0)::int AS matches_played
+                        FROM selected_competitions selected
+                        LEFT JOIN league_standings standings
+                          ON standings.competition_id = selected.competition_id
+                         AND standings.deleted_at IS NULL
+                        GROUP BY selected.competition_id
                     ),
                     upcoming_summary AS (
                         SELECT
-                            f.competition_id,
-                            COUNT(*)::int AS upcoming_fixtures
-                        FROM fixtures f
-                        WHERE f.status = 'upcoming'
-                          AND f.deleted_at IS NULL
-                        GROUP BY f.competition_id
+                            selected.competition_id,
+                            COUNT(fixtures.id)::int AS upcoming_fixtures
+                        FROM selected_competitions selected
+                        LEFT JOIN fixtures
+                          ON fixtures.competition_id = selected.competition_id
+                         AND fixtures.status = 'upcoming'
+                         AND fixtures.deleted_at IS NULL
+                        GROUP BY selected.competition_id
                     )
                     SELECT
-                        l.id,
-                        l.name,
-                        s.id AS season_id,
-                        s.name AS season,
-                        COUNT(DISTINCT c.id)::int AS divisions,
-                        COALESCE(SUM(ss.teams), 0)::int AS teams,
-                        COALESCE(SUM(ss.matches_played), 0)::int AS matches_played,
-                        COALESCE(SUM(us.upcoming_fixtures), 0)::int AS upcoming_fixtures,
-                        MAX(c.last_scraped_at) AS last_scraped_at
-                    FROM leagues l
-                    JOIN seasons s
-                      ON s.league_id = l.id
-                     AND s.is_active = true
-                     AND s.deleted_at IS NULL
-                    JOIN competitions c
-                      ON c.season_id = s.id
-                     AND c.type = 'league'
-                     AND c.deleted_at IS NULL
-                    LEFT JOIN standing_summary ss ON ss.competition_id = c.id
-                    LEFT JOIN upcoming_summary us ON us.competition_id = c.id
-                    WHERE l.deleted_at IS NULL
-                      AND (${leagueIds.length} = 0 OR l.id = ANY(${sql`ARRAY[${sql.join(leagueIds.map((id) => sql`${id}::uuid`))}]::uuid[]`}))
-                    GROUP BY l.id, l.name, s.id, s.name
-                    ORDER BY l.name ASC
+                        selected.league_id AS id,
+                        selected.league_name AS name,
+                        selected.season_id,
+                        selected.season_name AS season,
+                        COUNT(selected.competition_id)::int AS divisions,
+                        COALESCE(SUM(standing_summary.teams), 0)::int AS teams,
+                        COALESCE(SUM(standing_summary.matches_played), 0)::int AS matches_played,
+                        COALESCE(SUM(upcoming_summary.upcoming_fixtures), 0)::int AS upcoming_fixtures,
+                        MAX(selected.last_scraped_at) AS last_scraped_at
+                    FROM selected_competitions selected
+                    LEFT JOIN standing_summary
+                      ON standing_summary.competition_id = selected.competition_id
+                    LEFT JOIN upcoming_summary
+                      ON upcoming_summary.competition_id = selected.competition_id
+                    GROUP BY selected.league_id, selected.league_name, selected.season_id, selected.season_name
+                    ORDER BY selected.league_name ASC
                 `.execute(db);
 
                 return reply.send({
@@ -848,16 +860,15 @@ export function leaguesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     });
                 }
 
-                const [snapshot, totalPlayerIds] = await Promise.all([
-                    // Active competition snapshot
-                    sql<{
+                const snapshot = await sql<{
                     division_id: string;
                     division_name: string;
                     teams: number;
                     players: number;
                     matches: number;
+                    total_players: number;
                 }>`
-                    WITH active_competitions AS (
+                    WITH active_competitions AS MATERIALIZED (
                         SELECT c.id, c.name
                         FROM competitions c
                         JOIN seasons s ON s.id = c.season_id
@@ -877,7 +888,7 @@ export function leaguesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         WHERE ls.deleted_at IS NULL
                         GROUP BY ls.competition_id
                     ),
-                    player_appearances AS (
+                    player_appearances AS MATERIALIZED (
                         SELECT f.competition_id, r.home_player_1_id AS player_id
                         FROM fixtures f
                         JOIN active_competitions ac ON ac.id = f.competition_id
@@ -914,59 +925,24 @@ export function leaguesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         SELECT competition_id, COUNT(DISTINCT player_id)::int AS players
                         FROM player_appearances
                         GROUP BY competition_id
+                    ),
+                    total_players AS (
+                        SELECT COUNT(DISTINCT player_id)::int AS players
+                        FROM player_appearances
                     )
                     SELECT
                         ac.id AS division_id,
                         ac.name AS division_name,
                         COALESCE(sc.teams, 0)::int AS teams,
                         COALESCE(pc.players, 0)::int AS players,
-                        COALESCE(sc.matches, 0)::int AS matches
+                        COALESCE(sc.matches, 0)::int AS matches,
+                        total_players.players AS total_players
                     FROM active_competitions ac
+                    CROSS JOIN total_players
                     LEFT JOIN standing_counts sc ON sc.competition_id = ac.id
                     LEFT JOIN player_counts pc ON pc.competition_id = ac.id
                     ORDER BY ac.name ASC
-                `.execute(db),
-                    // Unique player count
-                sql<{ players: number }>`
-                    WITH active_competitions AS (
-                        SELECT c.id
-                        FROM competitions c
-                        JOIN seasons s ON s.id = c.season_id
-                        WHERE s.league_id = ${id}
-                          AND s.is_active = true
-                          AND s.deleted_at IS NULL
-                          AND c.type = 'league'
-                          AND c.deleted_at IS NULL
-                    ),
-                    player_appearances AS (
-                        SELECT r.home_player_1_id AS player_id
-                        FROM fixtures f
-                        JOIN active_competitions ac ON ac.id = f.competition_id
-                        JOIN rubbers r ON r.fixture_id = f.id
-                        WHERE f.deleted_at IS NULL AND r.deleted_at IS NULL AND r.home_player_1_id IS NOT NULL
-                        UNION ALL
-                        SELECT r.home_player_2_id AS player_id
-                        FROM fixtures f
-                        JOIN active_competitions ac ON ac.id = f.competition_id
-                        JOIN rubbers r ON r.fixture_id = f.id
-                        WHERE f.deleted_at IS NULL AND r.deleted_at IS NULL AND r.home_player_2_id IS NOT NULL
-                        UNION ALL
-                        SELECT r.away_player_1_id AS player_id
-                        FROM fixtures f
-                        JOIN active_competitions ac ON ac.id = f.competition_id
-                        JOIN rubbers r ON r.fixture_id = f.id
-                        WHERE f.deleted_at IS NULL AND r.deleted_at IS NULL AND r.away_player_1_id IS NOT NULL
-                        UNION ALL
-                        SELECT r.away_player_2_id AS player_id
-                        FROM fixtures f
-                        JOIN active_competitions ac ON ac.id = f.competition_id
-                        JOIN rubbers r ON r.fixture_id = f.id
-                        WHERE f.deleted_at IS NULL AND r.deleted_at IS NULL AND r.away_player_2_id IS NOT NULL
-                    )
-                    SELECT COUNT(DISTINCT player_id)::int AS players
-                    FROM player_appearances
-                `.execute(db)
-                ]);
+                `.execute(db);
 
                 const divisions = snapshot.rows.map((row) => ({
                     divisionId: row.division_id,
@@ -982,7 +958,7 @@ export function leaguesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     totals: {
                         divisions: divisions.length,
                         teams: divisions.reduce((sum, division) => sum + division.teams, 0),
-                        players: Number(totalPlayerIds.rows[0]?.players ?? 0),
+                        players: Number(snapshot.rows[0]?.total_players ?? 0),
                         matches: divisions.reduce((sum, division) => sum + division.matches, 0),
                     },
                 });
