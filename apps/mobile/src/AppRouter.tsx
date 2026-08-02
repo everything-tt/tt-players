@@ -58,6 +58,7 @@ export function AppRouter() {
                 <Route path="/tabs/:tabId/team/:teamId" element={<EnsureValidTab><TeamPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/league/:leagueId" element={<EnsureValidTab><LeagueDetailPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/fixture/:fixtureId" element={<EnsureValidTab><FixturePage /></EnsureValidTab>} />
+                <Route path="/tabs/:tabId/h2h/:playerAId/:playerBId" element={<EnsureValidTab><H2HPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/h2h/:playerAId/:playerBId/common-opponents" element={<EnsureValidTab><CommonOpponentsPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/*" element={<TabRootRedirect />} />
 
