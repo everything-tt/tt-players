@@ -114,8 +114,19 @@ jobs:
             read -r captured skipped failed < <(node -e '
               const fs = require("node:fs");
               const items = JSON.parse(fs.readFileSync("ui-review-report/manifest.json", "utf8"));
-              const count = (status) => items.filter((item) => item.status === status).length;
-              process.stdout.write(`${count("captured")} ${count("skipped")} ${count("failed")}`);
+              const hasSevereEvent = (item) => {
+                try {
+                  const diagnostics = JSON.parse(fs.readFileSync(`ui-review-report/${item.diagnosticsPath}`, "utf8"));
+                  return Array.isArray(diagnostics.events)
+                    && diagnostics.events.some((event) => event.type === "pageerror" || event.type === "response");
+                } catch {
+                  return false;
+                }
+              };
+              const failed = items.filter((item) => item.status === "captured" && hasSevereEvent(item)).length;
+              const captured = items.filter((item) => item.status === "captured" && !hasSevereEvent(item)).length;
+              const skipped = items.filter((item) => item.status === "skipped").length;
+              process.stdout.write(`${captured} ${skipped} ${failed}`);
             ')
           fi
           {
