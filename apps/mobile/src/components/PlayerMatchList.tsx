@@ -5,7 +5,6 @@ import {
   InfiniteListFooter,
   MatchRecordRow,
 } from '../ui/appkit';
-import { useTabNavigation } from '../navigation/tab-navigation';
 import { formatMatchDateParts } from '../player-match-list';
 import { playerMatchScore } from '../match-record';
 import type { RubberItem } from '../player-shared';
@@ -23,6 +22,7 @@ export interface PlayerMatchListProps {
   quickJournalEnabled: boolean;
   onOpenMatch: (match: RubberItem) => void;
   onOpenOpponent: (opponentId: string) => void;
+  onOpenH2H: (opponentId: string) => void;
   onQuickJournal: (match: RubberItem) => void;
   onLoadMore: () => void;
   onRetry: () => void | Promise<unknown>;
@@ -39,12 +39,11 @@ export function PlayerMatchList({
   quickJournalEnabled,
   onOpenMatch,
   onOpenOpponent,
+  onOpenH2H,
   onQuickJournal,
   onLoadMore,
   onRetry,
 }: PlayerMatchListProps) {
-  const { navigateInTab } = useTabNavigation();
-
   if (isLoadingInitial && matches.length === 0) {
     return <SkeletonList rows={6} />;
   }
@@ -91,7 +90,7 @@ export function PlayerMatchList({
             ...(opponentId ? [{
               iconClassName: 'fa fa-people-arrows',
               label: `Open head to head with ${match.opponent}`,
-              onClick: () => navigateInTab('h2h', `h2h/${playerId}/${opponentId}`),
+              onClick: () => onOpenH2H(opponentId),
               tone: 'neutral' as const,
             }] : []),
           ];
