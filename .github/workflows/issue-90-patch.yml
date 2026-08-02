@@ -1,0 +1,54 @@
+name: Apply issue 90 patch
+
+on:
+  push:
+    branches:
+      - fix/issue-90-player-search-page-first
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply focused source and test changes
+        run: python scripts/issue-90-patch.py
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.24.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check API
+        run: pnpm --filter @tt-players/api build
+
+      - name: Run page-first query-shape regression test
+        run: pnpm --filter @tt-players/api exec vitest run src/__tests__/player-search-query-shape.test.ts
+
+      - name: Commit focused implementation
+        run: |
+          rm scripts/issue-90-patch.py
+          rm .github/workflows/issue-90-patch.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/api/src/routes/players.ts \
+                  apps/api/src/__tests__/search-pagination.integration.test.ts \
+                  apps/api/src/__tests__/player-search-query-shape.test.ts \
+                  docs/superpowers/plans/2026-08-02-player-search-page-first-stats.md \
+                  scripts/issue-90-patch.py \
+                  .github/workflows/issue-90-patch.yml
+          git commit -m "fix(api): page player search before aggregating stats"
+          git push origin HEAD
