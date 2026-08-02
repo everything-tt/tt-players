@@ -142,7 +142,8 @@ test('reviews inline dates and direct match actions', async ({ page }, testInfo)
   await prepareAppState(page);
   const player = await findPlayer(page, previewUrl);
 
-  await page.addInitScript(({ id, name }) => {
+  await page.goto(previewUrl, { waitUntil: 'domcontentloaded' });
+  await page.evaluate(({ id, name }) => {
     localStorage.setItem('tt_players_my_player', JSON.stringify({ id, name }));
   }, player);
 
@@ -189,7 +190,7 @@ test('reviews inline dates and direct match actions', async ({ page }, testInfo)
   await expect(otherFirstRow.getByRole('button', { name: /View (?:fixture|event) for match against/ })).toBeVisible();
   await capture(page, testInfo, 'other-player-single-action');
 
-  await page.addInitScript(({ id, name }) => {
+  await page.evaluate(({ id, name }) => {
     localStorage.setItem('tt_players_my_player', JSON.stringify({ id, name }));
   }, player);
   await openPlayer(page, previewUrl, player.id);
