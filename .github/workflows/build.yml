@@ -349,39 +349,13 @@ jobs:
           retention-days: 30
           path: ui-review-report/
 
-      - name: Deploy main UI audit report to Netlify
-        if: always() && hashFiles('ui-review-report/index.html') != ''
-        id: report
-        uses: nwtgck/actions-netlify@v3.0
-        with:
-          publish-dir: ./ui-review-report
-          production-branch: main
-          production-deploy: false
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          deploy-message: "Main UI audit for ${{ github.sha }}"
-          alias: ui-audit-main
-          enable-pull-request-comment: false
-          enable-commit-comment: false
-          enable-commit-status: false
-          enable-github-deployment: false
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-        timeout-minutes: 5
-
       - name: Add main UI audit summary
         if: always()
-        env:
-          REPORT_URL: ${{ steps.report.outputs.deploy-url }}
         run: |
           {
             echo "## Main UI audit"
             echo
             echo "- Deployment: $PREVIEW_URL"
             echo "- Commit: \`${GITHUB_SHA::7}\`"
-            if [ -n "$REPORT_URL" ]; then
-              echo "- Report: $REPORT_URL"
-            else
-              echo "- Report: not published; inspect the uploaded artifact and job logs"
-            fi
+            echo "- Report: uploaded as a GitHub Actions artifact"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -25,14 +25,16 @@ test('main UI audit is post-deploy and non-blocking', async () => {
   assert.match(job, /playwright\.main-audit\.config\.ts/);
 });
 
-test('main UI audit always publishes evidence without creating PR comments', async () => {
+test('main UI audit retains evidence without deploying it to the production Netlify site', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
   const job = extractJob(workflow, 'main-ui-audit');
 
   assert.match(job, /name:\s*main-ui-audit-\$\{\{ github\.sha \}\}/);
   assert.match(job, /if:\s*always\(\)/);
-  assert.match(job, /alias:\s*ui-audit-main/);
   assert.match(job, /GITHUB_STEP_SUMMARY/);
+  assert.doesNotMatch(job, /actions-netlify/);
+  assert.doesNotMatch(job, /NETLIFY_SITE_ID/);
+  assert.doesNotMatch(job, /Deploy main UI audit report to Netlify/);
   assert.doesNotMatch(job, /Comment UI screenshots on PR/);
 });
 
