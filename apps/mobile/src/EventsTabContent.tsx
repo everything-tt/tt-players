@@ -185,6 +185,7 @@ export function EventsTabContent() {
     <>
       <div className="tt-browse-controls">
         <SegmentedToggle
+          full
           ariaLabel="Tournament status"
           value={status}
           onChange={setStatus}
