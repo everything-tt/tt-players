@@ -132,8 +132,9 @@ test('reviews the canonical root shell and player profile', async ({ page }, tes
   await capture(page, testInfo, 'home-canonical-shell');
 
   await page.goto(`${previewUrl}/tabs/players`, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('search')).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole('searchbox')).toBeVisible();
+  const playerSearch = page.getByRole('search');
+  await expect(playerSearch).toBeVisible({ timeout: 30_000 });
+  await expect(playerSearch.getByRole('textbox')).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
   await page.goto(`${previewUrl}/tabs/players/player/${player!.id}`, { waitUntil: 'domcontentloaded' });
