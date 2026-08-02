@@ -12,6 +12,63 @@
   min-width: 0;
 }
 
+.tt-match-record-row.tt-list-item--split-actions {
+  position: relative;
+}
+
+.tt-match-record-row .tt-list-item__stretched-action {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: inherit;
+  cursor: pointer;
+  inset: 0;
+  padding: 0;
+  position: absolute;
+  width: 100%;
+  z-index: 1;
+}
+
+.tt-match-record-row .tt-list-item__clickable--split {
+  pointer-events: none;
+  position: relative;
+  z-index: 2;
+}
+
+.tt-match-record-row .tt-list-item__title-action {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: block;
+  font: inherit;
+  font-weight: 700;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0;
+  pointer-events: auto;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tt-match-record-row .tt-list-item__trailing {
+  position: relative;
+  z-index: 3;
+}
+
+.tt-match-record-row .tt-list-item__stretched-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.tt-match-record-row .tt-list-item__title-action:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .tt-match-record-score {
   align-items: center;
   background: var(--surface-subtle-strong);
