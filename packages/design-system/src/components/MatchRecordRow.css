@@ -15,29 +15,30 @@
 .tt-match-record-score {
   align-items: center;
   background: var(--surface-subtle-strong);
-  border: 1px solid var(--border-hairline);
-  border-radius: var(--radius-md);
+  border: 0;
+  border-radius: var(--radius-sm);
+  box-sizing: border-box;
   color: var(--ink);
   display: inline-flex;
-  flex: 0 0 54px;
+  flex: 0 0 44px;
   font-size: 17px;
   font-variant-numeric: tabular-nums;
   font-weight: 800;
+  height: 44px;
   justify-content: center;
   letter-spacing: -0.02em;
-  min-height: 46px;
-  padding: 0 6px;
+  min-height: 44px;
+  padding: 0 4px;
+  width: 44px;
 }
 
 .tt-match-record-score--win {
   background: color-mix(in oklch, var(--state-success) 12%, var(--surface-strong));
-  border-color: color-mix(in oklch, var(--state-success) 34%, var(--border-hairline));
   color: var(--state-success);
 }
 
 .tt-match-record-score--loss {
   background: color-mix(in oklch, var(--state-danger) 10%, var(--surface-strong));
-  border-color: color-mix(in oklch, var(--state-danger) 28%, var(--border-hairline));
   color: var(--state-danger);
 }
 
@@ -90,18 +91,7 @@
   color: var(--ink-muted);
 }
 
-.tt-match-record-row--standard .tt-match-record-score {
-  flex-basis: 60px;
-  min-height: 52px;
-}
-
 @media (max-width: 390px) {
-  .tt-match-record-score {
-    flex-basis: 50px;
-    font-size: 16px;
-    min-height: 44px;
-  }
-
   .tt-match-record-actions {
     gap: 2px;
   }
