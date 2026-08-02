@@ -90,7 +90,7 @@ export function MatchRecordRow({
     </span>
   ) : undefined;
 
-  if (onClick && primaryActionLabel && titleAction) {
+  if (onClick && primaryActionLabel) {
     return (
       <SplitActionListItem
         className={rowClassName}
