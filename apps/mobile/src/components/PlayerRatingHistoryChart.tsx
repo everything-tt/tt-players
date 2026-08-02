@@ -6,7 +6,7 @@ import {
   usePlayerRatingHistoryQuery,
 } from '../rating-queries';
 import { buildRatingHistorySummary } from '../rating-history-summary';
-import { FilterBar, PageSection } from '../ui/appkit';
+import { FilterBar, MetricGrid, PageSection } from '../ui/appkit';
 import { FormResultPills } from './FormResultPills';
 import { SkeletonBlock } from './Skeleton';
 
@@ -66,7 +66,7 @@ export function PlayerRatingHistoryChart({
       density="compact"
       className="tt-rating-history tt-insights-section"
       title="Rating & Form"
-      note="Weekly calculated rating and the latest singles results"
+      description="Weekly calculated rating and the latest singles results."
       action={(
         <button
           type="button"
@@ -120,22 +120,33 @@ export function PlayerRatingHistoryChart({
             <p className="tt-rating-history-state">Weekly history will appear after the rating-history rebuild has processed this player.</p>
           ) : (
             <>
-              <div className="tt-rating-history-summary" aria-label="Rating summary for selected range">
-                <div>
-                  <small>Current</small>
-                  <strong>{summary.current.toLocaleString('en-GB')}</strong>
-                </div>
-                <div>
-                  <small>Peak</small>
-                  <strong>{summary.peak.toLocaleString('en-GB')}</strong>
-                  <span>{formatShortDate(summary.peakDate)}</span>
-                </div>
-                <div>
-                  <small>Range change</small>
-                  <strong className={changeClassName(summary.rangeChange)}>{formatChange(summary.rangeChange)}</strong>
-                  <span>{rangeLabel(range)}</span>
-                </div>
-              </div>
+              <MetricGrid
+                ariaLabel="Rating summary for selected range"
+                columns={3}
+                density="compact"
+                className="tt-rating-history-summary"
+                metrics={[
+                  {
+                    label: 'Current',
+                    value: summary.current.toLocaleString('en-GB'),
+                    hint: 'latest rating',
+                  },
+                  {
+                    label: 'Peak',
+                    value: summary.peak.toLocaleString('en-GB'),
+                    hint: formatShortDate(summary.peakDate),
+                  },
+                  {
+                    label: 'Range change',
+                    value: (
+                      <span className={changeClassName(summary.rangeChange)}>
+                        {formatChange(summary.rangeChange)}
+                      </span>
+                    ),
+                    hint: rangeLabel(range),
+                  },
+                ]}
+              />
 
               <div className="tt-rating-history-chart-wrap">
                 <svg className="tt-rating-history-chart" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} role="img" aria-label={`Weekly rating history with ${history.length} points`}>
