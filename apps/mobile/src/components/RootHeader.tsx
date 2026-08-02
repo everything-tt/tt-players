@@ -4,7 +4,7 @@ interface RootHeaderProps {
   title: string;
   leagueBadge: string | number;
   onOpenMenu: () => void;
-  onOpenLeagues: () => void;
+  onOpenLeagues?: () => void;
   onOpenFeedback: () => void;
   onShare?: () => void;
 }
@@ -34,15 +34,17 @@ export function RootHeader({
         <h1 className="tt-root-header__title">{title}</h1>
 
         <div className="tt-root-header__actions">
-          <button
-            type="button"
-            className="tt-root-header__action tt-root-header__filter"
-            onClick={onOpenLeagues}
-            aria-label={leagueAriaLabel}
-          >
-            <i className="fas fa-filter" aria-hidden="true" />
-            {selectedCount > 0 ? <span className="tt-root-header__badge">{selectedCount}</span> : null}
-          </button>
+          {onOpenLeagues ? (
+            <button
+              type="button"
+              className="tt-root-header__action tt-root-header__filter"
+              onClick={onOpenLeagues}
+              aria-label={leagueAriaLabel}
+            >
+              <i className="fas fa-filter" aria-hidden="true" />
+              {selectedCount > 0 ? <span className="tt-root-header__badge">{selectedCount}</span> : null}
+            </button>
+          ) : null}
           <button type="button" className="tt-root-header__action" onClick={onOpenFeedback} aria-label="Send feedback">
             <i className="fas fa-comment-dots" aria-hidden="true" />
           </button>
