@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // PR #89 after merging current main. Replace this filename for the next UI PR.
-  testMatch: 'zz-player-insights-report.pw.ts',
+  // PR #96. Replace this filename for the next UI PR.
+  testMatch: 'zz-full-page-league-scope.pw.ts',
 
   timeout: 120_000,
   expect: {
