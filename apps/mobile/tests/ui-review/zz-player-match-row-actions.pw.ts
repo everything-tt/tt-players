@@ -28,15 +28,14 @@ interface LeaguesResponse {
   data: Array<{ id: string }>;
 }
 
-interface LeagueCollectionDashboardResponse {
-  recent_results: Array<{ fixture_id: string }>;
+interface LeagueResult {
+  fixture_id: string;
+  home_team_id: string | null;
+  away_team_id: string | null;
 }
 
-interface FixtureRubbersResponse {
-  fixture: {
-    home_team_id: string | null;
-    away_team_id: string | null;
-  };
+interface LeagueDashboardResponse {
+  recent_results: LeagueResult[];
 }
 
 interface EventsResponse {
@@ -128,6 +127,17 @@ async function findPlayer(page: Page, previewUrl: string) {
   const player = payload.data.find((item) => item.name === 'Wudong Liu') ?? payload.data[0];
   expect(player).toBeTruthy();
   return player!;
+}
+
+async function findLeagueWithResult(page: Page, previewUrl: string, leagueIds: string[]) {
+  for (const leagueId of leagueIds) {
+    const response = await page.request.get(`${previewUrl}/api/leagues/${leagueId}/dashboard`);
+    if (!response.ok()) continue;
+    const dashboard = await response.json() as LeagueDashboardResponse;
+    const result = dashboard.recent_results.find((item) => item.home_team_id || item.away_team_id);
+    if (result) return { leagueId, result };
+  }
+  throw new Error('No league with a recent result and team id was available for UI review.');
 }
 
 async function openPlayer(page: Page, previewUrl: string, playerId: string) {
@@ -238,20 +248,17 @@ test('reviews score-led match records across the app', async ({ page }, testInfo
   const leagues = await leaguesResponse.json() as LeaguesResponse;
   const leagueIds = leagues.data.map((league) => league.id);
   expect(leagueIds.length).toBeGreaterThan(0);
-
-  const dashboardResponse = await page.request.get(`${previewUrl}/api/leagues/dashboard`);
-  expect(dashboardResponse.ok()).toBe(true);
-  const dashboard = await dashboardResponse.json() as LeagueCollectionDashboardResponse;
-  expect(dashboard.recent_results.length).toBeGreaterThan(0);
-  const recentFixtureId = dashboard.recent_results[0]!.fixture_id;
+  const scopedLeague = await findLeagueWithResult(page, previewUrl, leagueIds);
 
   await page.goto(`${previewUrl}/tabs/home`, { waitUntil: 'domcontentloaded' });
-  await page.evaluate((ids) => {
-    localStorage.setItem('tt_players_selected_league_ids', JSON.stringify(ids));
-  }, leagueIds);
+  await page.evaluate((leagueId) => {
+    localStorage.setItem('tt_players_selected_league_ids', JSON.stringify([leagueId]));
+  }, scopedLeague.leagueId);
   const homeDashboardResponse = page.waitForResponse((response) => {
     const url = new URL(response.url());
-    return url.pathname.endsWith('/api/leagues/dashboard') && response.status() === 200;
+    return url.pathname.endsWith('/api/leagues/dashboard')
+      && url.searchParams.get('league_ids') === scopedLeague.leagueId
+      && response.status() === 200;
   });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await homeDashboardResponse;
@@ -260,12 +267,8 @@ test('reviews score-led match records across the app', async ({ page }, testInfo
   await assertScoreLedRow(latestResults.locator('.tt-match-record-row').first());
   await capture(page, testInfo, 'home-latest-results');
 
-  const fixtureResponse = await page.request.get(`${previewUrl}/api/fixtures/${recentFixtureId}/rubbers`);
-  expect(fixtureResponse.ok()).toBe(true);
-  const fixture = await fixtureResponse.json() as FixtureRubbersResponse;
-  const teamId = fixture.fixture.home_team_id ?? fixture.fixture.away_team_id;
+  const teamId = scopedLeague.result.home_team_id ?? scopedLeague.result.away_team_id;
   expect(teamId).toBeTruthy();
-
   const teamFixturesResponse = page.waitForResponse((response) => (
     new URL(response.url()).pathname.endsWith(`/api/teams/${teamId}/fixtures`)
       && response.status() === 200
