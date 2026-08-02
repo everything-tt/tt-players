@@ -54,8 +54,9 @@ describe('tournamentScore', () => {
     });
   });
 
-  it('falls back to outcome when tournament game scores are missing', () => {
+  it('falls back to outcome when tournament game scores are missing or omitted', () => {
     expect(tournamentScore({ firstScore: null, secondScore: null, won: true }).value).toBe('W');
     expect(tournamentScore({ firstScore: null, secondScore: null, won: false }).value).toBe('L');
+    expect(tournamentScore({ firstScore: undefined, secondScore: undefined, won: true }).value).toBe('W');
   });
 });
