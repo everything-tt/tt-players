@@ -102,7 +102,7 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('reviews summary, rating, ranked rivals and career story', async ({ page }, testInfo) => {
+test('reviews the design-system player insights report', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
   await prepareAppState(page);
 
@@ -144,8 +144,14 @@ test('reviews summary, rating, ranked rivals and career story', async ({ page },
   await insightsResponse;
 
   await expect(page.getByRole('heading', { name: 'Insights Summary' })).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('.tt-insights-metric')).toHaveCount(4);
+  await expect(page.locator('.tt-insights-card')).toHaveCount(0);
+  await expect(page.locator('.tt-rivals-panel')).toHaveCount(0);
+  await expect(page.locator('.tt-career-highlight')).toHaveCount(0);
+  await expect(page.locator('.tt-career-table')).toHaveCount(0);
+  await expect(page.locator('.tt-insights-page .tt-section')).toHaveCount(4);
+  await expect(page.getByLabel('Insights summary metrics').locator('.tt-metric')).toHaveCount(4);
   await expect(page.getByRole('heading', { name: 'Rating & Form' })).toBeVisible();
+  await expect(page.getByLabel('Rating summary for selected range').locator('.tt-metric')).toHaveCount(3);
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, 'player-insights-summary-rating');
 
@@ -165,8 +171,10 @@ test('reviews summary, rating, ranked rivals and career story', async ({ page },
   await page.evaluate(() => window.scrollBy(0, -86));
   await expect.poll(async () => (await careerSection.boundingBox())?.y ?? Number.POSITIVE_INFINITY)
     .toBeLessThan(130);
-  await expect(page.locator('.tt-career-highlight')).toHaveCount(4);
-  await expect(page.locator('.tt-career-row').first()).toBeVisible();
+  await expect(page.getByLabel('Career highlights').locator('.tt-metric')).toHaveCount(4);
+  const firstSeason = page.locator('.tt-career-season-row').first();
+  await expect(firstSeason).toBeVisible();
+  await expect(firstSeason.locator('i.fa-angle-right')).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, 'player-insights-career-narrow');
 
