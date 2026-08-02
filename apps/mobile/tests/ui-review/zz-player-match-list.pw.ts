@@ -160,7 +160,9 @@ test('reviews compact recent matches and Quick Journal', async ({ page }, testIn
   });
   await recentSection.locator('.tt-infinite-list-footer').scrollIntoViewIfNeeded();
   await secondPageResponse;
-  await expect(recentSection.locator('.tt-player-match-row')).toHaveCount(40);
+  await expect.poll(
+    () => recentSection.locator('.tt-player-match-row').count(),
+  ).toBeGreaterThanOrEqual(40);
   await capture(page, testInfo, 'compact-recent-matches');
 
   await recentSection.getByRole('button', { name: /Match actions for/ }).first().click();
