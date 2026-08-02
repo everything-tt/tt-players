@@ -5,9 +5,9 @@ import {
   AppSearchInput,
   BottomSheet,
   Checkbox,
+  DesignList,
   EmptyState,
   ErrorState,
-  List,
   ListItem,
   SectionHeader,
   SegmentedToggle,
@@ -236,7 +236,7 @@ export function LeagueSelectionPage({
                     message={isSearching ? 'Try another search term.' : 'Use Leagues or Areas to build your scope.'}
                   />
                 ) : (
-                  <List className="tt-league-scope__list" divider="hairline">
+                  <DesignList density="compact" divider="hairline">
                     {filteredSelected.map((league) => (
                       <ListItem
                         key={league.id}
@@ -257,7 +257,7 @@ export function LeagueSelectionPage({
                         hideChevron
                       />
                     ))}
-                  </List>
+                  </DesignList>
                 )}
               </section>
             ) : null}
@@ -278,7 +278,7 @@ export function LeagueSelectionPage({
                     message={`No leagues match “${query.trim()}”. Try a league, season or area name.`}
                   />
                 ) : (
-                  <List className="tt-league-scope__list" divider="hairline">
+                  <DesignList density="compact" divider="hairline">
                     {filteredLeagues.map((league) => {
                       const isSelected = selectedLeagueIdSet.has(league.id);
                       const isBlocked = !isSelected && isAtSelectionLimit;
@@ -299,7 +299,7 @@ export function LeagueSelectionPage({
                         />
                       );
                     })}
-                  </List>
+                  </DesignList>
                 )}
               </section>
             ) : null}
@@ -320,7 +320,7 @@ export function LeagueSelectionPage({
                     message={regionBuckets.length === 0 ? undefined : 'No areas match your search.'}
                   />
                 ) : (
-                  <List className="tt-league-scope__list" divider="hairline">
+                  <DesignList density="compact" divider="hairline">
                     {filteredRegions.map((region) => {
                       const selectedInRegion = region.leagueIds.filter((leagueId) => selectedLeagueIdSet.has(leagueId)).length;
                       const isFullySelected = selectedInRegion === region.leagueIds.length;
@@ -338,7 +338,7 @@ export function LeagueSelectionPage({
                         />
                       );
                     })}
-                  </List>
+                  </DesignList>
                 )}
               </section>
             ) : null}
