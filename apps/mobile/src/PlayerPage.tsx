@@ -238,6 +238,10 @@ export function PlayerPage() {
     navigateInActiveTab(`player/${opponentId}`);
   };
 
+  const openH2H = (opponentId: string) => {
+    navigateInTab('h2h', `h2h/${playerId}/${opponentId}`);
+  };
+
   const openQuickJournal = (match: RubberItem) => {
     navigateInActiveTab(buildQuickJournalPath(playerId, match));
   };
@@ -454,6 +458,7 @@ export function PlayerPage() {
                 quickJournalEnabled={isCurrentUser}
                 onOpenMatch={openMatch}
                 onOpenOpponent={openOpponent}
+                onOpenH2H={openH2H}
                 onQuickJournal={openQuickJournal}
                 onLoadMore={recentMatchesState.loadMore}
                 onRetry={recentMatchesState.retry}
