@@ -32,7 +32,9 @@ async function prepareAppState(page: Page) {
     localStorage.setItem('tt_players_selected_league_ids', JSON.stringify([]));
     localStorage.setItem('TTPlayers-Theme', 'light-mode');
     localStorage.setItem('pwa-install-dismissed', Date.now().toString());
-    localStorage.removeItem('tt_players_my_player');
+    if (sessionStorage.getItem('tt_test_keep_my_player') !== 'true') {
+      localStorage.removeItem('tt_players_my_player');
+    }
   });
 }
 
@@ -165,6 +167,7 @@ test('keeps the player profile hero compact, padded and behaviourally complete',
 
   await page.evaluate(({ id, name }) => {
     localStorage.setItem('tt_players_my_player', JSON.stringify({ id, name }));
+    sessionStorage.setItem('tt_test_keep_my_player', 'true');
   }, player!);
   await page.reload({ waitUntil: 'domcontentloaded' });
 
