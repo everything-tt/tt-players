@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
+import { useTabNavigation } from '../navigation/tab-navigation';
 import { ratingConfidenceLabel, useRatingPredictionQuery } from '../rating-queries';
 import { usePlayerH2HQuery } from '../queries';
 import { useH2HAnalysisQuery } from '../h2h-analysis-query';
 import {
+  AppButton,
   DesignAvatar,
   DesignList,
   EmptyState,
@@ -23,6 +25,7 @@ interface RatingPredictionPanelProps {
   playerB: PredictionPlayer;
   actions?: ReactNode;
   encounterCount?: number;
+  onOpenCommonOpponents?: () => void;
 }
 
 function signed(value: number | null): string {
@@ -40,10 +43,14 @@ export function RatingPredictionPanel({
   playerB,
   actions,
   encounterCount = 0,
+  onOpenCommonOpponents,
 }: RatingPredictionPanelProps) {
+  const { navigateInTab } = useTabNavigation();
   const predictionQuery = useRatingPredictionQuery(playerA.id, playerB.id, true);
   const h2hQuery = usePlayerH2HQuery(playerA.id, playerB.id, true);
   const analysisQuery = useH2HAnalysisQuery(playerA.id, playerB.id, true);
+  const openCommonOpponents = onOpenCommonOpponents ?? (() =>
+    navigateInTab('h2h', `h2h/${playerA.id}/${playerB.id}/common-opponents`));
 
   const prediction = predictionQuery.data ?? null;
   const h2h = h2hQuery.data ?? null;
@@ -174,6 +181,7 @@ export function RatingPredictionPanel({
               trailing={analysis.common_opponents.total > 0
                 ? <strong>{edgeLabel(analysis.common_opponents.aggregate_edge, playerA.name, playerB.name)}</strong>
                 : undefined}
+              onClick={analysis.common_opponents.total > 0 ? openCommonOpponents : undefined}
               hideChevron
             />
             <ListItem
@@ -204,6 +212,17 @@ export function RatingPredictionPanel({
                 : 'Indirect comparison'}
             </Pill>
           )}
+          action={analysis.common_opponents.total > 0 ? (
+            <AppButton
+              size="s"
+              tone="ghost"
+              onClick={openCommonOpponents}
+              aria-label={`View all ${analysis.common_opponents.total} common opponents`}
+            >
+              View all
+              <i className="fa fa-angle-right" aria-hidden="true" />
+            </AppButton>
+          ) : undefined}
         >
           {analysis.common_opponents.data.length === 0 ? (
             <EmptyState
@@ -212,8 +231,8 @@ export function RatingPredictionPanel({
               message="This comparison will appear once both players have faced at least one of the same opponents."
             />
           ) : (
-            <DesignList density="compact" divider="hairline" paginate initialVisibleCount={5} pageSize={5}>
-              {analysis.common_opponents.data.map((opponent) => (
+            <DesignList density="compact" divider="hairline" paginate={false}>
+              {analysis.common_opponents.data.slice(0, 5).map((opponent) => (
                 <ListItem
                   key={opponent.opponent_id}
                   leading={<DesignAvatar size="compact" text={opponent.opponent_name.slice(0, 2).toUpperCase()} />}

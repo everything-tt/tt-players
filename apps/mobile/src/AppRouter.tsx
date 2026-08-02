@@ -3,6 +3,7 @@ import App from './App';
 import './ratings-enhancements.css';
 import './mobile-polish.css';
 import { AboutPage } from './AboutPage';
+import { CommonOpponentsPage } from './CommonOpponentsPage';
 import { DataCoveragePage } from './DataCoveragePage';
 import { DesignSystemPage } from './DesignSystemPage';
 import { FixturePage } from './FixturePage';
@@ -57,6 +58,7 @@ export function AppRouter() {
                 <Route path="/tabs/:tabId/team/:teamId" element={<EnsureValidTab><TeamPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/league/:leagueId" element={<EnsureValidTab><LeagueDetailPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/fixture/:fixtureId" element={<EnsureValidTab><FixturePage /></EnsureValidTab>} />
+                <Route path="/tabs/:tabId/h2h/:playerAId/:playerBId/common-opponents" element={<EnsureValidTab><CommonOpponentsPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/*" element={<TabRootRedirect />} />
 
                 <Route path="/about" element={<AboutPage />} />
@@ -69,6 +71,7 @@ export function AppRouter() {
                 <Route path="/players/:playerId/journal" element={<MatchJournalPage />} />
                 <Route path="/teams/:teamId" element={<TeamPage />} />
                 <Route path="/tournaments/:eventId" element={<EventDetailPage />} />
+                <Route path="/h2h/:playerAId/:playerBId/common-opponents" element={<CommonOpponentsPage />} />
                 <Route path="/h2h/:playerAId/:playerBId" element={<H2HPage />} />
                 <Route path="*" element={<Navigate to="/tabs/home" replace />} />
               </Routes>

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { MatchRecordRow } from './ui/appkit';
@@ -55,5 +56,18 @@ describe('MatchRecordRow', () => {
     expect(markup).toContain('Quick Journal');
     expect(markup).toContain('View fixture');
     expect(markup).toContain('tt-match-record-actions');
+  });
+
+  it('uses one compact player-list-sized badge for detailed and outcome-only scores', () => {
+    const css = readFileSync(
+      new URL('../../../packages/design-system/src/components/MatchRecordRow.css', import.meta.url),
+      'utf8',
+    );
+
+    expect(css).toContain('flex: 0 0 44px;');
+    expect(css).toContain('height: 44px;');
+    expect(css).toContain('width: 44px;');
+    expect(css).toContain('border-radius: var(--radius-sm);');
+    expect(css).not.toContain('.tt-match-record-row--standard .tt-match-record-score');
   });
 });
