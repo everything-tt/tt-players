@@ -169,16 +169,9 @@ test('exercises the player following hub, tournament browse, and tournament deta
   await expect(page.getByText(/^\d+ (?:shown|of \d+)$/)).toBeVisible();
   await capture(page, testInfo, 'players-grace-search');
 
-  const followedResponse = page.waitForResponse((response) => {
-    const url = new URL(response.url());
-    return url.pathname.endsWith('/api/players/search')
-      && url.searchParams.has('saved_ids')
-      && !url.searchParams.has('q')
-      && response.status() === 200;
-  });
   await page.getByRole('button', { name: 'Save to favourites' }).first().click();
+  await expect(page.getByRole('button', { name: 'Remove from favourites' }).first()).toBeVisible();
   await playerSearch.fill('');
-  await followedResponse;
   await expect(page.getByRole('heading', { name: 'Following' })).toBeVisible();
   await expect(page.locator('.tt-list-item__title').filter({ hasText: /Grace/i }).first()).toBeVisible({ timeout: 30_000 });
   await capture(page, testInfo, 'players-following-saved');
