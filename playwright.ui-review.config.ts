@@ -1,8 +1,20 @@
+/**
+ * UI PR PLAYWRIGHT CONFIG — AGENT INSTRUCTIONS
+ *
+ * Every UI pull request should add its own focused Playwright scenario file.
+ * Update `testMatch` below to point only to the scenario file for the current
+ * PR, replacing the previous PR's filename. Do not run every UI-review spec in
+ * the PR pipeline. Existing scenario files may remain in the repository for
+ * reference or manual regression runs.
+ */
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
-  testMatch: '**/*.pw.ts',
+
+  // PR #84 focused scenario. Replace this filename for the next UI PR.
+  testMatch: 'zz-native-search.pw.ts',
+
   timeout: 120_000,
   expect: {
     timeout: 10_000,
