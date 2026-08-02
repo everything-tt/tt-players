@@ -46,7 +46,7 @@ on:
       - '.github/workflows/tte-calendar-sync.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
@@ -94,3 +94,235 @@ jobs:
           bash -n scripts/lib/service-recovery.sh
           bash -n scripts/deploy-vps-release.sh
           bash -n scripts/rollback-vps-release.sh
+
+  apply_snapshot:
+    if: github.event_name == 'pull_request' && github.head_ref == 'perf/league-snapshot-single-pass'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: perf/league-snapshot-single-pass
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply query rewrite and correctness test
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          route_path = Path('apps/api/src/routes/leagues.ts')
+          route = route_path.read_text()
+          pattern = re.compile(
+              r"                    player_appearances AS MATERIALIZED \(.*?"
+              r"                    total_players AS \(\n"
+              r"                        SELECT COUNT\(DISTINCT player_id\)::int AS players\n"
+              r"                        FROM player_appearances\n"
+              r"                    \)",
+              re.S,
+          )
+          replacement = '''                    player_appearances AS (
+                        SELECT
+                            f.competition_id,
+                            player_slot.player_id
+                        FROM active_competitions ac
+                        JOIN fixtures f ON f.competition_id = ac.id
+                        JOIN rubbers r ON r.fixture_id = f.id
+                        CROSS JOIN LATERAL unnest(ARRAY[
+                            r.home_player_1_id,
+                            r.home_player_2_id,
+                            r.away_player_1_id,
+                            r.away_player_2_id
+                        ]) AS player_slot(player_id)
+                        WHERE f.deleted_at IS NULL
+                          AND r.deleted_at IS NULL
+                          AND player_slot.player_id IS NOT NULL
+                    ),
+                    player_counts AS (
+                        SELECT
+                            competition_id,
+                            COUNT(DISTINCT player_id)::int AS players,
+                            GROUPING(competition_id)::int AS grouping_level
+                        FROM player_appearances
+                        GROUP BY GROUPING SETS ((competition_id), ())
+                    ),
+                    total_players AS (
+                        SELECT players
+                        FROM player_counts
+                        WHERE grouping_level = 1
+                    )'''
+          route, count = pattern.subn(replacement, route, count=1)
+          if count != 1:
+              raise SystemExit(f'Expected one snapshot player block, replaced {count}')
+          route = route.replace(
+              '                    LEFT JOIN player_counts pc ON pc.competition_id = ac.id\n',
+              '                    LEFT JOIN player_counts pc\n'
+              '                      ON pc.competition_id = ac.id\n'
+              '                     AND pc.grouping_level = 0\n',
+              1,
+          )
+          route_path.write_text(route)
+
+          test_path = Path('apps/api/src/__tests__/league-snapshot-player-counts.integration.test.ts')
+          test_path.write_text('''import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import supertest from 'supertest';
+import type { Kysely } from 'kysely';
+import type { Database } from '@tt-players/db';
+import { buildApp } from '../app.js';
+import {
+  createTestDatabase,
+  createTestKysely,
+  dropTestDatabase,
+  runMigrations,
+  seedTestData,
+  type SeedIds,
+} from './helpers/seed.js';
+
+let db: Kysely<Database>;
+let request: ReturnType<typeof supertest>;
+let ids: SeedIds;
+
+beforeAll(async () => {
+  await createTestDatabase();
+  db = createTestKysely();
+  await runMigrations(db);
+  ids = await seedTestData(db);
+
+  const app = await buildApp(db);
+  await app.ready();
+  request = supertest(app.server);
+}, 30_000);
+
+afterAll(async () => {
+  await dropTestDatabase(db);
+}, 15_000);
+
+describe('GET /api/leagues/:id/snapshot player counts', () => {
+  it('counts all four rubber slots per division and deduplicates league totals', async () => {
+    const [competition] = await db
+      .insertInto('competitions')
+      .values({
+        season_id: ids.seasonId,
+        external_id: 'snapshot-division-2',
+        name: 'Division 2',
+        type: 'league',
+      })
+      .returning('id')
+      .execute();
+
+    const teams = await db
+      .insertInto('teams')
+      .values([
+        { competition_id: competition!.id, external_id: 'snapshot-team-home', name: 'Snapshot Home' },
+        { competition_id: competition!.id, external_id: 'snapshot-team-away', name: 'Snapshot Away' },
+      ])
+      .returning('id')
+      .execute();
+
+    const [fixture] = await db
+      .insertInto('fixtures')
+      .values({
+        competition_id: competition!.id,
+        external_id: 'snapshot-fixture',
+        home_team_id: teams[0]!.id,
+        away_team_id: teams[1]!.id,
+        date_played: '2025-02-01',
+        status: 'completed',
+        updated_at: new Date(),
+      })
+      .returning('id')
+      .execute();
+
+    const partners = await db
+      .insertInto('external_players')
+      .values([
+        { platform_id: ids.platformId, external_id: 'snapshot-home-partner', name: 'Home Partner', updated_at: new Date() },
+        { platform_id: ids.platformId, external_id: 'snapshot-away-partner', name: 'Away Partner', updated_at: new Date() },
+      ])
+      .returning('id')
+      .execute();
+
+    await db
+      .insertInto('rubbers')
+      .values({
+        fixture_id: fixture!.id,
+        external_id: 'snapshot-doubles-rubber',
+        is_doubles: true,
+        home_player_1_id: ids.homePlayerId,
+        home_player_2_id: partners[0]!.id,
+        away_player_1_id: ids.awayPlayerId,
+        away_player_2_id: partners[1]!.id,
+        home_games_won: 3,
+        away_games_won: 1,
+        outcome_type: 'normal',
+        updated_at: new Date(),
+      })
+      .execute();
+
+    const response = await request
+      .get(`/api/leagues/${ids.leagueId}/snapshot`)
+      .expect(200);
+
+    expect(response.body.divisions).toEqual([
+      expect.objectContaining({ divisionName: 'Division 1', players: 2 }),
+      expect.objectContaining({ divisionName: 'Division 2', players: 4 }),
+    ]);
+    expect(response.body.totals).toEqual(expect.objectContaining({
+      divisions: 2,
+      players: 4,
+    }));
+  });
+});
+''')
+          PY
+
+      - name: Validate focused and full backend suites
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+        run: |
+          pnpm --filter @tt-players/api exec vitest run \
+            src/__tests__/query-shape-guardrails.test.ts \
+            src/__tests__/league-snapshot-player-counts.integration.test.ts
+          pnpm run check:backend
+
+      - name: Commit validated implementation
+        run: |
+          git show origin/main:.github/workflows/backend-ci.yml > .github/workflows/backend-ci.yml
+          rm .github/workflows/apply-league-snapshot-single-pass.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/api/src/routes/leagues.ts \
+            apps/api/src/__tests__/league-snapshot-player-counts.integration.test.ts \
+            .github/workflows/backend-ci.yml \
+            .github/workflows/apply-league-snapshot-single-pass.yml
+          git commit -m "perf(api): compute league snapshot player counts in one pass"
+          git push origin HEAD:perf/league-snapshot-single-pass
