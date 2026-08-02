@@ -33,12 +33,28 @@ describe('unified player profile hero', () => {
     expect(heroSource).toContain(': (');
   });
 
+  it('matches the approved compact mock at narrow mobile widths', () => {
+    const heroSource = read('./PlayerProfileHero.tsx');
+    const styles = read('../player-profile-hero.css');
+
+    expect(heroSource.indexOf('tt-player-profile-eyebrow')).toBeLessThan(heroSource.indexOf('tt-player-profile-identity'));
+    expect(heroSource).toContain('View History');
+    expect(heroSource).toContain('tt-player-profile-form-indicator');
+    expect(heroSource).toContain('Rolling win rate form indicator');
+    expect(heroSource).not.toContain('<FormResultPills');
+
+    expect(styles).toContain('grid-template-columns: repeat(4, minmax(0, 1fr));');
+    expect(styles).not.toContain('.tt-player-profile-actions {\n    grid-template-columns: 1fr;');
+    expect(styles).toContain('.tt-player-profile-form-indicator');
+    expect(styles).toContain('.tt-player-profile-action-label');
+  });
+
   it('keeps all approved hero actions and scoped raised-card styling', () => {
     const heroSource = read('./PlayerProfileHero.tsx');
     const styles = read('../player-profile-hero.css');
 
     expect(heroSource).toContain('Share');
-    expect(heroSource).toContain('View rating history');
+    expect(heroSource).toContain('View History');
     expect(heroSource).toContain('Insights');
     expect(styles).toContain('.tt-player-profile-hero');
     expect(styles).toContain('box-shadow');
