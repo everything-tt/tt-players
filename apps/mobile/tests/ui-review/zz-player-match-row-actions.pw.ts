@@ -44,6 +44,13 @@ interface LeagueDashboardResponse {
 
 interface EventsResponse {
   data: Array<{ id: string; match_count: number }>;
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+interface EventDetailResponse {
+  results: unknown[];
 }
 
 const reportDir = process.env.UI_REVIEW_REPORT_DIR ?? 'ui-review-report';
@@ -170,6 +177,43 @@ async function findLeagueWithResult(page: Page, previewUrl: string, leagueIds: s
     if (result) return { leagueId, result };
   }
   throw new Error('No league with a recent result and team id was available for UI review.');
+}
+
+async function eventHasResults(page: Page, previewUrl: string, eventId: string): Promise<boolean> {
+  const response = await page.request.get(`${previewUrl}/api/events/${eventId}`);
+  if (!response.ok()) return false;
+  const detail = await response.json() as EventDetailResponse;
+  return detail.results.length > 0;
+}
+
+async function findEventWithResults(
+  page: Page,
+  previewUrl: string,
+  preferredEventIds: Array<string | null>,
+): Promise<string> {
+  const checked = new Set<string>();
+  for (const eventId of preferredEventIds) {
+    if (!eventId || checked.has(eventId)) continue;
+    checked.add(eventId);
+    if (await eventHasResults(page, previewUrl, eventId)) return eventId;
+  }
+
+  const pageSize = 100;
+  for (let offset = 0; offset < 500; offset += pageSize) {
+    const params = new URLSearchParams({ status: 'all', limit: String(pageSize), offset: String(offset) });
+    const response = await page.request.get(`${previewUrl}/api/events?${params.toString()}`);
+    expect(response.ok()).toBe(true);
+    const events = await response.json() as EventsResponse;
+    const candidates = events.data.filter((event) => event.match_count > 0);
+    for (const candidate of candidates) {
+      if (checked.has(candidate.id)) continue;
+      checked.add(candidate.id);
+      if (await eventHasResults(page, previewUrl, candidate.id)) return candidate.id;
+    }
+    if (offset + events.data.length >= events.total || events.data.length < pageSize) break;
+  }
+
+  throw new Error('No tournament event with recorded results was available for UI review.');
 }
 
 async function openPlayer(page: Page, previewUrl: string, playerId: string) {
@@ -329,17 +373,16 @@ test('reviews score-led match records across the app', async ({ page }, testInfo
   await assertScoreLedRow(meetingHistory.locator('.tt-match-record-row').first());
   await capture(page, testInfo, 'h2h-meeting-history');
 
-  const eventsResponse = await page.request.get(`${previewUrl}/api/events?status=completed&limit=20&offset=0`);
-  expect(eventsResponse.ok()).toBe(true);
-  const events = await eventsResponse.json() as EventsResponse;
-  const event = events.data.find((item) => item.match_count > 0);
-  expect(event).toBeTruthy();
-
+  const eventId = await findEventWithResults(
+    page,
+    previewUrl,
+    rubbers.data.filter((match) => match.source === 'tournament').map((match) => match.event_id),
+  );
   const eventDetailResponse = page.waitForResponse((response) => (
-    new URL(response.url()).pathname.endsWith(`/api/events/${event!.id}`)
+    new URL(response.url()).pathname.endsWith(`/api/events/${eventId}`)
       && response.status() === 200
   ));
-  await page.goto(`${previewUrl}/tabs/events/event/${event!.id}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${previewUrl}/tabs/events/event/${eventId}`, { waitUntil: 'domcontentloaded' });
   await eventDetailResponse;
   const tournamentResults = sectionWithHeading(page, 'Results');
   await tournamentResults.scrollIntoViewIfNeeded();
