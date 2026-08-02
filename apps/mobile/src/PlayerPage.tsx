@@ -5,14 +5,13 @@ import { useTabNavigation } from './navigation/tab-navigation';
 import {
   formatDateOrUnknown,
   getInitials,
-  groupTournamentMatches,
   type RubberItem,
 } from './player-shared';
 import {
   usePlayerCurrentSeasonAffiliationsQuery,
   usePlayerExtendedStatsQuery,
   usePlayerInsightsQuery,
-  usePlayerTournamentsQuery,
+  usePlayerTournamentSummariesQuery,
 } from './queries';
 import { SegmentedToggle } from './components/SegmentedToggle';
 import { useFavouritePlayers } from './hooks/useFavouritePlayers';
@@ -145,7 +144,11 @@ export function PlayerPage() {
     pageSize: 20,
   });
   const insightsQuery = usePlayerInsightsQuery(playerId, Boolean(playerId));
-  const tournamentsQuery = usePlayerTournamentsQuery(playerId, Boolean(playerId));
+  const tournamentsQuery = usePlayerTournamentSummariesQuery(
+    playerId,
+    5,
+    Boolean(playerId) && seasonPanelMode === 'tournaments',
+  );
 
   const stats = statsQuery.data ?? null;
   const statsError = playerId
@@ -161,9 +164,10 @@ export function PlayerPage() {
   const insightsError = insightsQuery.error instanceof Error ? insightsQuery.error.message : null;
   const insightsLoading = insightsQuery.isLoading;
 
-  const tournamentMatches = tournamentsQuery.data?.data ?? [];
-  const tournamentMatchesLoading = tournamentsQuery.isLoading;
-  const tournamentMatchesError = tournamentsQuery.error instanceof Error ? tournamentsQuery.error.message : null;
+  const tournamentSummaries = tournamentsQuery.data?.data ?? [];
+  const tournamentTotal = tournamentsQuery.data?.total ?? 0;
+  const tournamentSummariesLoading = tournamentsQuery.isLoading;
+  const tournamentSummariesError = tournamentsQuery.error instanceof Error ? tournamentsQuery.error.message : null;
 
   const winRate = useMemo(() => {
     if (!stats || stats.total <= 0) return 0;
@@ -173,8 +177,6 @@ export function PlayerPage() {
   const isFavourite = stats ? isFavouritePlayer(stats.player_id) : false;
   const isCurrentUser = isMyPlayer(playerId);
   const recentResults = useMemo(() => (insights?.form.recent_results ?? []).slice(0, 10), [insights]);
-  const tournamentsPlayed = useMemo(() => groupTournamentMatches(tournamentMatches), [tournamentMatches]);
-  const recentTournaments = useMemo(() => tournamentsPlayed.slice(0, 5), [tournamentsPlayed]);
   const shareTarget = useMemo(
     () => stats ? buildPlayerShareTarget(window.location.origin, stats.player_id, stats.player_name) : null,
     [stats],
@@ -288,7 +290,7 @@ export function PlayerPage() {
                   ]}
                 />
                 <span className="tt-home-leaders-desc">
-                  {seasonPanelMode === 'clubs' ? `${affiliations.length} teams` : `${tournamentsPlayed.length} events`}
+                  {seasonPanelMode === 'clubs' ? `${affiliations.length} teams` : `${tournamentTotal} events`}
                 </span>
               </div>
 
@@ -312,16 +314,16 @@ export function PlayerPage() {
                     ))}
                   </List>
                 )
-              ) : tournamentMatchesLoading ? (
+              ) : tournamentSummariesLoading ? (
                 <SkeletonList rows={3} />
-              ) : tournamentMatchesError ? (
+              ) : tournamentSummariesError ? (
                 <p className="tt-player-section-state tt-player-section-error">Unable to load tournaments.</p>
-              ) : recentTournaments.length === 0 ? (
+              ) : tournamentSummaries.length === 0 ? (
                 <p className="tt-player-section-state">No tournament appearances found.</p>
               ) : (
                 <>
                   <List divider="hairline" size="lg" className="tt-player-list">
-                    {recentTournaments.map((event) => {
+                    {tournamentSummaries.map((event) => {
                       const dateStr = formatDateOrUnknown(event.event_date);
                       const lossCount = event.played - event.wins;
                       return (
@@ -335,7 +337,7 @@ export function PlayerPage() {
                       );
                     })}
                   </List>
-                  {tournamentsPlayed.length > 0 ? (
+                  {tournamentTotal > 0 ? (
                     <AppButtonLink
                       full
                       size="sm"

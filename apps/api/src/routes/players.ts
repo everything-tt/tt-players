@@ -16,6 +16,10 @@ const PaginationQuerySchema = z.object({
     source: z.enum(['league', 'tournament', 'all']).default('league'),
 });
 
+const TournamentSummaryQuerySchema = z.object({
+    limit: z.coerce.number().int().min(1).max(20).default(5),
+});
+
 const CursorMetaSchema = z.object({
     next_cursor: z.string().nullable(),
     has_more: z.boolean(),
@@ -82,6 +86,16 @@ const ExtendedResponseSchema = ResponseSchema.extend({
     nemesis: z.string(),
     duo: z.string(),
     streak: z.string(),
+});
+
+const TournamentSummarySchema = z.object({
+    event_id: z.string().uuid(),
+    event_name: z.string(),
+    event_date: z.string().nullable(),
+    category: z.string().nullable(),
+    platform_name: z.string(),
+    played: z.number().int().nonnegative(),
+    wins: z.number().int().nonnegative(),
 });
 
 const CareerByYearItemSchema = z.object({
@@ -2000,6 +2014,87 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     data,
                 });
             }
+        );
+
+        app.get(
+            '/:id/tournament-summaries',
+            {
+                schema: {
+                    params: ParamsSchema,
+                    querystring: TournamentSummaryQuerySchema,
+                    response: {
+                        200: z.object({
+                            total: z.number().int().nonnegative(),
+                            data: z.array(TournamentSummarySchema),
+                        }),
+                        404: ErrorSchema,
+                        500: ErrorSchema,
+                    },
+                },
+            },
+            async (request, reply) => {
+                const { id } = request.params;
+                const { limit } = request.query;
+                const player = await resolvePlayerIdentity(db, id);
+
+                if (!player) {
+                    return reply.status(404).send({
+                        error: `Player ${id} not found`,
+                        statusCode: 404,
+                    });
+                }
+
+                const sourceIds = uuidArray(player.sourceIds);
+                const summaries = await db
+                    .selectFrom('rubbers as r')
+                    .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
+                    .innerJoin('competitions as c', (join) => join
+                        .onRef('c.id', '=', 'f.competition_id')
+                        .on('c.type', '=', 'individual'))
+                    .innerJoin('seasons as s', 's.id', 'c.season_id')
+                    .innerJoin('leagues as l', 'l.id', 's.league_id')
+                    .innerJoin('platforms as p', 'p.id', 'l.platform_id')
+                    .select([
+                        'c.id as event_id',
+                        sql<string>`COALESCE(c.display_name, c.name)`.as('event_name'),
+                        sql<string | null>`c.event_date::text`.as('event_date'),
+                        'c.category',
+                        'p.name as platform_name',
+                        sql<number>`COUNT(*)::int`.as('played'),
+                        sql<number>`
+                            COUNT(*) FILTER (
+                                WHERE (r.home_player_1_id = ANY(${sourceIds}) AND r.home_games_won > r.away_games_won)
+                                   OR (r.away_player_1_id = ANY(${sourceIds}) AND r.away_games_won > r.home_games_won)
+                            )::int
+                        `.as('wins'),
+                        sql<number>`COUNT(*) OVER()::int`.as('total'),
+                    ])
+                    .where('r.is_doubles', '=', false)
+                    .where('r.deleted_at', 'is', null)
+                    .where('c.deleted_at', 'is', null)
+                    .where((eb) => eb.or([
+                        eb('r.home_player_1_id', 'in', player.sourceIds),
+                        eb('r.away_player_1_id', 'in', player.sourceIds),
+                    ]))
+                    .groupBy([
+                        'c.id',
+                        'c.display_name',
+                        'c.name',
+                        'c.event_date',
+                        'c.category',
+                        'p.name',
+                    ])
+                    .orderBy(sql`c.event_date DESC NULLS LAST`)
+                    .orderBy(sql`COALESCE(c.display_name, c.name)`)
+                    .orderBy('c.id')
+                    .limit(limit)
+                    .execute();
+
+                return reply.send({
+                    total: Number(summaries[0]?.total ?? 0),
+                    data: summaries.map(({ total: _total, ...summary }) => summary),
+                });
+            },
         );
 
         app.get(
