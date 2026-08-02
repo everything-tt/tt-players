@@ -154,6 +154,13 @@
   word-break: normal;
 }
 
+.tt-entity-hero__subtitle {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .tt-entity-hero--actions-below > .tt-entity-hero__actions {
   display: flex;
   flex-wrap: wrap;
