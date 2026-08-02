@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { createHash } from 'node:crypto';
 import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import type { Kysely, RawBuilder } from 'kysely';
@@ -463,10 +464,12 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
             async (request, reply) => {
                 const { mode, limit, min_played: minPlayed, season_id: seasonId } = request.query;
                 const effectiveLimit = mode === 'win_pct' ? Math.max(limit, 10) : limit;
-                const leagueIds = (request.query.league_ids ?? '')
-                    .split(',')
-                    .map((id) => id.trim())
-                    .filter((id) => id.length > 0);
+                const leagueIds = Array.from(new Set(
+                    (request.query.league_ids ?? '')
+                        .split(',')
+                        .map((id) => id.trim())
+                        .filter((id) => id.length > 0),
+                )).sort();
                 const leagueCsv = leagueIds.join(',');
                 const leagueIdArray = uuidArray(leagueIds);
 
@@ -495,7 +498,14 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     ? versionRaw.toISOString()
                     : versionRaw ? new Date(String(versionRaw)).toISOString() : 'none';
 
-                const cacheKey = `${mode}:${leagueCsv}:${seasonId ?? 'active'}:${limit}:${minPlayed}`;
+                const cacheIdentity = JSON.stringify({
+                    mode,
+                    leagueIds,
+                    seasonId: seasonId ?? 'active',
+                    limit,
+                    minPlayed,
+                });
+                const cacheKey = `v2:${createHash('sha256').update(cacheIdentity).digest('hex')}`;
                 const cachedLeaders = await readCache<any>(db, PLAYER_LEADERS_CACHE_TYPE, cacheKey, dataVersion);
                 if (cachedLeaders) {
                     return reply.send(cachedLeaders);

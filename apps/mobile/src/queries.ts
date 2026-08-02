@@ -29,6 +29,11 @@ import type {
   PlayerInsightsReport,
   PlayerRivalsResponse,
 } from './player-insights-types';
+import {
+  buildLeaderboardQuery,
+  shouldRetryLeaderboardQuery,
+  type LeaderboardQueryOptions,
+} from './leaderboard-query';
 
 export function useLeaguesQuery(seasonId?: string, enabled = true) {
   return useQuery({
@@ -102,41 +107,24 @@ export function useStandingsQuery(competitionId: string, enabled: boolean) {
   });
 }
 
-interface LeadersQueryOptions {
-  mode: 'win_pct' | 'most_played' | 'combined' | 'form' | 'improving' | 'new_faces';
-  leagueIds: string[];
-  limit: number;
-  minPlayed: number;
-  seasonId?: string;
+interface LeadersHookOptions extends LeaderboardQueryOptions {
   enabled: boolean;
 }
 
-export function useLeadersQuery(options: LeadersQueryOptions) {
-  const sortedLeagueIds = [...options.leagueIds].sort();
+export function useLeadersQuery(options: LeadersHookOptions) {
+  const query = buildLeaderboardQuery(options);
   return useQuery({
     queryKey: [
       'players',
       'leaders',
       options.mode,
-      sortedLeagueIds.join(','),
+      query.scopeKey,
       options.limit,
       options.minPlayed,
       options.seasonId ?? '',
     ],
-    queryFn: ({ signal }: { signal: AbortSignal }) => {
-      const params = new URLSearchParams({
-        mode: options.mode,
-        limit: String(options.limit),
-        min_played: String(options.minPlayed),
-      });
-      if (sortedLeagueIds.length > 0) {
-        params.set('league_ids', sortedLeagueIds.join(','));
-      }
-      if (options.seasonId) {
-        params.set('season_id', options.seasonId);
-      }
-      return apiFetch<LeadersResponse>(`/players/leaders?${params.toString()}`, signal);
-    },
+    queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<LeadersResponse>(query.path, signal),
+    retry: shouldRetryLeaderboardQuery,
     enabled: options.enabled,
   });
 }
