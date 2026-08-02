@@ -32,6 +32,7 @@ async function prepareAppState(page: Page) {
     localStorage.setItem('tt_players_selected_league_ids', JSON.stringify([]));
     localStorage.setItem('TTPlayers-Theme', 'light-mode');
     localStorage.setItem('pwa-install-dismissed', Date.now().toString());
+    localStorage.removeItem('tt_players_my_player');
   });
 }
 
@@ -91,7 +92,7 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('keeps the player profile hero compact and faithfully padded', async ({ page }, testInfo) => {
+test('keeps the player profile hero compact, padded and behaviourally complete', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
   await prepareAppState(page);
 
@@ -106,8 +107,10 @@ test('keeps the player profile hero compact and faithfully padded', async ({ pag
 
   const hero = page.locator('.tt-player-profile-hero');
   await expect(hero).toBeVisible({ timeout: 30_000 });
+  await expect(hero.getByText('Player profile', { exact: true })).toBeVisible();
   await expect(hero.getByText('Rating', { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(hero.getByRole('button', { name: 'Save to favourites' })).toBeVisible();
+  await expect(hero.getByText('View History', { exact: true })).toBeVisible();
   await expect(hero.locator('.tt-player-profile-form-indicator')).toBeVisible();
   await expect(hero.locator('.tt-form-recent')).toHaveCount(0);
 
@@ -139,7 +142,6 @@ test('keeps the player profile hero compact and faithfully padded', async ({ pag
       }),
     };
   });
-  console.log(`PLAYER_HERO_GEOMETRY ${JSON.stringify(geometry)}`);
 
   expect(geometry.padding.left).toBeGreaterThanOrEqual(12);
   expect(geometry.padding.right).toBeGreaterThanOrEqual(12);
@@ -160,5 +162,15 @@ test('keeps the player profile hero compact and faithfully padded', async ({ pag
   expect(geometry.shell.height).toBeLessThan(700);
 
   await capture(page, testInfo, 'player-profile-hero', geometry);
+
+  await page.evaluate(({ id, name }) => {
+    localStorage.setItem('tt_players_my_player', JSON.stringify({ id, name }));
+  }, player!);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+
+  const currentUserHero = page.locator('.tt-player-profile-hero');
+  await expect(currentUserHero.getByRole('button', { name: 'This isn’t me' })).toBeVisible({ timeout: 30_000 });
+  await expect(currentUserHero.getByRole('button', { name: 'Save to favourites' })).toHaveCount(0);
+
   writeReportIndex(previewUrl);
 });
