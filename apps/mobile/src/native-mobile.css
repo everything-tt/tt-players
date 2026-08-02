@@ -246,25 +246,6 @@ button.tt-backdrop {
   margin-bottom: 10px;
 }
 
-.tt-league-scope__list {
-  background: var(--surface-strong);
-  border: 1px solid var(--border-hairline);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-.tt-league-scope__list .tt-list-item {
-  min-height: 64px;
-}
-
-.tt-league-scope__list .tt-list-item__clickable {
-  min-height: 44px;
-}
-
-.tt-league-scope__list .tt-list-item--disabled {
-  opacity: 0.5;
-}
-
 .tt-league-scope__footer {
   align-items: center;
   display: flex;
