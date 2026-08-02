@@ -1,5 +1,6 @@
 import './app-shell.css';
 import './player-insights.css';
+import './player-insights-progress.css';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PlayerCareerStory } from './components/PlayerCareerStory';
 import { PlayerInsightsSummary } from './components/PlayerInsightsSummary';
