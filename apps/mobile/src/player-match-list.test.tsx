@@ -129,17 +129,28 @@ describe('PlayerMatchList', () => {
     expect(lossMarkup).toContain('Lost, detailed score unavailable');
   });
 
-  it('uses the row as the opponent action and direct secondary buttons for my matches', () => {
+  it('renders separate match and opponent controls without nested actions', () => {
+    const markup = renderList(false);
+
+    expect(markup).toContain('tt-list-item__stretched-action');
+    expect(markup).toContain('aria-label="View fixture for match against Malcolm Henstock"');
+    expect(markup).toContain('tt-list-item__title-action');
+    expect(markup).toContain('aria-label="Open Malcolm Henstock profile"');
+  });
+
+  it('shows Quick Journal followed by H2H for my matches', () => {
     const markup = renderList(true);
 
-    expect(markup).toContain('Open Malcolm Henstock profile');
     expect(markup).toContain('Journal match against Malcolm Henstock');
-    expect(markup).toContain('View fixture for match against Malcolm Henstock');
-    expect(markup).not.toContain('Match actions for Malcolm Henstock');
+    expect(markup).toContain('Open head to head with Malcolm Henstock');
+    expect(markup.indexOf('Journal match against Malcolm Henstock'))
+      .toBeLessThan(markup.indexOf('Open head to head with Malcolm Henstock'));
+    expect(markup).toContain('fa-people-arrows');
+    expect(markup).not.toContain('fa-calendar');
     expect(markup).not.toContain('fa-ellipsis-v');
   });
 
-  it('shows only the fixture or event action on another player profile', () => {
+  it('shows H2H and the source row action on another player profile', () => {
     const leagueMarkup = renderList(false);
     const eventMarkup = renderList(false, matchFixture('event', {
       source: 'tournament',
@@ -147,14 +158,18 @@ describe('PlayerMatchList', () => {
     }));
 
     expect(leagueMarkup).toContain('View fixture for match against Malcolm Henstock');
+    expect(leagueMarkup).toContain('Open head to head with Malcolm Henstock');
     expect(leagueMarkup).not.toContain('Journal match against Malcolm Henstock');
+    expect(leagueMarkup).not.toContain('fa-calendar');
     expect(eventMarkup).toContain('View event for match against Malcolm Henstock');
+    expect(eventMarkup).toContain('Open head to head with Malcolm Henstock');
   });
 
-  it('keeps the source action available when the opponent profile is unavailable', () => {
+  it('keeps the source row action when the opponent profile is unavailable', () => {
     const markup = renderList(false, matchFixture('missing-opponent', { opponent_id: null }));
 
     expect(markup).toContain('View fixture for match against Malcolm Henstock');
     expect(markup).not.toContain('Open Malcolm Henstock profile');
+    expect(markup).not.toContain('Open head to head with Malcolm Henstock');
   });
 });
