@@ -145,6 +145,8 @@ test('exercises native browse search, saved filters, and tournament detail layou
   await expect(page.getByRole('heading', { name: 'Search results' })).toBeVisible();
   await expect(page.getByText('Loading players…')).toBeHidden();
   await expect(page.locator('.tt-list-item__title').filter({ hasText: /Grace/i }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/undefined/i)).toHaveCount(0);
+  await expect(page.getByText(/^\d+ (?:shown|of \d+)$/)).toBeVisible();
   await capture(page, testInfo, 'players-grace-search');
 
   const upcomingResponse = page.waitForResponse((response) => {
