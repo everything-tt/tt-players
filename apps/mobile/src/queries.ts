@@ -23,6 +23,7 @@ import {
   type EventsResponse,
   type EventDetailResponse,
   type PlayerTournamentsResponse,
+  type PlayerTournamentSummariesResponse,
 } from './player-shared';
 import type {
   PlayerInsightsReport,
@@ -329,6 +330,25 @@ export function usePlayerTournamentsQuery(playerId: string, enabled = true) {
   return useQuery({
     queryKey: ['players', playerId, 'tournaments'],
     queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<PlayerTournamentsResponse>(`/players/${playerId}/tournaments`, signal),
+    enabled: enabled && Boolean(playerId),
+  });
+}
+
+export function buildPlayerTournamentSummariesPath(playerId: string, limit: number): string {
+  return `/players/${encodeURIComponent(playerId)}/tournament-summaries?limit=${limit}`;
+}
+
+export function usePlayerTournamentSummariesQuery(
+  playerId: string,
+  limit = 5,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ['players', playerId, 'tournament-summaries', limit],
+    queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<PlayerTournamentSummariesResponse>(
+      buildPlayerTournamentSummariesPath(playerId, limit),
+      signal,
+    ),
     enabled: enabled && Boolean(playerId),
   });
 }

@@ -627,6 +627,11 @@ export interface PlayerTournamentsResponse {
   data: PlayerTournamentMatch[];
 }
 
+export interface PlayerTournamentSummariesResponse {
+  total: number;
+  data: TournamentSummary[];
+}
+
 export const FAVOURITE_TOURNAMENTS_STORAGE_KEY = 'tt_players_favourite_tournaments';
 export const FAVOURITE_TOURNAMENTS_UPDATED_EVENT = 'tt_players_favourite_tournaments_updated';
 
