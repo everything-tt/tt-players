@@ -24,4 +24,14 @@ describe('BottomSheet page presentation contract', () => {
     expect(source).toContain("{presentation === 'sheet' ? <div className=\"tt-sheet__handle\" aria-hidden=\"true\" /> : null}");
     expect(source).toContain("style={presentation === 'sheet' ? { height } : undefined}");
   });
+
+  it('does not restart modal focus management when callback identities change', () => {
+    expect(source).toContain('const onCloseRef = useRef(onClose);');
+    expect(source).toContain('const disableBackdropCloseRef = useRef(disableBackdropClose);');
+    expect(source).toContain('onCloseRef.current = onClose;');
+    expect(source).toContain('disableBackdropCloseRef.current = disableBackdropClose;');
+    expect(source).toContain('onCloseRef.current();');
+    expect(source).toContain('}, [autoFocus, isOpen]);');
+    expect(source).not.toContain('[autoFocus, disableBackdropClose, isOpen, onClose]');
+  });
 });
