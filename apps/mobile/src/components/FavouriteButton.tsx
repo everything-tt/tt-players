@@ -1,4 +1,4 @@
-import { AppButtonLink, cx } from '../ui/appkit';
+import { AppButton, cx } from '../ui/appkit';
 
 export interface FavouriteButtonProps {
   saved: boolean;
@@ -13,7 +13,7 @@ export interface FavouriteButtonProps {
  */
 export function FavouriteButton({ saved, onToggle, size = 'sm', className }: FavouriteButtonProps) {
   return (
-    <AppButtonLink
+    <AppButton
       tone={saved ? 'primary' : 'outline'}
       size="sm"
       onClick={(event) => { event.preventDefault(); event.stopPropagation(); onToggle(); }}
@@ -21,8 +21,8 @@ export function FavouriteButton({ saved, onToggle, size = 'sm', className }: Fav
       aria-label={saved ? 'Remove from favourites' : 'Save to favourites'}
       className={cx('tt-favourite-button', `tt-favourite-button--${size}`, saved && 'tt-favourite-button--saved', className)}
     >
-      <i className={`fa fa-heart${saved ? '' : ' far'}`} />
+      <i className={saved ? 'fa fa-heart' : 'far fa-heart'} aria-hidden="true" />
       {size === 'sm' ? <span>{saved ? 'Saved' : 'Save'}</span> : null}
-    </AppButtonLink>
+    </AppButton>
   );
 }

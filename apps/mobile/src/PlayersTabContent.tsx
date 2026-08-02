@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { FavouriteButton } from './components/FavouriteButton';
 import { useFavouritePlayers } from './hooks/useFavouritePlayers';
+import { useMyPlayer } from './hooks/useMyPlayer';
 import { usePlayerList } from './hooks/usePlayerList';
 import { useSearch } from './hooks/useSearch';
 import { getInitials } from './player-shared';
+import { getFollowedPlayerIds, getPlayersTabMode } from './players-tab-model';
 import {
   AppSearchInput,
-  AppToggleButton,
   DesignAvatar,
   DesignList,
   EmptyState,
@@ -14,189 +15,198 @@ import {
   InfiniteListFooter,
   ListItem,
   PageSection,
+  Pill,
   SearchToolbar,
-  SegmentedToggle,
 } from './ui/appkit';
 
-type PlayerScope = 'all' | 'selected';
-
 interface PlayersTabContentProps {
-  selectedLeagueIds: string[];
-  allLeaguesCount: number;
-  onOpenLeagueSelector: () => void;
+  /** @deprecated Player discovery is global and no longer uses league scope. */
+  selectedLeagueIds?: string[];
+  /** @deprecated Player discovery is global and no longer uses league scope. */
+  allLeaguesCount?: number;
+  /** @deprecated League selection is no longer part of the Players page. */
+  onOpenLeagueSelector?: () => void;
   onOpenPlayer: (playerId: string) => void;
 }
 
 const PAGE_SIZE = 10;
 
-export function PlayersTabContent({
-  selectedLeagueIds,
-  allLeaguesCount,
-  onOpenLeagueSelector,
-  onOpenPlayer,
-}: PlayersTabContentProps) {
-  const [scope, setScope] = useState<PlayerScope>('all');
-  const [savedOnly, setSavedOnly] = useState(false);
+function playerCountLabel(count: number): string {
+  return `${count} ${count === 1 ? 'player' : 'players'}`;
+}
+
+export function PlayersTabContent({ onOpenPlayer }: PlayersTabContentProps) {
   const search = useSearch({ minLength: 3, resetOnDisable: false });
+  const { player: myPlayer } = useMyPlayer();
   const { players: favouritePlayers, isFavourite, toggle: toggleFavourite } = useFavouritePlayers();
-  const favouriteIds = useMemo(
-    () => savedOnly ? favouritePlayers.map((player) => player.id) : [],
-    [favouritePlayers, savedOnly],
+  const [followingLimit, setFollowingLimit] = useState(PAGE_SIZE);
+  const mode = getPlayersTabMode(search.normalizedQuery);
+  const followedIds = useMemo(
+    () => getFollowedPlayerIds(favouritePlayers, myPlayer?.id),
+    [favouritePlayers, myPlayer?.id],
   );
-  const noSavedPlayers = savedOnly && favouritePlayers.length === 0;
-  const effectiveSearch = search.normalizedQuery.length === 0 ? '' : search.debouncedQuery;
-  const mayFetch = !search.isTooShort && !noSavedPlayers;
+  const followedPlayers = useMemo(() => {
+    const playersById = new Map(favouritePlayers.map((player) => [player.id, player]));
+    return followedIds
+      .map((playerId) => playersById.get(playerId))
+      .filter((player): player is NonNullable<typeof player> => Boolean(player));
+  }, [favouritePlayers, followedIds]);
+  const visibleFollowedPlayers = followedPlayers.slice(0, followingLimit);
 
-  const allPlayers = usePlayerList({
-    search: effectiveSearch,
+  const searchList = usePlayerList({
+    search: search.debouncedQuery,
     leagueIds: [],
-    savedIds: favouriteIds,
-    allLeaguesCount,
+    savedIds: [],
     pageSize: PAGE_SIZE,
-    enabled: scope === 'all' && mayFetch,
+    enabled: mode === 'search' && search.isReady,
   });
-  const selectedPlayers = usePlayerList({
-    search: effectiveSearch,
-    leagueIds: selectedLeagueIds,
-    savedIds: favouriteIds,
-    allLeaguesCount,
-    pageSize: PAGE_SIZE,
-    enabled: scope === 'selected' && selectedLeagueIds.length > 0 && mayFetch,
-  });
-  const list = scope === 'all' ? allPlayers : selectedPlayers;
 
-  const emptyState = () => {
-    if (scope === 'selected' && selectedLeagueIds.length === 0) {
+  const renderRows = (players: typeof favouritePlayers) => (
+    <DesignList density="compact" divider="hairline" paginate={false}>
+      {players.map((player) => (
+        <ListItem
+          key={player.id}
+          leading={<DesignAvatar size="compact" text={getInitials(player.name)} />}
+          title={player.name}
+          subtitle={`${player.wins}W · ${player.played}P`}
+          onClick={() => onOpenPlayer(player.id)}
+          trailing={(
+            <FavouriteButton
+              size="icon"
+              saved={isFavourite(player.id)}
+              onToggle={() => toggleFavourite(player)}
+            />
+          )}
+        />
+      ))}
+    </DesignList>
+  );
+
+  const renderFollowing = () => {
+    if (followedPlayers.length === 0) {
       return (
         <EmptyState
-          iconClassName="fa fa-filter"
-          title="Choose leagues first"
-          message="Select the leagues whose players you want to browse and search."
-          action={{ label: 'Choose leagues', onClick: onOpenLeagueSelector }}
+          iconClassName="far fa-heart"
+          title="No followed players yet"
+          message="Search for any player above, then tap the heart to follow them here."
         />
       );
     }
-    if (search.isTooShort) {
-      return (
-        <EmptyState
-          iconClassName="fa fa-keyboard"
-          title="Type at least 3 characters"
-          message="Keep typing to search players, or clear the field to browse recent players."
+
+    const visibleCount = visibleFollowedPlayers.length;
+    return (
+      <>
+        {renderRows(visibleFollowedPlayers)}
+        <InfiniteListFooter
+          hasMore={visibleCount < followedPlayers.length}
+          isLoading={false}
+          autoLoad
+          onLoadMore={() => setFollowingLimit((current) => Math.min(current + PAGE_SIZE, followedPlayers.length))}
+          loadLabel="Load more followed players"
+          loadingLabel="Loading more followed players…"
+          endLabel={`All ${visibleCount} followed ${visibleCount === 1 ? 'player' : 'players'} shown`}
         />
-      );
-    }
-    if (noSavedPlayers) {
-      return (
-        <EmptyState
-          iconClassName="fa fa-heart-o"
-          title="No saved players"
-          message="Turn off Saved, then use the heart beside a player to keep them here."
-        />
-      );
-    }
-    if (list.error && list.items.length === 0) {
-      return <ErrorState message={list.error} onRetry={() => void list.retry()} />;
-    }
-    if (list.isLoadingInitial) {
-      return <EmptyState iconClassName="fa fa-spinner fa-spin" title="Loading players…" />;
-    }
-    if (list.items.length === 0) {
-      const hasQuery = search.normalizedQuery.length >= 3;
-      return (
-        <EmptyState
-          iconClassName={savedOnly ? 'fa fa-heart-o' : hasQuery ? 'fa fa-search' : 'fa fa-search'}
-          title={savedOnly ? 'No saved players found' : hasQuery ? 'No players found' : 'No recent players'}
-          message={hasQuery
-            ? `No players matching “${search.normalizedQuery}” in this scope.`
-            : 'There are no players available in this scope yet.'}
-        />
-      );
-    }
-    return null;
+      </>
+    );
   };
 
-  const state = emptyState();
-  const resultMeta = list.total === null
-    ? `${list.items.length} shown`
-    : `${list.items.length} of ${list.total}`;
+  const renderSearchResults = () => {
+    if (!search.isReady || searchList.isLoadingInitial) {
+      return <EmptyState iconClassName="fa fa-spinner fa-spin" title="Loading players…" />;
+    }
+    if (searchList.error && searchList.items.length === 0) {
+      return <ErrorState message={searchList.error} onRetry={() => void searchList.retry()} />;
+    }
+    if (searchList.items.length === 0) {
+      return (
+        <EmptyState
+          iconClassName="fa fa-search"
+          title="No players found"
+          message={`No players match “${search.normalizedQuery}”.`}
+        />
+      );
+    }
+
+    return (
+      <>
+        {renderRows(searchList.items)}
+        <InfiniteListFooter
+          hasMore={searchList.hasMore}
+          isLoading={searchList.isLoadingMore}
+          autoLoad={!searchList.error}
+          onLoadMore={searchList.loadMore}
+          loadLabel={searchList.error ? 'Retry loading players' : 'Load more players'}
+          loadingLabel="Loading more players…"
+          endLabel={`All ${searchList.items.length} players shown`}
+        />
+      </>
+    );
+  };
+
+  const searchResultMeta = searchList.total === null
+    ? `${searchList.items.length} shown`
+    : `${searchList.items.length} of ${searchList.total}`;
+  const followingMeta = playerCountLabel(followedPlayers.length);
 
   return (
     <>
-      <div className="tt-browse-controls">
-        <SegmentedToggle
-          full
-          ariaLabel="Player search scope"
-          value={scope}
-          onChange={setScope}
-          options={[
-            { value: 'all', label: 'All leagues' },
-            { value: 'selected', label: 'Selected' },
-          ]}
-        />
-      </div>
-
-      <SearchToolbar
-        ariaLabel="Search players"
-        actions={(
-          <AppToggleButton
-            pressed={savedOnly}
-            iconClassName={savedOnly ? 'fa fa-heart' : 'fa fa-heart-o'}
-            onClick={() => setSavedOnly((current) => !current)}
-            aria-label={savedOnly ? 'Show all players' : 'Show saved players only'}
-          >
-            Saved
-          </AppToggleButton>
-        )}
-      >
+      <SearchToolbar ariaLabel="Search all players">
         <AppSearchInput
           inputMode="search"
           enterKeyHint="search"
           autoComplete="off"
-          placeholder="Search players…"
-          aria-label="Search players"
+          placeholder="Search all players…"
+          aria-label="Search all players"
           value={search.query}
           onChange={(event) => search.setQuery(event.target.value)}
         />
       </SearchToolbar>
 
-      <PageSection
-        surface="flat"
-        density="compact"
-        title={search.normalizedQuery ? 'Search results' : 'Players'}
-        meta={state ? undefined : resultMeta}
-      >
-        {state ?? (
-          <>
-            <DesignList density="compact" divider="hairline" paginate={false}>
-              {list.items.map((player) => (
-                <ListItem
-                  key={player.id}
-                  leading={<DesignAvatar size="compact" text={getInitials(player.name)} />}
-                  title={player.name}
-                  subtitle={`${player.wins}W · ${player.played}P`}
-                  onClick={() => onOpenPlayer(player.id)}
-                  trailing={(
-                    <FavouriteButton
-                      size="icon"
-                      saved={isFavourite(player.id)}
-                      onToggle={() => toggleFavourite(player)}
-                    />
-                  )}
-                />
-              ))}
-            </DesignList>
-            <InfiniteListFooter
-              hasMore={list.hasMore}
-              isLoading={list.isLoadingMore}
-              autoLoad={!list.error}
-              onLoadMore={list.loadMore}
-              loadLabel={list.error ? 'Retry loading players' : 'Load more players'}
-              loadingLabel="Loading more players…"
-              endLabel={`All ${list.items.length} players shown`}
+      {mode === 'following' && myPlayer ? (
+        <PageSection surface="flat" density="compact" title="My player">
+          <DesignList density="compact" divider="hairline" paginate={false}>
+            <ListItem
+              leading={<DesignAvatar size="compact" text={getInitials(myPlayer.name)} />}
+              title={myPlayer.name}
+              subtitle="Your player profile"
+              onClick={() => onOpenPlayer(myPlayer.id)}
+              trailing={<Pill tone="accent">You</Pill>}
             />
-          </>
-        )}
-      </PageSection>
+          </DesignList>
+        </PageSection>
+      ) : null}
+
+      {mode === 'following' ? (
+        <PageSection
+          surface="flat"
+          density="compact"
+          title="Following"
+          meta={followedPlayers.length > 0 ? followingMeta : undefined}
+        >
+          {renderFollowing()}
+        </PageSection>
+      ) : null}
+
+      {mode === 'short-query' ? (
+        <PageSection surface="flat" density="compact" title="Search players">
+          <EmptyState
+            iconClassName="fa fa-keyboard"
+            title="Type at least 3 characters"
+            message="Keep typing to search every player in the system."
+          />
+        </PageSection>
+      ) : null}
+
+      {mode === 'search' ? (
+        <PageSection
+          surface="flat"
+          density="compact"
+          title="Search results"
+          meta={searchList.items.length > 0 ? searchResultMeta : undefined}
+        >
+          {renderSearchResults()}
+        </PageSection>
+      ) : null}
     </>
   );
 }

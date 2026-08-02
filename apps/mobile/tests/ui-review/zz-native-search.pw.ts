@@ -28,6 +28,9 @@ async function prepareAppState(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem('tt_players_league_onboarding_complete', 'true');
     localStorage.setItem('tt_players_selected_league_ids', JSON.stringify([]));
+    localStorage.setItem('tt_players_favourite_players', JSON.stringify([]));
+    localStorage.removeItem('tt_players_my_player');
+    localStorage.removeItem('tt_players_local_data_backup_v1');
     localStorage.setItem('TTPlayers-Theme', 'light-mode');
     localStorage.setItem('pwa-install-dismissed', Date.now().toString());
   });
@@ -138,16 +141,19 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('exercises native browse search, saved filters, and tournament detail layout', async ({ page }, testInfo) => {
+test('exercises the player following hub, tournament browse, and tournament detail layout', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
   await prepareAppState(page);
 
   await page.goto(`${previewUrl}/tabs/players`, { waitUntil: 'domcontentloaded' });
-  await expectEvenSegmentWidths(page, 'Player search scope');
-  const playerSaved = await expectVisibleSavedToggle(page, /show saved players only/i, 'Search players');
-  await expect(playerSaved).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByRole('radiogroup', { name: 'Player search scope' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /show saved players only/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /select leagues/i })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Following' })).toBeVisible();
+  await expect(page.getByText('No followed players yet')).toBeVisible();
+  await capture(page, testInfo, 'players-following-empty');
 
-  const playerSearch = page.getByRole('textbox', { name: 'Search players' });
+  const playerSearch = page.getByRole('textbox', { name: 'Search all players' });
   const graceResponse = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return url.pathname.endsWith('/api/players/search')
@@ -162,6 +168,13 @@ test('exercises native browse search, saved filters, and tournament detail layou
   await expect(page.getByText(/undefined/i)).toHaveCount(0);
   await expect(page.getByText(/^\d+ (?:shown|of \d+)$/)).toBeVisible();
   await capture(page, testInfo, 'players-grace-search');
+
+  await page.getByRole('button', { name: 'Save to favourites' }).first().click();
+  await expect(page.getByRole('button', { name: 'Remove from favourites' }).first()).toBeVisible();
+  await playerSearch.fill('');
+  await expect(page.getByRole('heading', { name: 'Following' })).toBeVisible();
+  await expect(page.locator('.tt-list-item__title').filter({ hasText: /Grace/i }).first()).toBeVisible({ timeout: 30_000 });
+  await capture(page, testInfo, 'players-following-saved');
 
   const upcomingResponse = page.waitForResponse((response) => {
     const url = new URL(response.url());
