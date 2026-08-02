@@ -233,8 +233,10 @@ describe('player rival intelligence API', () => {
     expect(cachedAfterChange.source_version).not.toBe(cachedBefore.source_version);
     expect(cachedAfterChange.updated_at).not.toEqual(cachedBefore.updated_at);
     expect(refreshed.body.toughest[0]).toEqual(expect.objectContaining({
-      opponent_name: 'Bea Block',
+      opponent_name: 'Alex Ace',
       win_rate: 25,
+      wins: 1,
+      losses: 3,
     }));
   });
 });
