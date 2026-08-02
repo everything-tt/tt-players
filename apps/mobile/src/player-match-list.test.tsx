@@ -43,7 +43,7 @@ describe('player match list helpers', () => {
       .toEqual(['b']);
   });
 
-  it('uses subtle semantic result tones', () => {
+  it('keeps the legacy result formatter stable for non-migrated consumers', () => {
     expect(formatMatchResult('Won 3-1', true)).toEqual({ label: 'Won 3-1', tone: 'success' });
     expect(formatMatchResult('Lost 0-3', false)).toEqual({ label: 'Lost 0-3', tone: 'danger' });
   });
@@ -104,14 +104,27 @@ describe('PlayerMatchList', () => {
     />,
   );
 
-  it('renders the date inline with a smaller but visible year', () => {
+  it('uses the shared match record row with a leading detailed score', () => {
     const markup = renderList(false);
 
-    expect(markup).toContain('tt-player-match-meta');
-    expect(markup).toContain('13 Apr');
-    expect(markup).toContain('tt-player-match-meta__year');
-    expect(markup).toContain('2026');
-    expect(markup).not.toContain('tt-player-match-date');
+    expect(markup).toContain('tt-match-record-row');
+    expect(markup).toContain('tt-match-record-score--win');
+    expect(markup).toContain('3–1');
+    expect(markup).toContain('Won 3 games to 1');
+    expect(markup).toContain('Brentwood &amp; District TTL · Premier Division');
+    expect(markup).toContain('13 Apr 2026');
+    expect(markup).not.toContain('Won 3-1</span>');
+    expect(markup).not.toContain('tt-player-match-meta');
+  });
+
+  it('uses W or L when the detailed score is unavailable', () => {
+    const winMarkup = renderList(false, matchFixture('win-only', { result: 'Won' }));
+    const lossMarkup = renderList(false, matchFixture('loss-only', { result: 'Lost', isWin: false }));
+
+    expect(winMarkup).toContain('>W<');
+    expect(winMarkup).toContain('Won, detailed score unavailable');
+    expect(lossMarkup).toContain('>L<');
+    expect(lossMarkup).toContain('Lost, detailed score unavailable');
   });
 
   it('uses the row as the opponent action and direct secondary buttons for my matches', () => {
