@@ -24,6 +24,13 @@ interface AuditEntry {
   reason?: string;
 }
 
+interface AuditFailure {
+  project: string;
+  title: string;
+  url: string;
+  events: AuditEvent[];
+}
+
 interface DiscoveredScreens {
   playerIds: string[];
   player?: string;
@@ -41,6 +48,7 @@ const screenshotsDir = join(reportDir, 'screenshots');
 const diagnosticsDir = join(reportDir, 'diagnostics');
 const manifestPath = join(reportDir, 'manifest.json');
 const anonymousScreens: DiscoveredScreens = { playerIds: [] };
+const auditFailures: AuditFailure[] = [];
 
 const ROOT_SCREENS = [
   { title: 'home', path: '/tabs/home' },
@@ -68,8 +76,6 @@ const ENTITY_TITLES: Record<EntityKind, string> = {
   team: 'team-detail',
   fixture: 'fixture-detail',
 };
-
-test.describe.configure({ mode: 'serial' });
 
 function requirePreviewUrl(): string {
   const raw = process.env.PREVIEW_URL?.trim();
@@ -209,6 +215,20 @@ function severeEvents(events: AuditEvent[]): AuditEvent[] {
   return events.filter((event) => event.type === 'pageerror' || event.type === 'response');
 }
 
+function summarizeAuditEvent(event: AuditEvent): string {
+  if (event.type === 'response') return `${event.status ?? '5xx'} ${event.url ?? 'unknown URL'}`;
+  return event.message ?? event.text ?? event.failure ?? event.url ?? event.type;
+}
+
+function assertNoAuditFailures(): void {
+  if (auditFailures.length === 0) return;
+  const details = auditFailures.map((failure) => {
+    const events = failure.events.map((event) => `    - ${summarizeAuditEvent(event)}`).join('\n');
+    return `  - ${failure.project}/${failure.title}: ${failure.url}\n${events}`;
+  }).join('\n');
+  throw new Error(`Main UI audit captured ${auditFailures.length} screen(s) with severe browser events:\n${details}`);
+}
+
 async function captureCurrent(
   page: Page,
   project: string,
@@ -234,7 +254,15 @@ async function captureCurrent(
     diagnosticsPath,
     status: 'captured',
   });
-  expect(severeEvents(events), `Severe browser events while capturing ${project}/${title}`).toEqual([]);
+  const severe = severeEvents(events);
+  if (severe.length > 0) {
+    auditFailures.push({
+      project,
+      title,
+      url: redact(page.url()),
+      events: severe.map((event) => ({ ...event })),
+    });
+  }
 }
 
 async function visitAndCapture(
@@ -482,6 +510,7 @@ test.beforeAll(() => {
 });
 
 test('captures representative anonymous production screens', async ({ page }) => {
+  auditFailures.length = 0;
   const previewUrl = requirePreviewUrl();
   await prepareAppState(page);
   const events = installDiagnostics(page);
@@ -494,6 +523,8 @@ test('captures representative anonymous production screens', async ({ page }) =>
   } finally {
     writeReportIndex(previewUrl);
   }
+
+  assertNoAuditFailures();
 });
 
 test('captures authenticated production screens with a synthetic user', async ({ page }) => {
@@ -502,6 +533,7 @@ test('captures authenticated production screens with a synthetic user', async ({
   const password = process.env.UI_AUDIT_PASSWORD?.trim();
   test.skip(!email || !password, 'UI_AUDIT_EMAIL and UI_AUDIT_PASSWORD are not configured');
 
+  auditFailures.length = 0;
   await prepareAppState(page);
   const events = installDiagnostics(page);
 
@@ -557,4 +589,6 @@ test('captures authenticated production screens with a synthetic user', async ({
   } finally {
     writeReportIndex(previewUrl);
   }
+
+  assertNoAuditFailures();
 });
