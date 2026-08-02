@@ -103,9 +103,9 @@ async function capture(page: Page, testInfo: TestInfo, title: string) {
   appendManifest({ project: testInfo.project.name, title, url: page.url(), path: screenshotPath, diagnosticsPath });
 }
 
-async function expectVisibleSavedToggle(page: Page, accessibleName: RegExp) {
+async function expectVisibleSavedToggle(page: Page, accessibleName: RegExp, searchLabel: string) {
   const button = page.getByRole('button', { name: accessibleName });
-  const search = page.getByRole('searchbox');
+  const search = page.getByLabel(searchLabel);
   await expect(button).toBeVisible();
   await expect(button.locator('span')).toBeVisible();
   await expect(button.locator('span')).toHaveText('Saved');
@@ -130,10 +130,10 @@ test('exercises native browse search, saved filters, and tournament detail layou
   await prepareAppState(page);
 
   await page.goto(`${previewUrl}/tabs/players`, { waitUntil: 'domcontentloaded' });
-  const playerSaved = await expectVisibleSavedToggle(page, /show saved players only/i);
+  const playerSaved = await expectVisibleSavedToggle(page, /show saved players only/i, 'Search players');
   await expect(playerSaved).toHaveAttribute('aria-pressed', 'false');
 
-  const playerSearch = page.getByRole('searchbox', { name: 'Search players' });
+  const playerSearch = page.getByLabel('Search players');
   const graceResponse = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return url.pathname.endsWith('/api/players/search')
@@ -156,7 +156,7 @@ test('exercises native browse search, saved filters, and tournament detail layou
   });
   await page.goto(`${previewUrl}/tabs/events`, { waitUntil: 'domcontentloaded' });
   await upcomingResponse;
-  await expectVisibleSavedToggle(page, /show saved tournaments only/i);
+  await expectVisibleSavedToggle(page, /show saved tournaments only/i, 'Search upcoming tournaments');
   await expect(page.locator('.tt-list-item__title').first()).toBeVisible({ timeout: 30_000 });
   await capture(page, testInfo, 'tournaments-native-browse');
 
