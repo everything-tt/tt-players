@@ -1,3 +1,5 @@
+import { PageSection } from '../ui/appkit';
+
 export function SkeletonBlock({ className = '' }: { className?: string }) {
   return <span className={`tt-skeleton-block ${className}`} aria-hidden="true" />;
 }
@@ -28,12 +30,14 @@ export function SectionSkeleton({
   rows?: number;
 }) {
   return (
-    <section className="tt-player-section" aria-label="Loading section">
-      <div className="tt-player-section-header">
-        <SkeletonBlock className={titleWidth} />
-        <SkeletonBlock className={noteWidth} />
-      </div>
+    <PageSection
+      surface="flat"
+      density="compact"
+      title={<SkeletonBlock className={titleWidth} />}
+      meta={<SkeletonBlock className={noteWidth} />}
+      className="tt-section-skeleton"
+    >
       <SkeletonList rows={rows} />
-    </section>
+    </PageSection>
   );
 }
