@@ -11,7 +11,9 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'playwright.ui-review.config.ts'
+      - 'playwright.main-audit.config.ts'
       - 'apps/mobile/tests/ui-review/**'
+      - 'apps/mobile/tests/main-audit/**'
       - '.github/workflows/build.yml'
   pull_request:
     branches: [main]
@@ -23,7 +25,9 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'playwright.ui-review.config.ts'
+      - 'playwright.main-audit.config.ts'
       - 'apps/mobile/tests/ui-review/**'
+      - 'apps/mobile/tests/main-audit/**'
       - '.github/workflows/build.yml'
   workflow_dispatch:
 
@@ -253,3 +257,131 @@ jobs:
                 body,
               });
             }
+
+  main-ui-audit:
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.build-deploy.outputs.deploy_url != ''
+    needs: build-deploy
+    continue-on-error: true
+    runs-on: [self-hosted, Linux, ARM64, docker-ui-screenshot, playwright]
+    timeout-minutes: 60
+    concurrency:
+      group: main-ui-audit
+      cancel-in-progress: true
+    env:
+      PREVIEW_URL: ${{ needs.build-deploy.outputs.deploy_url }}
+      UI_REVIEW_REPORT_DIR: ${{ github.workspace }}/ui-review-report
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      UI_AUDIT_EMAIL: ${{ secrets.UI_AUDIT_EMAIL }}
+      UI_AUDIT_PASSWORD: ${{ secrets.UI_AUDIT_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.24.0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter @tt-players/mobile exec playwright install chromium
+
+      - name: Wait for main deployment
+        run: |
+          set -euo pipefail
+          case "$PREVIEW_URL" in
+            https://*) ;;
+            *) echo "Invalid deployment URL: $PREVIEW_URL" >&2; exit 64 ;;
+          esac
+          for attempt in $(seq 1 60); do
+            if curl -fsS --max-time 10 "$PREVIEW_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Main deployment did not become ready: $PREVIEW_URL" >&2
+          exit 1
+
+      - name: Record host resources before
+        run: |
+          rm -rf ui-review-report test-results
+          mkdir -p ui-review-report/diagnostics
+          {
+            date -u +"%Y-%m-%dT%H:%M:%SZ"
+            hostname
+            uname -a
+            free -h
+            df -h
+          } > ui-review-report/diagnostics/host-before.txt
+
+      - name: Run main UI audit
+        run: pnpm --filter @tt-players/mobile exec playwright test --config=../../playwright.main-audit.config.ts
+
+      - name: Record host resources after
+        if: always()
+        run: |
+          mkdir -p ui-review-report/diagnostics
+          {
+            date -u +"%Y-%m-%dT%H:%M:%SZ"
+            free -h
+            df -h
+            ps --sort=-rss -eo pid,ppid,rss,comm,args | head -40 || true
+          } > ui-review-report/diagnostics/host-after.txt
+
+      - name: Upload main UI audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: main-ui-audit-${{ github.sha }}
+          retention-days: 30
+          path: ui-review-report/
+
+      - name: Deploy main UI audit report to Netlify
+        if: always() && hashFiles('ui-review-report/index.html') != ''
+        id: report
+        uses: nwtgck/actions-netlify@v3.0
+        with:
+          publish-dir: ./ui-review-report
+          production-branch: main
+          production-deploy: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          deploy-message: "Main UI audit for ${{ github.sha }}"
+          alias: ui-audit-main
+          enable-pull-request-comment: false
+          enable-commit-comment: false
+          enable-commit-status: false
+          enable-github-deployment: false
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        timeout-minutes: 5
+
+      - name: Add main UI audit summary
+        if: always()
+        env:
+          REPORT_URL: ${{ steps.report.outputs.deploy-url }}
+        run: |
+          {
+            echo "## Main UI audit"
+            echo
+            echo "- Deployment: $PREVIEW_URL"
+            echo "- Commit: \`${GITHUB_SHA::7}\`"
+            if [ -n "$REPORT_URL" ]; then
+              echo "- Report: $REPORT_URL"
+            else
+              echo "- Report: not published; inspect the uploaded artifact and job logs"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
