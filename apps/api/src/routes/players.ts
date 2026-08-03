@@ -224,6 +224,16 @@ const CurrentSeasonAffiliationSchema = z.object({
     competition_name: z.string(),
 });
 
+const PlayerProfileOverviewResponseSchema = ResponseSchema.extend({
+    form: z.object({
+        rolling_10_win_rate: z.number().int(),
+        rolling_20_win_rate: z.number().int(),
+        momentum: z.enum(['hot', 'steady', 'cold', 'new']),
+        recent_results: z.array(z.enum(['W', 'L'])),
+    }),
+    current_season_affiliations: z.array(CurrentSeasonAffiliationSchema),
+});
+
 const RubberItemSchema = z.object({
     id: z.string().uuid(),
     fixture_id: z.string().uuid(),
@@ -272,6 +282,16 @@ interface ResolvedPlayerIdentity {
     canonicalId: string;
     playerName: string;
     sourceIds: string[];
+}
+
+interface CurrentSeasonAffiliationRow {
+    team_id: string;
+    team_name: string;
+    league_id: string;
+    league_name: string;
+    season_id: string;
+    season_name: string;
+    competition_name: string;
 }
 
 function uuidArray(ids: string[]): RawBuilder<string[]> {
@@ -333,6 +353,156 @@ async function resolvePlayerIdentity(
         canonicalId: row.canonical_id,
         playerName: row.canonical_name,
         sourceIds: row.source_ids,
+    };
+}
+
+async function loadCurrentSeasonAffiliations(
+    db: Kysely<Database>,
+    player: ResolvedPlayerIdentity,
+): Promise<CurrentSeasonAffiliationRow[]> {
+    const sourceIds = uuidArray(player.sourceIds);
+    const rows = await sql<CurrentSeasonAffiliationRow>`
+        WITH player_affiliations AS (
+            SELECT
+                f.home_team_id AS team_id,
+                l.id AS league_id,
+                l.name AS league_name,
+                s.id AS season_id,
+                s.name AS season_name,
+                c.name AS competition_name
+            FROM rubbers r
+            JOIN fixtures f ON f.id = r.fixture_id
+            JOIN competitions c ON c.id = f.competition_id
+            JOIN seasons s ON s.id = c.season_id
+            JOIN leagues l ON l.id = s.league_id
+            WHERE (r.home_player_1_id = ANY(${sourceIds}) OR r.home_player_2_id = ANY(${sourceIds}))
+              AND f.home_team_id IS NOT NULL
+              AND s.is_active = true
+              AND r.deleted_at IS NULL
+              AND f.deleted_at IS NULL
+              AND c.deleted_at IS NULL
+              AND s.deleted_at IS NULL
+              AND l.deleted_at IS NULL
+
+            UNION ALL
+
+            SELECT
+                f.away_team_id AS team_id,
+                l.id AS league_id,
+                l.name AS league_name,
+                s.id AS season_id,
+                s.name AS season_name,
+                c.name AS competition_name
+            FROM rubbers r
+            JOIN fixtures f ON f.id = r.fixture_id
+            JOIN competitions c ON c.id = f.competition_id
+            JOIN seasons s ON s.id = c.season_id
+            JOIN leagues l ON l.id = s.league_id
+            WHERE (r.away_player_1_id = ANY(${sourceIds}) OR r.away_player_2_id = ANY(${sourceIds}))
+              AND f.away_team_id IS NOT NULL
+              AND s.is_active = true
+              AND r.deleted_at IS NULL
+              AND f.deleted_at IS NULL
+              AND c.deleted_at IS NULL
+              AND s.deleted_at IS NULL
+              AND l.deleted_at IS NULL
+        )
+        SELECT DISTINCT
+            pa.team_id,
+            t.name AS team_name,
+            pa.league_id,
+            pa.league_name,
+            pa.season_id,
+            pa.season_name,
+            pa.competition_name
+        FROM player_affiliations pa
+        JOIN teams t ON t.id = pa.team_id
+        WHERE t.deleted_at IS NULL
+        ORDER BY pa.league_name ASC, pa.competition_name ASC, t.name ASC
+    `.execute(db);
+
+    return rows.rows;
+}
+
+async function loadPlayerProfileStatsAndForm(
+    db: Kysely<Database>,
+    player: ResolvedPlayerIdentity,
+): Promise<{ wins: number; losses: number; total: number; recentResults: Array<'W' | 'L'> }> {
+    const sourceIds = uuidArray(player.sourceIds);
+    const result = await sql<{
+        wins: number;
+        losses: number;
+        total: number;
+        recent_results: Array<'W' | 'L'>;
+    }>`
+        WITH career_results AS (
+            SELECT
+                CASE WHEN r.home_games_won > r.away_games_won THEN 1 ELSE 0 END AS is_win,
+                CASE WHEN r.home_games_won < r.away_games_won THEN 1 ELSE 0 END AS is_loss
+            FROM rubbers r
+            WHERE r.home_player_1_id = ANY(${sourceIds})
+              AND r.deleted_at IS NULL
+              AND r.outcome_type != 'walkover'
+
+            UNION ALL
+
+            SELECT
+                CASE WHEN r.away_games_won > r.home_games_won THEN 1 ELSE 0 END AS is_win,
+                CASE WHEN r.away_games_won < r.home_games_won THEN 1 ELSE 0 END AS is_loss
+            FROM rubbers r
+            WHERE r.away_player_1_id = ANY(${sourceIds})
+              AND r.deleted_at IS NULL
+              AND r.outcome_type != 'walkover'
+        ),
+        all_recent_singles AS (
+            SELECT
+                r.id,
+                COALESCE(f.date_played::timestamp, r.played_at, f.created_at) AS played_at,
+                CASE WHEN r.home_games_won > r.away_games_won THEN 'W' ELSE 'L' END AS result
+            FROM rubbers r
+            JOIN fixtures f ON f.id = r.fixture_id
+            WHERE r.home_player_1_id = ANY(${sourceIds})
+              AND r.is_doubles = false
+              AND r.deleted_at IS NULL
+              AND r.outcome_type != 'walkover'
+              AND f.deleted_at IS NULL
+
+            UNION ALL
+
+            SELECT
+                r.id,
+                COALESCE(f.date_played::timestamp, r.played_at, f.created_at) AS played_at,
+                CASE WHEN r.away_games_won > r.home_games_won THEN 'W' ELSE 'L' END AS result
+            FROM rubbers r
+            JOIN fixtures f ON f.id = r.fixture_id
+            WHERE r.away_player_1_id = ANY(${sourceIds})
+              AND r.is_doubles = false
+              AND r.deleted_at IS NULL
+              AND r.outcome_type != 'walkover'
+              AND f.deleted_at IS NULL
+        ),
+        recent_singles AS (
+            SELECT id, played_at, result
+            FROM all_recent_singles
+            ORDER BY played_at DESC, id DESC
+            LIMIT 20
+        )
+        SELECT
+            COALESCE((SELECT SUM(is_win)::int FROM career_results), 0)::int AS wins,
+            COALESCE((SELECT SUM(is_loss)::int FROM career_results), 0)::int AS losses,
+            (SELECT COUNT(*)::int FROM career_results)::int AS total,
+            COALESCE(
+                (SELECT ARRAY_AGG(result ORDER BY played_at DESC, id DESC) FROM recent_singles),
+                ARRAY[]::text[]
+            ) AS recent_results
+    `.execute(db);
+
+    const row = result.rows[0]!;
+    return {
+        wins: Number(row.wins),
+        losses: Number(row.losses),
+        total: Number(row.total),
+        recentResults: row.recent_results,
     };
 }
 
@@ -1022,6 +1192,63 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     limit,
                     offset,
                     has_more: offset + data.length < total,
+                });
+            },
+        );
+
+        app.get(
+            '/:id/profile-overview',
+            {
+                schema: {
+                    params: ParamsSchema,
+                    response: {
+                        200: PlayerProfileOverviewResponseSchema,
+                        404: ErrorSchema,
+                        500: ErrorSchema,
+                    },
+                },
+            },
+            async (request, reply) => {
+                const player = await resolvePlayerIdentity(db, request.params.id);
+                if (!player) {
+                    return reply.status(404).send({
+                        error: `Player ${request.params.id} not found`,
+                        statusCode: 404,
+                    });
+                }
+
+                const [stats, currentSeasonAffiliations] = await Promise.all([
+                    loadPlayerProfileStatsAndForm(db, player),
+                    loadCurrentSeasonAffiliations(db, player),
+                ]);
+                const recent10 = stats.recentResults.slice(0, 10);
+                const rolling10 = recent10.length > 0
+                    ? Math.round((recent10.filter((result) => result === 'W').length / recent10.length) * 100)
+                    : 0;
+                const rolling20 = stats.recentResults.length > 0
+                    ? Math.round((stats.recentResults.filter((result) => result === 'W').length / stats.recentResults.length) * 100)
+                    : 0;
+                const momentum: 'hot' | 'steady' | 'cold' | 'new' = recent10.length < 5
+                    ? 'new'
+                    : rolling10 >= 70
+                        ? 'hot'
+                        : rolling10 >= 45
+                            ? 'steady'
+                            : 'cold';
+
+                return reply.send({
+                    player_id: player.canonicalId,
+                    player_name: player.playerName,
+                    wins: stats.wins,
+                    losses: stats.losses,
+                    total: stats.total,
+                    form: {
+                        rolling_10_win_rate: rolling10,
+                        rolling_20_win_rate: rolling20,
+                        momentum,
+                        recent_results: stats.recentResults,
+                    },
+                    current_season_affiliations: currentSeasonAffiliations,
                 });
             },
         );
@@ -1795,78 +2022,8 @@ export function playersRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     });
                 }
 
-                const sourceIds = uuidArray(player.sourceIds);
-
-                const rows = await sql<{
-                    team_id: string;
-                    team_name: string;
-                    league_id: string;
-                    league_name: string;
-                    season_id: string;
-                    season_name: string;
-                    competition_name: string;
-                }>`
-                    WITH player_affiliations AS (
-                        SELECT
-                            f.home_team_id AS team_id,
-                            l.id AS league_id,
-                            l.name AS league_name,
-                            s.id AS season_id,
-                            s.name AS season_name,
-                            c.name AS competition_name
-                        FROM rubbers r
-                        JOIN fixtures f ON f.id = r.fixture_id
-                        JOIN competitions c ON c.id = f.competition_id
-                        JOIN seasons s ON s.id = c.season_id
-                        JOIN leagues l ON l.id = s.league_id
-                        WHERE (r.home_player_1_id = ANY(${sourceIds}) OR r.home_player_2_id = ANY(${sourceIds}))
-                          AND f.home_team_id IS NOT NULL
-                          AND s.is_active = true
-                          AND r.deleted_at IS NULL
-                          AND f.deleted_at IS NULL
-                          AND c.deleted_at IS NULL
-                          AND s.deleted_at IS NULL
-                          AND l.deleted_at IS NULL
-
-                        UNION ALL
-
-                        SELECT
-                            f.away_team_id AS team_id,
-                            l.id AS league_id,
-                            l.name AS league_name,
-                            s.id AS season_id,
-                            s.name AS season_name,
-                            c.name AS competition_name
-                        FROM rubbers r
-                        JOIN fixtures f ON f.id = r.fixture_id
-                        JOIN competitions c ON c.id = f.competition_id
-                        JOIN seasons s ON s.id = c.season_id
-                        JOIN leagues l ON l.id = s.league_id
-                        WHERE (r.away_player_1_id = ANY(${sourceIds}) OR r.away_player_2_id = ANY(${sourceIds}))
-                          AND f.away_team_id IS NOT NULL
-                          AND s.is_active = true
-                          AND r.deleted_at IS NULL
-                          AND f.deleted_at IS NULL
-                          AND c.deleted_at IS NULL
-                          AND s.deleted_at IS NULL
-                          AND l.deleted_at IS NULL
-                    )
-                    SELECT DISTINCT
-                        pa.team_id,
-                        t.name AS team_name,
-                        pa.league_id,
-                        pa.league_name,
-                        pa.season_id,
-                        pa.season_name,
-                        pa.competition_name
-                    FROM player_affiliations pa
-                    JOIN teams t ON t.id = pa.team_id
-                    WHERE t.deleted_at IS NULL
-                    ORDER BY pa.league_name ASC, pa.competition_name ASC, t.name ASC
-                `.execute(db);
-
                 return reply.send({
-                    data: rows.rows,
+                    data: await loadCurrentSeasonAffiliations(db, player),
                 });
             },
         );
