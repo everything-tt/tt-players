@@ -1,6 +1,5 @@
 .tt-my-tt-page {
   gap: 0;
-  padding-bottom: var(--tt-space-4, 16px);
 }
 
 .tt-my-tt-page form {
@@ -103,10 +102,6 @@
 .tt-my-tt-account-note .tt-list-item__title,
 .tt-my-tt-account-note .tt-list-item__subtitle {
   color: var(--ink-muted);
-}
-
-.tt-my-tt-edit-page {
-  padding-bottom: calc(var(--tt-tab-height, 58px) + 84px + env(safe-area-inset-bottom, 0px));
 }
 
 .tt-my-tt-edit-section {
@@ -222,13 +217,12 @@
   border-left: 0;
   border-radius: 0;
   border-right: 0;
-  bottom: calc(var(--tt-tab-height, 58px) + env(safe-area-inset-bottom, 0px));
   box-shadow: none;
-  left: max(0px, calc((100vw - 680px) / 2));
-  padding: 8px var(--tt-gutter-flat, 12px);
-  position: fixed;
-  right: max(0px, calc((100vw - 680px) / 2));
-  z-index: 70;
+  box-sizing: border-box;
+  margin-top: var(--tt-space-2, 8px);
+  padding: var(--tt-space-3, 12px) var(--tt-gutter-flat, 12px);
+  position: static;
+  width: 100%;
 }
 
 .tt-my-tt-save-dock .tt-inline {
