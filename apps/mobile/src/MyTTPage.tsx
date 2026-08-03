@@ -267,9 +267,12 @@ export function MyTTPage() {
                   </div>
                   <Pill tone="accent">{completion.percentage}%</Pill>
                 </div>
-                <div className="tt-my-tt-progress-track" aria-hidden="true">
-                  <span style={{ width: `${completion.percentage}%` }} />
-                </div>
+                <progress
+                  className="tt-my-tt-progress-track"
+                  max={100}
+                  value={completion.percentage}
+                  aria-label={`${completion.percentage}% complete`}
+                />
                 <button type="button" className="tt-my-tt-progress-link" onClick={openEditor}>
                   Continue setup <i className="fa fa-arrow-right" aria-hidden="true" />
                 </button>
@@ -551,7 +554,7 @@ export function EditMyTTPage() {
                   aria-label="View public profile"
                   onClick={() => navigateInTab('players', `player/${player.id}`)}
                 >
-                  <i className="fa fa-arrow-up-right-from-square" aria-hidden="true" />
+                  <i className="fa fa-external-link-alt" aria-hidden="true" />
                 </AppButton>
               </div>
             </PageSection>
