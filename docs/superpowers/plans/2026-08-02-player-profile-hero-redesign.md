@@ -14,7 +14,7 @@
 - Rating, rank, confidence, likely range, win rate, and form tiles live inside one raised hero card.
 - Win rate is a supporting metric, not an oversized spotlight.
 - Default actions are Save/Follow, Share, View Rating History, and Insights.
-- For the current user, hide Save/Follow and show `This isn’t me` instead.
+- For the current user, hide Save/Follow, show the three everyday actions, and place `Claimed as your profile · Undo claim` in a quiet footer with confirmation before unlinking.
 - Preserve loading, unavailable, provisional, sharing, favourite, identity, navigation, and rating-range behaviours.
 - Add no new dependency or token system.
 

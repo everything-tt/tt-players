@@ -67,12 +67,12 @@ function PlayerProfileSkeleton() {
     <>
       <section className="tt-player-profile-hero" aria-label="Loading player profile">
         <div className="tt-player-profile-identity">
-          <SkeletonBlock className="tt-skeleton-avatar" />
           <div className="tt-player-profile-copy">
             <SkeletonBlock className="tt-skeleton-eyebrow" />
             <SkeletonBlock className="tt-skeleton-title" />
             <SkeletonBlock className="tt-skeleton-text mt-2" />
           </div>
+          <SkeletonBlock className="tt-skeleton-avatar" />
         </div>
 
         <div className="tt-player-profile-actions">
@@ -89,12 +89,9 @@ function PlayerProfileSkeleton() {
               <SkeletonBlock className="tt-skeleton-stat" />
             </div>
           ))}
-          <div className="tt-player-profile-range">
-            <SkeletonBlock className="tt-skeleton-text" />
-          </div>
-          <div className="tt-player-profile-metric tt-player-profile-win-rate">
-            <SkeletonBlock className="tt-skeleton-stat" />
-          </div>
+        </div>
+        <div className="tt-player-profile-range">
+          <SkeletonBlock className="tt-skeleton-text" />
         </div>
 
         <div className="tt-player-profile-form">

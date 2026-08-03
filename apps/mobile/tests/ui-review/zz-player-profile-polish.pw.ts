@@ -11,10 +11,6 @@ interface ScreenshotEntry {
   diagnosticsPath: string;
 }
 
-interface PlayerSearchResponse {
-  data: Array<{ id: string; name: string }>;
-}
-
 const reportDir = process.env.UI_REVIEW_REPORT_DIR ?? 'ui-review-report';
 const screenshotsDir = join(reportDir, 'screenshots');
 const diagnosticsDir = join(reportDir, 'diagnostics');
@@ -35,6 +31,66 @@ async function prepareAppState(page: Page) {
     if (sessionStorage.getItem('tt_test_keep_my_player') !== 'true') {
       localStorage.removeItem('tt_players_my_player');
     }
+  });
+}
+
+async function mockProfileApi(page: Page, player: { id: string; name: string }) {
+  await page.route('**/api/**', async (route) => {
+    const url = new URL(route.request().url());
+    const path = url.pathname;
+
+    if (path === `/api/players/${player.id}/profile-overview`) {
+      await route.fulfill({
+        json: {
+          player_id: player.id,
+          player_name: player.name,
+          wins: 86,
+          losses: 78,
+          total: 164,
+          form: {
+            rolling_10_win_rate: 70,
+            rolling_20_win_rate: 60,
+            momentum: 'hot',
+            recent_results: ['W', 'W', 'L', 'W', 'W', 'L', 'W', 'W', 'W', 'L'],
+          },
+          current_season_affiliations: [],
+        },
+      });
+      return;
+    }
+
+    if (path === `/api/ratings/${player.id}`) {
+      await route.fulfill({
+        json: {
+          data: {
+            rank: 142,
+            player_id: player.id,
+            player_name: player.name,
+            rating: 1187,
+            rating_deviation: 62,
+            conservative_rating: 1063,
+            rating_low: 1065,
+            rating_high: 1309,
+            confidence: 'high',
+            rated_matches: 164,
+            rated_wins: 86,
+            rated_losses: 78,
+            win_rate: 52,
+            provisional: false,
+            first_rated_at: '2024-09-01T00:00:00.000Z',
+            last_rated_at: '2026-07-28T00:00:00.000Z',
+          },
+        },
+      });
+      return;
+    }
+
+    if (path === `/api/players/${player.id}/rubbers`) {
+      await route.fulfill({ json: { total: 0, limit: 20, offset: 0, data: [] } });
+      return;
+    }
+
+    await route.fulfill({ json: { data: [] } });
   });
 }
 
@@ -62,8 +118,7 @@ function escapeHtml(value: string): string {
 }
 
 function writeReportIndex(previewUrl: string) {
-  const entries = readManifest();
-  const cards = entries.map((entry) => `
+  const cards = readManifest().map((entry) => `
     <article>
       <h2>${escapeHtml(`${entry.project}: ${entry.title}`)}</h2>
       <a href="${escapeHtml(entry.path)}"><img src="${escapeHtml(entry.path)}" alt="${escapeHtml(entry.title)}" /></a>
@@ -94,87 +149,69 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('keeps the player profile hero compact, padded and behaviourally complete', async ({ page }, testInfo) => {
+test('polishes the profile hierarchy and treats identity as a reversible claim', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
   await prepareAppState(page);
+  const player = { id: 'player-profile-polish', name: 'Wudong Liu' };
+  await mockProfileApi(page, player);
 
-  const lookupParams = new URLSearchParams({ q: 'Wudong Liu', limit: '10', offset: '0' });
-  const lookupResponse = await page.request.get(`${previewUrl}/api/players/search?${lookupParams.toString()}`);
-  expect(lookupResponse.ok()).toBe(true);
-  const lookup = await lookupResponse.json() as PlayerSearchResponse;
-  const player = lookup.data.find((item) => item.name === 'Wudong Liu') ?? lookup.data[0];
-  expect(player).toBeTruthy();
-
-  await page.goto(`${previewUrl}/tabs/players/player/${player!.id}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${previewUrl}/tabs/players/player/${player.id}`, { waitUntil: 'domcontentloaded' });
 
   const hero = page.locator('.tt-player-profile-hero');
   await expect(hero).toBeVisible({ timeout: 30_000 });
-  await expect(hero.getByText('Player profile', { exact: true })).toBeVisible();
   await expect(hero.getByText('Rating', { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(hero.getByRole('button', { name: 'Save to favourites' })).toBeVisible();
-  await expect(hero.getByText('History', { exact: true })).toBeVisible();
-  await expect(hero.locator('.tt-player-profile-form-indicator')).toBeVisible();
-  await expect(hero.locator('.tt-form-recent')).toHaveCount(0);
+  await expect(hero.getByRole('button', { name: 'History' })).toBeVisible();
+  await expect(hero.getByRole('button', { name: 'Insights' })).toBeVisible();
+  await expect(hero.getByRole('button', { name: 'Share' })).toBeVisible();
+  await expect(hero.locator('.tt-player-profile-metric')).toHaveCount(3);
 
   const geometry = await hero.evaluate((element) => {
     const shell = element.getBoundingClientRect();
-    const style = getComputedStyle(element);
-    const selectors = [
-      '.tt-player-profile-eyebrow',
-      '.tt-player-profile-identity',
-      '.tt-player-profile-actions',
-      '.tt-player-profile-form-heading',
-      '.tt-player-profile-form-grid',
-      '.tt-player-profile-form-indicator',
-    ];
+    const copy = element.querySelector<HTMLElement>('.tt-player-profile-copy')!.getBoundingClientRect();
+    const avatar = element.querySelector<HTMLElement>('.tt-player-profile-avatar')!.getBoundingClientRect();
+    const range = element.querySelector<HTMLElement>('.tt-player-profile-range')!.getBoundingClientRect();
     return {
-      shell: { left: shell.left, right: shell.right, width: shell.width, height: shell.height },
-      padding: {
-        left: Number.parseFloat(style.paddingLeft),
-        right: Number.parseFloat(style.paddingRight),
-      },
-      children: selectors.map((selector) => {
-        const child = element.querySelector<HTMLElement>(selector);
-        const rect = child?.getBoundingClientRect();
-        return {
-          selector,
-          leftInset: rect ? rect.left - shell.left : null,
-          rightInset: rect ? shell.right - rect.right : null,
-        };
-      }),
+      shell: { left: shell.left, right: shell.right, height: shell.height },
+      copy: { left: copy.left, right: copy.right },
+      avatar: { left: avatar.left, right: avatar.right },
+      range: { left: range.left, right: range.right },
     };
   });
 
-  expect(geometry.padding.left).toBeGreaterThanOrEqual(12);
-  expect(geometry.padding.right).toBeGreaterThanOrEqual(12);
-  for (const child of geometry.children) {
-    expect(child.leftInset, `${child.selector} left inset`).not.toBeNull();
-    expect(child.leftInset!, `${child.selector} left inset`).toBeGreaterThanOrEqual(12);
-    expect(child.rightInset!, `${child.selector} right inset`).toBeGreaterThanOrEqual(12);
-  }
-
-  const actions = hero.locator('.tt-player-profile-actions > *');
-  await expect(actions).toHaveCount(4);
-  const actionBoxes = await actions.evaluateAll((elements) => elements.map((element) => {
-    const rect = element.getBoundingClientRect();
-    return { top: rect.top, height: rect.height };
-  }));
-  expect(Math.max(...actionBoxes.map((box) => box.top)) - Math.min(...actionBoxes.map((box) => box.top))).toBeLessThan(4);
-  expect(Math.max(...actionBoxes.map((box) => box.height))).toBeLessThanOrEqual(48);
-  expect(geometry.shell.height).toBeLessThan(700);
-
-  await capture(page, testInfo, 'player-profile-hero', geometry);
+  expect(geometry.copy.left).toBeLessThan(geometry.avatar.left);
+  expect(geometry.copy.right).toBeLessThanOrEqual(geometry.avatar.left);
+  expect(geometry.range.left - geometry.shell.left).toBeGreaterThanOrEqual(12);
+  expect(geometry.shell.right - geometry.range.right).toBeGreaterThanOrEqual(12);
+  expect(geometry.shell.height).toBeLessThan(690);
+  await capture(page, testInfo, 'player-profile-polished', geometry);
 
   await page.evaluate(({ id, name }) => {
     localStorage.setItem('tt_players_my_player', JSON.stringify({ id, name }));
     sessionStorage.setItem('tt_test_keep_my_player', 'true');
-  }, player!);
+  }, player);
   await page.reload({ waitUntil: 'domcontentloaded' });
 
-  const currentUserHero = page.locator('.tt-player-profile-hero');
-  await expect(currentUserHero.getByText('Claimed as your profile', { exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(currentUserHero.locator('.tt-player-profile-actions > *')).toHaveCount(3);
-  await expect(currentUserHero.getByRole('button', { name: 'Save to favourites' })).toHaveCount(0);
+  const claimedHero = page.locator('.tt-player-profile-hero');
+  await expect(claimedHero.getByText('Claimed as your profile', { exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(claimedHero.locator('.tt-player-profile-actions > *')).toHaveCount(3);
+  await expect(claimedHero.getByRole('button', { name: 'Save to favourites' })).toHaveCount(0);
+  await capture(page, testInfo, 'player-profile-claimed', { actions: 3, claimStatus: true });
+
+  await claimedHero.getByRole('button', { name: 'Undo claim' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Undo this profile claim?' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('No match data will be deleted.', { exact: false })).toBeVisible();
+  await capture(page, testInfo, 'player-profile-undo-claim', { actions: 3, claimConfirmation: true });
+
+  await dialog.getByRole('button', { name: 'Keep linked' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(claimedHero.getByText('Claimed as your profile', { exact: true })).toBeVisible();
+
+  await claimedHero.getByRole('button', { name: 'Undo claim' }).click();
+  await page.getByRole('dialog', { name: 'Undo this profile claim?' }).getByRole('button', { name: 'Undo claim' }).click();
+  await expect(claimedHero.getByText('Claimed as your profile', { exact: true })).toHaveCount(0);
+  await expect(claimedHero.getByRole('button', { name: 'Save to favourites' })).toBeVisible();
 
   writeReportIndex(previewUrl);
 });

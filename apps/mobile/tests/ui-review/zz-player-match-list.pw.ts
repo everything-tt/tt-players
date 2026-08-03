@@ -130,7 +130,7 @@ test('reviews compact recent matches and Quick Journal', async ({ page }, testIn
   await firstPageResponse;
 
   await expect(page.locator('.tt-player-hero')).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole('button', { name: 'This isn’t me' })).toBeVisible();
+  await expect(page.getByText('Claimed as your profile', { exact: true })).toBeVisible();
 
   const recentSection = page.locator('section.tt-player-section').filter({
     has: page.getByRole('heading', { name: 'Recent Matches' }),

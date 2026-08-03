@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ratingConfidenceLabel, usePlayerRatingQuery } from '../rating-queries';
 import type { ShareTarget } from '../share-target';
 import { useShareTarget } from '../hooks/useShareTarget';
-import { AppButton } from '../ui/appkit';
+import { AppButton, BottomSheet } from '../ui/appkit';
 import { FavouriteButton } from './FavouriteButton';
 import '../player-profile-hero.css';
 
@@ -53,6 +53,7 @@ export function PlayerProfileHero({
   onOpenRatingHistory,
 }: PlayerProfileHeroProps) {
   const [isRangeOpen, setIsRangeOpen] = useState(false);
+  const [isClaimSheetOpen, setIsClaimSheetOpen] = useState(false);
   const ratingQuery = usePlayerRatingQuery(playerId, Boolean(playerId));
   const rating = ratingQuery.data?.data ?? null;
   const { share, status: shareStatus } = useShareTarget(shareTarget);
@@ -62,44 +63,27 @@ export function PlayerProfileHero({
       <p className="tt-player-profile-eyebrow">Player profile</p>
 
       <div className="tt-player-profile-identity">
-        <div className="tt-player-profile-avatar" aria-hidden="true">
-          <span>{initials}</span>
-          <i className="fa fa-table-tennis" />
-        </div>
         <div className="tt-player-profile-copy">
           <h1 id="tt-player-title">{playerName}</h1>
           <p>{totalMatches} matches · {wins} wins · {winRate}% win rate</p>
         </div>
+        <div className="tt-player-profile-avatar" aria-hidden="true">
+          <span>{initials}</span>
+          <i className="fa fa-table-tennis" />
+        </div>
       </div>
 
-      <div className="tt-player-profile-actions" aria-label="Player actions">
-        {isCurrentUser ? (
-          <AppButton
-            size="s"
-            tone="outline"
-            className="tt-player-profile-action tt-player-profile-identity-action"
-            onClick={onClearIdentity}
-          >
-            <i className="fa fa-user-xmark" aria-hidden="true" />
-            <span className="tt-player-profile-action-label">This isn’t me</span>
-          </AppButton>
-        ) : (
+      <div
+        className={`tt-player-profile-actions${isCurrentUser ? ' tt-player-profile-actions--claimed' : ''}`}
+        aria-label="Player actions"
+      >
+        {!isCurrentUser ? (
           <FavouriteButton
             saved={isFavourite}
             onToggle={onToggleFavourite}
             className="tt-player-profile-action tt-player-profile-save"
           />
-        )}
-        <AppButton
-          size="s"
-          tone="ghost"
-          className="tt-player-profile-action"
-          onClick={(event) => { void share(event); }}
-          disabled={!shareTarget}
-        >
-          <i className="fa fa-share-nodes" aria-hidden="true" />
-          <span className="tt-player-profile-action-label">Share</span>
-        </AppButton>
+        ) : null}
         <AppButton
           size="s"
           tone="ghost"
@@ -107,7 +91,7 @@ export function PlayerProfileHero({
           onClick={onOpenRatingHistory}
         >
           <i className="fa fa-chart-line" aria-hidden="true" />
-          <span className="tt-player-profile-action-label">View History</span>
+          <span className="tt-player-profile-action-label">History</span>
         </AppButton>
         <AppButton
           size="s"
@@ -117,6 +101,16 @@ export function PlayerProfileHero({
         >
           <i className="fa fa-lightbulb" aria-hidden="true" />
           <span className="tt-player-profile-action-label">Insights</span>
+        </AppButton>
+        <AppButton
+          size="s"
+          tone="ghost"
+          className="tt-player-profile-action"
+          onClick={(event) => { void share(event); }}
+          disabled={!shareTarget}
+        >
+          <i className="fa fa-share-nodes" aria-hidden="true" />
+          <span className="tt-player-profile-action-label">Share</span>
         </AppButton>
       </div>
 
@@ -146,31 +140,28 @@ export function PlayerProfileHero({
               <small>{rating.provisional ? 'Provisional' : 'Current standing'}</small>
             </div>
             <div className="tt-player-profile-metric">
-              <span>Confidence</span>
-              <strong className="tt-player-profile-confidence">{ratingConfidenceLabel(rating.confidence)}</strong>
-              <small>{rating.rated_matches} rated matches</small>
-            </div>
-
-            <button
-              type="button"
-              className="tt-player-profile-range"
-              aria-expanded={isRangeOpen}
-              onClick={() => setIsRangeOpen((open) => !open)}
-            >
-              <span>
-                <small>Likely range</small>
-                <strong>{Math.round(rating.rating_low)}–{Math.round(rating.rating_high)}</strong>
-                <em>{rating.rated_matches} rated matches</em>
-              </span>
-              <i className={`fa fa-chevron-${isRangeOpen ? 'up' : 'down'}`} aria-hidden="true" />
-            </button>
-
-            <div className="tt-player-profile-metric tt-player-profile-win-rate">
               <span>Win rate</span>
               <strong>{winRate}%</strong>
               <small>Career</small>
             </div>
           </div>
+
+          <button
+            type="button"
+            className="tt-player-profile-range"
+            aria-expanded={isRangeOpen}
+            onClick={() => setIsRangeOpen((open) => !open)}
+          >
+            <span>
+              <small>Likely range</small>
+              <strong>{Math.round(rating.rating_low)}–{Math.round(rating.rating_high)}</strong>
+              <em>{ratingConfidenceLabel(rating.confidence)} confidence · {rating.rated_matches} rated matches</em>
+            </span>
+            <span className="tt-player-profile-range-affordance" aria-hidden="true">
+              <span>{isRangeOpen ? 'Hide' : 'Details'}</span>
+              <i className={`fa fa-chevron-${isRangeOpen ? 'up' : 'down'}`} />
+            </span>
+          </button>
 
           {isRangeOpen ? (
             <div className="tt-player-profile-range-detail" aria-label="Rating range details">
@@ -232,6 +223,38 @@ export function PlayerProfileHero({
           </>
         )}
       </div>
+
+      {isCurrentUser ? (
+        <div className="tt-player-profile-claim" aria-label="Profile claim status">
+          <span><i className="fa fa-circle-check" aria-hidden="true" />Claimed as your profile</span>
+          <button type="button" onClick={() => setIsClaimSheetOpen(true)}>Undo claim</button>
+        </div>
+      ) : null}
+
+      <BottomSheet
+        isOpen={isClaimSheetOpen}
+        onClose={() => setIsClaimSheetOpen(false)}
+        title="Undo this profile claim?"
+        height="auto"
+        className="tt-confirm-sheet tt-player-profile-claim-sheet"
+      >
+        <p className="tt-player-profile-claim-sheet-copy">
+          This player record will no longer be linked to your account. No match data will be deleted.
+        </p>
+        <div className="tt-confirm-actions">
+          <AppButton tone="ghost" full onClick={() => setIsClaimSheetOpen(false)}>Keep linked</AppButton>
+          <AppButton
+            tone="danger"
+            full
+            onClick={() => {
+              onClearIdentity();
+              setIsClaimSheetOpen(false);
+            }}
+          >
+            Undo claim
+          </AppButton>
+        </div>
+      </BottomSheet>
 
       {shareStatus ? <span className="sr-only" aria-live="polite">{shareStatus}</span> : null}
     </section>
