@@ -19,7 +19,9 @@ describe('My TT identity behaviour', () => {
     expect(pageSource).toContain('clearMyPlayer');
     expect(pageSource).toContain('onClearIdentity={clearMyPlayer}');
     expect(heroSource).toContain('isCurrentUser ?');
-    expect(heroSource).toContain('This isn’t me');
+    expect(heroSource).toContain('Claimed as your profile');
+    expect(heroSource).toContain('Undo claim');
+    expect(heroSource).not.toContain('This isn’t me');
   });
 
   it('prefills the existing journal form from validated query parameters', () => {

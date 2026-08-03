@@ -112,7 +112,7 @@ test('keeps the player profile hero compact, padded and behaviourally complete',
   await expect(hero.getByText('Player profile', { exact: true })).toBeVisible();
   await expect(hero.getByText('Rating', { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(hero.getByRole('button', { name: 'Save to favourites' })).toBeVisible();
-  await expect(hero.getByText('View History', { exact: true })).toBeVisible();
+  await expect(hero.getByText('History', { exact: true })).toBeVisible();
   await expect(hero.locator('.tt-player-profile-form-indicator')).toBeVisible();
   await expect(hero.locator('.tt-form-recent')).toHaveCount(0);
 
@@ -172,7 +172,8 @@ test('keeps the player profile hero compact, padded and behaviourally complete',
   await page.reload({ waitUntil: 'domcontentloaded' });
 
   const currentUserHero = page.locator('.tt-player-profile-hero');
-  await expect(currentUserHero.getByRole('button', { name: 'This isn’t me' })).toBeVisible({ timeout: 30_000 });
+  await expect(currentUserHero.getByText('Claimed as your profile', { exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(currentUserHero.locator('.tt-player-profile-actions > *')).toHaveCount(3);
   await expect(currentUserHero.getByRole('button', { name: 'Save to favourites' })).toHaveCount(0);
 
   writeReportIndex(previewUrl);

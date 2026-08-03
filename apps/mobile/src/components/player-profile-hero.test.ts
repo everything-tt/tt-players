@@ -24,27 +24,40 @@ describe('unified player profile hero', () => {
     expect(heroSource).toContain('Momentum');
   });
 
-  it('replaces follow with identity removal for the identified player', () => {
+  it('presents a self-claimed profile as quiet account state, not a mismatch action', () => {
     const heroSource = read('./PlayerProfileHero.tsx');
 
     expect(heroSource).toContain('isCurrentUser ?');
-    expect(heroSource).toContain('This isn’t me');
+    expect(heroSource).toContain('Claimed as your profile');
+    expect(heroSource).toContain('Undo claim');
+    expect(heroSource).toContain('Undo this profile claim?');
+    expect(heroSource).toContain('No match data will be deleted.');
+    expect(heroSource).not.toContain('This isn’t me');
     expect(heroSource).toContain('<FavouriteButton');
-    expect(heroSource).toContain(': (');
   });
 
-  it('matches the approved compact mock at narrow mobile widths', () => {
+  it('puts identity copy before the right-aligned avatar', () => {
+    const heroSource = read('./PlayerProfileHero.tsx');
+    const styles = read('../player-profile-hero.css');
+
+    expect(heroSource.indexOf('tt-player-profile-copy')).toBeLessThan(heroSource.indexOf('tt-player-profile-avatar'));
+    expect(styles).toContain('.tt-player-profile-avatar {');
+    expect(styles).toContain('margin-left: auto;');
+  });
+
+  it('matches the approved compact action and summary hierarchy at narrow mobile widths', () => {
     const heroSource = read('./PlayerProfileHero.tsx');
     const styles = read('../player-profile-hero.css');
 
     expect(heroSource.indexOf('tt-player-profile-eyebrow')).toBeLessThan(heroSource.indexOf('tt-player-profile-identity'));
-    expect(heroSource).toContain('View History');
+    expect(heroSource).toContain('>History</span>');
     expect(heroSource).toContain('tt-player-profile-form-indicator');
     expect(heroSource).toContain('Rolling win rate form indicator');
     expect(heroSource).not.toContain('<FormResultPills');
 
     expect(styles).toContain('grid-template-columns: repeat(4, minmax(0, 1fr));');
-    expect(styles).not.toContain('.tt-player-profile-actions {\n    grid-template-columns: 1fr;');
+    expect(styles).toContain('.tt-player-profile-actions--claimed');
+    expect(styles).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));');
     expect(styles).toContain('.tt-player-profile-form-indicator');
     expect(styles).toContain('.tt-player-profile-action-label');
   });
@@ -54,8 +67,9 @@ describe('unified player profile hero', () => {
     const styles = read('../player-profile-hero.css');
 
     expect(heroSource).toContain('Share');
-    expect(heroSource).toContain('View History');
+    expect(heroSource).toContain('History');
     expect(heroSource).toContain('Insights');
+    expect(heroSource).toContain('tt-player-profile-claim');
     expect(styles).toContain('.tt-player-profile-hero');
     expect(styles).toContain('box-shadow');
     expect(styles).toContain('.tt-player-profile-form-grid');

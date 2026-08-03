@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // PR #107. Player profile hero alignment, padding and action behaviour.
-  testMatch: 'zz-player-profile-hero.pw.ts',
+  // Player profile and insights polish: one shared hierarchy and calm supporting detail.
+  testMatch: 'zz-player-profile-polish.pw.ts',
 
   timeout: 120_000,
   expect: {

@@ -19,17 +19,26 @@ import { AppPageContent, ErrorState, PageSection } from './ui/appkit';
 function PlayerInsightsSkeleton() {
   return (
     <>
-      {Array.from({ length: 4 }).map((_, sectionIndex) => (
-        <PageSection
-          key={sectionIndex}
-          surface="flat"
-          density="compact"
-          ariaLabelledby={undefined}
-          className="tt-insights-skeleton-section"
-        >
+      <PageSection
+        surface="hero"
+        density="compact"
+        ariaLabelledby={undefined}
+        className="tt-insights-summary tt-insights-skeleton-summary"
+      >
+        <SkeletonBlock className="tt-skeleton-text" />
+        <SkeletonBlock className="tt-insights-skeleton-verdict" />
+        <SkeletonBlock className="tt-insights-skeleton-recent" />
+        <div className="tt-insights-skeleton-metrics">
+          {Array.from({ length: 3 }).map((_, metricIndex) => (
+            <SkeletonBlock key={metricIndex} className="tt-skeleton-stat" />
+          ))}
+        </div>
+      </PageSection>
+      {Array.from({ length: 3 }).map((_, sectionIndex) => (
+        <PageSection key={sectionIndex} surface="flat" density="compact" ariaLabelledby={undefined} className="tt-insights-skeleton-section tt-insights-supporting-section">
           <SkeletonBlock className="tt-skeleton-text" />
           <div className="tt-insights-skeleton-metrics">
-            {Array.from({ length: sectionIndex === 0 || sectionIndex === 3 ? 4 : 3 }).map((__, metricIndex) => (
+            {Array.from({ length: 3 }).map((__, metricIndex) => (
               <SkeletonBlock key={metricIndex} className="tt-skeleton-stat" />
             ))}
           </div>
@@ -69,10 +78,7 @@ export function PlayerInsightsPage() {
           <>
             <PlayerInsightsSummary stats={stats} insights={insights} />
 
-            <PlayerRatingHistoryChart
-              playerId={playerId}
-              recentResults={insights.form.recent_results}
-            />
+            <PlayerRatingHistoryChart playerId={playerId} />
 
             <PlayerRivalIntelligence
               data={rivalsQuery.data ?? null}

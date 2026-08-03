@@ -1,27 +1,201 @@
-.tt-insights-page > .tt-section {
-  background: var(--canvas-parchment);
-  border-bottom: 1px solid var(--border-hairline);
-  padding-block: 16px;
+.tt-insights-page {
+  padding-bottom: 28px;
 }
 
-.tt-insights-page > .tt-section:first-child {
-  padding-top: 12px;
+.tt-insights-summary.tt-section--hero {
+  background: var(--tt-home-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: 22px;
+  box-shadow: 0 12px 30px color-mix(in oklch, var(--ink) 9%, transparent);
+  color: var(--ink);
+  margin: 14px 14px 8px;
+  overflow: hidden;
+  padding: 18px 16px 16px;
+}
+
+.tt-insights-summary-eyebrow {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  margin: 0 0 14px 2px;
+  text-transform: uppercase;
+}
+
+.tt-insights-summary-lead {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.tt-insights-summary-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tt-insights-summary-copy > span {
+  color: var(--ink-muted);
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.tt-insights-summary-verdict {
+  color: var(--ink);
+  font-size: clamp(30px, 8.5vw, 40px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+  margin: 4px 0 0;
 }
 
 .tt-insights-takeaway {
-  border-top: 1px solid var(--border-hairline);
   color: var(--ink-muted);
   font-size: 13px;
   line-height: 1.45;
-  margin: 12px 0 0;
-  padding-top: 10px;
+  margin: 8px 0 0;
+  max-width: 42ch;
 }
 
-.tt-insights-skeleton-metrics {
+.tt-insights-momentum {
+  align-items: center;
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  color: var(--accent);
+  display: flex;
+  flex: 0 0 62px;
+  font-size: 24px;
+  height: 62px;
+  justify-content: center;
+  width: 62px;
+}
+
+.tt-insights-momentum--cold {
+  color: var(--ink-muted);
+}
+
+.tt-insights-recent {
+  align-items: center;
+  background: var(--canvas-parchment);
+  border: 1px solid var(--border-hairline);
+  border-radius: 14px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 16px;
+  min-height: 68px;
+  padding: 10px 12px;
+}
+
+.tt-insights-recent-copy {
   display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-top: 12px;
+  flex: 0 0 auto;
+  grid-template-columns: auto auto;
+  line-height: 1.2;
+  min-width: 92px;
+}
+
+.tt-insights-recent-copy span {
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 800;
+  grid-column: 1 / -1;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.tt-insights-recent-copy strong {
+  color: var(--ink);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
+}
+
+.tt-insights-recent-copy small {
+  align-self: end;
+  color: var(--ink-muted);
+  font-size: 10px;
+  margin: 0 0 2px 6px;
+}
+
+.tt-insights-recent .tt-form-recent {
+  margin: 0;
+  min-width: 0;
+}
+
+.tt-insights-recent .tt-form-recent-list {
+  flex-wrap: nowrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.tt-insights-recent .tt-outcome {
+  font-size: 11px;
+  height: 24px;
+  min-width: 24px;
+  padding: 0;
+  width: 24px;
+}
+
+.tt-insights-summary-metrics {
+  border-top: 1px solid var(--border-hairline);
+  gap: 0;
+  margin-top: 14px;
+  padding-top: 12px;
+}
+
+.tt-insights-summary-metrics .tt-metric {
+  border-right: 1px solid var(--border-hairline);
+  padding: 7px 8px 4px;
+}
+
+.tt-insights-summary-metrics .tt-metric:last-child {
+  border-right: 0;
+}
+
+.tt-insights-summary-metrics .tt-metric__value {
+  color: var(--ink);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tt-insights-summary-metrics .tt-metric__label {
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  margin-top: 5px;
+  text-transform: uppercase;
+}
+
+.tt-insights-summary-metrics .tt-metric__hint {
+  font-size: 10px;
+  margin-top: 3px;
+}
+
+.tt-insights-supporting-section.tt-section--flat {
+  background: var(--canvas-parchment);
+  border-bottom: 1px solid var(--border-hairline);
+  margin-inline: 16px;
+  padding-block: 20px;
+}
+
+.tt-insights-supporting-section .tt-section-header__title {
+  font-size: 19px;
+}
+
+.tt-insights-supporting-section .tt-section-header__description {
+  max-width: 46ch;
+}
+
+.tt-insights-page .tt-rating-history {
+  border-top: 0;
+  margin-top: 0;
 }
 
 .tt-rating-history-toggle {
@@ -43,23 +217,36 @@
 }
 
 .tt-rating-history-toolbar {
-  align-items: flex-start;
+  align-items: center;
   display: flex;
-  flex-wrap: wrap;
   gap: 10px;
   justify-content: space-between;
 }
 
-.tt-rating-history-toolbar .tt-form-recent {
+.tt-rating-history-range-label {
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tt-rating-history-ranges.tt-filter-bar {
   margin: 0;
 }
 
-.tt-rating-history-toolbar .tt-form-recent-list {
-  flex-wrap: nowrap;
+.tt-rating-history-summary {
+  border-bottom: 1px solid var(--border-hairline);
+  border-top: 1px solid var(--border-hairline);
+  gap: 0;
+  margin: 14px 0 2px;
+  padding-block: 8px;
 }
 
-.tt-rating-history-summary {
-  margin: 12px 0 2px;
+.tt-rating-history-summary .tt-metric {
+  border-right: 1px solid var(--border-hairline);
+}
+
+.tt-rating-history-summary .tt-metric:last-child {
+  border-right: 0;
 }
 
 .tt-rating-history-summary .tt-metric__value .is-positive,
@@ -83,6 +270,11 @@
   margin: 0 0 6px;
 }
 
+.tt-rivals-list,
+.tt-career-season-list {
+  border-top: 1px solid var(--border-hairline);
+}
+
 .tt-insights-state,
 .tt-insights-empty {
   color: var(--ink-muted);
@@ -95,8 +287,8 @@
   align-items: center;
   display: flex;
   gap: 8px;
-  min-height: 72px;
   justify-content: center;
+  min-height: 72px;
   text-align: center;
 }
 
@@ -134,28 +326,158 @@
   text-transform: uppercase;
 }
 
+.tt-career-highlight-metrics {
+  gap: 0;
+}
+
+.tt-career-highlight-metrics .tt-metric {
+  border-right: 1px solid var(--border-hairline);
+}
+
+.tt-career-highlight-metrics .tt-metric:last-child {
+  border-right: 0;
+}
+
+.tt-career-highlight-metrics .tt-metric__value {
+  font-size: 18px;
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+.tt-career-milestone {
+  align-items: center;
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent-border);
+  border-radius: 14px;
+  display: flex;
+  gap: 11px;
+  margin-top: 12px;
+  padding: 10px 12px;
+}
+
+.tt-career-milestone-icon {
+  align-items: center;
+  background: var(--surface-strong);
+  border-radius: 999px;
+  color: var(--accent);
+  display: flex;
+  flex: 0 0 36px;
+  height: 36px;
+  justify-content: center;
+  width: 36px;
+}
+
+.tt-career-milestone > span:last-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tt-career-milestone small {
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.tt-career-milestone strong {
+  color: var(--ink);
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.tt-career-season-title {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 750;
+  margin: 18px 0 8px;
+}
+
 .tt-career-season-list {
-  margin-top: 10px;
+  margin-top: 0;
 }
 
 .tt-career-season-row .tt-pill {
   white-space: nowrap;
 }
 
+.tt-insights-skeleton-summary {
+  min-height: 374px;
+}
+
+.tt-insights-skeleton-verdict {
+  height: 42px;
+  margin-top: 28px;
+  width: 56%;
+}
+
+.tt-insights-skeleton-recent {
+  border-radius: 14px;
+  height: 68px;
+  margin-top: 18px;
+  width: 100%;
+}
+
+.tt-insights-skeleton-metrics {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+body.theme-dark .tt-insights-summary.tt-section--hero {
+  border-color: var(--panel-border);
+  box-shadow: 0 12px 30px color-mix(in oklch, black 28%, transparent);
+}
+
+body.theme-dark .tt-insights-recent,
+body.theme-dark .tt-career-milestone {
+  border-color: var(--panel-border);
+}
+
 @media (max-width: 520px) {
-  .tt-rating-history-toolbar {
-    align-items: stretch;
-    flex-direction: column;
+  .tt-insights-recent {
+    align-items: flex-start;
   }
 
-  .tt-rating-history-toolbar .tt-form-recent-list {
+  .tt-insights-recent .tt-form-recent-list {
     flex-wrap: wrap;
   }
 }
 
 @media (max-width: 420px) {
-  .tt-insights-skeleton-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .tt-insights-summary.tt-section--hero {
+    margin-inline: 12px;
+    padding-inline: 14px;
+  }
+
+  .tt-insights-summary-lead {
+    gap: 12px;
+  }
+
+  .tt-insights-momentum {
+    flex-basis: 54px;
+    font-size: 21px;
+    height: 54px;
+    width: 54px;
+  }
+
+  .tt-insights-recent {
+    flex-direction: column;
+  }
+
+  .tt-insights-recent .tt-form-recent-list {
+    justify-content: flex-start;
+  }
+
+  .tt-insights-supporting-section.tt-section--flat {
+    margin-inline: 14px;
+  }
+
+  .tt-rating-history-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .tt-rival-trailing {

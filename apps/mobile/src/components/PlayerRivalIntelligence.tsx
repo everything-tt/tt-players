@@ -51,9 +51,9 @@ export function PlayerRivalIntelligence({
     <PageSection
       surface="flat"
       density="compact"
-      className="tt-rivals"
-      title="Rival Intelligence"
-      description="Rankings based on recorded singles meetings."
+      className="tt-rivals tt-insights-supporting-section"
+      title="Key matchups"
+      description="Patterns from opponents faced at least three times."
     >
       <SegmentedToggle
         options={TAB_OPTIONS}
