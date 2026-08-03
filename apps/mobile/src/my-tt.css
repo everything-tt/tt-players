@@ -166,7 +166,7 @@
   background: color-mix(in oklch, var(--accent-subtle) 42%, var(--tt-surface-raised));
   border: 1px solid color-mix(in oklch, var(--accent) 14%, var(--tt-border));
   border-radius: var(--tt-radius-lg, 16px);
-  padding: 14px 16px;
+  padding: 14px 16px !important;
 }
 
 .tt-my-tt-progress-card__header {
