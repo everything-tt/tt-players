@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import supertest from 'supertest';
 import type { Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
@@ -168,6 +169,43 @@ describe('GET /api/players/leaders', () => {
             .where('type', '=', 'player-leaders')
             .executeTakeFirst();
         expect(cached).toBeDefined();
+    });
+
+    it('uses one bounded cache key for equivalent large league scopes', async () => {
+        await db.deleteFrom('cache_entries').where('type', '=', 'player-leaders').execute();
+
+        const leagueIds = Array.from({ length: 194 }, () => randomUUID());
+        leagueIds[0] = ids.leagueId;
+
+        await request
+            .get('/api/players/leaders')
+            .query({
+                mode: 'win_pct',
+                limit: 5,
+                min_played: 1,
+                league_ids: leagueIds.join(','),
+            })
+            .expect(200);
+
+        await request
+            .get('/api/players/leaders')
+            .query({
+                mode: 'win_pct',
+                limit: 5,
+                min_played: 1,
+                league_ids: [...leagueIds].reverse().concat(leagueIds[0]).join(','),
+            })
+            .expect(200);
+
+        const cached = await db
+            .selectFrom('cache_entries')
+            .select(['cache_key'])
+            .where('type', '=', 'player-leaders')
+            .execute();
+
+        expect(cached).toHaveLength(1);
+        expect(Buffer.byteLength(cached[0]!.cache_key, 'utf8')).toBeLessThanOrEqual(80);
+        expect(cached[0]!.cache_key).toMatch(/^v2:[a-f0-9]{64}$/);
     });
 
     it('aggregates linked source player rows into one leaderboard row', async () => {

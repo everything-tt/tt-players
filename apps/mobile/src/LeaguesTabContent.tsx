@@ -46,7 +46,14 @@ export function LeaguesTabContent({ selectedLeagueIds }: LeaguesTabContentProps)
   const leagueIds = visibleLeagues.map((league) => league.id);
   const dashboardQuery = useLeagueCollectionDashboardQuery(leagueIds, leagueIds.length > 0);
   const overviewQuery = useLeagueOverviewQuery(leagueIds, leagueIds.length > 0);
-  const leadersQuery = useLeadersQuery({ mode: playerMode === 'best' ? 'win_pct' : 'most_played', leagueIds, limit: 5, minPlayed: 5, enabled: leagueIds.length > 0 && performanceMode === 'players' });
+  const leadersQuery = useLeadersQuery({
+    mode: playerMode === 'best' ? 'win_pct' : 'most_played',
+    leagueIds,
+    allLeaguesCount: allLeagues.length,
+    limit: 5,
+    minPlayed: 5,
+    enabled: leagueIds.length > 0 && performanceMode === 'players',
+  });
 
   const dashboard = dashboardQuery.data ?? null;
   const leagues = overviewQuery.data?.data ?? [];
