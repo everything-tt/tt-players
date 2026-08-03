@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // Upcoming, completed, and 320px tournament timeline review.
-  testMatch: 'zz-tournament-timeline.pw.ts',
+  // Icon filters, category combinations, and results-only completed events.
+  testMatch: 'zz-tournament-filters-results.pw.ts',
 
   timeout: 120_000,
   expect: {

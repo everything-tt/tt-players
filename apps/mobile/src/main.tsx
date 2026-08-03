@@ -11,6 +11,7 @@ import './density-pass.css';
 import './uncarded-density.css';
 import './h2h.css';
 import './tournament-timeline.css';
+import './tournament-filters.css';
 import { AppRouter } from './AppRouter';
 import { restoreLocalDataBackup } from './local-persistence';
 

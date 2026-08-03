@@ -29,14 +29,26 @@ describe('paged search helpers', () => {
     })).toBe('/players/search?limit=10&offset=0');
   });
 
-  it('builds tournament page requests for the active lifecycle tab only', () => {
+  it('builds tournament page requests with saved and category filters', () => {
     expect(buildTournamentListPath({
       status: 'completed',
       query: 'Birmingham',
       savedIds: ['00000000-0000-0000-0000-000000000004'],
+      categories: ['women', 'junior'],
       limit: 10,
       offset: 10,
-    })).toBe('/events?status=completed&q=Birmingham&saved_ids=00000000-0000-0000-0000-000000000004&limit=10&offset=10');
+    })).toBe('/events?status=completed&q=Birmingham&saved_ids=00000000-0000-0000-0000-000000000004&categories=junior%2Cwomen&limit=10&offset=10');
+  });
+
+  it('omits inactive tournament filters', () => {
+    expect(buildTournamentListPath({
+      status: 'upcoming',
+      query: '',
+      savedIds: [],
+      categories: [],
+      limit: 10,
+      offset: 0,
+    })).toBe('/events?status=upcoming&limit=10&offset=0');
   });
 
   it('normalizes the current paginated response envelope', () => {

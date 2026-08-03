@@ -87,6 +87,21 @@ const SavedIdsSchema = z.string().refine((value) => {
     return ids.length <= 200 && ids.every((id) => z.string().uuid().safeParse(id).success);
 }, 'saved_ids must contain at most 200 comma-separated UUIDs');
 
+const TournamentCategorySchema = z.enum([
+    'cadet',
+    'junior',
+    'senior',
+    'veterans',
+    'women',
+    'girls',
+]);
+
+const CategoriesSchema = z.string().refine((value) => {
+    const categories = value.split(',').map((category) => category.trim()).filter(Boolean);
+    return categories.length <= 6
+        && categories.every((category) => TournamentCategorySchema.safeParse(category).success);
+}, 'categories must contain valid comma-separated tournament categories');
+
 const QuerySchema = z.object({
     q: z.string().optional(),
     status: z.enum([
@@ -101,6 +116,7 @@ const QuerySchema = z.object({
     from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     category: z.string().optional(),
+    categories: CategoriesSchema.optional(),
     saved_ids: SavedIdsSchema.optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
     offset: z.coerce.number().int().min(0).default(0),
@@ -108,8 +124,46 @@ const QuerySchema = z.object({
 
 type EventQuery = z.infer<typeof QuerySchema>;
 type EventItem = z.infer<typeof EventItemSchema>;
+type TournamentCategory = z.infer<typeof TournamentCategorySchema>;
 type TournamentSourceItem = z.infer<typeof TournamentSourceSchema>;
 type EventResultItem = z.infer<typeof EventResultRowSchema>;
+
+const CATEGORY_REGEX: Record<TournamentCategory, string> = {
+    cadet: '\\m(cadet|u-?(15|13|11)|under[- ]?(15|13|11))\\M',
+    junior: '\\m(junior|youth|u-?(19|17)|under[- ]?(19|17))\\M',
+    senior: '\\m(senior|adult)\\M',
+    veterans: '\\m(veterans?|vets?|masters?|o-?(40|50|60|70)|over[- ]?(40|50|60|70))\\M',
+    women: '\\m(women|woman|ladies|lady|female)\\M',
+    girls: '\\m(girls?|girl)\\M',
+};
+
+const NON_SENIOR_OPEN_REGEX = '\\m(cadet|junior|youth|veterans?|vets?|masters?|women|woman|ladies|lady|girls?|girl|female|u-?(19|17|15|13|11)|under[- ]?(19|17|15|13|11)|o-?(40|50|60|70)|over[- ]?(40|50|60|70))\\M';
+
+function categorySearchText() {
+    return sql<string>`lower(concat_ws(' ', coalesce(c.category, ''), coalesce(c.display_name, c.name)))`;
+}
+
+function categoryCondition(category: TournamentCategory) {
+    const text = categorySearchText();
+    if (category === 'senior') {
+        return sql<boolean>`(
+            ${text} ~ ${CATEGORY_REGEX.senior}
+            or (
+                ${text} ~ ${'\\mopen\\M'}
+                and not (${text} ~ ${NON_SENIOR_OPEN_REGEX})
+            )
+        )`;
+    }
+    return sql<boolean>`${text} ~ ${CATEGORY_REGEX[category]}`;
+}
+
+function parseCategories(value: string | undefined): TournamentCategory[] {
+    if (!value) return [];
+    return value
+        .split(',')
+        .map((category) => category.trim())
+        .filter((category): category is TournamentCategory => TournamentCategorySchema.safeParse(category).success);
+}
 
 function applyEventFilters<T>(builder: T, query: EventQuery): T {
     let filtered = builder as any;
@@ -143,6 +197,17 @@ function applyEventFilters<T>(builder: T, query: EventQuery): T {
         } else {
             filtered = filtered.where('c.event_status', '=', query.status);
         }
+
+        if (query.status === 'completed') {
+            filtered = filtered.where(sql<boolean>`exists (
+                select 1
+                from rubbers r
+                join fixtures f on f.id = r.fixture_id
+                where f.competition_id = c.id
+                  and r.deleted_at is null
+                  and r.is_doubles = false
+            )`);
+        }
     }
 
     if (query.from) {
@@ -161,6 +226,13 @@ function applyEventFilters<T>(builder: T, query: EventQuery): T {
     }
     if (query.category) {
         filtered = filtered.where('c.category', 'ilike', `%${query.category}%`);
+    }
+
+    const categories = parseCategories(query.categories);
+    if (categories.length > 0) {
+        filtered = filtered.where(sql<boolean>`(
+            ${sql.join(categories.map(categoryCondition), sql` or `)}
+        )`);
     }
 
     return filtered as T;
