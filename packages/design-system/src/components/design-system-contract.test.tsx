@@ -15,15 +15,20 @@ import {
 describe('canonical design-system contracts', () => {
   it('renders explicit layout and surface variants', () => {
     const markup = renderToStaticMarkup(
-      <Stack gap="sm">
-        <Inline gap="xs" align="center" justify="between"><span>A</span><span>B</span></Inline>
+      <Stack gap="sm" aria-label="Layout stack">
+        <Inline gap="xs" align="center" justify="between" role="group" aria-label="Inline actions">
+          <span>A</span><span>B</span>
+        </Inline>
         <Surface variant="raised" padding="compact">Surface</Surface>
         <PageSection surface="flat" density="compact" title="Players" note="12 found">Body</PageSection>
       </Stack>,
     );
 
     expect(markup).toContain('tt-stack--sm');
+    expect(markup).toContain('aria-label="Layout stack"');
     expect(markup).toContain('tt-inline--between');
+    expect(markup).toContain('role="group"');
+    expect(markup).toContain('aria-label="Inline actions"');
     expect(markup).toContain('tt-surface--raised');
     expect(markup).toContain('tt-section--flat');
     expect(markup).toContain('tt-section--compact');
