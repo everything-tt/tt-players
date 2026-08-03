@@ -8,18 +8,23 @@ import {
 } from './hooks/useTournamentList';
 import { useSearch } from './hooks/useSearch';
 import { useTabNavigation } from './navigation/tab-navigation';
-import { formatDateOrUnknown } from './player-shared';
+import {
+  getTournamentDateParts,
+  getTournamentDateValue,
+  groupTournamentTimeline,
+} from './tournament-timeline';
 import {
   AppSearchInput,
   AppToggleButton,
   DesignList,
   EmptyState,
   ErrorState,
-  IconCircle,
   InfiniteListFooter,
   ListItem,
   PageSection,
+  Pill,
   SearchToolbar,
+  SectionHeader,
   SegmentedToggle,
 } from './ui/appkit';
 
@@ -30,23 +35,66 @@ function formatVenue(event: TournamentEventItem): string | null {
   return event.venue_name ?? event.venue_town ?? event.venue_postcode;
 }
 
-function formatUpcomingSubtitle(event: TournamentEventItem): string {
-  const parts = [
-    formatDateOrUnknown(event.start_date ?? event.event_date),
-    event.category ?? 'Tournament',
-    formatVenue(event),
-  ].filter(Boolean);
-  if (event.status === 'entries_open') parts.push('Entries open');
-  if (event.status === 'entries_closed') parts.push('Entries closed');
-  return parts.join(' · ');
+function TournamentDateTile({ event }: { event: TournamentEventItem }) {
+  const parts = getTournamentDateParts(getTournamentDateValue(event));
+
+  if (!parts) {
+    return (
+      <span className="tt-tournament-date-tile tt-tournament-date-tile--unknown" aria-label="Date unavailable">
+        <i className="fa fa-calendar" aria-hidden="true" />
+      </span>
+    );
+  }
+
+  return (
+    <span className="tt-tournament-date-tile" aria-label={parts.fullLabel} title={parts.fullLabel}>
+      <span className="tt-tournament-date-tile__month" aria-hidden="true">{parts.month}</span>
+      <span className="tt-tournament-date-tile__day" aria-hidden="true">{parts.day}</span>
+    </span>
+  );
 }
 
-function formatCompletedSubtitle(event: TournamentEventItem): string {
-  return [
-    formatDateOrUnknown(event.start_date ?? event.event_date),
-    event.category ?? 'Tournament',
-    `${event.match_count} ${event.match_count === 1 ? 'match' : 'matches'}`,
-  ].join(' · ');
+function TournamentMetadata({
+  event,
+  status,
+}: {
+  event: TournamentEventItem;
+  status: TournamentListStatus;
+}) {
+  const details = [event.category ?? 'Tournament', formatVenue(event)].filter(Boolean).join(' · ');
+  const isUpcoming = status === 'upcoming';
+  const statusLabel = isUpcoming
+    ? event.status === 'entries_open'
+      ? 'Entries open'
+      : event.status === 'entries_closed'
+        ? 'Entries closed'
+        : 'Upcoming'
+    : event.match_count > 0
+      ? 'Results available'
+      : 'Completed';
+  const statusTone = isUpcoming
+    ? event.status === 'entries_open'
+      ? 'success'
+      : event.status === 'entries_closed'
+        ? 'neutral'
+        : 'accent'
+    : event.match_count > 0
+      ? 'success'
+      : 'neutral';
+
+  return (
+    <span className="tt-tournament-timeline-item__metadata">
+      <span className="tt-tournament-timeline-item__details">{details}</span>
+      <span className="tt-tournament-timeline-item__status-row">
+        <Pill tone={statusTone} size="xs">{statusLabel}</Pill>
+        {!isUpcoming && event.match_count > 0 ? (
+          <span className="tt-tournament-timeline-item__match-count">
+            {event.match_count} {event.match_count === 1 ? 'match' : 'matches'}
+          </span>
+        ) : null}
+      </span>
+    </span>
+  );
 }
 
 interface TournamentResultsProps {
@@ -73,6 +121,10 @@ function TournamentResults({
   const isUpcoming = status === 'upcoming';
   const title = isUpcoming ? 'Upcoming tournaments' : 'Completed tournaments';
   const iconClassName = isUpcoming ? 'fa fa-calendar' : 'fa fa-trophy';
+  const groups = useMemo(
+    () => groupTournamentTimeline(list.items, status),
+    [list.items, status],
+  );
 
   let state = null;
   if (savedOnly && !hasSavedTournaments) {
@@ -114,27 +166,53 @@ function TournamentResults({
       density="compact"
       title={title}
       meta={state ? undefined : `${list.items.length} of ${list.total}`}
+      className="tt-tournament-results-section"
     >
       {state ?? (
         <>
-          <DesignList density="compact" divider="hairline" paginate={false}>
-            {list.items.map((event) => (
-              <ListItem
-                key={event.id}
-                leading={<IconCircle iconClassName={iconClassName} tone="accent" />}
-                title={event.name}
-                subtitle={isUpcoming ? formatUpcomingSubtitle(event) : formatCompletedSubtitle(event)}
-                onClick={() => onOpen(event.id)}
-                trailing={(
-                  <FavouriteButton
-                    size="icon"
-                    saved={isFavourite(event.id)}
-                    onToggle={() => onToggleFavourite(event)}
+          <div className="tt-tournament-timeline-groups">
+            {groups.map((group) => {
+              const headingId = `tournament-${status}-${group.key.replace(/[^a-z0-9-]/gi, '-')}`;
+              return (
+                <section
+                  key={group.key}
+                  className="tt-tournament-timeline-group"
+                  aria-labelledby={headingId}
+                >
+                  <SectionHeader
+                    title={<span id={headingId}>{group.label}</span>}
+                    density="compact"
+                    emphasis="secondary"
+                    className="tt-tournament-timeline-group__header"
                   />
-                )}
-              />
-            ))}
-          </DesignList>
+                  <DesignList
+                    density="comfortable"
+                    divider="none"
+                    paginate={false}
+                    className="tt-tournament-timeline-list"
+                  >
+                    {group.items.map((event) => (
+                      <ListItem
+                        key={event.id}
+                        className="tt-tournament-timeline-item"
+                        leading={<TournamentDateTile event={event} />}
+                        title={event.name}
+                        subtitle={<TournamentMetadata event={event} status={status} />}
+                        onClick={() => onOpen(event.id)}
+                        trailing={(
+                          <FavouriteButton
+                            size="icon"
+                            saved={isFavourite(event.id)}
+                            onToggle={() => onToggleFavourite(event)}
+                          />
+                        )}
+                      />
+                    ))}
+                  </DesignList>
+                </section>
+              );
+            })}
+          </div>
           <InfiniteListFooter
             hasMore={list.hasMore}
             isLoading={list.isLoadingMore}
