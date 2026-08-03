@@ -1,3 +1,5 @@
+import type { TournamentCategoryFilter } from './tournament-category-filter';
+
 export interface PlayerSearchPathOptions {
   query: string;
   leagueIds: string[];
@@ -11,6 +13,7 @@ export interface TournamentListPathOptions {
   status: 'upcoming' | 'completed';
   query: string;
   savedIds: string[];
+  categories: TournamentCategoryFilter[];
   limit: number;
   offset: number;
 }
@@ -92,6 +95,7 @@ export function buildTournamentListPath({
   status,
   query,
   savedIds,
+  categories,
   limit,
   offset,
 }: TournamentListPathOptions): string {
@@ -101,6 +105,8 @@ export function buildTournamentListPath({
   if (normalizedQuery) params.set('q', normalizedQuery);
   const normalizedSavedIds = sortedUnique(savedIds);
   if (normalizedSavedIds.length > 0) params.set('saved_ids', normalizedSavedIds.join(','));
+  const normalizedCategories = sortedUnique(categories);
+  if (normalizedCategories.length > 0) params.set('categories', normalizedCategories.join(','));
   params.set('limit', String(limit));
   params.set('offset', String(offset));
   return `/events?${params.toString()}`;
