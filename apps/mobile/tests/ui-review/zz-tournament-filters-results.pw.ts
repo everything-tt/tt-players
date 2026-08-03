@@ -129,7 +129,7 @@ test('reviews icon filters, category selection, and results-only completed tourn
   await upcomingResponse;
 
   const savedButton = page.getByRole('button', { name: /show saved tournaments only/i });
-  const filterButton = page.getByRole('button', { name: /show tournament category filters/i });
+  const filterButton = page.getByRole('button', { name: /tournament category filters/i });
   await expect(savedButton).toBeVisible();
   await expect(filterButton).toBeVisible();
   await expect(savedButton.locator('.tt-tournament-toolbar-icon__label')).toBeHidden();
