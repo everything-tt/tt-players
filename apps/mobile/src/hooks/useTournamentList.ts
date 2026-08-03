@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, getQueryError, type EventItem } from '../player-shared';
 import { buildTournamentListPath, mergePageById } from '../paged-search';
+import type { TournamentCategoryFilter } from '../tournament-category-filter';
 
 export type TournamentListStatus = 'upcoming' | 'completed';
 
@@ -30,6 +31,7 @@ interface UseTournamentListOptions {
   status: TournamentListStatus;
   search: string;
   savedIds?: string[];
+  categories?: TournamentCategoryFilter[];
   enabled?: boolean;
   pageSize?: number;
 }
@@ -38,11 +40,13 @@ export function useTournamentList({
   status,
   search,
   savedIds = [],
+  categories = [],
   enabled = true,
   pageSize = 10,
 }: UseTournamentListOptions) {
   const normalizedSearch = search.trim();
   const savedKey = useMemo(() => [...savedIds].sort().join(','), [savedIds]);
+  const categoriesKey = useMemo(() => [...categories].sort().join(','), [categories]);
   const [items, setItems] = useState<TournamentEventItem[]>([]);
   const [offset, setOffset] = useState(0);
   const [total, setTotal] = useState(0);
@@ -51,15 +55,16 @@ export function useTournamentList({
     setOffset(0);
     setItems([]);
     setTotal(0);
-  }, [normalizedSearch, status, savedKey, pageSize]);
+  }, [categoriesKey, normalizedSearch, status, savedKey, pageSize]);
 
   const query = useQuery({
-    queryKey: ['events', 'list', status, normalizedSearch, savedKey, pageSize, offset],
+    queryKey: ['events', 'list', status, normalizedSearch, savedKey, categoriesKey, pageSize, offset],
     queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<TournamentEventsResponse>(
       buildTournamentListPath({
         status,
         query: normalizedSearch,
         savedIds,
+        categories,
         limit: pageSize,
         offset,
       }),
