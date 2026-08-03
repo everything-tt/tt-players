@@ -9,16 +9,23 @@ import {
 import { useSearch } from './hooks/useSearch';
 import { useTabNavigation } from './navigation/tab-navigation';
 import {
+  TOURNAMENT_CATEGORY_OPTIONS,
+  toggleTournamentCategory,
+  type TournamentCategoryFilter,
+} from './tournament-category-filter';
+import {
   getTournamentDateParts,
   getTournamentDateValue,
   groupTournamentTimeline,
 } from './tournament-timeline';
 import {
+  AppButton,
   AppSearchInput,
   AppToggleButton,
   DesignList,
   EmptyState,
   ErrorState,
+  FilterBar,
   InfiniteListFooter,
   ListItem,
   PageSection,
@@ -69,25 +76,21 @@ function TournamentMetadata({
       : event.status === 'entries_closed'
         ? 'Entries closed'
         : 'Upcoming'
-    : event.match_count > 0
-      ? 'Results available'
-      : 'Completed';
+    : 'Results available';
   const statusTone = isUpcoming
     ? event.status === 'entries_open'
       ? 'success'
       : event.status === 'entries_closed'
         ? 'neutral'
         : 'accent'
-    : event.match_count > 0
-      ? 'success'
-      : 'neutral';
+    : 'success';
 
   return (
     <span className="tt-tournament-timeline-item__metadata">
       <span className="tt-tournament-timeline-item__details">{details}</span>
       <span className="tt-tournament-timeline-item__status-row">
         <Pill tone={statusTone} size="xs">{statusLabel}</Pill>
-        {!isUpcoming && event.match_count > 0 ? (
+        {!isUpcoming ? (
           <span className="tt-tournament-timeline-item__match-count">
             {event.match_count} {event.match_count === 1 ? 'match' : 'matches'}
           </span>
@@ -102,6 +105,7 @@ interface TournamentResultsProps {
   list: TournamentListState;
   savedOnly: boolean;
   hasSavedTournaments: boolean;
+  hasCategoryFilters: boolean;
   searchQuery: string;
   isFavourite: (id: string) => boolean;
   onToggleFavourite: (event: TournamentEventItem) => void;
@@ -113,6 +117,7 @@ function TournamentResults({
   list,
   savedOnly,
   hasSavedTournaments,
+  hasCategoryFilters,
   searchQuery,
   isFavourite,
   onToggleFavourite,
@@ -141,21 +146,24 @@ function TournamentResults({
     state = <ErrorState message={list.error} onRetry={() => void list.retry()} />;
   } else if (list.items.length === 0) {
     const hasQuery = searchQuery.trim().length > 0;
+    const hasFilters = savedOnly || hasCategoryFilters;
     state = (
       <EmptyState
         iconClassName={savedOnly ? 'fa fa-heart-o' : iconClassName}
         title={savedOnly
           ? 'No saved tournaments found'
-          : hasQuery
+          : hasQuery || hasFilters
             ? 'No tournaments found'
             : isUpcoming
               ? 'No upcoming tournaments'
-              : 'No completed tournaments'}
+              : 'No completed tournaments with results'}
         message={hasQuery
           ? `No ${status} tournaments matching “${searchQuery.trim()}”.`
-          : savedOnly
-            ? `No saved ${status} tournaments are available.`
-            : `No published ${status} tournaments are available yet.`}
+          : hasFilters
+            ? 'Try changing or clearing the active filters.'
+            : isUpcoming
+              ? 'No published upcoming tournaments are available yet.'
+              : 'Completed tournaments appear after results have been imported.'}
       />
     );
   }
@@ -232,6 +240,8 @@ export function EventsTabContent() {
   const { navigateInActiveTab } = useTabNavigation();
   const [status, setStatus] = useState<TournamentListStatus>('upcoming');
   const [savedOnly, setSavedOnly] = useState(false);
+  const [categoryFiltersOpen, setCategoryFiltersOpen] = useState(false);
+  const [categories, setCategories] = useState<TournamentCategoryFilter[]>([]);
   const search = useSearch({ minLength: 0, resetOnDisable: false });
   const {
     items: favouriteTournaments,
@@ -243,11 +253,13 @@ export function EventsTabContent() {
     [favouriteTournaments, savedOnly],
   );
   const mayFetch = !(savedOnly && favouriteTournaments.length === 0);
+  const categoryFilterActive = categories.length > 0;
 
   const upcoming = useTournamentList({
     status: 'upcoming',
     search: search.debouncedQuery,
     savedIds,
+    categories,
     enabled: status === 'upcoming' && mayFetch,
     pageSize: PAGE_SIZE,
   });
@@ -255,6 +267,7 @@ export function EventsTabContent() {
     status: 'completed',
     search: search.debouncedQuery,
     savedIds,
+    categories,
     enabled: status === 'completed' && mayFetch,
     pageSize: PAGE_SIZE,
   });
@@ -276,15 +289,37 @@ export function EventsTabContent() {
 
       <SearchToolbar
         ariaLabel={`Search ${status} tournaments`}
+        className="tt-tournament-search-toolbar"
         actions={(
-          <AppToggleButton
-            pressed={savedOnly}
-            iconClassName={savedOnly ? 'fa fa-heart' : 'fa fa-heart-o'}
-            onClick={() => setSavedOnly((current) => !current)}
-            aria-label={savedOnly ? 'Show all tournaments' : 'Show saved tournaments only'}
-          >
-            Saved
-          </AppToggleButton>
+          <>
+            <AppToggleButton
+              pressed={savedOnly}
+              iconClassName={savedOnly ? 'fa fa-heart' : 'fa fa-heart-o'}
+              className="tt-tournament-toolbar-icon"
+              onClick={() => setSavedOnly((current) => !current)}
+              aria-label={savedOnly ? 'Show all tournaments' : 'Show saved tournaments only'}
+              title={savedOnly ? 'Show all tournaments' : 'Show saved tournaments only'}
+            >
+              <span className="tt-tournament-toolbar-icon__label">Saved</span>
+            </AppToggleButton>
+            <AppToggleButton
+              pressed={categoryFiltersOpen || categoryFilterActive}
+              iconClassName="fa fa-filter"
+              className="tt-tournament-toolbar-icon"
+              onClick={() => setCategoryFiltersOpen((current) => !current)}
+              aria-label={categoryFiltersOpen ? 'Hide tournament category filters' : 'Show tournament category filters'}
+              aria-expanded={categoryFiltersOpen}
+              aria-controls="tournament-category-filters"
+              title={categoryFiltersOpen ? 'Hide category filters' : 'Show category filters'}
+            >
+              <span className="tt-tournament-toolbar-icon__label">Categories</span>
+              {categoryFilterActive ? (
+                <span className="tt-tournament-toolbar-icon__count" aria-hidden="true">
+                  {categories.length}
+                </span>
+              ) : null}
+            </AppToggleButton>
+          </>
         )}
       >
         <AppSearchInput
@@ -298,11 +333,40 @@ export function EventsTabContent() {
         />
       </SearchToolbar>
 
+      {categoryFiltersOpen ? (
+        <div id="tournament-category-filters" className="tt-tournament-category-filters">
+          <FilterBar ariaLabel="Tournament category filters" className="tt-tournament-category-filters__options">
+            {TOURNAMENT_CATEGORY_OPTIONS.map((option) => (
+              <AppToggleButton
+                key={option.value}
+                pressed={categories.includes(option.value)}
+                size="sm"
+                className="tt-tournament-category-filter"
+                onClick={() => setCategories((current) => toggleTournamentCategory(current, option.value))}
+              >
+                {option.label}
+              </AppToggleButton>
+            ))}
+          </FilterBar>
+          {categoryFilterActive ? (
+            <AppButton
+              tone="ghost"
+              size="s"
+              className="tt-tournament-category-filters__clear"
+              onClick={() => setCategories([])}
+            >
+              Clear
+            </AppButton>
+          ) : null}
+        </div>
+      ) : null}
+
       <TournamentResults
         status={status}
         list={status === 'upcoming' ? upcoming : completed}
         savedOnly={savedOnly}
         hasSavedTournaments={favouriteTournaments.length > 0}
+        hasCategoryFilters={categoryFilterActive}
         searchQuery={search.query}
         isFavourite={isFavourite}
         onToggleFavourite={toggleFavourite}
