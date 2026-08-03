@@ -267,8 +267,10 @@ test('uses one hero and flat design-system sections across My TT', async ({ page
   expect(filledGeometry.flatSections).toBeGreaterThanOrEqual(4);
   await capture(page, testInfo, 'my-tt-design-system-profile', filledGeometry);
 
-  await page.evaluate(() => localStorage.removeItem('tt_players_my_tt_profile'));
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => {
+    localStorage.removeItem('tt_players_my_tt_profile');
+    window.dispatchEvent(new Event('tt-players:my-tt-profile-updated'));
+  });
   await expect(page.getByText('Complete your profile')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText('Add your playing identity')).toBeVisible();
   await expect(page.getByText('No equipment added')).toBeVisible();
@@ -288,8 +290,9 @@ test('uses one hero and flat design-system sections across My TT', async ({ page
 
   await page.evaluate((savedProfile) => {
     localStorage.setItem('tt_players_my_tt_profile', JSON.stringify(savedProfile));
+    window.dispatchEvent(new Event('tt-players:my-tt-profile-updated'));
   }, fullProfile());
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('Butterfly Viscaria')).toBeVisible();
   await page.getByRole('button', { name: 'Edit profile' }).click();
 
   await expect(page).toHaveURL(/\/tabs\/home\/my-tt\/edit$/);
