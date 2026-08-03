@@ -26,19 +26,40 @@
 
 .tt-my-tt-linked-profile {
   align-items: center;
+  background: transparent;
+  border: 0;
   color: var(--ink-muted);
   display: inline-flex;
+  font: inherit;
   font-size: 12px;
-  gap: 5px;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  text-align: left;
 }
 
-.tt-my-tt-hero .tt-entity-hero__actions .tt-action-menu__trigger {
-  min-height: 40px;
-  min-width: 40px;
+.tt-my-tt-linked-profile:active {
+  color: var(--accent);
+}
+
+.tt-my-tt-linked-chevron {
+  font-size: 9px;
+  opacity: .7;
 }
 
 .tt-my-tt-hero .tt-metric-grid {
   margin-top: 0;
+}
+
+.tt-my-tt-saved-notice {
+  align-items: center;
+  color: var(--accent);
+  display: flex;
+  font-size: 12px;
+  font-weight: 750;
+  gap: 7px;
+  margin: 0 var(--tt-gutter-flat, 12px);
+  padding: 10px 0 2px;
 }
 
 .tt-my-tt-completion,
@@ -82,15 +103,125 @@
   background: var(--accent);
 }
 
-.tt-my-tt-tag-row {
-  margin-top: var(--tt-space-2, 8px);
+.tt-my-tt-fact-grid {
+  display: grid;
+  gap: 10px 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.tt-my-tt-bio {
+.tt-my-tt-fact {
+  align-items: center;
+  display: flex;
+  gap: 9px;
+  min-width: 0;
+  padding: 3px 0;
+}
+
+.tt-my-tt-fact-icon,
+.tt-my-tt-equipment-icon,
+.tt-my-tt-about-icon {
+  flex: 0 0 34px;
+  height: 34px;
+  width: 34px;
+}
+
+.tt-my-tt-fact-icon i,
+.tt-my-tt-equipment-icon i,
+.tt-my-tt-about-icon i {
+  font-size: 13px;
+}
+
+.tt-my-tt-fact-copy,
+.tt-my-tt-equipment-copy {
+  min-width: 0;
+}
+
+.tt-my-tt-fact-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tt-my-tt-fact-copy span,
+.tt-my-tt-equipment-label,
+.tt-my-tt-strengths-label {
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .035em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.tt-my-tt-fact-copy strong,
+.tt-my-tt-equipment-copy strong {
   color: var(--ink);
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.tt-my-tt-strengths {
+  border-top: 1px solid color-mix(in oklch, var(--tt-border) 72%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 13px;
+  padding-top: 11px;
+}
+
+.tt-my-tt-equipment-groups {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr;
+}
+
+.tt-my-tt-equipment-group {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.tt-my-tt-equipment-copy {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 1px;
+}
+
+.tt-my-tt-rubber-stack {
+  margin-top: 1px;
+}
+
+.tt-my-tt-rubber-line {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+}
+
+.tt-my-tt-rubber-line strong {
+  min-width: 0;
+}
+
+.tt-my-tt-about {
+  align-items: flex-start;
+  display: flex;
+  gap: 11px;
+  padding: 2px 0 4px;
+}
+
+.tt-my-tt-about blockquote {
+  color: var(--ink);
+  flex: 1 1 auto;
+  font-size: 15px;
   line-height: 1.55;
-  margin: 0;
+  margin: 1px 0 0;
+  max-width: 38rem;
   white-space: pre-wrap;
 }
 
@@ -99,9 +230,19 @@
   padding-bottom: var(--tt-space-2, 8px);
 }
 
-.tt-my-tt-account-note .tt-list-item__title,
-.tt-my-tt-account-note .tt-list-item__subtitle {
+.tt-my-tt-account-inline {
+  align-items: flex-start;
   color: var(--ink-muted);
+  display: flex;
+  font-size: 11px;
+  gap: 8px;
+  line-height: 1.45;
+  padding: 4px 2px;
+}
+
+.tt-my-tt-account-inline i {
+  flex: 0 0 auto;
+  margin-top: 2px;
 }
 
 .tt-my-tt-edit-section {
@@ -253,8 +394,16 @@
 }
 
 @media (min-width: 560px) {
+  .tt-my-tt-fact-grid,
+  .tt-my-tt-equipment-groups,
   .tt-my-tt-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 390px) {
+  .tt-my-tt-fact-grid {
+    grid-template-columns: 1fr;
   }
 }
 
