@@ -153,7 +153,7 @@ test('reviews icon filters, category selection, and results-only completed tourn
       && url.searchParams.get('categories') === 'junior'
       && response.status() === 200;
   });
-  await page.getByRole('button', { name: 'Junior' }).click();
+  await categoryFilters.getByRole('button', { name: 'Junior', exact: true }).click();
   await juniorResponse;
 
   const girlsResponse = page.waitForResponse((response) => {
@@ -163,12 +163,12 @@ test('reviews icon filters, category selection, and results-only completed tourn
       && url.searchParams.get('categories') === 'girls,junior'
       && response.status() === 200;
   });
-  await page.getByRole('button', { name: 'Girls' }).click();
+  await categoryFilters.getByRole('button', { name: 'Girls', exact: true }).click();
   await girlsResponse;
   await expect(filterButton.locator('.tt-tournament-toolbar-icon__count')).toHaveText('2');
   await capture(page, testInfo, 'tournaments-category-filters');
 
-  await page.getByRole('button', { name: 'Clear' }).click();
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
   await expect(filterButton.locator('.tt-tournament-toolbar-icon__count')).toHaveCount(0);
 
   const completedResponsePromise = page.waitForResponse((response) => {
