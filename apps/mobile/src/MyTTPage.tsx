@@ -19,17 +19,27 @@ import {
   ActionMenu,
   AppButton,
   AppPageContent,
+  AppToggleButton,
+  DesignAvatar,
+  DesignList,
   EmptyState,
+  EntityHero,
+  IconCircle,
+  Inline,
+  ListItem,
+  MetricGrid,
   PageSection,
   Pill,
+  Stack,
+  Surface,
 } from './ui/appkit';
 import './my-tt.css';
 
-const PLAYING_STYLE_OPTIONS: Array<{ value: MyTTPlayingStyle; label: string; icon: string }> = [
-  { value: 'attacking', label: 'Attacking', icon: 'fa fa-bolt' },
-  { value: 'all-round', label: 'All-round', icon: 'fa fa-arrows-alt' },
-  { value: 'defensive', label: 'Defensive', icon: 'fa fa-shield-alt' },
-  { value: 'counter', label: 'Counter', icon: 'fa fa-exchange-alt' },
+const PLAYING_STYLE_OPTIONS: Array<{ value: MyTTPlayingStyle; label: string; iconClassName: string }> = [
+  { value: 'attacking', label: 'Attacking', iconClassName: 'fa fa-bolt' },
+  { value: 'all-round', label: 'All-round', iconClassName: 'fa fa-arrows-alt' },
+  { value: 'defensive', label: 'Defensive', iconClassName: 'fa fa-shield-alt' },
+  { value: 'counter', label: 'Counter', iconClassName: 'fa fa-exchange-alt' },
 ];
 
 const DOMINANT_SHOTS = [
@@ -65,23 +75,23 @@ function AccessState({ auth, player, onFindPlayer }: AccessStateProps) {
 
   if (!auth.user) {
     return (
-      <div className="tt-my-tt-access">
+      <Stack gap="sm" className="tt-my-tt-access">
         <EmptyState
           iconClassName="fa fa-user-lock"
           title="Sign in to use My TT"
-          message="My TT is a private, account-owned profile. Sign in before claiming a player and adding your playing information."
+          message="Sign in before claiming a player and adding your personal table tennis information."
         />
         <AppButton full tone="primary" onClick={() => { void auth.signInWithGoogle(); }}>
           <i className="fab fa-google" aria-hidden="true" />
           Sign in with Google
         </AppButton>
-      </div>
+      </Stack>
     );
   }
 
   if (!player) {
     return (
-      <div className="tt-my-tt-access">
+      <Stack gap="sm" className="tt-my-tt-access">
         <EmptyState
           iconClassName="fa fa-id-badge"
           title="Claim your player first"
@@ -91,7 +101,7 @@ function AccessState({ auth, player, onFindPlayer }: AccessStateProps) {
           <i className="fa fa-search" aria-hidden="true" />
           Find my player
         </AppButton>
-      </div>
+      </Stack>
     );
   }
 
@@ -152,27 +162,10 @@ function completionState(profile: MyTTProfile) {
   };
 }
 
-function CardPrompt({ iconClassName, title, message }: { iconClassName: string; title: string; message: string }) {
-  return (
-    <div className="tt-my-tt-card-prompt">
-      <span className="tt-my-tt-card-prompt__icon" aria-hidden="true">
-        <i className={iconClassName} />
-      </span>
-      <span className="tt-my-tt-card-prompt__copy">
-        <strong>{title}</strong>
-        <span>{message}</span>
-      </span>
-    </div>
-  );
-}
-
-function EditSectionAction({ label, onClick }: { label: 'Add' | 'Edit'; onClick: () => void }) {
-  return (
-    <AppButton size="s" tone="ghost" className="tt-my-tt-section-action" onClick={onClick}>
-      <i className={`fa fa-${label === 'Add' ? 'plus' : 'pen'}`} aria-hidden="true" />
-      {label}
-    </AppButton>
-  );
+function profileSummary(profile: MyTTProfile): string {
+  return [profile.dominantShot, profile.grip, profile.preferredPosition]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 export function MyTTPage() {
@@ -205,173 +198,178 @@ export function MyTTPage() {
           </PageSection>
         ) : activeProfile ? (
           <>
-            <PageSection surface="hero" density="compact" ariaLabelledby={undefined} className="tt-my-tt-hero">
-              <div className="tt-my-tt-hero-topline">
-                <p className="tt-my-tt-eyebrow">My player profile</p>
-                <ActionMenu
-                  label="More My TT actions"
-                  title="My TT actions"
-                  triggerClassName="tt-my-tt-more-action"
-                  items={[
-                    {
-                      id: 'public-profile',
-                      label: 'View public profile',
-                      iconClassName: 'fa fa-address-card',
-                      tone: 'accent',
-                      onSelect: () => navigateInTab('players', `player/${player.id}`),
-                    },
-                    {
-                      id: 'match-journal',
-                      label: 'Open match journal',
-                      iconClassName: 'fa fa-book-open',
-                      tone: 'neutral',
-                      onSelect: () => navigateInTab('players', `player/${player.id}/journal`),
-                    },
-                  ]}
-                />
-              </div>
-
-              <div className="tt-my-tt-identity">
-                <div className="tt-my-tt-avatar" aria-hidden="true">{initials(player.name)}</div>
-                <div className="tt-my-tt-identity-copy">
-                  <div className="tt-my-tt-name-row">
-                    <h1>{player.name}</h1>
-                    <Pill tone="accent">You</Pill>
-                  </div>
-                  <p><i className="fa fa-link" aria-hidden="true" /> Linked to public player profile</p>
-                </div>
-              </div>
-
-              {statsQuery.isLoading ? (
+            <EntityHero
+              className="tt-my-tt-hero"
+              eyebrow="My player"
+              leading={<DesignAvatar text={initials(player.name)} size="hero" />}
+              title={(
+                <span className="tt-my-tt-title-line">
+                  <span>{player.name}</span>
+                  <Pill size="xs" tone="neutral">You</Pill>
+                </span>
+              )}
+              subtitle={(
+                <span className="tt-my-tt-linked-profile">
+                  <i className="fa fa-link" aria-hidden="true" />
+                  Linked public player
+                </span>
+              )}
+              actions={(
+                <Inline gap="sm" wrap>
+                  <AppButton size="sm" tone="primary" onClick={openEditor}>
+                    <i className="fa fa-pen" aria-hidden="true" />
+                    Edit profile
+                  </AppButton>
+                  <ActionMenu
+                    label="More My TT actions"
+                    title="My TT actions"
+                    items={[
+                      {
+                        id: 'public-profile',
+                        label: 'View public profile',
+                        iconClassName: 'fa fa-address-card',
+                        tone: 'accent',
+                        onSelect: () => navigateInTab('players', `player/${player.id}`),
+                      },
+                      {
+                        id: 'match-journal',
+                        label: 'Open match journal',
+                        iconClassName: 'fa fa-book-open',
+                        tone: 'neutral',
+                        onSelect: () => navigateInTab('players', `player/${player.id}/journal`),
+                      },
+                    ]}
+                  />
+                </Inline>
+              )}
+              actionPlacement="below"
+              highlights={statsQuery.isLoading ? (
                 <SkeletonList rows={1} />
               ) : (
-                <div className="tt-my-tt-metrics" aria-label="Player performance overview">
-                  <div><strong>{stats?.wins ?? '—'}</strong><span>Wins</span></div>
-                  <div><strong>{stats ? `${winRate}%` : '—'}</strong><span>Win rate</span></div>
-                  <div><strong>{stats?.total ?? '—'}</strong><span>Matches</span></div>
-                </div>
+                <MetricGrid
+                  density="compact"
+                  columns={3}
+                  ariaLabel="Player performance overview"
+                  metrics={[
+                    { value: stats?.wins ?? '—', label: 'Wins' },
+                    { value: stats ? `${winRate}%` : '—', label: 'Win rate' },
+                    { value: stats?.total ?? '—', label: 'Matches' },
+                  ]}
+                />
               )}
-
-              <AppButton full tone="primary" className="tt-my-tt-primary-action" onClick={openEditor}>
-                <i className="fa fa-pen" aria-hidden="true" />
-                Edit My TT
-              </AppButton>
-            </PageSection>
+            />
 
             {completion && completion.percentage < 100 ? (
-              <section className="tt-my-tt-progress-card" aria-label="Profile completion">
-                <div className="tt-my-tt-progress-card__header">
-                  <div>
-                    <strong>Complete your playing profile</strong>
-                    <span>{completion.completed} of {completion.total} sections added</span>
-                  </div>
-                  <Pill tone="accent">{completion.percentage}%</Pill>
-                </div>
+              <PageSection
+                surface="flat"
+                density="compact"
+                title="Complete your profile"
+                description={`${completion.completed} of ${completion.total} details added`}
+                meta={<Pill size="xs" tone="neutral">{completion.percentage}%</Pill>}
+                className="tt-my-tt-completion"
+              >
                 <progress
                   className="tt-my-tt-progress-track"
                   max={100}
                   value={completion.percentage}
                   aria-label={`${completion.percentage}% complete`}
                 />
-                <button type="button" className="tt-my-tt-progress-link" onClick={openEditor}>
-                  Continue setup <i className="fa fa-arrow-right" aria-hidden="true" />
-                </button>
-              </section>
+                <AppButton size="s" tone="ghost" onClick={openEditor}>
+                  Continue setup
+                  <i className="fa fa-arrow-right" aria-hidden="true" />
+                </AppButton>
+              </PageSection>
             ) : null}
 
-            <PageSection
-              surface="raised"
-              density="compact"
-              title="Playing identity"
-              action={<EditSectionAction label={hasPlayingDetails(activeProfile) ? 'Edit' : 'Add'} onClick={openEditor} />}
-              className="tt-my-tt-support-card"
-            >
-              {hasPlayingDetails(activeProfile) ? (
-                <div className="tt-my-tt-playing-summary">
-                  <p className="tt-my-tt-summary-kicker">
-                    {formatStyle(activeProfile.playingStyle)}
-                    {activeProfile.hand ? ` · ${formatHand(activeProfile.hand)}` : ''}
-                  </p>
-                  <p className="tt-my-tt-summary-line">
-                    {[activeProfile.dominantShot, activeProfile.grip, activeProfile.preferredPosition]
-                      .filter(Boolean)
-                      .join(' · ') || 'Add your strongest shot, grip and preferred position.'}
-                  </p>
-                  {activeProfile.playingSince || activeProfile.highestRating ? (
-                    <p className="tt-my-tt-summary-meta">
-                      {[
-                        activeProfile.playingSince ? `Playing since ${activeProfile.playingSince}` : '',
-                        activeProfile.highestRating ? `Highest rating ${activeProfile.highestRating}` : '',
-                      ].filter(Boolean).join(' · ')}
-                    </p>
-                  ) : null}
-                  {activeProfile.characteristics.length > 0 ? (
-                    <div className="tt-my-tt-tag-row" aria-label="Playing characteristics">
-                      {activeProfile.characteristics.map((item) => <span key={item}>{item}</span>)}
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <CardPrompt
-                  iconClassName="fa fa-table-tennis"
-                  title="Add your playing identity"
-                  message="Style, strongest shot, grip and the qualities that define your game."
-                />
-              )}
+            <PageSection surface="flat" density="compact" title="Playing identity" className="tt-my-tt-flat-section">
+              <DesignList density="compact" divider="hairline" paginate={false}>
+                {hasPlayingDetails(activeProfile) ? (
+                  <>
+                    <ListItem
+                      leading={<IconCircle iconClassName="fa fa-table-tennis" tone="neutral" />}
+                      title={[
+                        activeProfile.playingStyle ? formatStyle(activeProfile.playingStyle) : '',
+                        activeProfile.hand ? formatHand(activeProfile.hand) : '',
+                      ].filter(Boolean).join(' · ') || 'Playing identity'}
+                      subtitle={profileSummary(activeProfile) || 'Add your strongest shot, grip and preferred position.'}
+                      hideChevron
+                    />
+                    {activeProfile.playingSince || activeProfile.highestRating ? (
+                      <ListItem
+                        title="Experience"
+                        subtitle={[
+                          activeProfile.playingSince ? `Playing since ${activeProfile.playingSince}` : '',
+                          activeProfile.highestRating ? `Highest rating ${activeProfile.highestRating}` : '',
+                        ].filter(Boolean).join(' · ')}
+                        hideChevron
+                      />
+                    ) : null}
+                  </>
+                ) : (
+                  <ListItem
+                    leading={<IconCircle iconClassName="fa fa-table-tennis" tone="neutral" />}
+                    title="Add your playing identity"
+                    subtitle="Style, strongest shot, grip and the qualities that define your game."
+                    onClick={openEditor}
+                  />
+                )}
+              </DesignList>
+              {activeProfile.characteristics.length > 0 ? (
+                <Inline gap="xs" wrap className="tt-my-tt-tag-row" aria-label="Playing characteristics">
+                  {activeProfile.characteristics.map((item) => (
+                    <Pill key={item} size="xs" tone="neutral">{item}</Pill>
+                  ))}
+                </Inline>
+              ) : null}
             </PageSection>
 
-            <PageSection
-              surface="raised"
-              density="compact"
-              title="Equipment"
-              action={<EditSectionAction label={equipmentCount(activeProfile) > 0 ? 'Edit' : 'Add'} onClick={openEditor} />}
-              className="tt-my-tt-support-card"
-            >
-              {equipmentCount(activeProfile) > 0 ? (
-                <div className="tt-my-tt-equipment-list">
-                  {[
+            <PageSection surface="flat" density="compact" title="Equipment" className="tt-my-tt-flat-section">
+              <DesignList density="compact" divider="hairline" paginate={false}>
+                {equipmentCount(activeProfile) > 0 ? (
+                  [
                     ['Blade', activeProfile.equipment.blade],
-                    ['Forehand', activeProfile.equipment.forehandRubber],
-                    ['Backhand', activeProfile.equipment.backhandRubber],
+                    ['Forehand rubber', activeProfile.equipment.forehandRubber],
+                    ['Backhand rubber', activeProfile.equipment.backhandRubber],
                     ['Shoes', activeProfile.equipment.shoes],
                   ].filter(([, value]) => Boolean(value)).map(([label, value]) => (
-                    <div key={label} className="tt-my-tt-equipment-row">
-                      <span>{label}</span>
-                      <strong>{value}</strong>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <CardPrompt
-                  iconClassName="fa fa-layer-group"
-                  title="No setup added yet"
-                  message="Record your current blade, rubbers and shoes."
-                />
-              )}
+                    <ListItem key={label} title={label} subtitle={value} hideChevron />
+                  ))
+                ) : (
+                  <ListItem
+                    leading={<IconCircle iconClassName="fa fa-layer-group" tone="neutral" />}
+                    title="No equipment added"
+                    subtitle="Record your current blade, rubbers and shoes."
+                    onClick={openEditor}
+                  />
+                )}
+              </DesignList>
             </PageSection>
 
-            <PageSection
-              surface="raised"
-              density="compact"
-              title="About me"
-              action={<EditSectionAction label={activeProfile.bio ? 'Edit' : 'Add'} onClick={openEditor} />}
-              className="tt-my-tt-support-card"
-            >
+            <PageSection surface="flat" density="compact" title="About me" className="tt-my-tt-flat-section">
               {activeProfile.bio ? (
                 <p className="tt-my-tt-bio">{activeProfile.bio}</p>
               ) : (
-                <CardPrompt
-                  iconClassName="fa fa-quote-left"
-                  title="Tell your table tennis story"
-                  message="Add a short introduction about what you enjoy and what you are working towards."
-                />
+                <DesignList density="compact" divider="none" paginate={false}>
+                  <ListItem
+                    leading={<IconCircle iconClassName="fa fa-quote-left" tone="neutral" />}
+                    title="Add a short introduction"
+                    subtitle="Share what you enjoy and what you are working towards."
+                    onClick={openEditor}
+                  />
+                </DesignList>
               )}
             </PageSection>
 
-            <p className="tt-my-tt-data-note">
-              <i className="fa fa-lock" aria-hidden="true" />
-              My TT details are account-owned and saved separately from public match records.
-            </p>
+            <PageSection surface="flat" density="compact" className="tt-my-tt-account-note" ariaLabelledby={undefined}>
+              <DesignList density="compact" divider="none" paginate={false}>
+                <ListItem
+                  leading={<IconCircle iconClassName="fa fa-lock" tone="neutral" />}
+                  title="Account-owned profile"
+                  subtitle="My TT details are saved separately from indexed public match records."
+                  hideChevron
+                />
+              </DesignList>
+            </PageSection>
           </>
         ) : null}
       </AppPageContent>
@@ -413,39 +411,6 @@ function Field({ id, label, hint, children }: FieldProps) {
         {hint ? <small>{hint}</small> : null}
       </div>
       {children}
-    </div>
-  );
-}
-
-interface ChipOption<T extends string> {
-  value: T;
-  label: string;
-  icon?: string;
-}
-
-interface ChoiceChipsProps<T extends string> {
-  ariaLabel: string;
-  value: T;
-  options: Array<ChipOption<T>>;
-  onChange: (value: T) => void;
-}
-
-function ChoiceChips<T extends string>({ ariaLabel, value, options, onChange }: ChoiceChipsProps<T>) {
-  return (
-    <div className="tt-my-tt-chips" role="group" aria-label={ariaLabel}>
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          className={`tt-my-tt-chip${value === option.value ? ' tt-my-tt-chip--selected' : ''}`}
-          aria-pressed={value === option.value}
-          onClick={() => onChange(option.value)}
-        >
-          {option.icon ? <i className={option.icon} aria-hidden="true" /> : null}
-          <span>{option.label}</span>
-          {value === option.value ? <i className="fa fa-check tt-my-tt-chip-check" aria-hidden="true" /> : null}
-        </button>
-      ))}
     </div>
   );
 }
@@ -540,39 +505,39 @@ export function EditMyTTPage() {
           </PageSection>
         ) : (
           <form id="tt-my-tt-edit-form" onSubmit={handleSubmit}>
-            <PageSection surface="raised" density="compact" ariaLabelledby={undefined} className="tt-my-tt-edit-identity">
-              <div className="tt-my-tt-edit-identity-row">
-                <div className="tt-my-tt-avatar tt-my-tt-avatar--compact" aria-hidden="true">{initials(player.name)}</div>
-                <div className="tt-my-tt-identity-copy">
-                  <p className="tt-my-tt-eyebrow">Claimed public player</p>
-                  <h1>{player.name}</h1>
-                  <p>Identity and match data stay read-only.</p>
-                </div>
-                <AppButton
-                  size="s"
-                  tone="ghost"
-                  aria-label="View public profile"
+            <PageSection surface="flat" density="compact" className="tt-my-tt-edit-section" ariaLabelledby={undefined}>
+              <DesignList density="compact" divider="none" paginate={false}>
+                <ListItem
+                  leading={<DesignAvatar text={initials(player.name)} size="standard" />}
+                  title={player.name}
+                  subtitle="Claimed public player · identity and match data are read-only"
+                  trailing={<Pill size="xs" tone="neutral">Public</Pill>}
                   onClick={() => navigateInTab('players', `player/${player.id}`)}
-                >
-                  <i className="fa fa-external-link-alt" aria-hidden="true" />
-                </AppButton>
-              </div>
+                />
+              </DesignList>
             </PageSection>
 
             <PageSection
-              surface="raised"
+              surface="flat"
               density="compact"
               title="Playing identity"
               description="Describe how you play, not what the public results say."
-              className="tt-my-tt-edit-card"
+              className="tt-my-tt-edit-section"
             >
               <Field label="Playing style">
-                <ChoiceChips
-                  ariaLabel="Choose your playing style"
-                  value={draft.playingStyle}
-                  onChange={(value) => updateDraft('playingStyle', value)}
-                  options={PLAYING_STYLE_OPTIONS}
-                />
+                <Inline gap="xs" wrap className="tt-my-tt-toggle-group" aria-label="Choose your playing style">
+                  {PLAYING_STYLE_OPTIONS.map((option) => (
+                    <AppToggleButton
+                      key={option.value}
+                      size="sm"
+                      pressed={draft.playingStyle === option.value}
+                      iconClassName={option.iconClassName}
+                      onClick={() => updateDraft('playingStyle', option.value)}
+                    >
+                      {option.label}
+                    </AppToggleButton>
+                  ))}
+                </Inline>
               </Field>
 
               <div className="tt-my-tt-form-grid">
@@ -609,15 +574,22 @@ export function EditMyTTPage() {
               </div>
 
               <Field label="Playing hand">
-                <ChoiceChips
-                  ariaLabel="Choose your playing hand"
-                  value={draft.hand}
-                  onChange={(value) => updateDraft('hand', value)}
-                  options={[
-                    { value: 'right', label: 'Right handed' },
-                    { value: 'left', label: 'Left handed' },
-                  ]}
-                />
+                <Inline gap="xs" wrap className="tt-my-tt-toggle-group" aria-label="Choose your playing hand">
+                  <AppToggleButton
+                    size="sm"
+                    pressed={draft.hand === 'right'}
+                    onClick={() => updateDraft('hand', 'right')}
+                  >
+                    Right handed
+                  </AppToggleButton>
+                  <AppToggleButton
+                    size="sm"
+                    pressed={draft.hand === 'left'}
+                    onClick={() => updateDraft('hand', 'left')}
+                  >
+                    Left handed
+                  </AppToggleButton>
+                </Inline>
               </Field>
 
               <div className="tt-my-tt-form-grid tt-my-tt-form-grid--two">
@@ -648,37 +620,32 @@ export function EditMyTTPage() {
             </PageSection>
 
             <PageSection
-              surface="raised"
+              surface="flat"
               density="compact"
               title="Characteristics"
               description="Choose the qualities that best describe your game."
-              className="tt-my-tt-edit-card"
+              className="tt-my-tt-edit-section"
             >
-              <div className="tt-my-tt-characteristics" role="group" aria-label="Playing characteristics">
-                {MY_TT_CHARACTERISTICS.map((characteristic) => {
-                  const selected = selectedCharacteristics.has(characteristic);
-                  return (
-                    <button
-                      key={characteristic}
-                      type="button"
-                      className={`tt-my-tt-characteristic${selected ? ' tt-my-tt-characteristic--selected' : ''}`}
-                      aria-pressed={selected}
-                      onClick={() => toggleCharacteristic(characteristic)}
-                    >
-                      {characteristic}
-                      {selected ? <i className="fa fa-check" aria-hidden="true" /> : null}
-                    </button>
-                  );
-                })}
-              </div>
+              <Inline gap="xs" wrap className="tt-my-tt-toggle-group" aria-label="Playing characteristics">
+                {MY_TT_CHARACTERISTICS.map((characteristic) => (
+                  <AppToggleButton
+                    key={characteristic}
+                    size="sm"
+                    pressed={selectedCharacteristics.has(characteristic)}
+                    onClick={() => toggleCharacteristic(characteristic)}
+                  >
+                    {characteristic}
+                  </AppToggleButton>
+                ))}
+              </Inline>
             </PageSection>
 
             <PageSection
-              surface="raised"
+              surface="flat"
               density="compact"
               title="Equipment"
               description="Keep a simple record of your current setup."
-              className="tt-my-tt-edit-card"
+              className="tt-my-tt-edit-section"
             >
               <div className="tt-my-tt-form-grid">
                 <Field id="tt-my-tt-blade" label="Blade">
@@ -697,11 +664,11 @@ export function EditMyTTPage() {
             </PageSection>
 
             <PageSection
-              surface="raised"
+              surface="flat"
               density="compact"
               title="About me"
-              action={<span className="tt-my-tt-character-count">{draft.bio.length}/240</span>}
-              className="tt-my-tt-edit-card"
+              meta={<span className="tt-my-tt-character-count">{draft.bio.length}/240</span>}
+              className="tt-my-tt-edit-section"
             >
               <Field id="tt-my-tt-bio" label="Short introduction" hint="Table tennis only">
                 <textarea
@@ -715,20 +682,28 @@ export function EditMyTTPage() {
               </Field>
             </PageSection>
 
-            <p className="tt-my-tt-data-note tt-my-tt-data-note--edit">
-              <i className="fa fa-lock" aria-hidden="true" />
-              Saved to your account, separately from the indexed player database.
-            </p>
+            <PageSection surface="flat" density="compact" className="tt-my-tt-edit-section" ariaLabelledby={undefined}>
+              <DesignList density="compact" divider="none" paginate={false}>
+                <ListItem
+                  leading={<IconCircle iconClassName="fa fa-lock" tone="neutral" />}
+                  title="Saved to your account"
+                  subtitle="These details remain separate from the indexed player database."
+                  hideChevron
+                />
+              </DesignList>
+            </PageSection>
 
-            <div className="tt-my-tt-sticky-save" aria-live="polite">
-              <span className={`tt-my-tt-save-state${isDirty ? ' tt-my-tt-save-state--dirty' : ''}`}>
-                <i className={`fa fa-${isDirty ? 'circle' : 'check-circle'}`} aria-hidden="true" />
-                {isDirty ? 'Unsaved changes' : (savedMessage || 'All changes saved')}
-              </span>
-              <AppButton type="submit" tone="primary" disabled={!isDirty}>
-                Save changes
-              </AppButton>
-            </div>
+            <Surface variant="raised" padding="compact" className="tt-my-tt-save-dock" aria-live="polite">
+              <Inline gap="sm" align="center" justify="between">
+                <span className={`tt-my-tt-save-state${isDirty ? ' tt-my-tt-save-state--dirty' : ''}`}>
+                  <i className={`fa fa-${isDirty ? 'circle' : 'check-circle'}`} aria-hidden="true" />
+                  {isDirty ? 'Unsaved changes' : (savedMessage || 'All changes saved')}
+                </span>
+                <AppButton type="submit" size="sm" tone="primary" disabled={!isDirty}>
+                  Save changes
+                </AppButton>
+              </Inline>
+            </Surface>
           </form>
         )}
       </AppPageContent>
