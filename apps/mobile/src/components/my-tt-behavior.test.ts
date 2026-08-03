@@ -21,7 +21,7 @@ describe('My TT identity behaviour', () => {
     expect(source).toContain('remove(player.id)');
   });
 
-  it('opens a dedicated polished My TT route instead of editing the public player page', () => {
+  it('uses canonical design-system primitives and flat supporting sections', () => {
     const sectionSource = read('./MyTTSection.tsx');
     const routerSource = read('../AppRouter.tsx');
     const myTTSource = read('../MyTTPage.tsx');
@@ -30,12 +30,21 @@ describe('My TT identity behaviour', () => {
     expect(sectionSource).toContain("navigateInTab('home', 'my-tt')");
     expect(routerSource).toContain('/tabs/:tabId/my-tt');
     expect(routerSource).toContain('/tabs/:tabId/my-tt/edit');
-    expect(myTTSource).toContain('Complete your playing profile');
+    expect(myTTSource).toContain('EntityHero');
+    expect(myTTSource).toContain('MetricGrid');
+    expect(myTTSource).toContain('DesignList');
+    expect(myTTSource).toContain('ListItem');
+    expect(myTTSource).toContain('AppToggleButton');
+    expect(myTTSource).toContain('Surface');
+    expect(myTTSource).toContain('surface="flat"');
+    expect(myTTSource).not.toContain('tt-my-tt-support-card');
+    expect(myTTSource).not.toContain('surface="raised"');
+    expect(myTTSource).toContain('Complete your profile');
     expect(myTTSource).toContain('Playing identity');
     expect(myTTSource).toContain('Equipment');
     expect(myTTSource).toContain('Characteristics');
-    expect(myTTSource).toContain('My TT details are account-owned');
-    expect(myTTSource).toContain('tt-my-tt-sticky-save');
+    expect(myTTSource).toContain('Account-owned profile');
+    expect(myTTSource).toContain('tt-my-tt-save-dock');
     expect(myTTSource).toContain('Unsaved changes');
     expect(publicPlayerSource).not.toContain('useMyTTProfile');
   });

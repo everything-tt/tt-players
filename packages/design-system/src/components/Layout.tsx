@@ -1,11 +1,10 @@
-import type { ElementType, ReactNode } from 'react';
+import type { ElementType, HTMLAttributes, ReactNode } from 'react';
 import { cx } from '../utils/cx';
 
 export type LayoutGap = 'none' | 'xs' | 'sm' | 'md' | 'lg';
 
-interface BaseLayoutProps {
+interface BaseLayoutProps extends Omit<HTMLAttributes<HTMLElement>, 'children'> {
   children: ReactNode;
-  className?: string;
 }
 
 export interface StackProps extends BaseLayoutProps {
@@ -13,8 +12,12 @@ export interface StackProps extends BaseLayoutProps {
   gap?: LayoutGap;
 }
 
-export function Stack({ as: Component = 'div', gap = 'md', className, children }: StackProps) {
-  return <Component className={cx('tt-stack', `tt-stack--${gap}`, className)}>{children}</Component>;
+export function Stack({ as: Component = 'div', gap = 'md', className, children, ...rest }: StackProps) {
+  return (
+    <Component {...rest} className={cx('tt-stack', `tt-stack--${gap}`, className)}>
+      {children}
+    </Component>
+  );
 }
 
 export interface InlineProps extends BaseLayoutProps {
@@ -33,9 +36,11 @@ export function Inline({
   wrap = false,
   className,
   children,
+  ...rest
 }: InlineProps) {
   return (
     <Component
+      {...rest}
       className={cx(
         'tt-inline',
         `tt-inline--${gap}`,
