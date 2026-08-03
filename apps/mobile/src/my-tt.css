@@ -1,0 +1,320 @@
+.tt-my-tt-page {
+  gap: var(--tt-section-gap-standard, 14px);
+}
+
+.tt-my-tt-page form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tt-section-gap-standard, 14px);
+}
+
+.tt-my-tt-hero,
+.tt-my-tt-edit-identity {
+  overflow: hidden;
+}
+
+.tt-my-tt-eyebrow {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  margin: 0 0 12px;
+  text-transform: uppercase;
+}
+
+.tt-my-tt-identity {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  min-width: 0;
+}
+
+.tt-my-tt-avatar {
+  align-items: center;
+  background: color-mix(in oklch, var(--accent-subtle) 72%, var(--tt-surface-raised));
+  border: 1px solid color-mix(in oklch, var(--accent) 16%, var(--tt-border));
+  border-radius: 999px;
+  color: var(--accent);
+  display: flex;
+  flex: 0 0 64px;
+  font-size: 22px;
+  font-weight: 800;
+  height: 64px;
+  justify-content: center;
+  letter-spacing: -.03em;
+  width: 64px;
+}
+
+.tt-my-tt-identity-copy {
+  min-width: 0;
+}
+
+.tt-my-tt-identity-copy h1,
+.tt-my-tt-name-row h1 {
+  color: var(--ink);
+  font-size: clamp(22px, 6vw, 28px);
+  font-weight: 800;
+  letter-spacing: -.035em;
+  line-height: 1.05;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.tt-my-tt-identity-copy p {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 6px 0 0;
+}
+
+.tt-my-tt-name-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tt-my-tt-metrics {
+  border-block: 1px solid var(--tt-border);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 18px;
+  padding-block: 15px;
+}
+
+.tt-my-tt-metrics > div {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding-inline: 4px;
+  text-align: center;
+}
+
+.tt-my-tt-metrics > div + div {
+  border-left: 1px solid var(--tt-border);
+}
+
+.tt-my-tt-metrics strong {
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  line-height: 1;
+}
+
+.tt-my-tt-metrics span {
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
+
+.tt-my-tt-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.tt-my-tt-action-pair {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tt-my-tt-access {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tt-my-tt-bio {
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.65;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.tt-my-tt-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.tt-my-tt-field + .tt-my-tt-field,
+.tt-my-tt-field + .tt-my-tt-form-grid,
+.tt-my-tt-form-grid + .tt-my-tt-field,
+.tt-my-tt-form-grid + .tt-my-tt-form-grid {
+  margin-top: 14px;
+}
+
+.tt-my-tt-field label,
+.tt-my-tt-field-label {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.tt-my-tt-field small {
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.tt-my-tt-field input,
+.tt-my-tt-field select,
+.tt-my-tt-field textarea {
+  appearance: none;
+  background: var(--tt-surface-raised);
+  border: 1px solid var(--tt-border);
+  border-radius: var(--tt-radius-md, 12px);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  min-height: var(--tt-control-height, 44px);
+  outline: none;
+  padding: 11px 12px;
+  transition: border-color var(--tt-motion-fast, 120ms), box-shadow var(--tt-motion-fast, 120ms);
+  width: 100%;
+}
+
+.tt-my-tt-field select {
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-muted) 50%),
+    linear-gradient(135deg, var(--ink-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 17px) 50%,
+    calc(100% - 12px) 50%;
+  background-repeat: no-repeat;
+  background-size: 5px 5px, 5px 5px;
+  padding-right: 34px;
+}
+
+.tt-my-tt-field textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.tt-my-tt-field input:focus,
+.tt-my-tt-field select:focus,
+.tt-my-tt-field textarea:focus {
+  border-color: color-mix(in oklch, var(--accent) 65%, var(--tt-border));
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 12%, transparent);
+}
+
+.tt-my-tt-field input::placeholder,
+.tt-my-tt-field textarea::placeholder {
+  color: color-mix(in oklch, var(--ink-muted) 72%, transparent);
+}
+
+.tt-my-tt-form-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr;
+}
+
+.tt-my-tt-form-grid--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tt-my-tt-chips,
+.tt-my-tt-characteristics {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tt-my-tt-chip,
+.tt-my-tt-characteristic {
+  align-items: center;
+  background: var(--tt-surface-raised);
+  border: 1px solid var(--tt-border);
+  border-radius: var(--tt-radius-md, 12px);
+  color: var(--ink-muted);
+  display: flex;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 7px;
+  justify-content: center;
+  line-height: 1.25;
+  min-height: 44px;
+  padding: 8px 10px;
+  text-align: center;
+  transition: background var(--tt-motion-fast, 120ms), border-color var(--tt-motion-fast, 120ms), color var(--tt-motion-fast, 120ms), transform var(--tt-motion-fast, 120ms);
+}
+
+.tt-my-tt-characteristic {
+  justify-content: space-between;
+  text-align: left;
+}
+
+.tt-my-tt-chip:active,
+.tt-my-tt-characteristic:active {
+  transform: scale(.985);
+}
+
+.tt-my-tt-chip--selected,
+.tt-my-tt-characteristic--selected {
+  background: var(--accent-subtle);
+  border-color: color-mix(in oklch, var(--accent) 46%, var(--tt-border));
+  color: var(--accent);
+}
+
+.tt-my-tt-characteristics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tt-my-tt-save-status {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  margin: 12px 0 0;
+  text-align: center;
+}
+
+.tt-my-tt-save-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+@media (min-width: 560px) {
+  .tt-my-tt-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tt-my-tt-characteristics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 370px) {
+  .tt-my-tt-avatar {
+    flex-basis: 56px;
+    height: 56px;
+    width: 56px;
+  }
+
+  .tt-my-tt-metrics strong {
+    font-size: 18px;
+  }
+
+  .tt-my-tt-metrics span {
+    font-size: 9px;
+  }
+
+  .tt-my-tt-action-pair,
+  .tt-my-tt-form-grid--two,
+  .tt-my-tt-chips,
+  .tt-my-tt-characteristics {
+    grid-template-columns: 1fr;
+  }
+}

@@ -4,11 +4,47 @@ import { describe, expect, it } from 'vitest';
 const read = (relativePath: string) => readFileSync(new URL(relativePath, import.meta.url), 'utf8');
 
 describe('My TT identity behaviour', () => {
+  it('requires a signed-in user before a player can be claimed as Me', () => {
+    const source = read('./MyTTSection.tsx');
+
+    expect(source).toContain('useAuth');
+    expect(source).toContain('!auth.user');
+    expect(source).toContain('auth.user && !myPlayer');
+    expect(source).toContain('signInWithGoogle');
+    expect(source).toContain('This is me');
+  });
+
   it('shows identity selection only before an identity exists and exposes Unfollow', () => {
     const source = read('./MyTTSection.tsx');
     expect(source).toContain('!myPlayer');
     expect(source).toContain('Unfollow');
     expect(source).toContain('remove(player.id)');
+  });
+
+  it('opens a dedicated My TT route instead of editing the public player page', () => {
+    const sectionSource = read('./MyTTSection.tsx');
+    const routerSource = read('../AppRouter.tsx');
+    const myTTSource = read('../MyTTPage.tsx');
+    const publicPlayerSource = read('../PlayerPage.tsx');
+
+    expect(sectionSource).toContain("navigateInTab('home', 'my-tt')");
+    expect(routerSource).toContain('/tabs/:tabId/my-tt');
+    expect(routerSource).toContain('/tabs/:tabId/my-tt/edit');
+    expect(myTTSource).toContain('Separate from your public player record');
+    expect(myTTSource).toContain('Playing style');
+    expect(myTTSource).toContain('Equipment');
+    expect(myTTSource).toContain('Playing characteristics');
+    expect(publicPlayerSource).not.toContain('useMyTTProfile');
+  });
+
+  it('syncs My TT information under its own account preference key', () => {
+    const persistenceSource = read('../local-persistence.ts');
+    const profileSource = read('../hooks/useMyTTProfile.ts');
+
+    expect(persistenceSource).toContain("MY_TT_PROFILE_STORAGE_KEY = 'tt_players_my_tt_profile'");
+    expect(persistenceSource).toContain('MY_TT_PROFILE_STORAGE_KEY,');
+    expect(profileSource).toContain('playerId: player.id');
+    expect(profileSource).toContain('localStorage.setItem(MY_TT_PROFILE_STORAGE_KEY');
   });
 
   it('clears identity only from the identified player profile', () => {

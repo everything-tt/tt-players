@@ -22,8 +22,11 @@ After bootstrap, local changes are uploaded as a complete versioned snapshot. Si
 - favourite tournaments
 - saved H2H comparisons
 - light/dark theme
-- My TT player identity
+- My TT claimed player identity
+- My TT editable profile information
 - private match journal
+
+The claimed player identity and editable My TT profile use separate storage entries. The identity links an account to one indexed public player; the editable profile stores user-provided playing style, characteristics, equipment, and biography without modifying indexed player or match data.
 
 Temporary UI state such as the currently selected H2H picker players and PWA-install dismissal remains device-local.
 

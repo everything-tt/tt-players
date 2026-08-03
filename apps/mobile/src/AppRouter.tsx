@@ -9,6 +9,7 @@ import { DesignSystemPage } from './DesignSystemPage';
 import { FixturePage } from './FixturePage';
 import { isAppTab, TabNavigationProvider } from './navigation/tab-navigation';
 import { MatchJournalPage } from './MatchJournalPage';
+import { EditMyTTPage, MyTTPage } from './MyTTPage';
 import { PlayerInsightsPage } from './PlayerInsightsPage';
 import { PlayerMatchesPage } from './PlayerMatchesPage';
 import { PlayerTournamentsPage } from './PlayerTournamentsPage';
@@ -48,6 +49,8 @@ export function AppRouter() {
               <Routes>
                 <Route path="/" element={<Navigate to="/tabs/home" replace />} />
                 <Route path="/tabs/:tabId" element={<EnsureValidTab><App /></EnsureValidTab>} />
+                <Route path="/tabs/:tabId/my-tt" element={<EnsureValidTab><MyTTPage /></EnsureValidTab>} />
+                <Route path="/tabs/:tabId/my-tt/edit" element={<EnsureValidTab><EditMyTTPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/ratings" element={<EnsureValidTab><TopRatingsPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/event/:eventId" element={<EnsureValidTab><EventDetailPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/player/:playerId" element={<EnsureValidTab><PlayerPage /></EnsureValidTab>} />
