@@ -7,10 +7,10 @@ import '../../../packages/design-system/src/styles/tokens.css';
 import '../../../packages/design-system/src/styles/primitives.css';
 import '../../../packages/design-system/src/styles/native-search.css';
 import './native-mobile.css';
-import './tournament-timeline.css';
 import './density-pass.css';
 import './uncarded-density.css';
 import './h2h.css';
+import './tournament-timeline.css';
 import { AppRouter } from './AppRouter';
 import { restoreLocalDataBackup } from './local-persistence';
 
