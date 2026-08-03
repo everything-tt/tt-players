@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // My TT canonical hero, flat sections, design-system toggles, and edge save dock.
-  testMatch: 'zz-my-tt-design-system.pw.ts',
+  // My TT icon-led details, grouped equipment, and post-save return flow.
+  testMatch: 'zz-my-tt-detail-polish.pw.ts',
 
   timeout: 120_000,
   expect: {

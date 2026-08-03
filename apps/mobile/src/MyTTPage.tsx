@@ -16,7 +16,6 @@ import { useTabNavigation } from './navigation/tab-navigation';
 import { usePlayerExtendedStatsQuery } from './queries';
 import { TabShellPage } from './TabShellPage';
 import {
-  ActionMenu,
   AppButton,
   AppPageContent,
   AppToggleButton,
@@ -34,6 +33,8 @@ import {
   Surface,
 } from './ui/appkit';
 import './my-tt.css';
+
+const MY_TT_SAVED_NOTICE_KEY = 'tt_players_my_tt_saved_notice';
 
 const PLAYING_STYLE_OPTIONS: Array<{ value: MyTTPlayingStyle; label: string; iconClassName: string }> = [
   { value: 'attacking', label: 'Attacking', iconClassName: 'fa fa-bolt' },
@@ -162,10 +163,40 @@ function completionState(profile: MyTTProfile) {
   };
 }
 
-function profileSummary(profile: MyTTProfile): string {
-  return [profile.dominantShot, profile.grip, profile.preferredPosition]
-    .filter(Boolean)
-    .join(' · ');
+interface ProfileFactProps {
+  iconClassName: string;
+  label: string;
+  value: string;
+}
+
+function ProfileFact({ iconClassName, label, value }: ProfileFactProps) {
+  return (
+    <div className="tt-my-tt-fact">
+      <IconCircle iconClassName={iconClassName} tone="neutral" className="tt-my-tt-fact-icon" />
+      <div className="tt-my-tt-fact-copy">
+        <span>{label}</span>
+        <strong>{value}</strong>
+      </div>
+    </div>
+  );
+}
+
+interface EquipmentGroupProps {
+  iconClassName: string;
+  label: string;
+  children: ReactNode;
+}
+
+function EquipmentGroup({ iconClassName, label, children }: EquipmentGroupProps) {
+  return (
+    <div className="tt-my-tt-equipment-group">
+      <IconCircle iconClassName={iconClassName} tone="neutral" className="tt-my-tt-equipment-icon" />
+      <div className="tt-my-tt-equipment-copy">
+        <span className="tt-my-tt-equipment-label">{label}</span>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 export function MyTTPage() {
@@ -173,6 +204,7 @@ export function MyTTPage() {
   const { player } = useMyPlayer();
   const { profile } = useMyTTProfile(player);
   const { navigateInTab } = useTabNavigation();
+  const [showSavedNotice] = useState(() => sessionStorage.getItem(MY_TT_SAVED_NOTICE_KEY) === 'true');
   const statsQuery = usePlayerExtendedStatsQuery(
     player?.id ?? '',
     Boolean(auth.user && player),
@@ -183,6 +215,10 @@ export function MyTTPage() {
   const winRate = total > 0 ? Math.round(((stats?.wins ?? 0) / total) * 100) : 0;
   const completion = activeProfile ? completionState(activeProfile) : null;
   const openEditor = () => navigateInTab('home', 'my-tt/edit');
+
+  useEffect(() => {
+    if (showSavedNotice) sessionStorage.removeItem(MY_TT_SAVED_NOTICE_KEY);
+  }, [showSavedNotice]);
 
   return (
     <TabShellPage>
@@ -209,38 +245,21 @@ export function MyTTPage() {
                 </span>
               )}
               subtitle={(
-                <span className="tt-my-tt-linked-profile">
+                <button
+                  type="button"
+                  className="tt-my-tt-linked-profile"
+                  onClick={() => navigateInTab('players', `player/${player.id}`)}
+                >
                   <i className="fa fa-link" aria-hidden="true" />
                   Linked public player
-                </span>
+                  <i className="fa fa-chevron-right tt-my-tt-linked-chevron" aria-hidden="true" />
+                </button>
               )}
               actions={(
-                <Inline gap="sm" wrap>
-                  <AppButton size="sm" tone="primary" onClick={openEditor}>
-                    <i className="fa fa-pen" aria-hidden="true" />
-                    Edit profile
-                  </AppButton>
-                  <ActionMenu
-                    label="More My TT actions"
-                    title="My TT actions"
-                    items={[
-                      {
-                        id: 'public-profile',
-                        label: 'View public profile',
-                        iconClassName: 'fa fa-address-card',
-                        tone: 'accent',
-                        onSelect: () => navigateInTab('players', `player/${player.id}`),
-                      },
-                      {
-                        id: 'match-journal',
-                        label: 'Open match journal',
-                        iconClassName: 'fa fa-book-open',
-                        tone: 'neutral',
-                        onSelect: () => navigateInTab('players', `player/${player.id}/journal`),
-                      },
-                    ]}
-                  />
-                </Inline>
+                <AppButton size="sm" tone="primary" onClick={openEditor}>
+                  <i className="fa fa-pen" aria-hidden="true" />
+                  Edit profile
+                </AppButton>
               )}
               actionPlacement="below"
               highlights={statsQuery.isLoading ? (
@@ -258,6 +277,13 @@ export function MyTTPage() {
                 />
               )}
             />
+
+            {showSavedNotice ? (
+              <div className="tt-my-tt-saved-notice" role="status">
+                <i className="fa fa-check-circle" aria-hidden="true" />
+                Profile updated
+              </div>
+            ) : null}
 
             {completion && completion.percentage < 100 ? (
               <PageSection
@@ -282,72 +308,110 @@ export function MyTTPage() {
             ) : null}
 
             <PageSection surface="flat" density="compact" title="Playing identity" className="tt-my-tt-flat-section">
-              <DesignList density="compact" divider="hairline" paginate={false}>
-                {hasPlayingDetails(activeProfile) ? (
-                  <>
-                    <ListItem
-                      leading={<IconCircle iconClassName="fa fa-table-tennis" tone="neutral" />}
-                      title={[
-                        activeProfile.playingStyle ? formatStyle(activeProfile.playingStyle) : '',
-                        activeProfile.hand ? formatHand(activeProfile.hand) : '',
-                      ].filter(Boolean).join(' · ') || 'Playing identity'}
-                      subtitle={profileSummary(activeProfile) || 'Add your strongest shot, grip and preferred position.'}
-                      hideChevron
-                    />
+              {hasPlayingDetails(activeProfile) ? (
+                <>
+                  <div className="tt-my-tt-fact-grid">
+                    {activeProfile.playingStyle ? (
+                      <ProfileFact iconClassName="fa fa-table-tennis" label="Playing style" value={formatStyle(activeProfile.playingStyle)} />
+                    ) : null}
+                    {activeProfile.hand ? (
+                      <ProfileFact iconClassName="fa fa-hand-paper" label="Playing hand" value={formatHand(activeProfile.hand)} />
+                    ) : null}
+                    {activeProfile.dominantShot ? (
+                      <ProfileFact iconClassName="fa fa-bullseye" label="Dominant shot" value={activeProfile.dominantShot} />
+                    ) : null}
+                    {activeProfile.grip ? (
+                      <ProfileFact iconClassName="fa fa-hand-rock" label="Grip" value={activeProfile.grip} />
+                    ) : null}
+                    {activeProfile.preferredPosition ? (
+                      <ProfileFact iconClassName="fa fa-arrows-alt-h" label="Preferred position" value={activeProfile.preferredPosition} />
+                    ) : null}
                     {activeProfile.playingSince || activeProfile.highestRating ? (
-                      <ListItem
-                        title="Experience"
-                        subtitle={[
-                          activeProfile.playingSince ? `Playing since ${activeProfile.playingSince}` : '',
-                          activeProfile.highestRating ? `Highest rating ${activeProfile.highestRating}` : '',
+                      <ProfileFact
+                        iconClassName="fa fa-history"
+                        label="Experience"
+                        value={[
+                          activeProfile.playingSince ? `Since ${activeProfile.playingSince}` : '',
+                          activeProfile.highestRating ? `Peak ${activeProfile.highestRating}` : '',
                         ].filter(Boolean).join(' · ')}
-                        hideChevron
                       />
                     ) : null}
-                  </>
-                ) : (
+                  </div>
+                  {activeProfile.characteristics.length > 0 ? (
+                    <div className="tt-my-tt-strengths">
+                      <span className="tt-my-tt-strengths-label">Strengths</span>
+                      <Inline gap="xs" wrap aria-label="Playing characteristics">
+                        {activeProfile.characteristics.map((item) => (
+                          <Pill key={item} size="xs" tone="neutral">{item}</Pill>
+                        ))}
+                      </Inline>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <DesignList density="compact" divider="none" paginate={false}>
                   <ListItem
                     leading={<IconCircle iconClassName="fa fa-table-tennis" tone="neutral" />}
                     title="Add your playing identity"
                     subtitle="Style, strongest shot, grip and the qualities that define your game."
                     onClick={openEditor}
                   />
-                )}
-              </DesignList>
-              {activeProfile.characteristics.length > 0 ? (
-                <Inline gap="xs" wrap className="tt-my-tt-tag-row" aria-label="Playing characteristics">
-                  {activeProfile.characteristics.map((item) => (
-                    <Pill key={item} size="xs" tone="neutral">{item}</Pill>
-                  ))}
-                </Inline>
-              ) : null}
+                </DesignList>
+              )}
             </PageSection>
 
             <PageSection surface="flat" density="compact" title="Equipment" className="tt-my-tt-flat-section">
-              <DesignList density="compact" divider="hairline" paginate={false}>
-                {equipmentCount(activeProfile) > 0 ? (
-                  [
-                    ['Blade', activeProfile.equipment.blade],
-                    ['Forehand rubber', activeProfile.equipment.forehandRubber],
-                    ['Backhand rubber', activeProfile.equipment.backhandRubber],
-                    ['Shoes', activeProfile.equipment.shoes],
-                  ].filter(([, value]) => Boolean(value)).map(([label, value]) => (
-                    <ListItem key={label} title={label} subtitle={value} hideChevron />
-                  ))
-                ) : (
+              {equipmentCount(activeProfile) > 0 ? (
+                <div className="tt-my-tt-equipment-groups">
+                  {activeProfile.equipment.blade ? (
+                    <EquipmentGroup iconClassName="fa fa-table-tennis" label="Blade">
+                      <strong>{activeProfile.equipment.blade}</strong>
+                    </EquipmentGroup>
+                  ) : null}
+
+                  {activeProfile.equipment.forehandRubber || activeProfile.equipment.backhandRubber ? (
+                    <EquipmentGroup iconClassName="fa fa-layer-group" label="Rubbers">
+                      <Stack gap="xs" className="tt-my-tt-rubber-stack">
+                        {activeProfile.equipment.forehandRubber ? (
+                          <div className="tt-my-tt-rubber-line">
+                            <Pill size="xs" tone="neutral">FH</Pill>
+                            <strong>{activeProfile.equipment.forehandRubber}</strong>
+                          </div>
+                        ) : null}
+                        {activeProfile.equipment.backhandRubber ? (
+                          <div className="tt-my-tt-rubber-line">
+                            <Pill size="xs" tone="neutral">BH</Pill>
+                            <strong>{activeProfile.equipment.backhandRubber}</strong>
+                          </div>
+                        ) : null}
+                      </Stack>
+                    </EquipmentGroup>
+                  ) : null}
+
+                  {activeProfile.equipment.shoes ? (
+                    <EquipmentGroup iconClassName="fa fa-shoe-prints" label="Shoes">
+                      <strong>{activeProfile.equipment.shoes}</strong>
+                    </EquipmentGroup>
+                  ) : null}
+                </div>
+              ) : (
+                <DesignList density="compact" divider="none" paginate={false}>
                   <ListItem
                     leading={<IconCircle iconClassName="fa fa-layer-group" tone="neutral" />}
                     title="No equipment added"
                     subtitle="Record your current blade, rubbers and shoes."
                     onClick={openEditor}
                   />
-                )}
-              </DesignList>
+                </DesignList>
+              )}
             </PageSection>
 
             <PageSection surface="flat" density="compact" title="About me" className="tt-my-tt-flat-section">
               {activeProfile.bio ? (
-                <p className="tt-my-tt-bio">{activeProfile.bio}</p>
+                <div className="tt-my-tt-about">
+                  <IconCircle iconClassName="fa fa-quote-left" tone="neutral" className="tt-my-tt-about-icon" />
+                  <blockquote>{activeProfile.bio}</blockquote>
+                </div>
               ) : (
                 <DesignList density="compact" divider="none" paginate={false}>
                   <ListItem
@@ -361,14 +425,10 @@ export function MyTTPage() {
             </PageSection>
 
             <PageSection surface="flat" density="compact" className="tt-my-tt-account-note" ariaLabelledby={undefined}>
-              <DesignList density="compact" divider="none" paginate={false}>
-                <ListItem
-                  leading={<IconCircle iconClassName="fa fa-lock" tone="neutral" />}
-                  title="Account-owned profile"
-                  subtitle="My TT details are saved separately from indexed public match records."
-                  hideChevron
-                />
-              </DesignList>
+              <div className="tt-my-tt-account-inline">
+                <i className="fa fa-lock" aria-hidden="true" />
+                <span>Saved to your account, separately from indexed public match records.</span>
+              </div>
             </PageSection>
           </>
         ) : null}
@@ -480,10 +540,8 @@ export function EditMyTTPage() {
     if (!draft || !player || !auth.user || !isDirty) return;
     const saved = save(draft);
     if (!saved) return;
-    const savedDraft = draftFromProfile(saved);
-    setDraft(savedDraft);
-    setBaseline(serializeDraft(savedDraft));
-    setSavedMessage('Saved just now');
+    sessionStorage.setItem(MY_TT_SAVED_NOTICE_KEY, 'true');
+    navigateInTab('home', 'my-tt');
   };
 
   const handleBack = () => {

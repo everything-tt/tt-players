@@ -43,10 +43,32 @@ describe('My TT identity behaviour', () => {
     expect(myTTSource).toContain('Playing identity');
     expect(myTTSource).toContain('Equipment');
     expect(myTTSource).toContain('Characteristics');
-    expect(myTTSource).toContain('Account-owned profile');
     expect(myTTSource).toContain('tt-my-tt-save-dock');
     expect(myTTSource).toContain('Unsaved changes');
     expect(publicPlayerSource).not.toContain('useMyTTProfile');
+  });
+
+  it('uses icon-led profile facts and grouped equipment without an overflow menu', () => {
+    const source = read('../MyTTPage.tsx');
+
+    expect(source).not.toContain('ActionMenu');
+    expect(source).toContain('ProfileFact');
+    expect(source).toContain('EquipmentGroup');
+    expect(source).toContain('fa fa-bullseye');
+    expect(source).toContain('fa fa-hand-rock');
+    expect(source).toContain('fa fa-shoe-prints');
+    expect(source).toContain('Rubbers');
+    expect(source).toContain('FH');
+    expect(source).toContain('BH');
+    expect(source).toContain('Saved to your account, separately from indexed public match records.');
+  });
+
+  it('returns to My TT after saving the editor', () => {
+    const source = read('../MyTTPage.tsx');
+
+    expect(source).toContain("sessionStorage.setItem(MY_TT_SAVED_NOTICE_KEY, 'true')");
+    expect(source).toContain("navigateInTab('home', 'my-tt')");
+    expect(source).toContain('Profile updated');
   });
 
   it('syncs My TT information under its own account preference key', () => {
