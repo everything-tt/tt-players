@@ -9,6 +9,8 @@ export const LEAGUES_STORAGE_KEY = 'tt_players_selected_league_ids';
 export const LEAGUE_ONBOARDING_STORAGE_KEY = 'tt_players_league_onboarding_complete';
 export const MY_PLAYER_STORAGE_KEY = 'tt_players_my_player';
 export const MY_PLAYER_UPDATED_EVENT = 'tt-players:my-player-updated';
+export const MY_TT_PROFILE_STORAGE_KEY = 'tt_players_my_tt_profile';
+export const MY_TT_PROFILE_UPDATED_EVENT = 'tt-players:my-tt-profile-updated';
 export const MATCH_JOURNAL_STORAGE_KEY = 'tt_players_match_journal';
 export const MATCH_JOURNAL_UPDATED_EVENT = 'tt-players:match-journal-updated';
 export const THEME_STORAGE_KEY = 'TTPlayers-Theme';
@@ -23,6 +25,7 @@ export const SYNCED_LOCAL_DATA_KEYS = [
   FAVOURITE_TOURNAMENTS_STORAGE_KEY,
   THEME_STORAGE_KEY,
   MY_PLAYER_STORAGE_KEY,
+  MY_TT_PROFILE_STORAGE_KEY,
   MATCH_JOURNAL_STORAGE_KEY,
 ] as const;
 
