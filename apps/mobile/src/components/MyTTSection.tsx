@@ -1,5 +1,6 @@
 import { useFavouritePlayers } from '../hooks/useFavouritePlayers';
 import { useMyPlayer } from '../hooks/useMyPlayer';
+import { useAuth } from '../lib/auth';
 import { useTabNavigation } from '../navigation/tab-navigation';
 import { usePlayerExtendedStatsQuery, usePlayerInsightsQuery } from '../queries';
 import {
@@ -19,74 +20,92 @@ interface MyTTSectionProps {
 }
 
 export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
+  const auth = useAuth();
   const { navigateInTab } = useTabNavigation();
   const { player: myPlayer, setMyPlayer } = useMyPlayer();
   const { players: favouritePlayers, remove } = useFavouritePlayers();
-  const statsQuery = usePlayerExtendedStatsQuery(myPlayer?.id ?? '', Boolean(myPlayer));
-  const insightsQuery = usePlayerInsightsQuery(myPlayer?.id ?? '', Boolean(myPlayer));
+  const hasMyTTAccess = Boolean(auth.user && myPlayer);
+  const statsQuery = usePlayerExtendedStatsQuery(myPlayer?.id ?? '', hasMyTTAccess);
+  const insightsQuery = usePlayerInsightsQuery(myPlayer?.id ?? '', hasMyTTAccess);
 
   const followedPlayers = favouritePlayers.filter((player) => player.id !== myPlayer?.id);
   const visibleFollowedPlayers = followedPlayers.slice(0, 4);
   const rollingWinRate = insightsQuery.data?.form.rolling_10_win_rate ?? null;
-
-  if (!myPlayer && favouritePlayers.length === 0) {
-    return (
-      <section className="tt-home-section">
-        <SectionHeader title="My TT" note="Personalise your dashboard" />
-        <EmptyState
-          iconClassName="fa fa-user-circle"
-          title="Make TT Players yours"
-          message="Search for your player profile and save it. Return here to mark it as you and build a personal dashboard."
-        />
-      </section>
-    );
-  }
+  const sectionNote = auth.loading
+    ? 'Checking your account'
+    : !auth.user
+      ? 'Sign in to unlock your profile'
+      : myPlayer
+        ? 'Your personal dashboard'
+        : 'Claim your indexed player';
 
   return (
     <section className="tt-home-section">
-      <SectionHeader
-        title="My TT"
-        note={myPlayer ? 'Your personal dashboard' : 'Choose your player below'}
-      />
+      <SectionHeader title="My TT" note={sectionNote} />
 
-      {myPlayer ? (
-        statsQuery.isLoading ? (
-          <SkeletonList rows={1} />
-        ) : statsQuery.data ? (
+      {auth.loading ? (
+        <SkeletonList rows={1} />
+      ) : !auth.isConfigured ? (
+        <EmptyState
+          iconClassName="fa fa-user-lock"
+          title="Account sign-in is unavailable"
+          message="My TT needs an account so personal information stays linked to the correct player."
+        />
+      ) : !auth.user ? (
+        <>
+          <EmptyState
+            iconClassName="fa fa-user-lock"
+            title="Sign in to use My TT"
+            message="Sign in, claim your player as “Me”, then add your playing style, equipment and table tennis story."
+          />
+          <div className="mt-3">
+            <AppButton full tone="primary" onClick={() => { void auth.signInWithGoogle(); }}>
+              <i className="fab fa-google" aria-hidden="true" />
+              Sign in with Google
+            </AppButton>
+          </div>
+        </>
+      ) : !myPlayer ? (
+        <>
+          <EmptyState
+            iconClassName="fa fa-id-badge"
+            title="Claim your player first"
+            message="Find your player record, follow it, then choose “This is me” to unlock My TT."
+          />
+          <div className="mt-3">
+            <AppButton full tone="primary" onClick={() => navigateInTab('players')}>
+              <i className="fa fa-search" aria-hidden="true" />
+              Find my player
+            </AppButton>
+          </div>
+        </>
+      ) : statsQuery.isLoading ? (
+        <SkeletonList rows={1} />
+      ) : (
+        <>
           <List divider="hairline" size="lg">
             <ListItem
-              leading={<Avatar text={initials(statsQuery.data.player_name)} />}
-              title={statsQuery.data.player_name}
-              subtitle={`${statsQuery.data.wins}W · ${statsQuery.data.losses}L · ${statsQuery.data.total} played${rollingWinRate == null ? '' : ` · Last 10: ${rollingWinRate}%`}`}
+              leading={<Avatar text={initials(statsQuery.data?.player_name ?? myPlayer.name)} />}
+              title={statsQuery.data?.player_name ?? myPlayer.name}
+              subtitle={statsQuery.data
+                ? `${statsQuery.data.wins}W · ${statsQuery.data.losses}L · ${statsQuery.data.total} played${rollingWinRate == null ? '' : ` · Last 10: ${rollingWinRate}%`}`
+                : 'Your claimed public player profile'}
               trailing={<Pill tone="accent">You</Pill>}
-              onClick={() => onOpenPlayer(statsQuery.data!.player_id)}
+              onClick={() => navigateInTab('home', 'my-tt')}
             />
           </List>
-        ) : (
-          <List divider="hairline" size="lg">
-            <ListItem
-              leading={<Avatar text={initials(myPlayer.name)} />}
-              title={myPlayer.name}
-              subtitle="Your player profile is temporarily unavailable."
-              trailing={<Pill tone="accent">You</Pill>}
-              onClick={() => onOpenPlayer(myPlayer.id)}
-            />
-          </List>
-        )
-      ) : null}
-
-      {myPlayer ? (
-        <div className="mt-3">
-          <AppButton
-            full
-            tone="primary"
-            onClick={() => navigateInTab('players', `player/${myPlayer.id}/journal`)}
-          >
-            <i className="fa fa-book-open" aria-hidden="true" />
-            Open Match Journal
-          </AppButton>
-        </div>
-      ) : null}
+          <div className="mt-3 d-flex flex-column gap-2">
+            <AppButton full tone="primary" onClick={() => navigateInTab('home', 'my-tt')}>
+              <i className="fa fa-user" aria-hidden="true" />
+              Open My TT
+            </AppButton>
+            <AppButton full tone="outline" onClick={() => navigateInTab('players', `player/${myPlayer.id}/journal`)}>
+              <i className="fa fa-book-open" aria-hidden="true" />
+              Open Match Journal
+            </AppButton>
+          </div>
+        </>
+      )}
 
       {visibleFollowedPlayers.length > 0 ? (
         <div className="mt-3">
@@ -101,7 +120,7 @@ export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
                 onClick={() => onOpenPlayer(player.id)}
                 trailing={(
                   <span className="d-flex align-items-center gap-2">
-                    {!myPlayer ? (
+                    {auth.user && !myPlayer ? (
                       <AppButton
                         size="sm"
                         tone="outline"
