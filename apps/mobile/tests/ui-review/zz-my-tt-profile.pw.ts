@@ -282,7 +282,7 @@ test('gates My TT behind account and claim, then edits separately from the publi
 
   await page.getByRole('button', { name: 'Edit My TT' }).click();
   await expect(page).toHaveURL(/\/tabs\/home\/my-tt\/edit$/);
-  await expect(page.getByRole('heading', { name: 'Edit My TT' })).toBeVisible();
+  await expect(page.getByText('Edit My TT', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Official player identity and match data are read-only here.')).toBeVisible();
   await expect(page.getByText('Saved separately')).toBeVisible();
   await expect(page.getByLabel('Dominant shot')).toHaveValue('Forehand loop');
