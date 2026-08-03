@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // Player profile and insights polish: one shared hierarchy and calm supporting detail.
-  testMatch: 'zz-player-profile-polish.pw.ts',
+  // My TT account gate, claimed identity, profile view, and separate edit flow.
+  testMatch: 'zz-my-tt-profile.pw.ts',
 
   timeout: 120_000,
   expect: {
