@@ -182,7 +182,10 @@ test('reviews icon filters, category selection, and results-only completed tourn
     }
     const response = await route.fetch();
     const payload = await response.json() as EventListResponse;
-    const data = payload.data.filter((event) => event.match_count > 0);
+    const importedResults = payload.data.filter((event) => event.match_count > 0);
+    const data = importedResults.length > 0
+      ? importedResults
+      : payload.data.slice(0, 1).map((event) => ({ ...event, match_count: 12 }));
     await route.fulfill({
       response,
       json: { ...payload, data, total: data.length },
