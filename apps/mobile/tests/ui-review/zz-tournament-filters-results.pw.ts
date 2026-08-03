@@ -171,6 +171,24 @@ test('reviews icon filters, category selection, and results-only completed tourn
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
   await expect(filterButton.locator('.tt-tournament-toolbar-icon__count')).toHaveCount(0);
 
+  // Netlify previews use the currently deployed API. Mirror the PR's server-side
+  // results-only contract here so this UI review remains deterministic until the
+  // API change itself is deployed; Backend CI validates the route implementation.
+  await page.route('**/api/events?**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get('status') !== 'completed') {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    const payload = await response.json() as EventListResponse;
+    const data = payload.data.filter((event) => event.match_count > 0);
+    await route.fulfill({
+      response,
+      json: { ...payload, data, total: data.length },
+    });
+  });
+
   const completedResponsePromise = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return url.pathname.endsWith('/api/events')
