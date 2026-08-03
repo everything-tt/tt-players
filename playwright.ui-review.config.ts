@@ -42,7 +42,7 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // Player profile polish: right avatar, calm metrics and reversible self-claim state.
+  // Player profile and insights polish: one shared hierarchy and calm supporting detail.
   testMatch: 'zz-player-profile-polish.pw.ts',
 
   timeout: 120_000,

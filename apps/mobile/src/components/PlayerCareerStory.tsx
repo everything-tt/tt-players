@@ -22,14 +22,15 @@ export function PlayerCareerStory({ insights }: PlayerCareerStoryProps) {
     <PageSection
       surface="flat"
       density="compact"
-      className="tt-career-story"
-      title="Career Story"
-      description="Peak periods, milestones and season-by-season progress."
+      className="tt-career-story tt-insights-supporting-section"
+      title="Career highlights"
+      description="The strongest periods across the recorded career."
     >
       <MetricGrid
         ariaLabel="Career highlights"
-        columns={4}
+        columns={3}
         density="compact"
+        className="tt-career-highlight-metrics"
         metrics={[
           {
             label: 'Most active year',
@@ -50,13 +51,20 @@ export function PlayerCareerStory({ insights }: PlayerCareerStoryProps) {
               ? 'consecutive wins'
               : 'No recorded streak',
           },
-          {
-            label: 'Latest milestone',
-            value: latestMilestone ?? '—',
-            hint: latestMilestone ? 'matches completed' : 'No milestone yet',
-          },
         ]}
       />
+
+      <div className="tt-career-milestone">
+        <span className="tt-career-milestone-icon" aria-hidden="true">
+          <i className="fa fa-trophy" />
+        </span>
+        <span>
+          <small>Latest milestone</small>
+          <strong>{latestMilestone ? `${latestMilestone} matches` : 'No milestone yet'}</strong>
+        </span>
+      </div>
+
+      <h3 className="tt-career-season-title">Season record</h3>
 
       {insights.career_by_year.length === 0 ? (
         <p className="tt-insights-empty">Play more matches to build a season-by-season story.</p>

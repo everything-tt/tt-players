@@ -94,6 +94,123 @@ async function mockProfileApi(page: Page, player: { id: string; name: string }) 
   });
 }
 
+async function mockInsightsApi(page: Page, player: { id: string; name: string }) {
+  await page.route('**/api/**', async (route) => {
+    const url = new URL(route.request().url());
+    const path = url.pathname;
+
+    if (path === `/api/players/${player.id}/stats/extended`) {
+      await route.fulfill({
+        json: {
+          player_id: player.id,
+          player_name: player.name,
+          wins: 86,
+          losses: 78,
+          total: 164,
+          nemesis: 'Sienna Jetha',
+          duo: 'Alex Morgan',
+          streak: '5 wins',
+        },
+      });
+      return;
+    }
+
+    if (path === `/api/players/${player.id}/insights`) {
+      await route.fulfill({
+        json: {
+          player_id: player.id,
+          player_name: player.name,
+          years_played: 6,
+          first_match_date: '2020-09-12',
+          latest_match_date: '2026-07-28',
+          career_by_year: [
+            { year: 2026, played: 38, wins: 24, losses: 14, win_rate: 63 },
+            { year: 2025, played: 42, wins: 29, losses: 13, win_rate: 69 },
+            { year: 2024, played: 31, wins: 16, losses: 15, win_rate: 52 },
+          ],
+          peaks: {
+            best_season: { year: 2025, played: 42, win_rate: 69 },
+            most_active_season: { year: 2025, played: 42 },
+            best_month: { month: '2025-11', played: 8, win_rate: 88 },
+            worst_month: { month: '2024-02', played: 6, win_rate: 33 },
+          },
+          form: {
+            rolling_10_win_rate: 70,
+            rolling_20_win_rate: 60,
+            momentum: 'hot',
+            recent_results: ['W', 'W', 'L', 'W', 'W', 'L', 'W', 'W', 'W', 'L'],
+          },
+          milestones: {
+            total_matches: 164,
+            longest_win_streak: 7,
+            milestone_hits: [50, 100, 150],
+          },
+          projection: {
+            current_season_matches: 38,
+            current_season_win_rate: 63,
+            projected_matches: 44,
+            on_track_for_70_win_rate: false,
+          },
+        },
+      });
+      return;
+    }
+
+    if (path === `/api/players/${player.id}/rivals`) {
+      await route.fulfill({
+        json: {
+          player_id: player.id,
+          toughest: [
+            { opponent_id: 'rival-tough-1', opponent_name: 'Sienna Jetha', played: 4, wins: 0, losses: 4, win_rate: 0 },
+            { opponent_id: 'rival-tough-2', opponent_name: 'Rhea Das', played: 4, wins: 1, losses: 3, win_rate: 25 },
+          ],
+          easiest: [
+            { opponent_id: 'rival-easy-1', opponent_name: 'Cindy Xiao', played: 5, wins: 5, losses: 0, win_rate: 100 },
+            { opponent_id: 'rival-easy-2', opponent_name: 'Ava Kim', played: 7, wins: 6, losses: 1, win_rate: 86 },
+          ],
+          improving: [
+            { opponent_id: 'rival-up-1', opponent_name: 'Monica Chang', played: 8, first_half_win_rate: 25, second_half_win_rate: 75, delta_points: 50 },
+          ],
+        },
+      });
+      return;
+    }
+
+    if (path === `/api/ratings/${player.id}/history`) {
+      const ratings = [1118, 1134, 1127, 1152, 1171, 1187];
+      await route.fulfill({
+        json: {
+          player_id: player.id,
+          player_name: player.name,
+          model: 'glicko2-v1',
+          range: url.searchParams.get('range') ?? '1y',
+          data: ratings.map((rating, index) => ({
+            week_start: `2026-0${index + 2}-02`,
+            snapshot_date: `2026-0${index + 2}-08`,
+            rating,
+            rating_deviation: 62 - index * 2,
+            conservative_rating: rating - 120,
+            rating_low: rating - 120,
+            rating_high: rating + 120,
+            rating_change: index === 0 ? null : rating - ratings[index - 1]!,
+            confidence: 'high',
+            rated_matches: 142 + index * 4,
+            rated_wins: 74 + index * 2,
+            rated_losses: 68 + index * 2,
+            week_matches: 4,
+            week_wins: index % 3 === 0 ? 3 : 2,
+            week_losses: index % 3 === 0 ? 1 : 2,
+            provisional: false,
+          })),
+        },
+      });
+      return;
+    }
+
+    await route.fulfill({ json: { data: [] } });
+  });
+}
+
 function readManifest(): ScreenshotEntry[] {
   try {
     const parsed = JSON.parse(readFileSync(manifestPath, 'utf8')) as unknown;
@@ -212,6 +329,83 @@ test('polishes the profile hierarchy and treats identity as a reversible claim',
   await page.getByRole('dialog', { name: 'Undo this profile claim?' }).getByRole('button', { name: 'Undo claim' }).click();
   await expect(claimedHero.getByText('Claimed as your profile', { exact: true })).toHaveCount(0);
   await expect(claimedHero.getByRole('button', { name: 'Save to favourites' })).toBeVisible();
+
+  writeReportIndex(previewUrl);
+});
+
+test('carries the polished hierarchy into the player insights page', async ({ page }, testInfo) => {
+  const previewUrl = requirePreviewUrl();
+  await prepareAppState(page);
+  const player = { id: 'player-insights-polish', name: 'Wudong Liu' };
+  await mockInsightsApi(page, player);
+
+  await page.goto(`${previewUrl}/tabs/players/player/${player.id}/insights`, { waitUntil: 'domcontentloaded' });
+
+  const summary = page.locator('.tt-insights-summary');
+  await expect(summary).toBeVisible({ timeout: 30_000 });
+  await expect(summary.getByText('Performance snapshot', { exact: true })).toBeVisible();
+  await expect(summary.getByRole('heading', { name: 'Hot form' })).toBeVisible();
+  await expect(summary.getByText('Recent record', { exact: true })).toBeVisible();
+  await expect(summary.locator('.tt-insights-summary-metrics .tt-metric')).toHaveCount(3);
+
+  const geometry = await summary.evaluate((element) => {
+    const shell = element.getBoundingClientRect();
+    const copy = element.querySelector<HTMLElement>('.tt-insights-summary-copy')!.getBoundingClientRect();
+    const momentum = element.querySelector<HTMLElement>('.tt-insights-momentum')!.getBoundingClientRect();
+    const recent = element.querySelector<HTMLElement>('.tt-insights-recent')!.getBoundingClientRect();
+    return {
+      shell: { left: shell.left, right: shell.right, height: shell.height },
+      copy: { left: copy.left, right: copy.right },
+      momentum: { left: momentum.left, right: momentum.right },
+      recent: { left: recent.left, right: recent.right },
+    };
+  });
+
+  expect(geometry.copy.left).toBeLessThan(geometry.momentum.left);
+  expect(geometry.copy.right).toBeLessThanOrEqual(geometry.momentum.left);
+  expect(geometry.recent.left - geometry.shell.left).toBeGreaterThanOrEqual(12);
+  expect(geometry.shell.right - geometry.recent.right).toBeGreaterThanOrEqual(12);
+  expect(geometry.shell.height).toBeLessThan(470);
+  await capture(page, testInfo, 'player-insights-snapshot', geometry);
+
+  const ratingSection = page.locator('.tt-rating-history');
+  await ratingSection.evaluate((element) => element.scrollIntoView({ block: 'start' }));
+  await page.evaluate(() => window.scrollBy(0, -86));
+  const rating = page.getByRole('heading', { name: 'Rating trend' });
+  await expect(rating).toBeVisible();
+  await expect(page.getByLabel('Rating summary for selected range').locator('.tt-metric')).toHaveCount(3);
+  await expect(page.getByText('Last 8', { exact: true })).toHaveCount(0);
+  await capture(page, testInfo, 'player-insights-rating-trend', { ratingMetrics: 3 });
+
+  const matchupsSection = page.locator('.tt-rivals');
+  await matchupsSection.evaluate((element) => element.scrollIntoView({ block: 'start' }));
+  await page.evaluate(() => window.scrollBy(0, -86));
+  const matchups = page.getByRole('heading', { name: 'Key matchups' });
+  await expect(matchups).toBeVisible();
+  await expect(page.getByRole('button', { name: /Sienna Jetha/ })).toBeVisible();
+  await page.getByRole('radio', { name: 'Easiest' }).click();
+  await expect(page.getByRole('button', { name: /Cindy Xiao/ })).toBeVisible();
+  await page.getByRole('radio', { name: 'Trending up' }).click();
+  await expect(page.getByRole('button', { name: /Monica Chang/ })).toBeVisible();
+  await capture(page, testInfo, 'player-insights-matchups', { categories: 3 });
+
+  await page.setViewportSize({ width: 360, height: 800 });
+  const careerSection = page.locator('.tt-career-story');
+  await careerSection.evaluate((element) => element.scrollIntoView({ block: 'start' }));
+  await page.evaluate(() => window.scrollBy(0, -86));
+  const career = page.getByRole('heading', { name: 'Career highlights' });
+  await expect(career).toBeVisible();
+  await expect(page.getByLabel('Career highlights').locator('.tt-metric')).toHaveCount(3);
+  await expect(page.getByText('Latest milestone', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Season record' })).toBeVisible();
+  const overflow = await page.evaluate(() => ({
+    viewport: document.documentElement.clientWidth,
+    document: document.documentElement.scrollWidth,
+    body: document.body.scrollWidth,
+  }));
+  expect(overflow.document).toBeLessThanOrEqual(overflow.viewport + 1);
+  expect(overflow.body).toBeLessThanOrEqual(overflow.viewport + 1);
+  await capture(page, testInfo, 'player-insights-career-narrow', overflow);
 
   writeReportIndex(previewUrl);
 });

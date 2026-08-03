@@ -143,19 +143,19 @@ test('reviews the design-system player insights report', async ({ page }, testIn
   await page.goto(`${previewUrl}/tabs/players/player/${player!.id}/insights`, { waitUntil: 'domcontentloaded' });
   await insightsResponse;
 
-  await expect(page.getByRole('heading', { name: 'Insights Summary' })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('heading', { name: /form$/ })).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.tt-insights-card')).toHaveCount(0);
   await expect(page.locator('.tt-rivals-panel')).toHaveCount(0);
   await expect(page.locator('.tt-career-highlight')).toHaveCount(0);
   await expect(page.locator('.tt-career-table')).toHaveCount(0);
   await expect(page.locator('.tt-insights-page .tt-section')).toHaveCount(4);
-  await expect(page.getByLabel('Insights summary metrics').locator('.tt-metric')).toHaveCount(4);
-  await expect(page.getByRole('heading', { name: 'Rating & Form' })).toBeVisible();
+  await expect(page.getByLabel('Insights summary metrics').locator('.tt-metric')).toHaveCount(3);
+  await expect(page.getByRole('heading', { name: 'Rating trend' })).toBeVisible();
   await expect(page.getByLabel('Rating summary for selected range').locator('.tt-metric')).toHaveCount(3);
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, 'player-insights-summary-rating');
 
-  const rivals = page.getByRole('heading', { name: 'Rival Intelligence' });
+  const rivals = page.getByRole('heading', { name: 'Key matchups' });
   await rivals.scrollIntoViewIfNeeded();
   await expect(page.getByRole('button', { name: /Sienna Jetha/ })).toBeVisible();
   await page.getByRole('radio', { name: 'Easiest' }).click();
@@ -171,7 +171,7 @@ test('reviews the design-system player insights report', async ({ page }, testIn
   await page.evaluate(() => window.scrollBy(0, -86));
   await expect.poll(async () => (await careerSection.boundingBox())?.y ?? Number.POSITIVE_INFINITY)
     .toBeLessThan(130);
-  await expect(page.getByLabel('Career highlights').locator('.tt-metric')).toHaveCount(4);
+  await expect(page.getByLabel('Career highlights').locator('.tt-metric')).toHaveCount(3);
   const firstSeason = page.locator('.tt-career-season-row').first();
   await expect(firstSeason).toBeVisible();
   await expect(firstSeason.locator('i.fa-angle-right')).toHaveCount(0);

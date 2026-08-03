@@ -8,12 +8,10 @@ import {
 } from '../rating-queries';
 import { buildRatingHistorySummary } from '../rating-history-summary';
 import { FilterBar, MetricGrid, PageSection } from '../ui/appkit';
-import { FormResultPills } from './FormResultPills';
 import { SkeletonBlock } from './Skeleton';
 
 interface PlayerRatingHistoryChartProps {
   playerId: string;
-  recentResults?: Array<'W' | 'L'>;
 }
 
 interface ChartPoint extends PlayerRatingHistoryPoint {
@@ -38,10 +36,7 @@ const CHART_RIGHT = 8;
 const CHART_TOP = 12;
 const CHART_BOTTOM = 24;
 
-export function PlayerRatingHistoryChart({
-  playerId,
-  recentResults = [],
-}: PlayerRatingHistoryChartProps) {
+export function PlayerRatingHistoryChart({ playerId }: PlayerRatingHistoryChartProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [range, setRange] = useState<RatingHistoryRange>('1y');
   const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
@@ -65,9 +60,9 @@ export function PlayerRatingHistoryChart({
     <PageSection
       surface="flat"
       density="compact"
-      className="tt-rating-history tt-insights-section"
-      title="Rating & Form"
-      description="Weekly calculated rating and the latest singles results."
+      className="tt-rating-history tt-insights-supporting-section"
+      title="Rating trend"
+      description="How the calculated rating has moved over time."
       action={(
         <button
           type="button"
@@ -84,6 +79,7 @@ export function PlayerRatingHistoryChart({
       {isOpen ? (
         <div id={contentId} className="tt-rating-history-content">
           <div className="tt-rating-history-toolbar">
+            <span className="tt-rating-history-range-label">Time range</span>
             <FilterBar ariaLabel="Rating history range" className="tt-rating-history-ranges">
               {RANGE_OPTIONS.map((option) => (
                 <button
@@ -100,12 +96,6 @@ export function PlayerRatingHistoryChart({
                 </button>
               ))}
             </FilterBar>
-
-            <FormResultPills
-              results={recentResults.slice(0, 8)}
-              label="Last 8"
-              emptyText="No recent form"
-            />
           </div>
 
           {historyQuery.isLoading ? (
