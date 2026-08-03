@@ -18,6 +18,7 @@ const manifestPath = join(reportDir, 'manifest.json');
 const player = { id: 'my-tt-polish-player', name: 'Wudong Liu' };
 const userId = '11111111-1111-4111-8111-111111111111';
 const email = 'my-tt-polish@example.test';
+const profileUpdatedEvent = 'tt-players:my-tt-profile-updated';
 
 function requirePreviewUrl(): string {
   const previewUrl = process.env.PREVIEW_URL;
@@ -265,8 +266,10 @@ test('keeps My TT compact and gives editing a persistent save state', async ({ p
   expect(Math.max(...filledGeometry.supportCardHeights)).toBeLessThan(260);
   await capture(page, testInfo, 'my-tt-compact-profile', filledGeometry);
 
-  await page.evaluate(() => localStorage.removeItem('tt_players_my_tt_profile'));
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.evaluate((eventName) => {
+    localStorage.removeItem('tt_players_my_tt_profile');
+    window.dispatchEvent(new Event(eventName));
+  }, profileUpdatedEvent);
   await expect(page.getByText('Complete your playing profile')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.tt-my-tt-card-prompt')).toHaveCount(3);
 
@@ -280,10 +283,11 @@ test('keeps My TT compact and gives editing a persistent save state', async ({ p
   expect(Math.max(...emptyGeometry.promptHeights)).toBeLessThan(100);
   await capture(page, testInfo, 'my-tt-compact-empty-states', emptyGeometry);
 
-  await page.evaluate((savedProfile) => {
+  await page.evaluate(({ savedProfile, eventName }) => {
     localStorage.setItem('tt_players_my_tt_profile', JSON.stringify(savedProfile));
-  }, fullProfile());
-  await page.reload({ waitUntil: 'domcontentloaded' });
+    window.dispatchEvent(new Event(eventName));
+  }, { savedProfile: fullProfile(), eventName: profileUpdatedEvent });
+  await expect(page.getByText('Butterfly Viscaria')).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Edit My TT' }).click();
 
   await expect(page).toHaveURL(/\/tabs\/home\/my-tt\/edit$/);
@@ -291,16 +295,19 @@ test('keeps My TT compact and gives editing a persistent save state', async ({ p
   await expect(page.locator('.tt-my-tt-edit-card')).toHaveCount(4);
   await expect(page.getByLabel('Dominant shot')).toHaveValue('Forehand loop');
   await expect(page.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+  await expect(page.getByText('All changes saved')).toBeVisible();
 
   const controlGeometry = await page.evaluate(() => ({
     viewport: window.innerWidth,
     scrollWidth: document.documentElement.scrollWidth,
     chipHeight: document.querySelector<HTMLElement>('.tt-my-tt-chip')!.getBoundingClientRect().height,
     selectHeight: document.querySelector<HTMLSelectElement>('#tt-my-tt-dominant-shot')!.getBoundingClientRect().height,
+    saveBarPosition: getComputedStyle(document.querySelector<HTMLElement>('.tt-my-tt-sticky-save')!).position,
   }));
   expect(controlGeometry.scrollWidth).toBeLessThanOrEqual(controlGeometry.viewport + 1);
   expect(controlGeometry.chipHeight).toBeLessThanOrEqual(48);
   expect(controlGeometry.selectHeight).toBeLessThanOrEqual(56);
+  expect(controlGeometry.saveBarPosition).toBe('fixed');
 
   await page.getByRole('button', { name: /Attacking/ }).click();
   await expect(page.getByText('Unsaved changes')).toBeVisible();
