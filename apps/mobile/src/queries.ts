@@ -14,6 +14,7 @@ import {
   type LeaguesResponse,
   type PlayerCountResponse,
   type PlayerCurrentSeasonAffiliationsResponse,
+  type PlayerProfileOverview,
   type PlayerSearchResponse,
   type RosterResponse,
   type RubbersResponse,
@@ -133,6 +134,14 @@ export function usePlayerExtendedStatsQuery(playerId: string, enabled = true) {
   return useQuery({
     queryKey: ['players', playerId, 'stats', 'extended'],
     queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<ExtendedPlayerStats>(`/players/${playerId}/stats/extended`, signal),
+    enabled: enabled && Boolean(playerId),
+  });
+}
+
+export function usePlayerProfileOverviewQuery(playerId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['players', playerId, 'profile-overview'],
+    queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<PlayerProfileOverview>(`/players/${playerId}/profile-overview`, signal),
     enabled: enabled && Boolean(playerId),
   });
 }

@@ -8,9 +8,7 @@ import {
   type RubberItem,
 } from './player-shared';
 import {
-  usePlayerCurrentSeasonAffiliationsQuery,
-  usePlayerExtendedStatsQuery,
-  usePlayerInsightsQuery,
+  usePlayerProfileOverviewQuery,
   usePlayerTournamentSummariesQuery,
 } from './queries';
 import { SegmentedToggle } from './components/SegmentedToggle';
@@ -135,34 +133,28 @@ export function PlayerPage() {
   const { isMyPlayer, clear: clearMyPlayer } = useMyPlayer();
   const [seasonPanelMode, setSeasonPanelMode] = useState<'clubs' | 'tournaments'>('clubs');
 
-  const statsQuery = usePlayerExtendedStatsQuery(playerId, Boolean(playerId));
-  const affiliationsQuery = usePlayerCurrentSeasonAffiliationsQuery(playerId, Boolean(playerId));
+  const overviewQuery = usePlayerProfileOverviewQuery(playerId, Boolean(playerId));
   const recentMatchesState = usePagedPlayerMatches({
     playerId,
     source: 'all',
     enabled: Boolean(playerId),
     pageSize: 20,
   });
-  const insightsQuery = usePlayerInsightsQuery(playerId, Boolean(playerId));
   const tournamentsQuery = usePlayerTournamentSummariesQuery(
     playerId,
     5,
     Boolean(playerId) && seasonPanelMode === 'tournaments',
   );
 
-  const stats = statsQuery.data ?? null;
+  const stats = overviewQuery.data ?? null;
   const statsError = playerId
-    ? (statsQuery.error instanceof Error ? statsQuery.error.message : null)
+    ? (overviewQuery.error instanceof Error ? overviewQuery.error.message : null)
     : 'Missing player id';
-  const statsLoading = statsQuery.isLoading;
+  const statsLoading = overviewQuery.isLoading;
 
-  const affiliations = affiliationsQuery.data?.data ?? [];
-  const affiliationsError = affiliationsQuery.error instanceof Error ? affiliationsQuery.error.message : null;
-  const affiliationsLoading = affiliationsQuery.isLoading;
-
-  const insights = insightsQuery.data ?? null;
-  const insightsError = insightsQuery.error instanceof Error ? insightsQuery.error.message : null;
-  const insightsLoading = insightsQuery.isLoading;
+  const affiliations = overviewQuery.data?.current_season_affiliations ?? [];
+  const affiliationsError = overviewQuery.error instanceof Error ? overviewQuery.error.message : null;
+  const affiliationsLoading = overviewQuery.isLoading;
 
   const tournamentSummaries = tournamentsQuery.data?.data ?? [];
   const tournamentTotal = tournamentsQuery.data?.total ?? 0;
@@ -176,7 +168,7 @@ export function PlayerPage() {
 
   const isFavourite = stats ? isFavouritePlayer(stats.player_id) : false;
   const isCurrentUser = isMyPlayer(playerId);
-  const recentResults = useMemo(() => (insights?.form.recent_results ?? []).slice(0, 10), [insights]);
+  const recentResults = useMemo(() => (stats?.form.recent_results ?? []).slice(0, 10), [stats]);
   const shareTarget = useMemo(
     () => stats ? buildPlayerShareTarget(window.location.origin, stats.player_id, stats.player_name) : null,
     [stats],
@@ -259,12 +251,12 @@ export function PlayerPage() {
               isFavourite={Boolean(isFavourite)}
               isCurrentUser={isCurrentUser}
               shareTarget={shareTarget}
-              rolling10WinRate={insights?.form.rolling_10_win_rate ?? null}
-              rolling20WinRate={insights?.form.rolling_20_win_rate ?? null}
-              momentum={insights?.form.momentum ?? null}
+              rolling10WinRate={stats.form.rolling_10_win_rate}
+              rolling20WinRate={stats.form.rolling_20_win_rate}
+              momentum={stats.form.momentum}
               recentResults={recentResults}
-              formLoading={insightsLoading}
-              formError={Boolean(insightsError || (!insights && !insightsLoading))}
+              formLoading={statsLoading}
+              formError={false}
               onToggleFavourite={() => {
                 toggleFavouritePlayer({
                   id: stats.player_id,

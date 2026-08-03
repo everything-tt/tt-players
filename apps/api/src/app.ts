@@ -83,6 +83,7 @@ export async function buildApp(db: Kysely<Database>) {
         [/^\/api\/ratings(\/|$)/, CACHE_LEADERBOARD],
         [/^\/api\/players\/count(\/|$)/, CACHE_STATIC],
         [/^\/api\/players\/search(\/|$)/, CACHE_DYNAMIC],
+        [/^\/api\/players\/[\w-]+\/profile-overview(\/|$)/, CACHE_DYNAMIC],
         [/^\/api\/players\/[\w-]+\/rivals(\/|$)/, CACHE_DYNAMIC],
         [/^\/api\/players\/[\w-]+\/h2h\/[\w-]+\/analysis(\/|$)/, CACHE_DYNAMIC],
         [/^\/api\/players\/[\w-]+\/h2h\/[\w-]+\/common-opponents(\/|$)/, CACHE_DYNAMIC],

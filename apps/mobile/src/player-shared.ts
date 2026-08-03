@@ -312,6 +312,21 @@ export type PlayerCurrentSeasonAffiliationsResponse = {
   data: PlayerCurrentSeasonAffiliation[];
 };
 
+export type PlayerProfileOverview = {
+  player_id: string;
+  player_name: string;
+  wins: number;
+  losses: number;
+  total: number;
+  form: {
+    rolling_10_win_rate: number;
+    rolling_20_win_rate: number;
+    momentum: 'hot' | 'steady' | 'cold' | 'new';
+    recent_results: Array<'W' | 'L'>;
+  };
+  current_season_affiliations: PlayerCurrentSeasonAffiliation[];
+};
+
 export type RubberItem = {
   id: string;
   fixture_id: string;
