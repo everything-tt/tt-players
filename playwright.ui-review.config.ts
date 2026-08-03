@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // My TT account gate, claimed identity, profile view, and separate edit flow.
-  testMatch: 'zz-my-tt-profile.pw.ts',
+  // My TT density, compact empty states, supporting cards, and persistent save feedback.
+  testMatch: 'zz-my-tt-polish.pw.ts',
 
   timeout: 120_000,
   expect: {
