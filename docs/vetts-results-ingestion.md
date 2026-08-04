@@ -44,6 +44,17 @@ Multiple UUIDs may be supplied. With no UUIDs, the command discovers completed t
 
 Each tournament is processed one match-day page at a time and a maximum of seven dates is enumerated from its overview. This bounds response memory and database transaction size.
 
+### Manual GitHub Actions backfill
+
+After the VETTS scraper has been deployed, open **Actions → Backfill VETTS tournament results → Run workflow**.
+
+The workflow supports two bounded modes:
+
+- `discovery`: process up to `discovery_limit` completed tournaments from the Tournament Software directory.
+- `tournament_ids`: process one or more comma- or space-separated Tournament Software UUIDs.
+
+The action requires `confirm=BACKFILL_VETTS`, accepts at most 100 tournaments per run, runs the deployed worker under the production `ttp` system user, and prevents overlapping backfills. Its summary reports loaded and rejected match rows plus duplicate links/conflicts. The complete command log is retained as a GitHub Actions artifact for seven days.
+
 ## Recurring refresh and recovery
 
 The worker runs `scrapeVettsTournamentsTask` each Monday at 04:15. The source registry exposes the directory, event and event-results resources to the existing Data Coverage API, including parser version, last fetch/success timestamps, failure count and error text.
