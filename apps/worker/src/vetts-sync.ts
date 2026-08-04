@@ -64,6 +64,17 @@ function asMatchesPage(
     return value as VettsMatchesPage;
 }
 
+async function markRawLogFailed(
+    database: Kysely<Database>,
+    rawLogId: string,
+): Promise<void> {
+    await database
+        .updateTable('staging.raw_scrape_logs')
+        .set({ status: 'failed' })
+        .where('id', '=', rawLogId)
+        .execute();
+}
+
 export async function syncVettsTournament(
     database: Kysely<Database>,
     tournamentId: string,
@@ -111,15 +122,22 @@ export async function syncVettsTournament(
             config: { tournamentId },
         };
         const overviewHtml = await vettsSourceAdapter.extract(overviewContext);
-        const metadata = asTournamentMetadata(
-            await vettsSourceAdapter.transform(overviewHtml, overviewContext),
-        );
         const overviewLogId = await storeScrapePayload(
             overviewUrl,
             platformId,
             overviewHtml,
             database,
         );
+        let metadata: VettsTournamentMetadata;
+        try {
+            metadata = asTournamentMetadata(
+                await vettsSourceAdapter.transform(overviewHtml, overviewContext),
+            );
+        } catch (error) {
+            await markRawLogFailed(database, overviewLogId);
+            throw error;
+        }
+
         const leagueId = await upsertVettsLeague(database, platformId);
         const seasonId = await upsertVettsSeason(database, leagueId, metadata.startDate);
         const resolution = await resolveVettsCompetition(database as Kysely<any>, seasonId, metadata);
@@ -181,10 +199,17 @@ export async function syncVettsTournament(
                 config: { tournamentId, date },
             };
             const matchesHtml = await vettsSourceAdapter.extract(resultsContext);
-            const parsedPage = asMatchesPage(
-                await vettsSourceAdapter.transform(matchesHtml, resultsContext),
-            );
             const logId = await storeScrapePayload(matchesUrl, platformId, matchesHtml, database);
+            let parsedPage: VettsMatchesPage;
+            try {
+                parsedPage = asMatchesPage(
+                    await vettsSourceAdapter.transform(matchesHtml, resultsContext),
+                );
+            } catch (error) {
+                await markRawLogFailed(database, logId);
+                throw error;
+            }
+
             matchRows += parsedPage.matches.length;
             rejectedRows += parsedPage.issues.length;
             for (const issue of parsedPage.issues) {
