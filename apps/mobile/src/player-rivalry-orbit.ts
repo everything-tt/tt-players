@@ -144,7 +144,11 @@ export function buildRecentOpponentCandidates(
       || left.opponent_name.localeCompare(right.opponent_name),
     )
     .slice(0, limit)
-    .map(({ first_index: _firstIndex, ...candidate }) => candidate);
+    .map((candidate) => ({
+      opponent_id: candidate.opponent_id,
+      opponent_name: candidate.opponent_name,
+      recent_meetings: candidate.recent_meetings,
+    }));
 }
 
 export function rivalRecordFromH2H(
