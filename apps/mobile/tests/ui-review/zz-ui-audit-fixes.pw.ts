@@ -162,7 +162,7 @@ test('dark-mode semantic tokens resolve to dark base values and full routes expo
   // selector explicitly so this check is deterministic instead of relying on
   // user-specific localStorage state.
   await page.goto(`${previewUrl}/tabs/leagues`, { waitUntil: 'domcontentloaded' });
-  const openLeagueScope = page.getByRole('button', { name: 'Select leagues' });
+  const openLeagueScope = page.locator('.tt-leagues-dashboard-empty').getByRole('button', { name: 'Select leagues' });
   await expect(openLeagueScope).toBeVisible();
   await openLeagueScope.click();
   await expect(page.getByRole('button', { name: 'Done' })).toBeVisible();
