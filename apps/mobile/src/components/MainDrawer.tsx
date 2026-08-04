@@ -148,6 +148,11 @@ export function MainDrawer({
                 </button>
               );
             })}
+            <a className="tt-drawer__row" href="/rating-audit" onClick={onClose}>
+              <i className="fa fa-chart-line" aria-hidden="true" />
+              <span>Rating Audit</span>
+              <i className="fa fa-angle-right" aria-hidden="true" />
+            </a>
           </nav>
 
           <h3 className="tt-drawer__section-title">Settings</h3>

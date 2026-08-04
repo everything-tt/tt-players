@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTabNavigation } from '../navigation/tab-navigation';
 import { ratingConfidenceLabel, usePlayerRatingQuery } from '../rating-queries';
 import { AppButtonLink, MetricGrid, PageSection, Surface } from '../ui/appkit';
@@ -10,6 +11,7 @@ interface PlayerRatingPanelProps {
 }
 
 export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
+  const navigate = useNavigate();
   const { navigateInActiveTab } = useTabNavigation();
   const [isRangeOpen, setIsRangeOpen] = useState(false);
   const ratingQuery = usePlayerRatingQuery(playerId, Boolean(playerId));
@@ -75,6 +77,21 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
           {rating.provisional ? (
             <p className="tt-rating-note">Provisional rating: a global rank will appear once the rating confidence is high enough.</p>
           ) : null}
+
+          <AppButtonLink
+            href={`/rating-audit/${playerId}`}
+            full
+            size="sm"
+            tone="primary"
+            className="tt-rating-history-link"
+            onClick={(event) => {
+              event.preventDefault();
+              navigate(`/rating-audit/${playerId}`);
+            }}
+          >
+            <i className="fa fa-search" aria-hidden="true" />
+            Why This Rating?
+          </AppButtonLink>
 
           <AppButtonLink
             full
