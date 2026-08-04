@@ -69,7 +69,7 @@ const VIEWBOX_HEIGHT = 500;
 const CENTRE_X = VIEWBOX_WIDTH / 2;
 const CENTRE_Y = VIEWBOX_HEIGHT / 2;
 const MIN_ZOOM = 1;
-const MAX_ZOOM = 2.25;
+const MAX_ZOOM = 2;
 const INITIAL_VIEW: OrbitView = { scale: MIN_ZOOM, x: 0, y: 0 };
 
 function clamp(value: number, minimum: number, maximum: number): number {
@@ -150,7 +150,7 @@ function PlayerNode({
     tabIndex: 0,
     onClick,
     onKeyDown: (event: KeyboardEvent<SVGGElement>) => handleKeyboardAction(event, onClick),
-    'aria-label': `Open ${name}'s player profile`,
+    'aria-label': `Open head to head with ${name}`,
   } : {};
 
   return (
@@ -422,7 +422,7 @@ export function PlayerRivalryOrbit({
       surface="flat"
       density="standard"
       title="Rivalry Orbit"
-      description="Explore the player's closest established matchups. Tap a player for their profile or a score for the H2H."
+      description="Explore the player's closest established matchups. Tap a player for the full H2H, or tap a score for a quick summary."
       meta={records.length > 0 ? `${records.length} close rivalries` : 'Head to head'}
       className="tt-rivalry-orbit-section"
     >
@@ -622,7 +622,7 @@ export function PlayerRivalryOrbit({
                 className="tt-rivalry-open-player"
                 onClick={() => onOpenPlayer(selectedPoint.opponent_id)}
               >
-                Open {selectedPoint.opponent_name}'s profile
+                View full H2H with {selectedPoint.opponent_name}
                 <i className="fa fa-chevron-right" aria-hidden="true" />
               </button>
             </div>
