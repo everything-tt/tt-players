@@ -1,63 +1,38 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-    fetchVettsDiscovery: vi.fn(),
-    upsertVettsPlatform: vi.fn(),
-    upsertSourceInstance: vi.fn(),
-    upsertSourceResource: vi.fn(),
-    recordSourceResourceSuccess: vi.fn(),
-    recordSourceResourceFailure: vi.fn(),
+    discoverVettsTournaments: vi.fn(),
 }));
 
 vi.mock('@tt-players/db', () => ({ db: {} }));
-vi.mock('../vetts-loader.js', () => ({
-    upsertVettsPlatform: mocks.upsertVettsPlatform,
-}));
-vi.mock('../vetts-client.js', () => ({
-    fetchVettsDiscovery: mocks.fetchVettsDiscovery,
-    vettsDiscoveryYears: () => [2026, 2025],
-    vettsUrls: {
-        discovery: (year: number) => `https://www.vetts.org.uk/tournaments.aspx?year=${year}`,
-    },
-}));
-vi.mock('../sources/registry.js', () => ({
-    upsertSourceInstance: mocks.upsertSourceInstance,
-    upsertSourceResource: mocks.upsertSourceResource,
-    recordSourceResourceSuccess: mocks.recordSourceResourceSuccess,
-    recordSourceResourceFailure: mocks.recordSourceResourceFailure,
+vi.mock('../vetts-discovery.js', () => ({
+    discoverVettsTournaments: mocks.discoverVettsTournaments,
 }));
 
 import { scrapeVettsTournamentsTask } from '../tasks/scrapeVettsTournamentsTask.js';
 
 const TOURNAMENT_ID = '4af81622-d21a-47ed-a046-86c492b4cfe9';
-const discoveryHtml = `
-<a href="https://vetts.tournamentsoftware.com/tournament/${TOURNAMENT_ID}">
-  VETTS Nationals 2026
-</a>`;
 
 describe('VETTS discovery task', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         process.env['VETTS_DISCOVERY_LIMIT'] = '30';
-        mocks.upsertVettsPlatform.mockResolvedValue('platform');
-        mocks.upsertSourceInstance.mockResolvedValue({ id: 'instance' });
-        mocks.upsertSourceResource.mockImplementation(async (_db, input) => ({
-            id: `resource-${input.externalId}`,
-        }));
-        mocks.recordSourceResourceSuccess.mockResolvedValue(undefined);
-        mocks.recordSourceResourceFailure.mockResolvedValue(undefined);
     });
 
-    it('queues successful years with the shared retry and dedupe policy, then reports partial failure', async () => {
-        mocks.fetchVettsDiscovery.mockImplementation(async (year: number) => {
-            if (year === 2026) return discoveryHtml;
-            throw new Error('calendar unavailable');
+    it('queues successful discoveries with the shared retry policy, then reports partial failure', async () => {
+        mocks.discoverVettsTournaments.mockResolvedValue({
+            tournaments: [{
+                tournamentId: TOURNAMENT_ID,
+                name: 'VETTS Nationals 2026',
+                url: `https://vetts.tournamentsoftware.com/tournament/${TOURNAMENT_ID}`,
+            }],
+            failures: [new Error('calendar unavailable')],
         });
         const addJob = vi.fn(async () => undefined);
 
         await expect(scrapeVettsTournamentsTask({}, {
             addJob,
-            logger: { info: vi.fn() },
+            logger: { info: vi.fn(), warn: vi.fn() },
         } as any)).rejects.toThrow('One or more VETTS calendar pages failed');
 
         expect(addJob).toHaveBeenCalledOnce();
@@ -70,27 +45,52 @@ describe('VETTS discovery task', () => {
                 jobKey: expect.stringMatching(/^scrape-vetts-tournament:/),
             }),
         );
-        expect(mocks.recordSourceResourceSuccess).toHaveBeenCalledWith(
-            {},
-            'resource-calendar-2026',
-        );
-        expect(mocks.recordSourceResourceFailure).toHaveBeenCalledWith(
-            {},
-            'resource-calendar-2025',
-            expect.any(Error),
-        );
     });
 
-    it('fails closed and queues nothing when calendars parse as empty', async () => {
-        mocks.fetchVettsDiscovery.mockResolvedValue('<html><body>No tournament links</body></html>');
+    it('fails closed and queues nothing when no calendar is usable', async () => {
+        mocks.discoverVettsTournaments.mockResolvedValue({
+            tournaments: [],
+            failures: [new Error('No VETTS tournaments discovered for 2026')],
+        });
         const addJob = vi.fn(async () => undefined);
 
         await expect(scrapeVettsTournamentsTask({}, {
             addJob,
-            logger: { info: vi.fn() },
+            logger: { info: vi.fn(), warn: vi.fn() },
         } as any)).rejects.toThrow('No usable VETTS tournaments discovered');
 
         expect(addJob).not.toHaveBeenCalled();
-        expect(mocks.recordSourceResourceFailure).toHaveBeenCalledTimes(2);
+    });
+
+    it('applies the bounded discovery limit before queueing', async () => {
+        process.env['VETTS_DISCOVERY_LIMIT'] = '1';
+        mocks.discoverVettsTournaments.mockResolvedValue({
+            tournaments: [
+                {
+                    tournamentId: TOURNAMENT_ID,
+                    name: 'Nationals',
+                    url: `https://vetts.tournamentsoftware.com/tournament/${TOURNAMENT_ID}`,
+                },
+                {
+                    tournamentId: '7ed3b6c4-2370-4fd2-a010-f3dfaa1d6f2e',
+                    name: 'Southern',
+                    url: 'https://vetts.tournamentsoftware.com/tournament/7ed3b6c4-2370-4fd2-a010-f3dfaa1d6f2e',
+                },
+            ],
+            failures: [],
+        });
+        const addJob = vi.fn(async () => undefined);
+
+        await scrapeVettsTournamentsTask({}, {
+            addJob,
+            logger: { info: vi.fn(), warn: vi.fn() },
+        } as any);
+
+        expect(addJob).toHaveBeenCalledOnce();
+        expect(addJob).toHaveBeenCalledWith(
+            'scrapeVettsTournamentTask',
+            { tournamentId: TOURNAMENT_ID },
+            expect.anything(),
+        );
     });
 });
