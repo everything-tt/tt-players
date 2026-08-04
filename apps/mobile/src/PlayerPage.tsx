@@ -271,6 +271,7 @@ export function PlayerPage() {
             <PlayerRivalryOrbit
               playerId={stats.player_id}
               playerName={stats.player_name}
+              recentMatches={recentMatchesState.matches}
               onOpenPlayer={openOpponent}
             />
 
