@@ -4,7 +4,7 @@ import { chooseTournamentCandidate } from './tournament-reconciliation.js';
 import type { VettsMatchResult, VettsTournamentMetadata } from './vetts-parser.js';
 
 export const VETTS_PLATFORM_NAME = 'Tournament Software';
-export const VETTS_PLATFORM_BASE_URL = 'https://vetts.tournamentsoftware.com';
+export const VETTS_PLATFORM_BASE_URL = 'https://www.tournamentsoftware.com';
 export const VETTS_LEAGUE_EXTERNAL_ID = 'vetts';
 export const VETTS_LEAGUE_NAME = 'Veterans English Table Tennis Society';
 export const VETTS_SOURCE = 'vetts-tournamentsoftware';
@@ -14,11 +14,25 @@ export interface VettsCompetitionResolution {
     matchMethod: 'existing-source' | 'automatic' | 'review' | 'separate';
 }
 
+export function deriveVettsEventStatus(
+    metadata: Pick<VettsTournamentMetadata, 'startDate' | 'endDate'>,
+    now: Date = new Date(),
+): 'upcoming' | 'in_progress' | 'completed' {
+    if (!metadata.startDate) return 'completed';
+    const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const start = Date.parse(`${metadata.startDate}T00:00:00Z`);
+    const end = Date.parse(`${metadata.endDate ?? metadata.startDate}T23:59:59Z`);
+    if (Number.isNaN(start) || Number.isNaN(end)) return 'completed';
+    if (today < start) return 'upcoming';
+    if (today <= end) return 'in_progress';
+    return 'completed';
+}
+
 export async function upsertVettsPlatform(db: Kysely<Database>): Promise<string> {
     const existing = await db
         .selectFrom('platforms')
         .select('id')
-        .where('name', '=', VETTS_PLATFORM_NAME)
+        .where('base_url', '=', VETTS_PLATFORM_BASE_URL)
         .executeTakeFirst();
     if (existing) return existing.id;
 
@@ -100,6 +114,7 @@ async function findCalendarCandidates(
             'category',
         ])
         .where('type', '=', 'individual')
+        .where('source', '=', 'tte-calendar')
         .where('deleted_at', 'is', null);
 
     if (metadata.startDate) {
@@ -156,10 +171,7 @@ async function saveTournamentSource(
 async function recordReviewCandidate(
     database: Kysely<any>,
     metadata: VettsTournamentMetadata,
-    candidate: {
-        id: string;
-        venue: string | null;
-    },
+    candidate: { id: string; venue: string | null },
     score: { name: number; date: number; venue: number; category: number; total: number },
 ): Promise<void> {
     const existing = await database
@@ -217,7 +229,7 @@ async function upsertSeparateCompetition(
         venue_postcode: metadata.venuePostcode,
         source: 'vetts',
         source_url: metadata.sourceUrl,
-        event_status: 'completed',
+        event_status: deriveVettsEventStatus(metadata),
         deleted_at: null,
     } as const;
 
