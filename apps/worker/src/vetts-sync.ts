@@ -8,6 +8,7 @@ import {
     upsertSourceInstance,
     upsertSourceResource,
 } from './sources/registry.js';
+import { VETTS_ADAPTER_KEY, VETTS_ADAPTER_VERSION } from './vetts-adapter.js';
 import {
     fetchVettsTournamentMatches,
     fetchVettsTournamentOverview,
@@ -19,6 +20,7 @@ import {
     parseVettsTournamentOverview,
     vettsMatchesToParsedData,
 } from './vetts-parser.js';
+import { stabilizeVettsPlayerIdentities } from './vetts-player-identity.js';
 import {
     resolveVettsCompetition,
     upsertVettsLeague,
@@ -28,9 +30,6 @@ import {
     upsertVettsSourceEvent,
 } from './vetts-loader.js';
 import { reconcileVettsDuplicateRubbers } from './vetts-duplicate-reconciliation.js';
-
-const ADAPTER_KEY = 'tournamentsoftware-vetts';
-const ADAPTER_VERSION = '1.0.0';
 
 export interface VettsSyncLogger {
     info?: (message: string) => void;
@@ -57,15 +56,18 @@ export async function syncVettsTournament(
         key: 'vetts',
         name: 'Veterans English Table Tennis Society',
         baseUrl: 'https://vetts.tournamentsoftware.com',
-        adapterKey: ADAPTER_KEY,
-        config: { organisation: 'VETTS' },
+        adapterKey: VETTS_ADAPTER_KEY,
+        config: {
+            organisation: 'VETTS',
+            calendarBaseUrl: 'https://www.vetts.org.uk',
+        },
     });
     const overviewUrl = vettsUrls.tournament(tournamentId);
     let overviewResource = await upsertSourceResource(database, {
         sourceInstanceId: sourceInstance.id,
         resourceType: 'event',
         externalId: tournamentId,
-        adapterVersion: ADAPTER_VERSION,
+        adapterVersion: VETTS_ADAPTER_VERSION,
         name: `VETTS tournament ${tournamentId}`,
         publicUrl: overviewUrl,
         refreshPolicy: { cadence: 'weekly-after-completion' },
@@ -74,7 +76,7 @@ export async function syncVettsTournament(
         sourceInstanceId: sourceInstance.id,
         resourceType: 'event-results',
         externalId: `${tournamentId}:matches`,
-        adapterVersion: ADAPTER_VERSION,
+        adapterVersion: VETTS_ADAPTER_VERSION,
         name: `VETTS tournament results ${tournamentId}`,
         publicUrl: vettsUrls.matches(tournamentId),
         refreshPolicy: { cadence: 'daily-during-event-weekly-after' },
@@ -107,7 +109,7 @@ export async function syncVettsTournament(
             sourceInstanceId: sourceInstance.id,
             resourceType: 'event',
             externalId: tournamentId,
-            adapterVersion: ADAPTER_VERSION,
+            adapterVersion: VETTS_ADAPTER_VERSION,
             name: metadata.name,
             publicUrl: overviewUrl,
             refreshPolicy: { cadence: 'weekly-after-completion' },
@@ -118,7 +120,7 @@ export async function syncVettsTournament(
             sourceInstanceId: sourceInstance.id,
             resourceType: 'event-results',
             externalId: `${tournamentId}:matches`,
-            adapterVersion: ADAPTER_VERSION,
+            adapterVersion: VETTS_ADAPTER_VERSION,
             name: `${metadata.name} results`,
             publicUrl: vettsUrls.matches(tournamentId),
             refreshPolicy: { cadence: 'daily-during-event-weekly-after' },
@@ -143,11 +145,15 @@ export async function syncVettsTournament(
             const matchesUrl = vettsUrls.matches(tournamentId, date);
             const matchesHtml = await fetchVettsTournamentMatches(tournamentId, date);
             const logId = await storeScrapePayload(matchesUrl, platformId, matchesHtml, database);
-            const parsedPage = parseVettsMatchesPage(matchesHtml, {
+            const parsedPage = stabilizeVettsPlayerIdentities(
+                matchesHtml,
                 tournamentId,
-                sourceUrl: matchesUrl,
-                date,
-            });
+                parseVettsMatchesPage(matchesHtml, {
+                    tournamentId,
+                    sourceUrl: matchesUrl,
+                    date,
+                }),
+            );
             matchRows += parsedPage.matches.length;
             rejectedRows += parsedPage.issues.length;
             for (const issue of parsedPage.issues) {
