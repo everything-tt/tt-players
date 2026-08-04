@@ -1,4 +1,4 @@
-name: Diagnose issue 104 player identity
+name: Diagnose player identity aliases
 
 on:
   pull_request:
@@ -6,6 +6,7 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'apps/worker/src/diagnose-player-rubber-identity.ts'
+      - 'apps/worker/src/diagnose-player-name-aliases.ts'
       - 'apps/worker/src/repair-soft-deleted-player-aliases.ts'
       - '.github/workflows/diagnose-issue-104.yml'
 
@@ -27,6 +28,7 @@ jobs:
     env:
       RUBBER_ID: de2f7e61-c727-4829-a82a-0d4b1ae89ee5
       EXPECTED_PLAYER_IDS: d0f7992f-bd3b-438c-874d-0af41d16a712,b3fa804d-05ee-465f-b508-dcbca48758c7
+      PLAYER_NAME: Grace Liu
 
     steps:
       - name: Checkout PR branch
@@ -45,7 +47,7 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
-      - name: Run read-only production diagnostic and corrected preview
+      - name: Run read-only production diagnostics and corrected preview
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -54,17 +56,21 @@ jobs:
           test -n "$VPS_USER"
 
           diagnostic_name=".diagnose-player-rubber-identity-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.ts"
+          player_name_diagnostic_name=".diagnose-player-name-aliases-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.ts"
           repair_name=".repair-soft-deleted-player-aliases-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.ts"
           diagnostic_path="/opt/tt-players/current/apps/worker/src/$diagnostic_name"
+          player_name_diagnostic_path="/opt/tt-players/current/apps/worker/src/$player_name_diagnostic_name"
           repair_path="/opt/tt-players/current/apps/worker/src/$repair_name"
 
           cleanup() {
-            ssh "$VPS_USER@$VPS_HOST" "rm -f '$diagnostic_path' '$repair_path'" || true
+            ssh "$VPS_USER@$VPS_HOST" "rm -f '$diagnostic_path' '$player_name_diagnostic_path' '$repair_path'" || true
           }
           trap cleanup EXIT
 
           scp apps/worker/src/diagnose-player-rubber-identity.ts \
             "$VPS_USER@$VPS_HOST:$diagnostic_path"
+          scp apps/worker/src/diagnose-player-name-aliases.ts \
+            "$VPS_USER@$VPS_HOST:$player_name_diagnostic_path"
           scp apps/worker/src/repair-soft-deleted-player-aliases.ts \
             "$VPS_USER@$VPS_HOST:$repair_path"
 
@@ -91,6 +97,22 @@ jobs:
               --wait \
               --pipe \
               --collect \
+              --unit=ttp-player-name-diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} \
+              --uid=ttp \
+              --gid=ttp \
+              --property=EnvironmentFile=/etc/ttp/worker.env \
+              --property=WorkingDirectory=/opt/tt-players/current/apps/worker \
+              /opt/tt-players/current/apps/worker/node_modules/.bin/tsx \
+              src/$player_name_diagnostic_name \
+              --player-name \"$PLAYER_NAME\"" \
+            | tee player-name-diagnostic-output.txt
+
+          ssh "$VPS_USER@$VPS_HOST" \
+            "systemd-run \
+              --quiet \
+              --wait \
+              --pipe \
+              --collect \
               --unit=ttp-player-alias-preview-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} \
               --uid=ttp \
               --gid=ttp \
@@ -106,11 +128,12 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "## Issue 104 identity diagnostic"
+            echo "## Player identity diagnostics"
             echo
             echo "- PR branch: \`$GITHUB_HEAD_REF\`"
-            echo "- Rubber: \`$RUBBER_ID\`"
+            echo "- Issue 104 rubber: \`$RUBBER_ID\`"
             echo "- Expected players: \`$EXPECTED_PLAYER_IDS\`"
+            echo "- Name probe: \`$PLAYER_NAME\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
           diagnostic_summary=$(grep '^IDENTITY_DIAGNOSTIC_SUMMARY=' diagnostic-output.txt 2>/dev/null | tail -n 1 || true)
@@ -127,6 +150,28 @@ jobs:
           for (const player of summary.expectedPlayers) {
             lines.push(
               `- Expected \`${player.expectedPlayerId}\`: resolves=${player.resolves}, canonical=\`${player.canonicalId ?? 'none'}\`, represented=${player.representedInRubber}, matching IDs=${player.matchingRubberParticipantIds.join(', ') || 'none'}`,
+            );
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
+          NODE
+          fi
+
+          player_name_summary=$(grep '^PLAYER_NAME_DIAGNOSTIC_SUMMARY=' player-name-diagnostic-output.txt 2>/dev/null | tail -n 1 || true)
+          if [[ -n "$player_name_summary" ]]; then
+            export PLAYER_NAME_JSON="${player_name_summary#PLAYER_NAME_DIAGNOSTIC_SUMMARY=}"
+            node <<'NODE'
+          const fs = require('node:fs');
+          const summary = JSON.parse(process.env.PLAYER_NAME_JSON);
+          const lines = [
+            '',
+            `## ${summary.playerName} diagnostic`,
+            '',
+            `- Matching rows: ${summary.matchingRowCount}`,
+            `- Eligible for current repair: ${summary.eligibleRowCount}`,
+          ];
+          for (const row of summary.rows) {
+            lines.push(
+              `- \`${row.id}\` (${row.platform ?? 'unknown platform'}): deleted=${row.deleted}, canonical=\`${row.canonicalPlayerId ?? 'none'}\`, root=\`${row.rootId ?? 'none'}\`, eligible=${row.eligibleForCurrentRepair}, exclusions=${row.exclusionReasons.join(', ') || 'none'}, active rubber refs=${row.referenceCounts.activeRubbers}`,
             );
           }
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
@@ -150,26 +195,16 @@ jobs:
           NODE
           fi
 
-          if [[ -f diagnostic-output.txt ]]; then
-            {
-              echo
-              echo "<details><summary>Full identity diagnostic</summary>"
-              echo
-              echo '```json'
-              sed -n '1,720p' diagnostic-output.txt
-              echo '```'
-              echo "</details>"
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-          if [[ -f repair-preview-output.txt ]]; then
-            {
-              echo
-              echo "<details><summary>Full corrected repair preview</summary>"
-              echo
-              echo '```json'
-              sed -n '1,720p' repair-preview-output.txt
-              echo '```'
-              echo "</details>"
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
+          for output in diagnostic-output.txt player-name-diagnostic-output.txt repair-preview-output.txt; do
+            if [[ -f "$output" ]]; then
+              {
+                echo
+                echo "<details><summary>Full $output</summary>"
+                echo
+                echo '```json'
+                sed -n '1,720p' "$output"
+                echo '```'
+                echo "</details>"
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
