@@ -163,8 +163,8 @@ describe('VETTS tournament parsing', () => {
             { home: 11, away: 7 },
             { home: 11, away: 9 },
         ]);
-        expect(singles.homePlayers[0]?.externalId).toBe('tournamentsoftware:member:1017');
-        expect(singles.awayPlayers[0]?.externalId).toBe('tournamentsoftware:member:6797');
+        expect(singles.homePlayers[0]?.externalId).toBe('tournamentsoftware:vetts:member:1017');
+        expect(singles.awayPlayers[0]?.externalId).toBe('tournamentsoftware:vetts:member:6797');
 
         const walkover = page.matches[1]!;
         expect(walkover).toMatchObject({
@@ -173,18 +173,18 @@ describe('VETTS tournament parsing', () => {
             winnerSide: 'home',
         });
         expect(walkover.homePlayers[0]?.externalId).toBe(
-            `tournamentsoftware:entry:${TOURNAMENT_ID}:100`,
+            `tournamentsoftware:vetts:entry:${TOURNAMENT_ID}:100`,
         );
 
         const doubles = page.matches[2]!;
         expect(doubles.isDoubles).toBe(true);
         expect(doubles.homePlayers.map((player) => player.externalId)).toEqual([
-            'tournamentsoftware:member:6779',
-            'tournamentsoftware:member:5476',
+            'tournamentsoftware:vetts:member:6779',
+            'tournamentsoftware:vetts:member:5476',
         ]);
         expect(doubles.awayPlayers.map((player) => player.externalId)).toEqual([
-            'tournamentsoftware:member:1172',
-            'tournamentsoftware:member:5505',
+            'tournamentsoftware:vetts:member:1172',
+            'tournamentsoftware:vetts:member:5505',
         ]);
     });
 
