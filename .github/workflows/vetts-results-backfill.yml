@@ -168,7 +168,6 @@ jobs:
         env:
           BACKFILL_MODE: ${{ inputs.mode }}
           DISCOVERY_LIMIT: ${{ inputs.discovery_limit }}
-          TOURNAMENT_IDS: ${{ env.NORMALIZED_TOURNAMENT_IDS }}
           JOB_STATUS: ${{ job.status }}
         run: |
           set -euo pipefail
@@ -181,7 +180,7 @@ jobs:
             if [[ "$BACKFILL_MODE" == "discovery" ]]; then
               echo "- Discovery limit: \`$DISCOVERY_LIMIT\`"
             else
-              echo "- Tournament IDs: \`$TOURNAMENT_IDS\`"
+              echo "- Tournament IDs: \`$NORMALIZED_TOURNAMENT_IDS\`"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
