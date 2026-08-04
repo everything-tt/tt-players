@@ -32,11 +32,11 @@ const TOP_RATINGS_LIMIT = 5;
 export function TopRatingsSection({ leagueIds, onOpenPlayer }: TopRatingsSectionProps) {
   const { navigateInTab } = useTabNavigation();
   const hasSelectedLeagues = leagueIds.length > 0;
-  const [scope, setScope] = useState<RatingsScope>(() => hasSelectedLeagues ? 'selected' : 'site');
+  const [scope, setScope] = useState<RatingsScope>('site');
 
   useEffect(() => {
-    if (!hasSelectedLeagues && scope === 'selected') setScope('site');
-  }, [hasSelectedLeagues, scope]);
+    setScope(hasSelectedLeagues ? 'selected' : 'site');
+  }, [hasSelectedLeagues]);
 
   const isSelectedScope = hasSelectedLeagues && scope === 'selected';
   const siteRatingsQuery = useTopSiteRatingsQuery(TOP_RATINGS_LIMIT, !isSelectedScope);
