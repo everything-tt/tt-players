@@ -3,6 +3,7 @@ import type { VettsMatchesPage, VettsPlayer } from './vetts-parser.js';
 
 const PLAYER_LINK_SELECTOR = 'a[href*="player.aspx"], a[href*="/player/"]';
 const MATCH_LINK_SELECTOR = 'a[href*="match-info"], a[href*="match.aspx"]';
+const VETTS_PLAYER_NAMESPACE = 'tournamentsoftware:vetts';
 
 function queryParam(href: string, key: string): string | null {
     try {
@@ -37,8 +38,8 @@ function sourceEntryId(player: VettsPlayer): string | null {
 /**
  * Tournament Software's `player=` value identifies an entry on a tournament
  * page, not a durable person across tournaments. Match/H2H links expose the
- * stable VETTS member IDs. Use those when present and scope the entry fallback
- * to the tournament so unrelated entrants can never collide.
+ * stable VETTS member IDs. Both identities are scoped to the VETTS tenant
+ * because external-player uniqueness is platform-wide.
  */
 export function stabilizeVettsPlayerIdentities(
     html: string,
@@ -70,8 +71,8 @@ export function stabilizeVettsPlayerIdentities(
         return {
             ...player,
             externalId: memberId
-                ? `tournamentsoftware:member:${memberId}`
-                : `tournamentsoftware:entry:${tournamentId}:${id}`,
+                ? `${VETTS_PLAYER_NAMESPACE}:member:${memberId}`
+                : `${VETTS_PLAYER_NAMESPACE}:entry:${tournamentId}:${id}`,
         };
     };
 
