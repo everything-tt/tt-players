@@ -202,7 +202,9 @@ function TournamentResults({
                     className="tt-tournament-timeline-group__header"
                   />
                   <DesignList
-                    density="comfortable"
+                    density="editorial"
+                    surface="grouped"
+                    textWrap="multiline"
                     divider="none"
                     paginate={false}
                     className="tt-tournament-timeline-list"
@@ -210,7 +212,6 @@ function TournamentResults({
                     {group.items.map((event) => (
                       <ListItem
                         key={event.id}
-                        className={`tt-tournament-timeline-item tt-tournament-timeline-item--${status}`}
                         leading={<TournamentDateTile event={event} status={status} />}
                         title={event.name}
                         subtitle={<TournamentMetadata event={event} status={status} />}
@@ -303,6 +304,7 @@ export function EventsTabContent() {
             <>
               <AppToggleButton
                 pressed={savedOnly}
+                variant="icon"
                 iconClassName={savedOnly ? 'fa fa-heart' : 'fa fa-heart-o'}
                 className="tt-tournament-toolbar-icon"
                 onClick={() => setSavedOnly((current) => !current)}
@@ -313,6 +315,7 @@ export function EventsTabContent() {
               </AppToggleButton>
               <AppToggleButton
                 pressed={categoryFiltersOpen || categoryFilterActive}
+                variant="icon"
                 iconClassName="fa fa-filter"
                 className="tt-tournament-toolbar-icon"
                 onClick={() => setCategoryFiltersOpen((current) => !current)}
@@ -350,6 +353,7 @@ export function EventsTabContent() {
                   key={option.value}
                   pressed={categories.includes(option.value)}
                   size="sm"
+                  variant="filter"
                   className="tt-tournament-category-filter"
                   onClick={() => setCategories((current) => toggleTournamentCategory(current, option.value))}
                 >
