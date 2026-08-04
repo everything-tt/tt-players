@@ -8,6 +8,7 @@ import {
     type VettsTournamentLink,
     type VettsTournamentMetadata,
 } from './vetts-parser.js';
+import { stabilizeVettsPlayerIdentities } from './vetts-player-identity.js';
 
 export const VETTS_ADAPTER_KEY = 'tournamentsoftware-vetts';
 export const VETTS_ADAPTER_VERSION = '1.1.0';
@@ -47,11 +48,15 @@ export const vettsSourceAdapter = defineSourceAdapter<
             const config = adapterConfig(context);
             const tournamentId = config.tournamentId ?? context.externalId.split(':')[0];
             if (!tournamentId) throw new Error('VETTS event-results resource requires tournamentId');
-            return parseVettsMatchesPage(html, {
+            return stabilizeVettsPlayerIdentities(
+                html,
                 tournamentId,
-                sourceUrl: context.url,
-                date: config.date ?? null,
-            });
+                parseVettsMatchesPage(html, {
+                    tournamentId,
+                    sourceUrl: context.url,
+                    date: config.date ?? null,
+                }),
+            );
         }
         throw new Error(`Unsupported VETTS resource type ${context.resourceType}`);
     },
