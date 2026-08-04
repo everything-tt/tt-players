@@ -97,12 +97,29 @@ function serializeCandidates(candidates: RepairCandidate[]) {
     }));
 }
 
+async function assertActiveCanonicalPlayer(
+    database: Kysely<Database>,
+    canonicalPlayerId: string,
+): Promise<void> {
+    const canonical = await database
+        .selectFrom('external_players')
+        .select('id')
+        .where('id', '=', canonicalPlayerId)
+        .where('deleted_at', 'is', null)
+        .executeTakeFirst();
+
+    if (!canonical) {
+        throw new Error(`Canonical player ${canonicalPlayerId} does not exist or is soft-deleted`);
+    }
+}
+
 export async function repairSoftDeletedPlayerAliases(
     database: Kysely<Database>,
     canonicalPlayerId: string,
     apply: boolean,
 ): Promise<RepairSoftDeletedPlayerAliasesResult> {
     const validatedCanonicalPlayerId = z.string().uuid().parse(canonicalPlayerId);
+    await assertActiveCanonicalPlayer(database, validatedCanonicalPlayerId);
 
     if (!apply) {
         const candidates = await candidateQuery(database, validatedCanonicalPlayerId).execute() as RepairCandidate[];
@@ -115,9 +132,8 @@ export async function repairSoftDeletedPlayerAliases(
     }
 
     const repair = await database.transaction().execute(async (trx) => {
-        const candidates = await candidateQuery(trx, validatedCanonicalPlayerId)
-            .forUpdate('alias')
-            .execute() as RepairCandidate[];
+        await assertActiveCanonicalPlayer(trx, validatedCanonicalPlayerId);
+        const candidates = await candidateQuery(trx, validatedCanonicalPlayerId).execute() as RepairCandidate[];
         const candidateIds = candidates.map((candidate) => candidate.alias_id);
 
         if (candidateIds.length === 0) {
