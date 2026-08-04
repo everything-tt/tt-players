@@ -1,8 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-
-const root = process.cwd();
-const mobileSrc = path.join(root, 'apps/mobile/src');
+import { pathToFileURL } from 'node:url';
 
 const legacySectionAllowlist = new Set([
   'App.tsx',
@@ -31,92 +29,40 @@ const temporarySelectorAllowlist = new Map([
   ['native-mobile.css', new Set(['button', 'overlay', 'segmented'])],
   ['player-insights.css', new Set(['badge', 'filter', 'list', 'metric', 'outcome', 'section'])],
   ['leagues-dashboard.css', new Set(['badge', 'button', 'entity-hero', 'filter', 'list', 'metric', 'outcome', 'section'])],
-  ['my-tt.css', new Set(['button', 'inline', 'metric', 'section', 'toggle'])],
+  ['my-tt.css', new Set(['button', 'metric', 'section', 'surface', 'toggle'])],
   ['h2h-ui.css', new Set(['section'])],
   ['ratings-enhancements.css', new Set(['pagination', 'section'])],
 ]);
 
+const selectorBoundary = '(?=[\\s>+~.,:#\\[\\](){}]|$)';
+
+function familyPattern(...baseClassNames) {
+  const bases = baseClassNames
+    .map((base) => base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
+  return new RegExp(`\\.(?:${bases})(?:[-_][A-Za-z0-9_-]*)?${selectorBoundary}`);
+}
+
 const canonicalSelectorFamilies = [
-  {
-    name: 'app-shell',
-    pattern: /\.tt-(?:app-shell|page-content|app-header(?:__|--)?|tab-bar(?:__|--)?)(?=[\s>+~.,:#\[\](){}]|$)/,
-  },
-  {
-    name: 'list',
-    pattern: /\.tt-list(?:$|(?=[\s>+~.,:#\[\](){}])|--|__|-item|-cols|-divider)/,
-  },
-  {
-    name: 'avatar',
-    pattern: /\.tt-avatar(?:$|(?=[\s>+~.,:#\[\](){}])|--|__)/,
-  },
-  {
-    name: 'button',
-    pattern: /\.tt-btn(?:$|(?=[\s>+~.,:#\[\](){}])|--|__|-rounded|-weight)/,
-  },
-  {
-    name: 'toggle',
-    pattern: /\.tt-toggle-button(?:$|(?=[\s>+~.,:#\[\](){}])|--|__)/,
-  },
-  {
-    name: 'segmented',
-    pattern: /\.tt-segmented(?:$|(?=[\s>+~.,:#\[\](){}])|--|__|-control)/,
-  },
-  {
-    name: 'section',
-    pattern: /\.tt-section(?:$|(?=[\s>+~.,:#\[\](){}])|--|__|-header|-divider)/,
-  },
-  {
-    name: 'entity-hero',
-    pattern: /\.tt-entity-hero(?:$|(?=[\s>+~.,:#\[\](){}])|--|__)/,
-  },
-  {
-    name: 'metric',
-    pattern: /\.tt-metric(?:$|(?=[\s>+~.,:#\[\](){}])|--|__|-grid)/,
-  },
-  {
-    name: 'filter',
-    pattern: /\.tt-filter-bar(?:$|(?=[\s>+~.,:#\[\](){}])|--|__)/,
-  },
-  {
-    name: 'search',
-    pattern: /\.tt-app-search(?:$|(?=[\s>+~.,:#\[\](){}])|--|__|-input|-toolbar)/,
-  },
-  {
-    name: 'surface',
-    pattern: /\.tt-(?:surface|stack|inline)(?:$|(?=[\s>+~.,:#\[\](){}])|--|__)/,
-  },
-  {
-    name: 'inline',
-    pattern: /\.tt-inline(?:$|(?=[\s>+~.,:#\[\](){}])|--|__)/,
-  },
-  {
-    name: 'card',
-    pattern: /\.tt-card(?:$|(?=[\s>+~.,:#\[\](){}])|--|__)/,
-  },
-  {
-    name: 'state',
-    pattern: /\.tt-(?:state|empty-state|error-state|loading-card)(?:$|(?=[\s>+~.,:#\[\](){}])|--|__)/,
-  },
-  {
-    name: 'badge',
-    pattern: /\.tt-(?:pill|rank-badge|icon-circle)(?:$|(?=[\s>+~.,:#\[\](){}])|--|__)/,
-  },
-  {
-    name: 'outcome',
-    pattern: /\.tt-outcome(?:$|(?=[\s>+~.,:#\[\](){}])|--|__)/,
-  },
-  {
-    name: 'overlay',
-    pattern: /\.tt-(?:sheet|backdrop|modal-layer)(?:$|(?=[\s>+~.,:#\[\](){}])|--|__)/,
-  },
-  {
-    name: 'pagination',
-    pattern: /\.tt-infinite-list-footer(?:$|(?=[\s>+~.,:#\[\](){}])|--|__)/,
-  },
-  {
-    name: 'match-record',
-    pattern: /\.tt-match-record(?:$|(?=[\s>+~.,:#\[\](){}])|--|__)/,
-  },
+  { name: 'app-shell', pattern: familyPattern('tt-app-shell', 'tt-page-content', 'tt-app-header', 'tt-tab-bar') },
+  { name: 'list', pattern: familyPattern('tt-list') },
+  { name: 'avatar', pattern: familyPattern('tt-avatar') },
+  { name: 'button', pattern: familyPattern('tt-btn') },
+  { name: 'toggle', pattern: familyPattern('tt-toggle-button') },
+  { name: 'segmented', pattern: familyPattern('tt-segmented', 'tt-segmented-control') },
+  { name: 'section', pattern: familyPattern('tt-section') },
+  { name: 'entity-hero', pattern: familyPattern('tt-entity-hero') },
+  { name: 'metric', pattern: familyPattern('tt-metric') },
+  { name: 'filter', pattern: familyPattern('tt-filter-bar') },
+  { name: 'search', pattern: familyPattern('tt-app-search') },
+  { name: 'surface', pattern: familyPattern('tt-surface', 'tt-stack', 'tt-inline') },
+  { name: 'card', pattern: familyPattern('tt-card') },
+  { name: 'state', pattern: familyPattern('tt-state', 'tt-empty-state', 'tt-error-state', 'tt-loading-card') },
+  { name: 'badge', pattern: familyPattern('tt-pill', 'tt-rank-badge', 'tt-icon-circle') },
+  { name: 'outcome', pattern: familyPattern('tt-outcome') },
+  { name: 'overlay', pattern: familyPattern('tt-sheet', 'tt-backdrop', 'tt-modal-layer') },
+  { name: 'pagination', pattern: familyPattern('tt-infinite-list-footer') },
+  { name: 'match-record', pattern: familyPattern('tt-match-record') },
 ];
 
 async function walk(directory) {
@@ -130,7 +76,7 @@ async function walk(directory) {
   return files;
 }
 
-function extractRulePreludes(source) {
+export function extractRulePreludes(source) {
   const preludes = [];
   let buffer = '';
   let quote = null;
@@ -197,61 +143,89 @@ function extractRulePreludes(source) {
   return preludes;
 }
 
-function getCanonicalFamilies(selector) {
+export function getCanonicalFamilies(selector) {
   return canonicalSelectorFamilies
     .filter(({ pattern }) => pattern.test(selector))
     .map(({ name }) => name);
 }
 
-const files = (await walk(mobileSrc)).filter((file) => /\.(tsx|ts|css)$/.test(file));
-const failures = [];
-const activeMigrationExceptions = [];
+export function inspectCssSource(relative, source) {
+  const basename = path.basename(relative);
+  const failures = [];
+  const exceptions = [];
 
-for (const file of files) {
-  const relative = path.relative(mobileSrc, file).replaceAll(path.sep, '/');
-  const basename = path.basename(file);
-  const source = await readFile(file, 'utf8');
+  if (!legacyCanonicalCssOwners.has(basename)) {
+    const allowedFamilies = temporarySelectorAllowlist.get(relative)
+      ?? temporarySelectorAllowlist.get(basename)
+      ?? new Set();
 
-  if (file.endsWith('.tsx')) {
-    if (!legacySectionAllowlist.has(relative) && /<section\s+className=["'`]tt-player-section/.test(source)) {
-      failures.push(`${relative}: use PageSection instead of a new tt-player-section wrapper`);
-    }
-
-    if (!inlineGeometryAllowlist.has(relative)) {
-      const inlineGeometry = /style=\{\{[^}]*\b(?:padding|margin|width|height|minHeight|maxWidth)\s*:/s;
-      if (inlineGeometry.test(source)) {
-        failures.push(`${relative}: move canonical layout geometry out of inline styles`);
+    for (const selector of extractRulePreludes(source)) {
+      for (const family of getCanonicalFamilies(selector)) {
+        if (allowedFamilies.has(family)) {
+          exceptions.push(`${relative}: ${family} (${selector})`);
+        } else {
+          failures.push(`${relative}: app CSS must not target canonical ${family} internals (${selector})`);
+        }
       }
     }
   }
 
-  if (file.endsWith('.css')) {
-    if (!legacyCanonicalCssOwners.has(basename)) {
-      const allowedFamilies = temporarySelectorAllowlist.get(relative) ?? temporarySelectorAllowlist.get(basename) ?? new Set();
-      for (const selector of extractRulePreludes(source)) {
-        for (const family of getCanonicalFamilies(selector)) {
-          if (allowedFamilies.has(family)) {
-            activeMigrationExceptions.push(`${relative}: ${family} (${selector})`);
-          } else {
-            failures.push(
-              `${relative}: app CSS must not target canonical ${family} internals (${selector})`,
-            );
-          }
+  const declaresCanonicalToken = /--tt-(?:gutter|row-height|avatar|control-height|header-height|root-header-height|tab-height)\s*:/;
+  if (basename !== 'design-tokens.css' && declaresCanonicalToken.test(source)) {
+    failures.push(`${relative}: canonical geometry tokens belong in packages/design-system/src/styles/tokens.css`);
+  }
+
+  return { failures, exceptions };
+}
+
+export async function runDesignSystemUsageCheck({ projectRoot = process.cwd() } = {}) {
+  const mobileSrc = path.join(projectRoot, 'apps/mobile/src');
+  const files = (await walk(mobileSrc)).filter((file) => /\.(tsx|ts|css)$/.test(file));
+  const failures = [];
+  const activeMigrationExceptions = [];
+
+  for (const file of files) {
+    const relative = path.relative(mobileSrc, file).replaceAll(path.sep, '/');
+    const source = await readFile(file, 'utf8');
+
+    if (file.endsWith('.tsx')) {
+      if (!legacySectionAllowlist.has(relative) && /<section\s+className=["'`]tt-player-section/.test(source)) {
+        failures.push(`${relative}: use PageSection instead of a new tt-player-section wrapper`);
+      }
+
+      if (!inlineGeometryAllowlist.has(relative)) {
+        const inlineGeometry = /style=\{\{[^}]*\b(?:padding|margin|width|height|minHeight|maxWidth)\s*:/s;
+        if (inlineGeometry.test(source)) {
+          failures.push(`${relative}: move canonical layout geometry out of inline styles`);
         }
       }
     }
 
-    const declaresCanonicalToken = /--tt-(?:gutter|row-height|avatar|control-height|header-height|root-header-height|tab-height)\s*:/;
-    if (basename !== 'design-tokens.css' && declaresCanonicalToken.test(source)) {
-      failures.push(`${relative}: canonical geometry tokens belong in packages/design-system/src/styles/tokens.css`);
+    if (file.endsWith('.css')) {
+      const result = inspectCssSource(relative, source);
+      failures.push(...result.failures);
+      activeMigrationExceptions.push(...result.exceptions);
     }
   }
+
+  return {
+    failures: [...new Set(failures)],
+    activeMigrationExceptions,
+  };
 }
 
-if (failures.length > 0) {
-  console.error('Design-system usage check failed:');
-  for (const failure of [...new Set(failures)]) console.error(`- ${failure}`);
-  process.exit(1);
+async function main() {
+  const result = await runDesignSystemUsageCheck();
+  if (result.failures.length > 0) {
+    console.error('Design-system usage check failed:');
+    for (const failure of result.failures) console.error(`- ${failure}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log(`Design-system usage check passed (${result.activeMigrationExceptions.length} documented selector exceptions remain).`);
 }
 
-console.log(`Design-system usage check passed (${activeMigrationExceptions.length} documented selector exceptions remain).`);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
+}
