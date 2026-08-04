@@ -3,6 +3,8 @@ import { db } from '@tt-players/db';
 import { RETRYABLE_JOB_SPEC, stableJobKey } from '../job-policy.js';
 import { discoverVettsTournaments } from '../vetts-discovery.js';
 
+const VETTS_UPSTREAM_QUEUE = 'vetts-tournamentsoftware';
+
 function maximumTournaments(): number {
     const value = Number(process.env['VETTS_DISCOVERY_LIMIT'] ?? 30);
     return Number.isInteger(value) && value > 0 ? Math.min(value, 100) : 30;
@@ -25,6 +27,7 @@ export const scrapeVettsTournamentsTask: Task = async (_payload, helpers) => {
             { tournamentId: tournament.tournamentId },
             {
                 ...RETRYABLE_JOB_SPEC,
+                queueName: VETTS_UPSTREAM_QUEUE,
                 jobKey: stableJobKey('scrape-vetts-tournament', tournament.tournamentId),
             },
         );
