@@ -4,6 +4,7 @@ import path from 'node:path';
 import { Kysely, PostgresDialect, sql } from 'kysely';
 import pg from 'pg';
 import type { Database } from '@tt-players/db';
+import { buildApp } from '../../../api/src/app.js';
 import { storeScrapePayload } from '../extractor.js';
 import { loadTTLeaguesData } from '../loader.js';
 import {
@@ -181,6 +182,17 @@ describe('VETTS ingestion integration', () => {
             ])
             .returning('id')
             .execute();
+        await db
+            .updateTable('external_players')
+            .set({ canonical_player_id: canonicalPlayers[0]!.id })
+            .where('id', '=', canonicalPlayers[0]!.id)
+            .execute();
+        await db
+            .updateTable('external_players')
+            .set({ canonical_player_id: canonicalPlayers[1]!.id })
+            .where('id', '=', canonicalPlayers[1]!.id)
+            .execute();
+
         const canonicalFixture = await db
             .insertInto('fixtures')
             .values({
@@ -317,5 +329,20 @@ describe('VETTS ingestion integration', () => {
         expect(registryRows.last_succeeded_at).not.toBeNull();
         expect(rawLogs).toHaveLength(1);
         expect(rawLogs[0]).toMatchObject({ count: 1, status: 'processed' });
+
+        const app = await buildApp(db);
+        await app.ready();
+        try {
+            const response = await app.inject({
+                method: 'GET',
+                url: `/api/players/${canonicalPlayers[0]!.id}/h2h/${canonicalPlayers[1]!.id}`,
+            });
+            expect(response.statusCode).toBe(200);
+            const payload = response.json();
+            expect(payload.encounters).toHaveLength(1);
+            expect(payload.encounters[0].id).toBe(canonicalRubber.id);
+        } finally {
+            await app.close();
+        }
     }, 120_000);
 });
