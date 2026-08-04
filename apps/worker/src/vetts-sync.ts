@@ -22,6 +22,7 @@ import {
 } from './vetts-parser.js';
 import { stabilizeVettsPlayerIdentities } from './vetts-player-identity.js';
 import {
+    deriveVettsEventStatus,
     resolveVettsCompetition,
     upsertVettsLeague,
     upsertVettsPlatform,
@@ -185,12 +186,11 @@ export async function syncVettsTournament(
             );
         }
 
-        const now = new Date();
         await (database as Kysely<any>)
             .updateTable('competitions')
             .set({
-                last_scraped_at: now,
-                ...(matchRows > 0 ? { event_status: 'completed' } : {}),
+                last_scraped_at: new Date(),
+                event_status: deriveVettsEventStatus(metadata),
             })
             .where('id', '=', competitionId)
             .execute();
