@@ -1,7 +1,6 @@
 import dotenv from 'dotenv';
 import { db } from '@tt-players/db';
-import { fetchVettsDiscovery, vettsDiscoveryYears, vettsUrls } from './vetts-client.js';
-import { parseVettsTournamentLinks } from './vetts-parser.js';
+import { discoverVettsTournaments } from './vetts-discovery.js';
 import { syncVettsTournament } from './vetts-sync.js';
 
 dotenv.config();
@@ -26,31 +25,19 @@ function suppliedTournamentIds(): string[] {
 }
 
 async function discoverTournamentIds(): Promise<string[]> {
-    const tournaments = new Map<string, string>();
-    const failures: Error[] = [];
+    const discovery = await discoverVettsTournaments(db, {
+        info: (message) => console.log(message),
+        warn: (message) => console.warn(message),
+    });
+    const ids = discovery.tournaments
+        .slice(0, discoveryLimit())
+        .map((tournament) => tournament.tournamentId);
 
-    for (const year of vettsDiscoveryYears()) {
-        const discoveryUrl = vettsUrls.discovery(year);
-        try {
-            const links = parseVettsTournamentLinks(
-                await fetchVettsDiscovery(year),
-                discoveryUrl,
-            );
-            if (links.length === 0) {
-                throw new Error(`No VETTS tournaments discovered for ${year}`);
-            }
-            for (const link of links) tournaments.set(link.tournamentId, link.tournamentId);
-        } catch (error) {
-            failures.push(error instanceof Error ? error : new Error(String(error)));
-        }
-    }
-
-    const ids = [...tournaments.keys()].slice(0, discoveryLimit());
     if (ids.length === 0) {
-        throw new AggregateError(failures, 'No usable VETTS tournaments discovered');
+        throw new AggregateError(discovery.failures, 'No usable VETTS tournaments discovered');
     }
-    if (failures.length > 0) {
-        console.warn(new AggregateError(failures, 'Some VETTS calendar pages failed'));
+    if (discovery.failures.length > 0) {
+        console.warn(new AggregateError(discovery.failures, 'Some VETTS calendar pages failed'));
     }
     return ids;
 }
