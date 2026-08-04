@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+} from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { usePlayerH2HQuery, usePlayerRivalsQuery } from '../queries';
 import {
@@ -137,7 +143,15 @@ export function PlayerRivalryOrbit({
     selectedOpponentId ?? '',
     Boolean(playerId && selectedOpponentId),
   );
-  const latestEncounter = h2hQuery.data?.encounters[0] ?? null;
+  const latestEncounter = useMemo(() => {
+    const encounters = h2hQuery.data?.encounters ?? [];
+    return encounters.reduce<(typeof encounters)[number] | null>((latest, encounter) => {
+      if (!latest) return encounter;
+      return new Date(encounter.date).getTime() > new Date(latest.date).getTime()
+        ? encounter
+        : latest;
+    }, null);
+  }, [h2hQuery.data?.encounters]);
 
   useEffect(() => {
     setSelectedOpponentId(null);
@@ -219,7 +233,9 @@ export function PlayerRivalryOrbit({
                         y1={CENTRE_Y}
                         x2={point.x}
                         y2={point.y}
-                        style={{ '--tt-rivalry-edge-width': `${1.5 + Math.min(point.played, 12) * 0.32}px` } as React.CSSProperties}
+                        style={{
+                          '--tt-rivalry-edge-width': `${1.5 + Math.min(point.played, 12) * 0.32}px`,
+                        } as CSSProperties}
                       />
                       <g
                         className={`tt-rivalry-score${selected ? ' is-selected' : ''}`}
