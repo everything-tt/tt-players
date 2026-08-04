@@ -152,7 +152,7 @@ describe('VETTS ingestion integration', () => {
             })
             .returning('id')
             .executeTakeFirstOrThrow();
-        const competition = await db
+        const competition = await (db as Kysely<any>)
             .insertInto('competitions')
             .values({
                 season_id: calendarSeason.id,
