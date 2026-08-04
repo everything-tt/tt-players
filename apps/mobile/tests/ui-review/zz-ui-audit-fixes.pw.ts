@@ -158,9 +158,17 @@ test('dark-mode semantic tokens resolve to dark base values and full routes expo
   await capture(page, testInfo, 'home-dark-mode-tokens');
 
   // --- B2: segmented control touch targets (>=44px) ---
+  // The clean review browser intentionally has no persisted leagues. Open the
+  // selector explicitly so this check is deterministic instead of relying on
+  // user-specific localStorage state.
   await page.goto(`${previewUrl}/tabs/leagues`, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'Your leagues', level: 2 })).toBeVisible();
-  const segHeight = await page.locator('.tt-segmented__btn').first().evaluate((el) => Math.round(el.getBoundingClientRect().height));
+  const openLeagueScope = page.getByRole('button', { name: 'Select leagues' });
+  await expect(openLeagueScope).toBeVisible();
+  await openLeagueScope.click();
+  await expect(page.getByRole('button', { name: 'Done' })).toBeVisible();
+  const segmentedButton = page.locator('.tt-segmented__btn').first();
+  await expect(segmentedButton).toBeVisible();
+  const segHeight = await segmentedButton.evaluate((el) => Math.round(el.getBoundingClientRect().height));
   expect(segHeight, 'segmented control buttons must meet the 44px touch-target minimum').toBeGreaterThanOrEqual(44);
   await capture(page, testInfo, 'leagues-segmented-touch-target');
 
