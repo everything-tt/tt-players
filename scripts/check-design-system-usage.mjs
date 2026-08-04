@@ -26,9 +26,8 @@ const legacyCanonicalCssOwners = new Set([
  * adding another canonical family to an existing file still fails CI until the
  * exception is documented here. */
 const temporarySelectorAllowlist = new Map([
-  ['native-mobile.css', new Set(['button', 'overlay', 'segmented'])],
   ['player-insights.css', new Set(['badge', 'filter', 'list', 'metric', 'outcome', 'section'])],
-  ['leagues-dashboard.css', new Set(['badge', 'button', 'entity-hero', 'filter', 'list', 'metric', 'outcome', 'section'])],
+  ['leagues-dashboard.css', new Set(['badge', 'outcome'])],
   ['my-tt.css', new Set(['button', 'metric', 'section', 'surface', 'toggle'])],
   ['h2h-ui.css', new Set(['section'])],
   ['ratings-enhancements.css', new Set(['pagination', 'section'])],
