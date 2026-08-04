@@ -1,26 +1,18 @@
 .tt-tournament-controls-panel {
   box-sizing: border-box;
-  margin: 16px 16px 0;
-  padding: 14px;
-  overflow: hidden;
-  border: 1px solid var(--panel-border);
-  border-radius: 18px;
-  background: var(--tt-home-surface);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.62);
-}
-
-body.theme-dark .tt-tournament-controls-panel {
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  margin: 16px 0 0;
+  padding: 0;
+  overflow: visible;
 }
 
 .tt-tournament-status-toggle.tt-browse-controls {
-  margin: 0 0 12px;
+  margin: 0 var(--tt-gutter-flat) 12px;
 }
 
 .tt-tournament-controls-panel .tt-segmented {
   padding: 3px;
   border-radius: 12px;
-  background: var(--canvas-parchment);
+  background: var(--surface-subtle-strong);
 }
 
 .tt-tournament-controls-panel .tt-segmented__btn {
@@ -37,7 +29,7 @@ body.theme-dark .tt-tournament-controls-panel {
 }
 
 .tt-tournament-search-toolbar {
-  margin: 0;
+  margin: 0 var(--tt-gutter-flat);
 }
 
 .tt-tournament-search-toolbar .tt-app-search-toolbar__actions {
@@ -71,7 +63,7 @@ body.theme-dark .tt-tournament-controls-panel {
   padding: 0 !important;
   border: 0;
   border-radius: 14px;
-  background: var(--surface-subtle);
+  background: var(--surface-subtle-strong);
   color: var(--ink);
 }
 
@@ -99,7 +91,7 @@ body.theme-dark .tt-tournament-controls-panel {
   min-width: 17px;
   height: 17px;
   padding-inline: 4px;
-  border: 2px solid var(--tt-home-surface);
+  border: 2px solid var(--canvas-parchment);
   border-radius: 999px;
   background: var(--accent);
   color: var(--on-accent, #fff);
@@ -114,9 +106,7 @@ body.theme-dark .tt-tournament-controls-panel {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  margin: 12px 0 0;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-hairline);
+  margin: 12px var(--tt-gutter-flat) 0;
 }
 
 .tt-tournament-category-filters__options {
@@ -131,7 +121,7 @@ body.theme-dark .tt-tournament-controls-panel {
   min-height: 36px;
   padding-inline: 12px;
   border-color: transparent;
-  background: var(--surface-subtle);
+  background: var(--surface-subtle-strong);
 }
 
 .tt-tournament-category-filter.tt-toggle-button--pressed {
@@ -146,9 +136,10 @@ body.theme-dark .tt-tournament-controls-panel {
 }
 
 @media (max-width: 360px) {
-  .tt-tournament-controls-panel {
+  .tt-tournament-status-toggle.tt-browse-controls,
+  .tt-tournament-search-toolbar,
+  .tt-tournament-category-filters {
     margin-inline: 14px;
-    padding: 12px;
   }
 
   .tt-tournament-search-toolbar {
