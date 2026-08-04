@@ -202,7 +202,7 @@ export function LeaguesTabContent({
   const [showAllResults, setShowAllResults] = useState(false);
 
   const visibleLeagues = useMemo(() => {
-    if (selectedLeagueIds.length === 0) return allLeagues;
+    if (selectedLeagueIds.length === 0) return [];
     const selected = new Set(selectedLeagueIds);
     return allLeagues.filter((league) => selected.has(league.id));
   }, [allLeagues, selectedLeagueIds]);
@@ -210,7 +210,7 @@ export function LeaguesTabContent({
 
   const dashboardQuery = useLeagueCollectionDashboardQuery(leagueIds, leagueIds.length > 0);
   const overviewQuery = useLeagueOverviewQuery(leagueIds, leagueIds.length > 0);
-  const profileQuery = usePlayerProfileOverviewQuery(myPlayer?.id ?? '', Boolean(myPlayer));
+  const profileQuery = usePlayerProfileOverviewQuery(myPlayer?.id ?? '', Boolean(myPlayer) && leagueIds.length > 0);
   const leadersQuery = useLeadersQuery({
     mode: playerMode === 'form' ? 'form' : playerMode === 'improving' ? 'improving' : 'combined',
     leagueIds,
@@ -315,41 +315,53 @@ export function LeaguesTabContent({
 
   return (
     <div className="tt-leagues-dashboard">
-      <EntityHero
-        className="tt-leagues-dashboard-hero"
-        eyebrow="Active season"
-        title="Your leagues"
-        subtitle={`${visibleLeagues.length} selected league${visibleLeagues.length === 1 ? '' : 's'} · Player and team performance`}
-        actions={(
-          <AppButton size="s" tone="outline" onClick={onOpenLeagueSelector}>
-            <i className="fa fa-cog" aria-hidden="true" />
-            Manage leagues
-          </AppButton>
-        )}
-        highlights={dashboard ? (
-          <MetricGrid
-            density="compact"
-            columns={4}
-            metrics={[
-              { label: 'Divisions', value: formatNumber(dashboard.totals.divisions) },
-              { label: 'Teams', value: formatNumber(dashboard.totals.teams) },
-              { label: 'Played', value: formatNumber(dashboard.totals.matches_played) },
-              { label: 'Upcoming', value: formatNumber(dashboard.totals.upcoming_fixtures) },
-            ]}
-          />
-        ) : null}
-      />
+      {visibleLeagues.length > 0 ? (
+        <EntityHero
+          className="tt-leagues-dashboard-hero"
+          eyebrow="Active season"
+          title="Your leagues"
+          subtitle={`${visibleLeagues.length} selected league${visibleLeagues.length === 1 ? '' : 's'} · Player and team performance`}
+          actions={(
+            <AppButton size="s" tone="outline" onClick={onOpenLeagueSelector}>
+              <i className="fa fa-cog" aria-hidden="true" />
+              Manage leagues
+            </AppButton>
+          )}
+          highlights={dashboard ? (
+            <MetricGrid
+              density="compact"
+              columns={4}
+              metrics={[
+                { label: 'Divisions', value: formatNumber(dashboard.totals.divisions) },
+                { label: 'Teams', value: formatNumber(dashboard.totals.teams) },
+                { label: 'Played', value: formatNumber(dashboard.totals.matches_played) },
+                { label: 'Upcoming', value: formatNumber(dashboard.totals.upcoming_fixtures) },
+              ]}
+            />
+          ) : null}
+        />
+      ) : null}
 
-      {leaguesQuery.isLoading || dashboardQuery.isLoading ? (
+      {selectedLeagueIds.length === 0 ? (
+        <PageSection surface="flat" density="compact" className="tt-leagues-dashboard-empty">
+          <EmptyState
+            iconClassName="fa fa-table-tennis"
+            title="Select your leagues"
+            message="Choose the leagues you follow to see your season, fixtures, rankings and results here."
+            action={{ label: 'Select leagues', onClick: onOpenLeagueSelector }}
+          />
+        </PageSection>
+      ) : leaguesQuery.isLoading || dashboardQuery.isLoading ? (
         <PageSection surface="flat" density="compact" className="tt-leagues-dashboard-section">
           <SkeletonList rows={6} />
         </PageSection>
       ) : visibleLeagues.length === 0 ? (
-        <PageSection surface="flat" density="compact" className="tt-leagues-dashboard-section">
+        <PageSection surface="flat" density="compact" className="tt-leagues-dashboard-empty">
           <EmptyState
             iconClassName="fa fa-table-tennis"
-            title="No leagues selected"
-            message="Choose leagues to build an active-season overview."
+            title="Selected leagues unavailable"
+            message="Review your league selection to continue."
+            action={{ label: 'Manage leagues', onClick: onOpenLeagueSelector }}
           />
         </PageSection>
       ) : error ? (
