@@ -180,7 +180,7 @@ jobs:
             if [[ "$BACKFILL_MODE" == "discovery" ]]; then
               echo "- Discovery limit: \`$DISCOVERY_LIMIT\`"
             else
-              echo "- Tournament IDs: \`$NORMALIZED_TOURNAMENT_IDS\`"
+              echo "- Tournament IDs: \`${NORMALIZED_TOURNAMENT_IDS:-not validated}\`"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
