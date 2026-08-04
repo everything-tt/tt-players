@@ -170,7 +170,7 @@ export function inspectCssSource(relative, source) {
     }
   }
 
-  const declaresCanonicalToken = /--tt-(?:gutter|row-height|avatar|control-height|header-height|root-header-height|tab-height)\s*:/;
+  const declaresCanonicalToken = /--tt-(?:gutter|row-height|avatar|control-height|header-height|root-header-height|tab-height)(?:-[a-z0-9-]+)?\s*:/i;
   if (basename !== 'design-tokens.css' && declaresCanonicalToken.test(source)) {
     failures.push(`${relative}: canonical geometry tokens belong in packages/design-system/src/styles/tokens.css`);
   }
