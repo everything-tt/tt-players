@@ -1,7 +1,12 @@
 import { createHash } from 'node:crypto';
 import * as cheerio from 'cheerio';
 import type { OutcomeType } from '@tt-players/db';
-import type { ParsedFixture, ParsedPlayer, ParsedRubber, ParsedTTLeaguesData } from './parser.js';
+import type {
+    ParsedFixture,
+    ParsedPlayer,
+    ParsedRubber,
+    ParsedTTLeaguesData,
+} from './parser.js';
 
 export interface VettsTournamentLink {
     tournamentId: string;
@@ -106,6 +111,18 @@ const ROUND_ORDER: Array<[RegExp, number]> = [
     [/final/i, 90],
 ];
 
+const PLAYER_LINK_SELECTOR = 'a[href*="player.aspx"], a[href*="/player/"]';
+const DRAW_LINK_SELECTOR = 'a[href*="draw.aspx"], a[href*="/draw/"]';
+const SCORE_SELECTOR = [
+    '[data-score]',
+    'td.score',
+    'td[class*="score"]',
+    'span.score',
+    'span[class*="score"]',
+    'li.score',
+    'li[class*="score"]',
+].join(', ');
+
 function cleanText(value: string): string {
     return value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
 }
@@ -131,7 +148,6 @@ export function parseVettsTournamentLinks(
         if (!href) return;
         const tournamentId = extractVettsTournamentId(href);
         if (!tournamentId || links.has(tournamentId)) return;
-
         links.set(tournamentId, {
             tournamentId,
             url: absoluteUrl(href, baseUrl),
@@ -147,7 +163,10 @@ function isoDate(year: number, month: number, day: number): string {
 }
 
 function parseHumanDate(value: string, fallbackYear: number | null): string | null {
-    const cleaned = cleanText(value).replace(/^(?:mon|tue|wed|thu|fri|sat|sun)(?:day)?\s+/i, '');
+    const cleaned = cleanText(value).replace(
+        /^(?:mon|tue|wed|thu|fri|sat|sun)(?:day)?\s+/i,
+        '',
+    );
     const match = cleaned.match(/(\d{1,2})\s+([A-Za-z]+)(?:\s+(\d{4}))?/);
     if (!match) return null;
     const day = Number(match[1]);
@@ -169,15 +188,20 @@ function labeledValue($: cheerio.CheerioAPI, label: string): string | null {
         if (result) return;
         if (cleanText($(element).text()).toLowerCase() !== normalizedLabel) return;
         const sibling = $(element).next('dd, td, [class*="value"]').first();
-        const value = cleanText(sibling.text());
-        if (value) result = value;
+        result = cleanText(sibling.text()) || null;
     });
     return result;
 }
 
 function firstNumberAfterLabel(text: string, label: string): number | null {
-    const match = text.match(new RegExp(`${label}\\s+(\\d+)`, 'i'));
+    const match = text.match(new RegExp(`${label}\\s*:?\\s*(\\d+)`, 'i'));
     return match ? Number(match[1]) : null;
+}
+
+function countValue($: cheerio.CheerioAPI, bodyText: string, label: string): number | null {
+    const structured = labeledValue($, label);
+    const structuredMatch = structured?.match(/\d+/);
+    return structuredMatch ? Number(structuredMatch[0]) : firstNumberAfterLabel(bodyText, label);
 }
 
 export function parseVettsTournamentOverview(
@@ -188,33 +212,44 @@ export function parseVettsTournamentOverview(
     if (!tournamentId) throw new Error(`Unable to derive VETTS tournament ID from ${sourceUrl}`);
 
     const $ = cheerio.load(html);
+    const heading = $('main h2, h2').first();
     const bodyText = cleanText($('body').text());
-    const name = cleanText($('main h2, h2').first().text()) ||
+    const name = cleanText(heading.text()) ||
         cleanText($('title').text()).replace(/\s*\|.*$/, '') ||
         `VETTS Tournament ${tournamentId}`;
     const year = inferredYear(`${name} ${bodyText}`);
-
-    const summary = cleanText($('main h2, h2').first().parent().text());
+    const summary = cleanText(heading.nextAll('p').first().text()) ||
+        cleanText(heading.parent().text()).replace(name, '').trim();
     const pipeParts = summary.split('|').map(cleanText).filter(Boolean);
     const organisation = pipeParts.length > 1 ? pipeParts[0] ?? null : null;
     const locationAndDates = pipeParts.length > 1 ? pipeParts.slice(1).join(' | ') : summary;
-    const rangeMatch = locationAndDates.match(/(\d{1,2}\s+[A-Za-z]+(?:\s+\d{4})?)\s+to\s+(\d{1,2}\s+[A-Za-z]+(?:\s+\d{4})?)/i);
+    const rangeMatch = locationAndDates.match(
+        /(\d{1,2}\s+[A-Za-z]+(?:\s+\d{4})?)\s+to\s+(\d{1,2}\s+[A-Za-z]+(?:\s+\d{4})?)/i,
+    );
     const singleDateMatch = locationAndDates.match(/(\d{1,2}\s+[A-Za-z]+(?:\s+\d{4})?)/i);
-    const startDate = parseHumanDate(rangeMatch?.[1] ?? singleDateMatch?.[1] ?? '', year);
-    const endDate = parseHumanDate(rangeMatch?.[2] ?? rangeMatch?.[1] ?? singleDateMatch?.[1] ?? '', year);
-    const location = cleanText(locationAndDates.replace(rangeMatch?.[0] ?? singleDateMatch?.[0] ?? '', '')) || null;
+    const startText = rangeMatch?.[1] ?? singleDateMatch?.[1] ?? '';
+    const endText = rangeMatch?.[2] ?? rangeMatch?.[1] ?? singleDateMatch?.[1] ?? '';
+    const startDate = parseHumanDate(startText, year);
+    const endDate = parseHumanDate(endText, year);
+    const location = cleanText(
+        locationAndDates.replace(rangeMatch?.[0] ?? singleDateMatch?.[0] ?? '', ''),
+    ).replace(/^\|+|\|+$/g, '').trim() || null;
 
     const venueHeading = $('h3, h4, h5').filter((_index, element) =>
         cleanText($(element).text()).toLowerCase() === 'venue'
     ).first();
-    const venueContainer = venueHeading.length ? venueHeading.parent() : cheerio.load('<div></div>')('div');
+    const venueContainer = venueHeading.length
+        ? venueHeading.parent()
+        : cheerio.load('<div></div>')('div');
     const venueLines = venueContainer
         .find('h4, h5, p, address, a')
         .map((_index, element) => cleanText($(element).text()))
         .get()
         .filter((value, index, values) => value && values.indexOf(value) === index)
-        .filter((value) => !/^route$/i.test(value) && !/^venue$/i.test(value));
-    const postcodeIndex = venueLines.findIndex((value) => /\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/i.test(value));
+        .filter((value) => !/^(?:route|venue)$/i.test(value));
+    const postcodeIndex = venueLines.findIndex((value) =>
+        /\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/i.test(value),
+    );
     const postcodeLine = postcodeIndex >= 0 ? venueLines[postcodeIndex]! : '';
     const postcodeMatch = postcodeLine.match(/\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i);
     const venuePostcode = postcodeMatch?.[1]?.toUpperCase() ?? null;
@@ -234,8 +269,8 @@ export function parseVettsTournamentOverview(
         venueAddress: addressLines.join(', ') || null,
         venueTown,
         venuePostcode,
-        eventCount: firstNumberAfterLabel(bodyText, 'Events'),
-        entryCount: firstNumberAfterLabel(bodyText, 'Entries'),
+        eventCount: countValue($, bodyText, 'Events'),
+        entryCount: countValue($, bodyText, 'Entries'),
     };
 }
 
@@ -268,22 +303,21 @@ function validTableTennisGame(home: number, away: number): boolean {
     return winner - loser === 2;
 }
 
-function scoreNumbers(
-    $: cheerio.CheerioAPI,
-    row: cheerio.Cheerio<any>,
-    lastPlayerCellIndex: number,
-): number[] {
+function scoreNumbers($: cheerio.CheerioAPI, row: cheerio.Cheerio<any>): number[] {
     const explicit: number[] = [];
-    row.find('[data-score], td.score, td[class*="score"], li[class*="score"]').each((_index, element) => {
-        const value = $(element).attr('data-score') ?? cleanText($(element).text());
+    row.find(SCORE_SELECTOR).each((_index, element) => {
+        const node = $(element);
+        if (node.find(SCORE_SELECTOR).length > 0) return;
+        const value = node.attr('data-score') ?? cleanText(node.text());
         for (const part of value.match(/\b\d{1,2}\b/g) ?? []) explicit.push(Number(part));
     });
     if (explicit.length >= 2) return explicit;
 
     const fallback: number[] = [];
-    row.find('td').each((index, element) => {
-        if (index <= lastPlayerCellIndex) return;
-        const text = cleanText($(element).text());
+    row.find('td').each((_index, element) => {
+        const cell = $(element);
+        if (cell.find(`${PLAYER_LINK_SELECTOR}, ${DRAW_LINK_SELECTOR}`).length > 0) return;
+        const text = cleanText(cell.text());
         if (/^\d{1,2}$/.test(text)) fallback.push(Number(text));
         else if (/^(?:\d{1,2}\s+){1,8}\d{1,2}$/.test(text)) {
             fallback.push(...text.split(/\s+/).map(Number));
@@ -294,11 +328,11 @@ function scoreNumbers(
 
 function gameScores(numbers: number[]): VettsGameScore[] {
     const even = numbers.length % 2 === 0 ? numbers : numbers.slice(1);
-    const result: VettsGameScore[] = [];
+    const scores: VettsGameScore[] = [];
     for (let index = 0; index + 1 < even.length; index += 2) {
-        result.push({ home: even[index]!, away: even[index + 1]! });
+        scores.push({ home: even[index]!, away: even[index + 1]! });
     }
-    return result;
+    return scores;
 }
 
 function detectOutcome(text: string): OutcomeType | 'bye' | 'cancelled' {
@@ -310,12 +344,21 @@ function detectOutcome(text: string): OutcomeType | 'bye' | 'cancelled' {
     return 'normal';
 }
 
+function playerCellIndexes(
+    $: cheerio.CheerioAPI,
+    row: cheerio.Cheerio<any>,
+    anchors: any[],
+): number[] {
+    const cells = row.find('td').toArray();
+    return anchors.map((anchor) => cells.indexOf($(anchor).closest('td').get(0)!));
+}
+
 function winnerFromMarkup(
     $: cheerio.CheerioAPI,
     row: cheerio.Cheerio<any>,
-    playerCellIndexes: number[],
+    indexes: number[],
 ): 'home' | 'away' | null {
-    const anchors = row.find('a[href*="player.aspx"], a[href*="/player/"]').toArray();
+    const anchors = row.find(PLAYER_LINK_SELECTOR).toArray();
     for (let index = 0; index < anchors.length; index += 1) {
         const anchor = $(anchors[index]!);
         if (anchor.closest('.winner, [class*="winner"], strong, b').length > 0) {
@@ -328,8 +371,8 @@ function winnerFromMarkup(
         if (/^(?:W|Winner)$/i.test(cleanText($(element).text()))) markerIndex = index;
     });
     if (markerIndex == null) return null;
-    const homeLast = playerCellIndexes[Math.max(0, Math.floor(playerCellIndexes.length / 2) - 1)] ?? -1;
-    const awayFirst = playerCellIndexes[Math.floor(playerCellIndexes.length / 2)] ?? Number.MAX_SAFE_INTEGER;
+    const homeLast = indexes[Math.max(0, Math.floor(indexes.length / 2) - 1)] ?? -1;
+    const awayFirst = indexes[Math.floor(indexes.length / 2)] ?? Number.MAX_SAFE_INTEGER;
     return markerIndex > homeLast && markerIndex <= awayFirst ? 'home' : 'away';
 }
 
@@ -340,8 +383,9 @@ function stableMatchId(parts: string[]): string {
 function roundNameFromRow($: cheerio.CheerioAPI, row: cheerio.Cheerio<any>): string | null {
     const explicit = cleanText(row.find('.round, [class*="round"]').first().text());
     if (explicit) return explicit;
-    const text = cleanText(row.text());
-    const match = text.match(/\b(Round\s+\d+|Quarter[- ]?final|Semi[- ]?final|Final|Last\s+\d+)\b/i);
+    const match = cleanText(row.text()).match(
+        /\b(Round\s+\d+|Quarter[- ]?final|Semi[- ]?final|Final|Last\s+\d+)\b/i,
+    );
     return match?.[1] ?? null;
 }
 
@@ -370,24 +414,32 @@ export function parseVettsMatchesPage(
         const rawText = cleanText(row.text());
         if (!rawText || row.is('.dark, .header, .ruler')) return;
 
-        const drawAnchor = row.find('a[href*="draw.aspx"], a[href*="/draw/"]').first();
+        const drawAnchor = row.find(DRAW_LINK_SELECTOR).first();
         if (!drawAnchor.length) return;
         const drawHref = drawAnchor.attr('href') ?? '';
-        const eventExternalId = queryParam(drawHref, 'draw') ?? drawHref.match(/\/draw\/([^/?#]+)/i)?.[1] ?? '';
+        const eventExternalId = queryParam(drawHref, 'draw') ??
+            drawHref.match(/\/draw\/([^/?#]+)/i)?.[1] ?? '';
         const eventName = cleanText(drawAnchor.text());
         if (!eventExternalId || !eventName) return;
 
         const outcome = detectOutcome(rawText);
         if (outcome === 'bye' || outcome === 'cancelled') {
-            issues.push({ rowIndex, reason: outcome, message: `Skipped ${outcome} row`, rawText });
+            issues.push({
+                rowIndex,
+                reason: outcome,
+                message: `Skipped ${outcome} row`,
+                rawText,
+            });
             return;
         }
 
-        const playerAnchors = row.find('a[href*="player.aspx"], a[href*="/player/"]').toArray();
+        const playerAnchors = row.find(PLAYER_LINK_SELECTOR).toArray();
         const players = playerAnchors
             .map((anchor) => playerFromAnchor($, anchor))
             .filter((player): player is VettsPlayer => player !== null)
-            .filter((player, index, values) => values.findIndex((item) => item.externalId === player.externalId) === index);
+            .filter((player, index, values) =>
+                values.findIndex((item) => item.externalId === player.externalId) === index
+            );
         if (players.length !== 2 && players.length !== 4) {
             issues.push({
                 rowIndex,
@@ -402,13 +454,18 @@ export function parseVettsMatchesPage(
         const split = players.length / 2;
         const homePlayers = players.slice(0, split);
         const awayPlayers = players.slice(split);
-        const playerCellIndexes = playerAnchors.map((anchor) => row.find('td').index($(anchor).closest('td')));
-        const scores = gameScores(scoreNumbers($, row, Math.max(...playerCellIndexes)));
-        if (outcome === 'normal' && (scores.length === 0 || scores.some((score) => !validTableTennisGame(score.home, score.away)))) {
+        const indexes = playerCellIndexes($, row, playerAnchors);
+        const scores = gameScores(scoreNumbers($, row));
+        if (
+            outcome === 'normal' &&
+            (scores.length === 0 || scores.some((score) => !validTableTennisGame(score.home, score.away)))
+        ) {
             issues.push({
                 rowIndex,
                 reason: 'invalid-score',
-                message: scores.length === 0 ? 'Completed row has no game scores' : 'Invalid table-tennis game score',
+                message: scores.length === 0
+                    ? 'Completed row has no game scores'
+                    : 'Invalid table-tennis game score',
                 rawText,
             });
             return;
@@ -416,18 +473,33 @@ export function parseVettsMatchesPage(
 
         const homeGamesWon = scores.filter((score) => score.home > score.away).length;
         const awayGamesWon = scores.filter((score) => score.away > score.home).length;
-        const scoreWinner = homeGamesWon > awayGamesWon ? 'home' : awayGamesWon > homeGamesWon ? 'away' : null;
-        const winnerSide = scoreWinner ?? winnerFromMarkup($, row, playerCellIndexes);
+        const scoreWinner = homeGamesWon > awayGamesWon
+            ? 'home'
+            : awayGamesWon > homeGamesWon
+                ? 'away'
+                : null;
+        const winnerSide = scoreWinner ?? winnerFromMarkup($, row, indexes);
         if (!winnerSide) {
-            issues.push({ rowIndex, reason: 'missing-winner', message: 'Unable to identify winner', rawText });
+            issues.push({
+                rowIndex,
+                reason: 'missing-winner',
+                message: 'Unable to identify winner',
+                rawText,
+            });
             return;
         }
 
         const roundName = roundNameFromRow($, row);
-        const matchInfoHref = row.find('a[href*="match-info"], a[href*="match.aspx"]').first().attr('href');
-        const sourceUrl = matchInfoHref ? absoluteUrl(matchInfoHref, options.sourceUrl) : options.sourceUrl;
+        const matchInfoHref = row
+            .find('a[href*="match-info"], a[href*="match.aspx"]')
+            .first()
+            .attr('href');
+        const sourceUrl = matchInfoHref
+            ? absoluteUrl(matchInfoHref, options.sourceUrl)
+            : options.sourceUrl;
         const matchInfoId = matchInfoHref
-            ? queryParam(matchInfoHref, 'match') ?? matchInfoHref.match(/\/match-info\/([^/?#]+)/i)?.[1]
+            ? queryParam(matchInfoHref, 'match') ??
+                matchInfoHref.match(/\/match-info\/([^/?#]+)/i)?.[1]
             : null;
         const playedAt = playedAtFromRow($, row, options.date);
         const identity = matchInfoId ?? stableMatchId([
@@ -473,11 +545,19 @@ export function vettsMatchesToParsedData(
 
     for (const match of matches) {
         for (const player of [...match.homePlayers, ...match.awayPlayers]) {
-            players.set(player.externalId, { externalId: player.externalId, name: player.name });
+            players.set(player.externalId, {
+                externalId: player.externalId,
+                name: player.name,
+            });
         }
 
         const date = match.playedAt?.slice(0, 10) ?? tournament.startDate;
-        const fixtureExternalId = `vetts:event:${tournament.tournamentId}:${match.eventExternalId}:${date ?? 'unknown'}`;
+        const fixtureExternalId = [
+            'vetts:event',
+            tournament.tournamentId,
+            match.eventExternalId,
+            date ?? 'unknown',
+        ].join(':');
         if (!fixtures.has(fixtureExternalId)) {
             fixtures.set(fixtureExternalId, {
                 externalId: fixtureExternalId,
@@ -521,10 +601,16 @@ export function enumerateTournamentDates(
     if (!startDate) return [];
     const start = new Date(`${startDate}T00:00:00Z`);
     const end = new Date(`${endDate ?? startDate}T00:00:00Z`);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return [startDate];
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+        return [startDate];
+    }
 
     const dates: string[] = [];
-    for (let date = start; date <= end && dates.length < maximumDays; date = new Date(date.getTime() + 86_400_000)) {
+    for (
+        let date = start;
+        date <= end && dates.length < maximumDays;
+        date = new Date(date.getTime() + 86_400_000)
+    ) {
         dates.push(date.toISOString().slice(0, 10));
     }
     return dates;
