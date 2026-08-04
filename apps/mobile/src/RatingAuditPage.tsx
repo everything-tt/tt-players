@@ -365,7 +365,7 @@ export function RatingAuditPage() {
                 <ListItem
                   key={period.key}
                   title={period.label}
-                  subtitle={`${period.matches} rated matches · ${period.wins}W ${period.losses}L · ability ${Math.round(period.rating)} · ranking score ${Math.round(period.conservativeRating)}`}
+                  subtitle={`${period.matches} rated matches · ${period.wins}W ${period.losses}L · rating ${Math.round(period.rating)} · ranking score ${Math.round(period.conservativeRating)}`}
                   trailing={<Pill tone="accent">{formatRatingChange(period.ratingChange)}</Pill>}
                 />
               ))}
