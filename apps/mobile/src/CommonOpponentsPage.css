@@ -39,14 +39,11 @@
   padding: 0 10px;
 }
 
-.tt-common-opponents-page .tt-list-item__subtitle {
-  white-space: normal;
-}
-
 .tt-common-opponents-row-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 2px 0;
+  white-space: normal;
 }
 
 .tt-common-opponents-row-meta span + span::before {
