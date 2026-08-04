@@ -44,7 +44,7 @@ function familyPattern(...baseClassNames) {
 }
 
 const canonicalSelectorFamilies = [
-  { name: 'app-shell', pattern: familyPattern('tt-app-shell', 'tt-page-content', 'tt-app-header', 'tt-tab-bar') },
+  { name: 'app-shell', pattern: familyPattern('tt-app-shell', 'tt-page-content', 'tt-app-header', 'tt-root-header', 'tt-root-content', 'tt-tab-bar') },
   { name: 'list', pattern: familyPattern('tt-list') },
   { name: 'avatar', pattern: familyPattern('tt-avatar') },
   { name: 'button', pattern: familyPattern('tt-btn') },
