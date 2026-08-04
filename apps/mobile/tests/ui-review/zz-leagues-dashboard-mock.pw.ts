@@ -115,10 +115,35 @@ function leagueList() {
   }));
 }
 
+function ratingRows(scope: 'site' | 'selected') {
+  const names = scope === 'site'
+    ? ['Site Champion', 'National Contender', 'Open Circuit Star', 'County Ace', 'Rising Veteran']
+    : ['Selected League No. 1', 'Selected League No. 2', 'Selected League No. 3', 'Selected League No. 4', 'Selected League No. 5'];
+  return names.map((name, index) => ({
+    rank: index + 1,
+    player_id: uuid(scope === 'site' ? '810000' : '820000', index + 1),
+    player_name: name,
+    rating: (scope === 'site' ? 2240 : 2110) - index * 18,
+    rating_deviation: 52 + index,
+    conservative_rating: (scope === 'site' ? 2136 : 2006) - index * 18,
+    rating_low: 1950 - index * 10,
+    rating_high: 2300 - index * 10,
+    confidence: index < 2 ? 'high' : 'medium',
+    rated_matches: 82 - index * 7,
+    rated_wins: 60 - index * 5,
+    rated_losses: 22 - index * 2,
+    win_rate: 73 - index * 2,
+    provisional: false,
+    first_rated_at: '2024-09-01',
+    last_rated_at: '2026-08-01',
+  }));
+}
+
 async function installState(page: Page) {
   await page.addInitScript(({ ids, claimedPlayer }) => {
+    const emptyLeagues = sessionStorage.getItem('tt_review_empty_leagues') === 'true';
     localStorage.setItem('tt_players_league_onboarding_complete', 'true');
-    localStorage.setItem('tt_players_selected_league_ids', JSON.stringify(ids));
+    localStorage.setItem('tt_players_selected_league_ids', JSON.stringify(emptyLeagues ? [] : ids));
     localStorage.setItem('tt_players_my_player', JSON.stringify(claimedPlayer));
     localStorage.setItem('tt_players_favourite_teams', JSON.stringify([{
       id: '20000000-0000-4000-8000-000000000002',
@@ -211,6 +236,8 @@ async function mockApi(page: Page) {
     points: 30 - index * 2,
     win_rate: 83 - index * 5,
   }));
+  const siteRatings = ratingRows('site');
+  const selectedRatings = ratingRows('selected');
 
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
@@ -231,6 +258,39 @@ async function mockApi(page: Page) {
           top_teams: topTeams,
         },
       });
+      return;
+    }
+    if (url.pathname.endsWith('/api/ratings/league')) {
+      await route.fulfill({
+        json: {
+          data: selectedRatings,
+          total: selectedRatings.length,
+          page: 1,
+          page_size: 5,
+          model: 'glicko2',
+          league_ids: leagueIds,
+        },
+      });
+      return;
+    }
+    if (url.pathname.endsWith('/api/ratings')) {
+      await route.fulfill({
+        json: {
+          data: siteRatings,
+          pagination: {
+            page: 1,
+            page_size: 5,
+            total: siteRatings.length,
+            total_pages: 1,
+          },
+          model: 'glicko2',
+          processing: null,
+        },
+      });
+      return;
+    }
+    if (url.pathname.endsWith('/api/players/count')) {
+      await route.fulfill({ json: { players: 8290, matches: 142000 } });
       return;
     }
     if (url.pathname.endsWith(`/api/players/${playerId}/profile-overview`)) {
@@ -284,7 +344,7 @@ test.afterAll(() => {
   writeReportIndex(requirePreviewUrl());
 });
 
-test('reviews the mock-faithful personalised leagues dashboard', async ({ page }, testInfo) => {
+test('reviews the personalised dashboard, rating scopes, and empty league state', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
   await installState(page);
   await mockApi(page);
@@ -317,5 +377,30 @@ test('reviews the mock-faithful personalised leagues dashboard', async ({ page }
   await capture(page, testInfo, 'leagues-dashboard-pulse-and-leagues', {
     personalRank: 27,
     selectedLeaguePromoted: true,
+  });
+
+  await page.goto(`${previewUrl}/tabs/home`, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'Top Rated Players' })).toBeVisible();
+  const selectedScope = page.getByRole('radio', { name: 'Selected leagues' });
+  const siteScope = page.getByRole('radio', { name: 'All site' });
+  await expect(selectedScope).toBeChecked();
+  await expect(page.getByText('Selected League No. 1', { exact: true })).toBeVisible();
+  await siteScope.click();
+  await expect(siteScope).toBeChecked();
+  await expect(page.getByText('Site Champion', { exact: true })).toBeVisible();
+  await expect(page.getByText('Selected League No. 1', { exact: true })).toHaveCount(0);
+  await capture(page, testInfo, 'home-rating-scope-switch', {
+    defaultScope: 'selected',
+    switchedScope: 'site',
+  });
+
+  await page.evaluate(() => sessionStorage.setItem('tt_review_empty_leagues', 'true'));
+  await page.goto(`${previewUrl}/tabs/leagues`, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'Select your leagues' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Select leagues' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your leagues' })).toHaveCount(0);
+  await capture(page, testInfo, 'leagues-empty-selection', {
+    selectedLeagues: 0,
+    dashboardHidden: true,
   });
 });
