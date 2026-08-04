@@ -111,6 +111,7 @@ export async function syncVettsTournament(
         publicUrl: vettsUrls.matches(tournamentId),
         refreshPolicy: { cadence: 'daily-during-event-weekly-after' },
     });
+    let activeResource: 'overview' | 'results' = 'overview';
 
     try {
         const overviewContext: SourceAdapterContext = {
@@ -180,6 +181,8 @@ export async function syncVettsTournament(
             .set({ status: 'processed' })
             .where('id', '=', overviewLogId)
             .execute();
+        await recordSourceResourceSuccess(database, overviewResource.id);
+        activeResource = 'results';
 
         const dates = enumerateTournamentDates(metadata.startDate, metadata.endDate, 7);
         const pages = dates.length > 0 ? dates : [null];
@@ -249,7 +252,6 @@ export async function syncVettsTournament(
             })
             .where('id', '=', competitionId)
             .execute();
-        await recordSourceResourceSuccess(database, overviewResource.id);
         await recordSourceResourceSuccess(database, resultsResource.id);
 
         return {
@@ -261,10 +263,11 @@ export async function syncVettsTournament(
             duplicateConflicts,
         };
     } catch (error) {
-        await Promise.all([
-            recordSourceResourceFailure(database, overviewResource.id, error),
-            recordSourceResourceFailure(database, resultsResource.id, error),
-        ]);
+        if (activeResource === 'overview') {
+            await recordSourceResourceFailure(database, overviewResource.id, error);
+        } else {
+            await recordSourceResourceFailure(database, resultsResource.id, error);
+        }
         throw error;
     }
 }
