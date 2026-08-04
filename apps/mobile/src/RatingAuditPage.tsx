@@ -32,6 +32,7 @@ import {
 } from './ui/appkit';
 
 const SEARCH_PAGE_SIZE = 10;
+const EMPTY_RATING_HISTORY: PlayerRatingHistoryPoint[] = [];
 
 type HistoryAggregation = 'month' | 'quarter' | 'year';
 
@@ -167,7 +168,7 @@ export function RatingAuditPage() {
   const ratingQuery = usePlayerRatingQuery(playerId, Boolean(playerId));
   const historyQuery = usePlayerRatingHistoryQuery(playerId, 'all', Boolean(playerId));
   const rating = ratingQuery.data?.data ?? null;
-  const history = historyQuery.data?.data ?? [];
+  const history = historyQuery.data?.data ?? EMPTY_RATING_HISTORY;
   const aggregatedHistory = useMemo(
     () => aggregateHistory(history, historyAggregation),
     [history, historyAggregation],
