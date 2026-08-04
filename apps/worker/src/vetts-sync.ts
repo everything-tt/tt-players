@@ -8,19 +8,19 @@ import {
     upsertSourceInstance,
     upsertSourceResource,
 } from './sources/registry.js';
-import { VETTS_ADAPTER_KEY, VETTS_ADAPTER_VERSION } from './vetts-adapter.js';
+import type { SourceAdapterContext } from './sources/adapter.js';
 import {
-    fetchVettsTournamentMatches,
-    fetchVettsTournamentOverview,
-    vettsUrls,
-} from './vetts-client.js';
+    VETTS_ADAPTER_KEY,
+    VETTS_ADAPTER_VERSION,
+    vettsSourceAdapter,
+} from './vetts-adapter.js';
+import { vettsUrls } from './vetts-client.js';
 import {
     enumerateTournamentDates,
-    parseVettsMatchesPage,
-    parseVettsTournamentOverview,
     vettsMatchesToParsedData,
+    type VettsMatchesPage,
+    type VettsTournamentMetadata,
 } from './vetts-parser.js';
-import { stabilizeVettsPlayerIdentities } from './vetts-player-identity.js';
 import {
     deriveVettsEventStatus,
     resolveVettsCompetition,
@@ -44,6 +44,24 @@ export interface VettsSyncResult {
     rejectedRows: number;
     duplicateLinks: number;
     duplicateConflicts: number;
+}
+
+function asTournamentMetadata(
+    value: VettsTournamentMetadata | VettsMatchesPage | unknown[],
+): VettsTournamentMetadata {
+    if (Array.isArray(value) || !('tournamentId' in value) || !('name' in value)) {
+        throw new Error('VETTS event adapter returned an unexpected payload');
+    }
+    return value as VettsTournamentMetadata;
+}
+
+function asMatchesPage(
+    value: VettsTournamentMetadata | VettsMatchesPage | unknown[],
+): VettsMatchesPage {
+    if (Array.isArray(value) || !('matches' in value) || !('issues' in value)) {
+        throw new Error('VETTS result adapter returned an unexpected payload');
+    }
+    return value as VettsMatchesPage;
 }
 
 export async function syncVettsTournament(
@@ -84,8 +102,18 @@ export async function syncVettsTournament(
     });
 
     try {
-        const overviewHtml = await fetchVettsTournamentOverview(tournamentId);
-        const metadata = parseVettsTournamentOverview(overviewHtml, overviewUrl);
+        const overviewContext: SourceAdapterContext = {
+            sourceInstanceId: sourceInstance.id,
+            sourceResourceId: overviewResource.id,
+            resourceType: 'event',
+            externalId: tournamentId,
+            url: overviewUrl,
+            config: { tournamentId },
+        };
+        const overviewHtml = await vettsSourceAdapter.extract(overviewContext);
+        const metadata = asTournamentMetadata(
+            await vettsSourceAdapter.transform(overviewHtml, overviewContext),
+        );
         const overviewLogId = await storeScrapePayload(
             overviewUrl,
             platformId,
@@ -144,17 +172,19 @@ export async function syncVettsTournament(
 
         for (const date of pages) {
             const matchesUrl = vettsUrls.matches(tournamentId, date);
-            const matchesHtml = await fetchVettsTournamentMatches(tournamentId, date);
-            const logId = await storeScrapePayload(matchesUrl, platformId, matchesHtml, database);
-            const parsedPage = stabilizeVettsPlayerIdentities(
-                matchesHtml,
-                tournamentId,
-                parseVettsMatchesPage(matchesHtml, {
-                    tournamentId,
-                    sourceUrl: matchesUrl,
-                    date,
-                }),
+            const resultsContext: SourceAdapterContext = {
+                sourceInstanceId: sourceInstance.id,
+                sourceResourceId: resultsResource.id,
+                resourceType: 'event-results',
+                externalId: `${tournamentId}:matches${date ? `:${date}` : ''}`,
+                url: matchesUrl,
+                config: { tournamentId, date },
+            };
+            const matchesHtml = await vettsSourceAdapter.extract(resultsContext);
+            const parsedPage = asMatchesPage(
+                await vettsSourceAdapter.transform(matchesHtml, resultsContext),
             );
+            const logId = await storeScrapePayload(matchesUrl, platformId, matchesHtml, database);
             matchRows += parsedPage.matches.length;
             rejectedRows += parsedPage.issues.length;
             for (const issue of parsedPage.issues) {
