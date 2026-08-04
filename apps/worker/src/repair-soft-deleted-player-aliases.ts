@@ -90,7 +90,10 @@ function candidateQuery(database: Kysely<Database>, canonicalPlayerId?: string) 
         .whereRef('alias.id', '!=', 'canonical.id')
         .where('alias.deleted_at', 'is not', null)
         .where('canonical.deleted_at', 'is', null)
-        .where('canonical.canonical_player_id', 'is', null);
+        .where((eb) => eb.or([
+            eb('canonical.canonical_player_id', 'is', null),
+            eb('canonical.canonical_player_id', '=', eb.ref('canonical.id')),
+        ]));
 
     if (canonicalPlayerId) {
         query = query.where('alias.canonical_player_id', '=', canonicalPlayerId);
@@ -153,8 +156,11 @@ async function assertActiveCanonicalPlayer(
         .selectFrom('external_players')
         .select('id')
         .where('id', '=', canonicalPlayerId)
-        .where('canonical_player_id', 'is', null)
         .where('deleted_at', 'is', null)
+        .where((eb) => eb.or([
+            eb('canonical_player_id', 'is', null),
+            eb('canonical_player_id', '=', eb.ref('id')),
+        ]))
         .executeTakeFirst();
 
     if (!canonical) {
