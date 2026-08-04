@@ -72,7 +72,7 @@ describe('buildRivalryOrbitRecords', () => {
 
     expect(records).toHaveLength(6);
     expect(records[0]?.opponent_id).toBe('a');
-    expect(records.some((record) => record.opponent_id === 'h')).toBe(false);
+    expect(records.some((record) => record.opponent_id === 'g')).toBe(false);
   });
 });
 
