@@ -89,6 +89,13 @@ body.theme-dark .tt-list--surface-grouped {
   border-left: 1px solid color-mix(in oklch, var(--tt-border) 82%, transparent);
 }
 
+.tt-metric-grid .tt-metric__value {
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tt-metric-grid--value-compact .tt-metric__value {
   font-size: 18px;
 }
@@ -154,6 +161,16 @@ body.theme-dark .tt-list--surface-grouped {
 .tt-entity-hero--highlights-separated > .tt-entity-hero__highlights {
   border-top: 1px solid color-mix(in oklch, var(--tt-border) 78%, transparent);
   padding-top: var(--tt-space-3);
+}
+
+@media (max-width: 420px) {
+  .tt-metric-grid--cols-4.tt-metric-grid--separated > .tt-metric:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .tt-metric-grid--cols-4.tt-metric-grid--separated > .tt-metric:nth-child(n + 3) {
+    border-top: 1px solid color-mix(in oklch, var(--tt-border) 82%, transparent);
+  }
 }
 
 @media (max-width: 380px) {
