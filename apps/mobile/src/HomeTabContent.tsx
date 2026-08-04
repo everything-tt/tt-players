@@ -161,12 +161,10 @@ export function HomeTabContent({
 
       <MyTTSection onOpenPlayer={(playerId) => navigateInTab('players', `player/${playerId}`)} />
 
-      {hasLeagueScope ? (
-        <TopRatingsSection
-          leagueIds={selectedLeagueIds}
-          onOpenPlayer={(playerId) => navigateInTab('players', `player/${playerId}`)}
-        />
-      ) : null}
+      <TopRatingsSection
+        leagueIds={hasLeagueScope ? selectedLeagueIds : []}
+        onOpenPlayer={(playerId) => navigateInTab('players', `player/${playerId}`)}
+      />
 
       {!hasLeagueScope ? (
         <>
