@@ -3,9 +3,17 @@ name: Repair soft-deleted player aliases
 on:
   workflow_dispatch:
     inputs:
-      canonical_player_id:
-        description: Canonical player UUID whose historical aliases should be inspected
+      scope:
+        description: Repair all eligible aliases or only one canonical player
         required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - single
+      canonical_player_id:
+        description: Canonical player UUID when scope is single
+        required: false
         default: b3fa804d-05ee-465f-b508-dcbca48758c7
         type: string
       apply:
@@ -13,6 +21,11 @@ on:
         required: true
         default: false
         type: boolean
+      confirm_all:
+        description: Type RESTORE_ALL when applying with scope all
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -24,19 +37,37 @@ concurrency:
 jobs:
   repair:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Validate inputs
         env:
+          REPAIR_SCOPE: ${{ inputs.scope }}
           CANONICAL_PLAYER_ID: ${{ inputs.canonical_player_id }}
           APPLY_REPAIR: ${{ inputs.apply }}
+          CONFIRM_ALL: ${{ inputs.confirm_all }}
         run: |
           set -euo pipefail
-          if [[ ! "$CANONICAL_PLAYER_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ ]]; then
-            echo "canonical_player_id must be a valid UUID: $CANONICAL_PLAYER_ID" >&2
-            exit 64
-          fi
+
+          case "$REPAIR_SCOPE" in
+            all)
+              if [[ "$APPLY_REPAIR" == "true" && "$CONFIRM_ALL" != "RESTORE_ALL" ]]; then
+                echo "Applying all-player repair requires confirm_all=RESTORE_ALL" >&2
+                exit 64
+              fi
+              ;;
+            single)
+              if [[ ! "$CANONICAL_PLAYER_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ ]]; then
+                echo "canonical_player_id must be a valid UUID: $CANONICAL_PLAYER_ID" >&2
+                exit 64
+              fi
+              ;;
+            *)
+              echo "scope must be all or single: $REPAIR_SCOPE" >&2
+              exit 64
+              ;;
+          esac
+
           if [[ "$APPLY_REPAIR" != "true" && "$APPLY_REPAIR" != "false" ]]; then
             echo "apply must be true or false" >&2
             exit 64
@@ -55,7 +86,7 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
-      - name: Verify repair command is deployed
+      - name: Verify bulk repair command is deployed
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -63,24 +94,34 @@ jobs:
           set -euo pipefail
           test -n "$VPS_USER"
           ssh "$VPS_USER@$VPS_HOST" \
-            "test -f /opt/tt-players/current/apps/worker/src/repair-soft-deleted-player-aliases.ts"
+            "test -f /opt/tt-players/current/apps/worker/src/repair-soft-deleted-player-aliases.ts && \
+             grep -q -- '--all' /opt/tt-players/current/apps/worker/src/repair-soft-deleted-player-aliases.ts"
 
       - name: Preview or repair aliases
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
+          REPAIR_SCOPE: ${{ inputs.scope }}
           CANONICAL_PLAYER_ID: ${{ inputs.canonical_player_id }}
           APPLY_REPAIR: ${{ inputs.apply }}
         run: |
           set -euo pipefail
-          args="--canonical-player-id $CANONICAL_PLAYER_ID"
+
+          if [[ "$REPAIR_SCOPE" == "all" ]]; then
+            args="--all"
+            target="all canonical players"
+          else
+            args="--canonical-player-id $CANONICAL_PLAYER_ID"
+            target="canonical player $CANONICAL_PLAYER_ID"
+          fi
+
           mode="preview"
           if [[ "$APPLY_REPAIR" == "true" ]]; then
             args="$args --apply"
             mode="apply"
           fi
 
-          echo "Running $mode for canonical player $CANONICAL_PLAYER_ID"
+          echo "Running $mode for $target"
           ssh "$VPS_USER@$VPS_HOST" \
             "systemd-run \
               --quiet \
@@ -97,7 +138,7 @@ jobs:
             | tee repair-output.txt
 
       - name: Verify issue 104 live H2H
-        if: ${{ inputs.apply && inputs.canonical_player_id == 'b3fa804d-05ee-465f-b508-dcbca48758c7' }}
+        if: ${{ inputs.apply && (inputs.scope == 'all' || inputs.canonical_player_id == 'b3fa804d-05ee-465f-b508-dcbca48758c7') }}
         env:
           API_BASE_URL: https://ttp-api.tourneypilot.com/api
           WUDONG_PLAYER_ID: d0f7992f-bd3b-438c-874d-0af41d16a712
@@ -130,21 +171,47 @@ jobs:
       - name: Add workflow summary
         if: always()
         env:
+          REPAIR_SCOPE: ${{ inputs.scope }}
           CANONICAL_PLAYER_ID: ${{ inputs.canonical_player_id }}
           APPLY_REPAIR: ${{ inputs.apply }}
         run: |
+          set -euo pipefail
+          target="$CANONICAL_PLAYER_ID"
+          if [[ "$REPAIR_SCOPE" == "all" ]]; then
+            target="all canonical players"
+          fi
+
           {
             echo "## Soft-deleted player alias repair"
             echo
-            echo "- Canonical player: \`$CANONICAL_PLAYER_ID\`"
+            echo "- Scope: \`$REPAIR_SCOPE\`"
+            echo "- Target: \`$target\`"
             echo "- Mode: \`$([[ "$APPLY_REPAIR" == "true" ]] && echo apply || echo preview)\`"
-            if [[ -f repair-output.txt ]]; then
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          summary_line=$(grep '^ALIAS_REPAIR_SUMMARY=' repair-output.txt 2>/dev/null | tail -n 1 || true)
+          if [[ -n "$summary_line" ]]; then
+            export SUMMARY_JSON="${summary_line#ALIAS_REPAIR_SUMMARY=}"
+            node <<'NODE'
+          const fs = require('node:fs');
+          const summary = JSON.parse(process.env.SUMMARY_JSON);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            `- Eligible aliases: ${summary.candidateCount}\n` +
+            `- Affected canonical players: ${summary.canonicalPlayerCount}\n` +
+            `- Referenced rubber links: ${summary.referencedRubberLinks}\n` +
+            `- Restored aliases: ${summary.restoredAliasCount}\n`
+          );
+          NODE
+          fi
+
+          if [[ -f repair-output.txt ]]; then
+            {
               echo
               echo "<details><summary>Command output</summary>"
               echo
-              echo '```json'
-              sed -n '1,240p' repair-output.txt
+              echo '```text'
+              sed -n '1,360p' repair-output.txt
               echo '```'
               echo "</details>"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
