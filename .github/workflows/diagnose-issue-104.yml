@@ -1,0 +1,125 @@
+name: Diagnose issue 104 player identity
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'apps/worker/src/diagnose-player-rubber-identity.ts'
+      - '.github/workflows/diagnose-issue-104.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: diagnose-issue-104-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'fix/diagnose-issue-104-player-links'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      RUBBER_ID: de2f7e61-c727-4829-a82a-0d4b1ae89ee5
+      EXPECTED_PLAYER_IDS: d0f7992f-bd3b-438c-874d-0af41d16a712,b3fa804d-05ee-465f-b508-dcbca48758c7
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_SSH_KEY"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Run read-only production diagnostic
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_USER"
+
+          remote_name=".diagnose-player-rubber-identity-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.ts"
+          remote_path="/opt/tt-players/current/apps/worker/src/$remote_name"
+
+          cleanup() {
+            ssh "$VPS_USER@$VPS_HOST" "rm -f '$remote_path'" || true
+          }
+          trap cleanup EXIT
+
+          scp apps/worker/src/diagnose-player-rubber-identity.ts \
+            "$VPS_USER@$VPS_HOST:$remote_path"
+
+          ssh "$VPS_USER@$VPS_HOST" \
+            "systemd-run \
+              --quiet \
+              --wait \
+              --pipe \
+              --collect \
+              --unit=ttp-player-identity-diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} \
+              --uid=ttp \
+              --gid=ttp \
+              --property=EnvironmentFile=/etc/ttp/worker.env \
+              --property=WorkingDirectory=/opt/tt-players/current/apps/worker \
+              /opt/tt-players/current/apps/worker/node_modules/.bin/tsx \
+              src/$remote_name \
+              --rubber-id $RUBBER_ID \
+              --expected-player-ids $EXPECTED_PLAYER_IDS" \
+            | tee diagnostic-output.txt
+
+      - name: Add diagnostic summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "## Issue 104 identity diagnostic"
+            echo
+            echo "- PR branch: \`$GITHUB_HEAD_REF\`"
+            echo "- Rubber: \`$RUBBER_ID\`"
+            echo "- Expected players: \`$EXPECTED_PLAYER_IDS\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          summary_line=$(grep '^IDENTITY_DIAGNOSTIC_SUMMARY=' diagnostic-output.txt 2>/dev/null | tail -n 1 || true)
+          if [[ -n "$summary_line" ]]; then
+            export SUMMARY_JSON="${summary_line#IDENTITY_DIAGNOSTIC_SUMMARY=}"
+            node <<'NODE'
+          const fs = require('node:fs');
+          const summary = JSON.parse(process.env.SUMMARY_JSON);
+          const lines = [
+            `- Rubber deleted: ${summary.rubberDeleted}`,
+            `- Fixture deleted: ${summary.fixtureDeleted}`,
+            `- Participant IDs: ${summary.participantIds.map((id) => `\`${id}\``).join(', ') || 'none'}`,
+          ];
+          for (const player of summary.expectedPlayers) {
+            lines.push(
+              `- Expected \`${player.expectedPlayerId}\`: resolves=${player.resolves}, canonical=\`${player.canonicalId ?? 'none'}\`, represented=${player.representedInRubber}, matching IDs=${player.matchingRubberParticipantIds.join(', ') || 'none'}`,
+            );
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
+          NODE
+          fi
+
+          if [[ -f diagnostic-output.txt ]]; then
+            {
+              echo
+              echo "<details><summary>Full diagnostic output</summary>"
+              echo
+              echo '```json'
+              sed -n '1,720p' diagnostic-output.txt
+              echo '```'
+              echo "</details>"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
