@@ -2,10 +2,15 @@ import { defineSourceAdapter, type SourceAdapterContext } from './sources/adapte
 import { fetchVettsHtml } from './vetts-client.js';
 import {
     parseVettsMatchesPage,
+    parseVettsTournamentLinks,
     parseVettsTournamentOverview,
     type VettsMatchesPage,
+    type VettsTournamentLink,
     type VettsTournamentMetadata,
 } from './vetts-parser.js';
+
+export const VETTS_ADAPTER_KEY = 'tournamentsoftware-vetts';
+export const VETTS_ADAPTER_VERSION = '1.1.0';
 
 interface VettsAdapterConfig {
     tournamentId?: string;
@@ -20,18 +25,21 @@ function adapterConfig(context: SourceAdapterContext): VettsAdapterConfig {
 
 export const vettsSourceAdapter = defineSourceAdapter<
     string,
-    VettsTournamentMetadata | VettsMatchesPage
+    VettsTournamentLink[] | VettsTournamentMetadata | VettsMatchesPage
 >({
     manifest: {
-        key: 'tournamentsoftware-vetts',
-        version: '1.0.0',
+        key: VETTS_ADAPTER_KEY,
+        version: VETTS_ADAPTER_VERSION,
         displayName: 'VETTS Tournament Software',
-        supportedResourceTypes: ['event', 'event-results'],
+        supportedResourceTypes: ['directory', 'event', 'event-results'],
     },
     extract(context) {
         return fetchVettsHtml(context.url);
     },
     async transform(html, context) {
+        if (context.resourceType === 'directory') {
+            return parseVettsTournamentLinks(html, context.url);
+        }
         if (context.resourceType === 'event') {
             return parseVettsTournamentOverview(html, context.url);
         }
