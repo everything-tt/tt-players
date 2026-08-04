@@ -260,7 +260,7 @@ describe('VETTS ingestion integration', () => {
             .where('endpoint_url', 'like', `${TOURNAMENT_URL}%`)
             .orderBy('endpoint_url')
             .execute();
-        const sourceLink = await db
+        const sourceLink = await (db as Kysely<any>)
             .selectFrom('tournament_sources')
             .select(['competition_id', 'match_method'])
             .where('provider', '=', 'vetts')
