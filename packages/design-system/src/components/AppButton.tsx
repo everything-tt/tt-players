@@ -26,6 +26,7 @@ export interface AppButtonLinkProps extends Omit<AnchorHTMLAttributes<HTMLAnchor
   rounded?: AppButtonRounded;
   fontWeight?: AppButtonFontWeight;
   full?: boolean;
+  iconOnly?: boolean;
 }
 
 export function AppButtonLink({
@@ -36,6 +37,7 @@ export function AppButtonLink({
   rounded = 'full',
   fontWeight = 'semibold',
   full = false,
+  iconOnly = false,
   href,
   ...props
 }: AppButtonLinkProps) {
@@ -49,6 +51,7 @@ export function AppButtonLink({
         `tt-btn-weight--${fontWeight}`,
         toneClassName[tone],
         full && 'tt-btn--full',
+        iconOnly && 'tt-btn--icon-only',
         className,
       )}
       {...props}
@@ -66,6 +69,7 @@ export interface AppButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElem
   fontWeight?: AppButtonFontWeight;
   full?: boolean;
   loading?: boolean;
+  iconOnly?: boolean;
 }
 
 export function AppButton({
@@ -77,6 +81,7 @@ export function AppButton({
   fontWeight = 'semibold',
   full = false,
   loading = false,
+  iconOnly = false,
   disabled,
   type = 'button',
   ...props
@@ -91,6 +96,7 @@ export function AppButton({
         `tt-btn-weight--${fontWeight}`,
         toneClassName[tone],
         full && 'tt-btn--full',
+        iconOnly && 'tt-btn--icon-only',
         className,
       )}
       disabled={disabled || loading}
