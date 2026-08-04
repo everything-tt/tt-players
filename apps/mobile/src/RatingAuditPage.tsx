@@ -42,7 +42,6 @@ interface AggregatedHistoryPoint {
   snapshotDate: string;
   rating: number;
   conservativeRating: number;
-  ratingDeviation: number;
   matches: number;
   wins: number;
   losses: number;
@@ -117,7 +116,6 @@ function aggregateHistory(
         snapshotDate: point.snapshot_date,
         rating: point.rating,
         conservativeRating: point.conservative_rating,
-        ratingDeviation: point.rating_deviation,
         matches: point.week_matches,
         wins: point.week_wins,
         losses: point.week_losses,
@@ -128,7 +126,6 @@ function aggregateHistory(
     existing.snapshotDate = point.snapshot_date;
     existing.rating = point.rating;
     existing.conservativeRating = point.conservative_rating;
-    existing.ratingDeviation = point.rating_deviation;
     existing.matches += point.week_matches;
     existing.wins += point.week_wins;
     existing.losses += point.week_losses;
