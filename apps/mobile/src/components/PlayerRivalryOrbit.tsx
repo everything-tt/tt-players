@@ -21,6 +21,7 @@ import {
   buildRivalryOrbitRecords,
   type RivalryOrbitPoint,
 } from '../player-rivalry-orbit';
+import { PageSection } from '../ui/appkit';
 import { SkeletonBlock } from './Skeleton';
 import '../player-rivalry-orbit.css';
 
@@ -172,19 +173,14 @@ export function PlayerRivalryOrbit({
     && points.some((point) => point.rating !== null);
 
   return (
-    <section className="tt-player-section tt-rivalry-orbit-section" aria-labelledby="tt-rivalry-orbit-title">
-      <div className="tt-player-section-header tt-rivalry-orbit-header">
-        <div>
-          <h2 id="tt-rivalry-orbit-title" className="tt-player-section-title">Rivalry Orbit</h2>
-          <p className="tt-rivalry-orbit-subtitle">
-            Tap a player to move through the network. Tap a score to inspect the matchup.
-          </p>
-        </div>
-        <span className="tt-player-section-note">
-          {records.length > 0 ? `${records.length} connections` : 'Head to head'}
-        </span>
-      </div>
-
+    <PageSection
+      surface="flat"
+      density="standard"
+      title="Rivalry Orbit"
+      description="Tap a player to move through the network. Tap a score to inspect the matchup."
+      meta={records.length > 0 ? `${records.length} connections` : 'Head to head'}
+      className="tt-rivalry-orbit-section"
+    >
       {isLoading ? (
         <div className="tt-rivalry-orbit-loading" aria-label="Loading rivalry orbit">
           <SkeletonBlock className="tt-rivalry-orbit-loading-node tt-rivalry-orbit-loading-node-top" />
@@ -347,6 +343,6 @@ export function PlayerRivalryOrbit({
           ) : null}
         </>
       )}
-    </section>
+    </PageSection>
   );
 }
