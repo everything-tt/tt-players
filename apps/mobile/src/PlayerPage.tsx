@@ -18,6 +18,7 @@ import { usePagedPlayerMatches } from './hooks/usePagedPlayerMatches';
 import { SkeletonBlock, SkeletonList } from './components/Skeleton';
 import { PlayerMatchList } from './components/PlayerMatchList';
 import { PlayerProfileHero } from './components/PlayerProfileHero';
+import { PlayerRivalryOrbit } from './components/PlayerRivalryOrbit';
 import { TabShellPage } from './TabShellPage';
 import {
   AppButtonLink,
@@ -265,6 +266,12 @@ export function PlayerPage() {
               onClearIdentity={clearMyPlayer}
               onOpenInsights={() => navigateInActiveTab(`player/${playerId}/insights`)}
               onOpenRatingHistory={() => navigateInActiveTab(`player/${playerId}/insights#rating-history`)}
+            />
+
+            <PlayerRivalryOrbit
+              playerId={stats.player_id}
+              playerName={stats.player_name}
+              onOpenPlayer={openOpponent}
             />
 
             <section className="tt-player-section" aria-label="Current season clubs and tournaments">
