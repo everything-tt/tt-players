@@ -85,35 +85,94 @@ body.theme-dark .tt-list--surface-grouped {
   -webkit-line-clamp: unset;
 }
 
-.tt-metric-grid--separated > .tt-metric + .tt-metric {
-  border-left: 1px solid color-mix(in oklch, var(--tt-border) 82%, transparent);
+/* Public list-item configuration points. Screen CSS may set these variables on
+ * the ListItem root or a composition wrapper without targeting internals. */
+.tt-list-item__title {
+  font-weight: var(--tt-list-item-title-weight, 600);
+}
+
+.tt-list-item__title::before {
+  display: block;
+  margin-bottom: var(--tt-list-item-title-eyebrow-gap, 2px);
+  color: var(--tt-list-item-title-eyebrow-color, var(--tt-text-muted));
+  content: var(--tt-list-item-title-eyebrow, none);
+  font-size: var(--tt-list-item-title-eyebrow-size, 10px);
+  font-weight: 700;
+  letter-spacing: .025em;
+  text-transform: uppercase;
+}
+
+/* MetricGrid owns responsive structure and internal metric geometry. */
+.tt-metric-grid {
+  gap: var(--tt-metric-grid-gap, var(--tt-space-2));
+}
+
+.tt-metric-grid--compact .tt-metric {
+  padding: var(--tt-metric-compact-padding, 10px 8px);
+}
+
+.tt-metric-grid--standard .tt-metric {
+  padding: var(--tt-metric-standard-padding, 12px 10px);
+}
+
+.tt-metric-grid > .tt-metric + .tt-metric {
+  border-left: var(--tt-metric-separator, 0);
+}
+
+.tt-metric-grid--separated {
+  --tt-metric-grid-gap: 0;
+  --tt-metric-separator: 1px solid color-mix(in oklch, var(--tt-border) 82%, transparent);
 }
 
 .tt-metric-grid .tt-metric__value {
   overflow: hidden;
+  font-size: var(--tt-metric-value-size, 20px);
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.tt-metric-grid--value-compact .tt-metric__value {
-  font-size: 18px;
+.tt-metric-grid--value-compact {
+  --tt-metric-value-size: 18px;
 }
 
-.tt-metric-grid--value-standard .tt-metric__value {
-  font-size: 20px;
+.tt-metric-grid--value-standard {
+  --tt-metric-value-size: 20px;
 }
 
-.tt-metric-grid--value-prominent .tt-metric__value {
-  font-size: 22px;
+.tt-metric-grid--value-prominent {
+  --tt-metric-value-size: 22px;
 }
 
-.tt-metric-grid--label-eyebrow .tt-metric__label {
-  margin-top: 5px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: .04em;
-  text-transform: uppercase;
+.tt-metric-grid .tt-metric__label {
+  margin-top: var(--tt-metric-label-margin-top, 0);
+  font-size: var(--tt-metric-label-size, 11px);
+  font-weight: var(--tt-metric-label-weight, 400);
+  letter-spacing: var(--tt-metric-label-letter-spacing, normal);
+  text-transform: var(--tt-metric-label-transform, none);
+}
+
+.tt-metric-grid--label-eyebrow {
+  --tt-metric-label-margin-top: 5px;
+  --tt-metric-label-size: 10px;
+  --tt-metric-label-weight: 800;
+  --tt-metric-label-letter-spacing: .04em;
+  --tt-metric-label-transform: uppercase;
+}
+
+/* Shared controls expose bounded composition variables rather than requiring
+ * screen styles to target `.tt-btn` or `.tt-segmented` internals. */
+.tt-btn {
+  min-width: var(--tt-btn-min-width, auto);
+  white-space: nowrap;
+}
+
+.tt-btn--s {
+  padding-inline: var(--tt-btn-s-padding-inline, 12px);
+}
+
+.tt-btn--ghost {
+  color: var(--tt-btn-ghost-color, var(--ink));
 }
 
 .tt-btn--icon-only {
@@ -122,6 +181,14 @@ body.theme-dark .tt-list--surface-grouped {
   height: var(--tt-control-height);
   min-height: var(--tt-control-height);
   padding: 0;
+}
+
+.tt-segmented {
+  margin-top: var(--tt-segmented-margin-top, 0);
+}
+
+.tt-filter-bar {
+  justify-content: var(--tt-filter-bar-justify, flex-start);
 }
 
 .tt-toggle-button--variant-icon {
@@ -158,18 +225,27 @@ body.theme-dark .tt-list--surface-grouped {
   background: var(--tt-surface-accent);
 }
 
+.tt-entity-hero__main {
+  align-items: var(--tt-entity-hero-main-align, center);
+}
+
+.tt-entity-hero__highlights {
+  border-top: var(--tt-entity-hero-highlights-border, 0);
+  padding-top: var(--tt-entity-hero-highlights-padding-top, 0);
+}
+
 .tt-entity-hero--highlights-separated > .tt-entity-hero__highlights {
   border-top: 1px solid color-mix(in oklch, var(--tt-border) 78%, transparent);
   padding-top: var(--tt-space-3);
 }
 
 @media (max-width: 420px) {
-  .tt-metric-grid--cols-4.tt-metric-grid--separated > .tt-metric:nth-child(odd) {
+  .tt-metric-grid--cols-4 > .tt-metric:nth-child(odd) {
     border-left: 0;
   }
 
-  .tt-metric-grid--cols-4.tt-metric-grid--separated > .tt-metric:nth-child(n + 3) {
-    border-top: 1px solid color-mix(in oklch, var(--tt-border) 82%, transparent);
+  .tt-metric-grid--cols-4 > .tt-metric:nth-child(n + 3) {
+    border-top: var(--tt-metric-separator, 0);
   }
 }
 
@@ -182,5 +258,13 @@ body.theme-dark .tt-list--surface-grouped {
   .tt-toggle-button--variant-icon {
     width: 46px;
     min-width: 46px;
+  }
+
+  .tt-entity-hero__actions {
+    width: var(--tt-entity-hero-mobile-actions-width, auto);
+  }
+
+  .tt-entity-hero__actions > .tt-btn {
+    width: var(--tt-entity-hero-mobile-button-width, auto);
   }
 }
