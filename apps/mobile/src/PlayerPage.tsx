@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import './app-shell.css';
 import { useTabNavigation } from './navigation/tab-navigation';
 import {
@@ -124,6 +124,7 @@ function PlayerProfileSkeleton() {
 }
 
 export function PlayerPage() {
+  const navigate = useNavigate();
   const { navigateInActiveTab, navigateInTab, switchTab } = useTabNavigation();
   const { playerId = '' } = useParams<{ playerId: string }>();
 
@@ -272,7 +273,7 @@ export function PlayerPage() {
               playerId={stats.player_id}
               playerName={stats.player_name}
               recentMatches={recentMatchesState.matches}
-              onOpenPlayer={openOpponent}
+              onOpenPlayer={(opponentId) => navigate(`/h2h/${stats.player_id}/${opponentId}`)}
             />
 
             <section className="tt-player-section" aria-label="Current season clubs and tournaments">
