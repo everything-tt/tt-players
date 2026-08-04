@@ -10,7 +10,7 @@
   padding-block: var(--tt-space-6);
 }
 
-.tt-leagues-dashboard-empty .tt-empty-state {
+.tt-leagues-dashboard-empty > * {
   max-width: 320px;
 }
 
