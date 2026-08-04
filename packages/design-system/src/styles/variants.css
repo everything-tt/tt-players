@@ -55,7 +55,8 @@ body.theme-dark .tt-list--surface-grouped {
 }
 
 .tt-list--text-multiline .tt-list-item__title,
-.tt-list--text-multiline .tt-list-item__subtitle {
+.tt-list--text-multiline .tt-list-item__subtitle,
+.tt-list--text-rich .tt-list-item__title {
   display: -webkit-box;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -63,12 +64,21 @@ body.theme-dark .tt-list--surface-grouped {
   -webkit-box-orient: vertical;
 }
 
-.tt-list--text-multiline .tt-list-item__title {
+.tt-list--text-multiline .tt-list-item__title,
+.tt-list--text-rich .tt-list-item__title {
   -webkit-line-clamp: 2;
 }
 
 .tt-list--text-multiline .tt-list-item__subtitle {
   -webkit-line-clamp: 2;
+}
+
+.tt-list--text-rich .tt-list-item__subtitle {
+  display: block;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  -webkit-line-clamp: unset;
 }
 
 .tt-metric-grid--separated > .tt-metric + .tt-metric {
