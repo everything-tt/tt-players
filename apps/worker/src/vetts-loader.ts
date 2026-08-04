@@ -281,7 +281,10 @@ export async function resolveVettsCompetition(
 
     const separateCompetitionId = await upsertSeparateCompetition(database, seasonId, metadata);
     if (choice.decision === 'review' && choice.candidate && choice.score) {
-        await recordReviewCandidate(database, metadata, choice.candidate, choice.score);
+        await recordReviewCandidate(database, metadata, {
+            id: choice.candidate.id,
+            venue: choice.candidate.venue ?? null,
+        }, choice.score);
         await saveTournamentSource(
             database,
             separateCompetitionId,
