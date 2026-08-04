@@ -1,26 +1,11 @@
 /*
  * Legacy screen density adjustments only.
- * Canonical list, control, card, state, hero and navigation geometry is owned
- * by the design-system styles imported before this file.
+ * Canonical shell, list, control, card, state, hero and navigation geometry is
+ * owned by the design-system package.
  */
 
 :root {
   --tt-density-section-gap: 14px;
-}
-
-/* Root navigation and drawer remain app-owned while legacy screens migrate. */
-.tt-root-header,
-.tt-root-header--compact {
-  --root-header-height: 64px;
-}
-
-.tt-root-header__title,
-.tt-root-header--compact .tt-root-header__title {
-  font-size: clamp(23px, 6.5vw, 28px) !important;
-}
-
-.tt-root-content {
-  padding-top: calc(64px + env(safe-area-inset-top) + 5px) !important;
 }
 
 .tt-player-section-header,
