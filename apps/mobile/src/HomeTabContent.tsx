@@ -149,7 +149,6 @@ export function HomeTabContent({
             <p className="tt-home-summary-sub">{summaryLabel}</p>
           </div>
           <AppButton
-            className="tt-home-summary-action"
             size="s"
             rounded="full"
             tone="primary"
