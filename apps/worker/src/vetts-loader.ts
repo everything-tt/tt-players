@@ -7,6 +7,7 @@ export const VETTS_PLATFORM_NAME = 'Tournament Software';
 export const VETTS_PLATFORM_BASE_URL = 'https://www.tournamentsoftware.com';
 export const VETTS_LEAGUE_EXTERNAL_ID = 'vetts';
 export const VETTS_LEAGUE_NAME = 'Veterans English Table Tennis Society';
+export const VETTS_CATEGORY = 'Veterans';
 export const VETTS_SOURCE = 'vetts-tournamentsoftware';
 
 export interface VettsCompetitionResolution {
@@ -111,7 +112,14 @@ async function findCalendarCandidates(
             sql<string | null>`start_date::text`.as('startDate'),
             sql<string | null>`end_date::text`.as('endDate'),
             sql<string | null>`nullif(concat_ws(' ', venue_name, venue_town, venue_postcode), '')`.as('venue'),
-            'category',
+            sql<string | null>`coalesce(
+                category,
+                case
+                    when lower(coalesce(display_name, name)) ~ '(vetts|veteran)'
+                    then ${VETTS_CATEGORY}
+                    else null
+                end
+            )`.as('category'),
         ])
         .where('type', '=', 'individual')
         .where('source', '=', 'tte-calendar')
@@ -227,6 +235,7 @@ async function upsertSeparateCompetition(
         venue_address: metadata.venueAddress,
         venue_town: metadata.venueTown,
         venue_postcode: metadata.venuePostcode,
+        category: VETTS_CATEGORY,
         source: 'vetts',
         source_url: metadata.sourceUrl,
         event_status: deriveVettsEventStatus(metadata),
@@ -275,7 +284,7 @@ export async function resolveVettsCompetition(
             startDate: metadata.startDate,
             endDate: metadata.endDate,
             venue,
-            category: null,
+            category: VETTS_CATEGORY,
         },
         candidates,
     );
@@ -326,7 +335,7 @@ export async function upsertVettsSourceEvent(
             external_id: metadata.tournamentId,
             name: metadata.name,
             event_date: metadata.startDate,
-            category: null,
+            category: VETTS_CATEGORY,
             public_url: metadata.sourceUrl,
             raw_payload: metadata,
             canonical_competition_id: competitionId,
@@ -337,6 +346,7 @@ export async function upsertVettsSourceEvent(
             conflict.columns(['source', 'external_id']).doUpdateSet({
                 name: (eb: any) => eb.ref('excluded.name'),
                 event_date: (eb: any) => eb.ref('excluded.event_date'),
+                category: (eb: any) => eb.ref('excluded.category'),
                 public_url: (eb: any) => eb.ref('excluded.public_url'),
                 raw_payload: (eb: any) => eb.ref('excluded.raw_payload'),
                 canonical_competition_id: competitionId,
