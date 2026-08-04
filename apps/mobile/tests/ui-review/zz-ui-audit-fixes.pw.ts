@@ -8,6 +8,8 @@ import { join } from 'node:path';
  *  - semantic tokens resolve correctly in dark and light themes
  *  - root shell/header/tab-bar geometry is package-owned and visible
  *  - four-column metric groups reflow without clipping on mobile
+ *  - the package-owned league scope sheet preserves fixed controls and actions
+ *  - the Leagues dashboard composes shared primitives without internal overrides
  *  - segmented controls retain the 44px touch-target minimum
  *  - full-route pages expose one h1 landmark
  */
@@ -137,8 +139,8 @@ async function assertRootShellContract(page: Page) {
   }
 }
 
-async function assertResponsiveMetricContract(page: Page) {
-  const metricGrid = page.locator('.tt-home-summary-metrics');
+async function assertResponsiveMetricContract(page: Page, selector: string, description: string) {
+  const metricGrid = page.locator(selector);
   await expect(metricGrid).toBeVisible();
   await expect(metricGrid.locator('.tt-metric')).toHaveCount(4);
 
@@ -146,12 +148,12 @@ async function assertResponsiveMetricContract(page: Page) {
     const template = getComputedStyle(el).gridTemplateColumns.trim();
     return template ? template.split(/\s+/).length : 0;
   });
-  expect(columnCount, 'four metrics should reflow to a 2-column mobile grid').toBe(2);
+  expect(columnCount, `${description} should reflow to a 2-column mobile grid`).toBe(2);
 
   const overflowedValues = await metricGrid.locator('.tt-metric__value').evaluateAll((elements) =>
     elements.filter((element) => element.scrollWidth > element.clientWidth + 1).map((element) => element.textContent),
   );
-  expect(overflowedValues, 'metric values must not be clipped or ellipsized').toEqual([]);
+  expect(overflowedValues, `${description} values must not be clipped or ellipsized`).toEqual([]);
 }
 
 test('design-system shell, tokens, metrics and route landmarks remain intact', async ({ page }, testInfo) => {
@@ -162,7 +164,7 @@ test('design-system shell, tokens, metrics and route landmarks remain intact', a
   await page.goto(`${previewUrl}/tabs/home`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
   await assertRootShellContract(page);
-  await assertResponsiveMetricContract(page);
+  await assertResponsiveMetricContract(page, '.tt-home-summary-metrics', 'Home summary metrics');
 
   const ttTextMuted = await tokenOnBody(page, '--tt-text-muted');
   const ttTextPrimary = await tokenOnBody(page, '--tt-text-primary');
@@ -196,17 +198,32 @@ test('design-system shell, tokens, metrics and route landmarks remain intact', a
 
   await capture(page, testInfo, 'home-dark-mode-tokens');
 
-  // Segmented-control touch targets remain at least 44px.
+  // The package-owned page sheet keeps 44px controls and can complete a real
+  // league selection without page-level primitive overrides.
   await page.goto(`${previewUrl}/tabs/leagues`, { waitUntil: 'domcontentloaded' });
   const openLeagueScope = page.locator('.tt-leagues-dashboard-empty').getByRole('button', { name: 'Select leagues' });
   await expect(openLeagueScope).toBeVisible();
   await openLeagueScope.click();
-  await expect(page.getByRole('button', { name: 'Done' })).toBeVisible();
+  const doneButton = page.getByRole('button', { name: 'Done' });
+  await expect(doneButton).toBeVisible();
   const segmentedButton = page.locator('.tt-segmented__btn').first();
   await expect(segmentedButton).toBeVisible();
   const segHeight = await segmentedButton.evaluate((el) => Math.round(el.getBoundingClientRect().height));
   expect(segHeight, 'segmented control buttons must meet the 44px touch-target minimum').toBeGreaterThanOrEqual(44);
   await capture(page, testInfo, 'leagues-segmented-touch-target');
+
+  const firstLeague = page.locator('.tt-league-scope__content .tt-list-item__clickable').first();
+  await expect(firstLeague).toBeVisible();
+  await firstLeague.click();
+  await expect(doneButton).toBeEnabled();
+  await doneButton.click();
+  await expect(page.getByRole('heading', { name: 'Your leagues', level: 2 })).toBeVisible();
+  await assertResponsiveMetricContract(
+    page,
+    '.tt-leagues-dashboard-hero .tt-metric-grid',
+    'Leagues dashboard hero metrics',
+  );
+  await capture(page, testInfo, 'leagues-dashboard-design-system');
 
   // Full-route pages expose exactly one h1.
   for (const path of ['/data-coverage', '/tabs/home/ratings']) {
@@ -222,7 +239,7 @@ test('design-system shell, tokens, metrics and route landmarks remain intact', a
   await page.goto(`${previewUrl}/tabs/home`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
   await assertRootShellContract(page);
-  await assertResponsiveMetricContract(page);
+  await assertResponsiveMetricContract(page, '.tt-home-summary-metrics', 'Home summary metrics');
   const lightTextMuted = await tokenOnBody(page, '--tt-text-muted');
   expect(lightTextMuted, 'light --tt-text-muted must be the dark ink (~21%)').toContain('21%');
   await capture(page, testInfo, 'home-light-mode-tokens');
