@@ -71,7 +71,7 @@ export function MatchJournalPage() {
 
   return (
     <TabShellPage>
-      <DetailHeader title={statsQuery.data ? `${playerName} Journal` : 'Match Journal'} backFallback={playerId ? `player/${playerId}` : ''} />
+      <DetailHeader title={statsQuery.data ? `${playerName} Journal` : 'Match Journal'} backFallback={playerId ? `player/${playerId}` : ''} heading />
       <AppPageContent>
         <PageSection surface="flat" density="compact" title="Private Match Journal" note="Stored on this device">
           <DesignList density="compact" divider="hairline" paginate={false}>

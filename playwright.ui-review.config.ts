@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // Personal season, upcoming fixtures, league pulse, and selected leagues.
-  testMatch: 'zz-leagues-dashboard-mock.pw.ts',
+  // Dark-mode semantic-token fix, page h1, and segmented touch-target review (issue #97 audit fixes).
+  testMatch: 'zz-ui-audit-fixes.pw.ts',
 
   timeout: 120_000,
   expect: {

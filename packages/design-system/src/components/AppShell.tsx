@@ -31,6 +31,8 @@ export interface AppHeaderSpacerProps {
 
 export interface AppHeaderProps {
   title?: ReactNode;
+  /** When true, render the title as an <h1> so the route exposes a page landmark heading. */
+  heading?: boolean;
   onTitleClick?: MouseEventHandler<HTMLButtonElement>;
   leftAction?: AppHeaderAction;
   rightAction?: AppHeaderAction;
@@ -74,6 +76,7 @@ export function AppPageContent({ children, className, style }: AppPageContentPro
 
 export const AppHeader = React.forwardRef<HTMLElement, AppHeaderProps>(({
   title,
+  heading = false,
   onTitleClick,
   leftAction,
   rightAction,
@@ -96,6 +99,8 @@ export const AppHeader = React.forwardRef<HTMLElement, AppHeaderProps>(({
         <>
           {onTitleClick ? (
             <button type="button" className="header-title tt-app-header__title" onClick={onTitleClick}>{title}</button>
+          ) : heading ? (
+            <h1 className="header-title tt-app-header__title">{title}</h1>
           ) : (
             <span className="header-title tt-app-header__title">{title}</span>
           )}

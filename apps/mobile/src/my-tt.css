@@ -389,7 +389,7 @@
 }
 
 .tt-my-tt-save-state--dirty i {
-  color: #d38a18;
+  color: var(--state-warning-text);
   font-size: 7px;
 }
 

@@ -69,7 +69,7 @@ export function CommonOpponentsPage() {
 
   return (
     <TabShellPage>
-      <DetailHeader title="Common opponents" />
+      <DetailHeader title="Common opponents" heading />
       <AppPageContent className="tt-common-opponents-page">
         <PageSection
           surface="flat"

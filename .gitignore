@@ -18,3 +18,6 @@ test-results/
 ui-review-report/
 apps/mobile/test-results/
 apps/mobile/ui-review-report/
+
+# Local UI/UX audit working artifacts (report posted on the issue, not committed)
+audit-output/

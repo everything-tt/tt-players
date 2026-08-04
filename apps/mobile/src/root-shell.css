@@ -139,8 +139,8 @@
 .tt-drawer__hero {
   position: relative;
   padding: calc(28px + env(safe-area-inset-top)) 22px 22px;
-  background: linear-gradient(145deg, color-mix(in oklch, var(--accent) 78%, #102f27), #102f27);
-  color: white;
+  background: linear-gradient(145deg, color-mix(in oklch, var(--accent) 78%, oklch(17% 0.027 158)), oklch(17% 0.027 158));
+  color: var(--on-accent);
 }
 
 .tt-drawer__close {
@@ -357,13 +357,8 @@
     font-size: 25px;
   }
 
-  .tt-root-header__action {
-    width: 40px;
-    min-width: 40px;
-  }
-
   .tt-root-header__bar {
-    grid-template-columns: 40px minmax(0, 1fr) auto;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
     padding-inline: 4px;
   }
 }
