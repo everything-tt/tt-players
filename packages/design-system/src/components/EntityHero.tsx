@@ -8,6 +8,7 @@ export interface EntityHeroProps {
   subtitle?: ReactNode;
   actions?: ReactNode;
   highlights?: ReactNode;
+  highlightsSeparated?: boolean;
   accent?: 'brand' | 'neutral' | 'success';
   /** Heading level for the title. Defaults to 1 (page title). Use 2 when the route already exposes an <h1> (e.g. the root tab header). */
   headingLevel?: 1 | 2;
@@ -22,6 +23,7 @@ export function EntityHero({
   subtitle,
   actions,
   highlights,
+  highlightsSeparated = false,
   accent = 'brand',
   className,
   actionPlacement = 'auto',
@@ -34,6 +36,7 @@ export function EntityHero({
       'tt-entity-hero',
       `tt-entity-hero--${accent}`,
       `tt-entity-hero--actions-${actionPlacement}`,
+      highlightsSeparated && 'tt-entity-hero--highlights-separated',
       className,
     )}>
       <div className="tt-entity-hero__main">
