@@ -316,7 +316,12 @@ function App() {
                 />
               ) : null}
 
-              {activeTab === 'leagues' ? <LeaguesTabContent selectedLeagueIds={selectedLeagueIds} /> : null}
+              {activeTab === 'leagues' ? (
+                <LeaguesTabContent
+                  selectedLeagueIds={selectedLeagueIds}
+                  onOpenLeagueSelector={openLeagueSelector}
+                />
+              ) : null}
               {activeTab === 'h2h' ? <H2HTabContent onOpenPlayer={(playerId) => navigateInActiveTab(`player/${playerId}`)} /> : null}
               {activeTab === 'events' ? <EventsTabContent /> : null}
             </main>

@@ -1,26 +1,35 @@
 import { useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { DetailHeader } from './components/DetailHeader';
 import { SkeletonList } from './components/Skeleton';
 import { LEAGUES_STORAGE_KEY } from './local-persistence';
 import { useTabNavigation } from './navigation/tab-navigation';
 import { getQueryError } from './player-shared';
-import { ratingConfidenceLabel, useInfiniteLeagueRatingsQuery } from './rating-queries';
+import {
+  ratingConfidenceLabel,
+  useInfiniteLeagueRatingsQuery,
+  useInfiniteSiteRatingsQuery,
+} from './rating-queries';
 import { TabShellPage } from './TabShellPage';
 import {
   AppPageContent,
   DesignList,
   EmptyState,
   ErrorState,
+  FilterBar,
   InfiniteListFooter,
   ListItem,
   PageSection,
   Pill,
   RankBadge,
+  SegmentedToggle,
 } from './ui/appkit';
 import './ratings-ui.css';
 
 const PAGE_SIZE = 10;
 const MAX_RATINGS = 100;
+
+type RatingsScope = 'site' | 'selected';
 
 function readSelectedLeagueIds(): string[] {
   try {
@@ -35,17 +44,61 @@ function readSelectedLeagueIds(): string[] {
 }
 
 export function TopRatingsPage() {
-  const { navigateInTab, switchTab } = useTabNavigation();
+  const { navigateInTab } = useTabNavigation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const leagueIds = useMemo(readSelectedLeagueIds, []);
-  const ratingsQuery = useInfiniteLeagueRatingsQuery(leagueIds, PAGE_SIZE, MAX_RATINGS);
-  const players = useMemo(
-    () => (ratingsQuery.data?.pages.flatMap((page) => page.data) ?? []).slice(0, MAX_RATINGS),
-    [ratingsQuery.data],
+  const hasSelectedLeagues = leagueIds.length > 0;
+  const requestedScope = searchParams.get('scope');
+  const scope: RatingsScope = requestedScope === 'site'
+    ? 'site'
+    : requestedScope === 'selected' && hasSelectedLeagues
+      ? 'selected'
+      : hasSelectedLeagues
+        ? 'selected'
+        : 'site';
+  const isSelectedScope = scope === 'selected';
+
+  const selectedRatingsQuery = useInfiniteLeagueRatingsQuery(
+    leagueIds,
+    PAGE_SIZE,
+    MAX_RATINGS,
+    isSelectedScope,
   );
-  const total = ratingsQuery.data?.pages[0]?.total ?? 0;
+  const siteRatingsQuery = useInfiniteSiteRatingsQuery(
+    PAGE_SIZE,
+    MAX_RATINGS,
+    !isSelectedScope,
+  );
+
+  const players = useMemo(() => {
+    const pages = isSelectedScope ? selectedRatingsQuery.data?.pages : siteRatingsQuery.data?.pages;
+    return (pages?.flatMap((page) => page.data) ?? []).slice(0, MAX_RATINGS);
+  }, [isSelectedScope, selectedRatingsQuery.data?.pages, siteRatingsQuery.data?.pages]);
+
+  const total = isSelectedScope
+    ? selectedRatingsQuery.data?.pages[0]?.total ?? 0
+    : siteRatingsQuery.data?.pages[0]?.pagination.total ?? 0;
   const cappedTotal = Math.min(total, MAX_RATINGS);
-  const scopeLabel = leagueIds.length === 1 ? '1 selected league' : `${leagueIds.length} selected leagues`;
-  const initialError = players.length === 0 ? getQueryError(ratingsQuery.error) : null;
+  const isLoading = isSelectedScope ? selectedRatingsQuery.isLoading : siteRatingsQuery.isLoading;
+  const queryError = isSelectedScope ? selectedRatingsQuery.error : siteRatingsQuery.error;
+  const isError = isSelectedScope ? selectedRatingsQuery.isError : siteRatingsQuery.isError;
+  const hasNextPage = isSelectedScope ? selectedRatingsQuery.hasNextPage : siteRatingsQuery.hasNextPage;
+  const isFetchingNextPage = isSelectedScope
+    ? selectedRatingsQuery.isFetchingNextPage
+    : siteRatingsQuery.isFetchingNextPage;
+  const initialError = players.length === 0 ? getQueryError(queryError) : null;
+  const scopeLabel = isSelectedScope
+    ? leagueIds.length === 1
+      ? '1 selected league'
+      : `${leagueIds.length} selected leagues`
+    : 'All TT Players';
+
+  const loadMore = () => isSelectedScope
+    ? selectedRatingsQuery.fetchNextPage()
+    : siteRatingsQuery.fetchNextPage();
+  const retryInitial = () => isSelectedScope
+    ? selectedRatingsQuery.refetch()
+    : siteRatingsQuery.refetch();
 
   return (
     <TabShellPage>
@@ -54,30 +107,41 @@ export function TopRatingsPage() {
         <PageSection
           surface="flat"
           density="compact"
-          title="League leaderboard"
-          note={leagueIds.length > 0 ? scopeLabel : 'No league scope'}
+          title="Rating leaderboard"
+          note={scopeLabel}
           className="tt-ratings-leaderboard"
         >
           <p className="tt-ratings-leaderboard-copy">
-            Established players are ranked by conservative ability rating across your selected active leagues. Up to the top 100 are shown.
+            {isSelectedScope
+              ? 'Established players are ranked by conservative ability rating across your selected active leagues. Up to the top 100 are shown.'
+              : 'Established players are ranked by conservative ability rating across the full TT Players index. Up to the top 100 are shown.'}
           </p>
 
-          {leagueIds.length === 0 ? (
-            <EmptyState
-              iconClassName="fa fa-filter"
-              title="Choose leagues first"
-              message="Select at least one league from Home to build a scoped rating leaderboard."
-              action={{ label: 'Back to Home', onClick: () => switchTab('home', 'root') }}
-            />
-          ) : ratingsQuery.isLoading ? (
+          {hasSelectedLeagues ? (
+            <FilterBar ariaLabel="Rating leaderboard scope">
+              <SegmentedToggle
+                ariaLabel="Choose rating leaderboard scope"
+                value={scope}
+                onChange={(value) => setSearchParams({ scope: value }, { replace: true })}
+                options={[
+                  { value: 'site', label: 'All site' },
+                  { value: 'selected', label: 'Selected leagues' },
+                ]}
+              />
+            </FilterBar>
+          ) : null}
+
+          {isLoading ? (
             <SkeletonList rows={PAGE_SIZE} />
           ) : initialError ? (
-            <ErrorState message={initialError} onRetry={() => ratingsQuery.refetch()} />
+            <ErrorState message={initialError} onRetry={() => void retryInitial()} />
           ) : players.length === 0 ? (
             <EmptyState
               iconClassName="fa fa-ranking-star"
               title="No established ratings yet"
-              message="Established players will appear after their rating history has been calculated."
+              message={isSelectedScope
+                ? 'Established players from your selected leagues will appear after their rating history has been calculated.'
+                : 'Established players will appear after their site-wide rating history has been calculated.'}
             />
           ) : (
             <>
@@ -98,20 +162,20 @@ export function TopRatingsPage() {
               </DesignList>
 
               <InfiniteListFooter
-                hasMore={Boolean(ratingsQuery.hasNextPage)}
-                isLoading={ratingsQuery.isFetchingNextPage}
-                autoLoad={!ratingsQuery.isError}
-                onLoadMore={() => ratingsQuery.fetchNextPage()}
-                loadLabel={ratingsQuery.isError ? 'Retry loading players' : 'Load 10 more'}
+                hasMore={Boolean(hasNextPage)}
+                isLoading={isFetchingNextPage}
+                autoLoad={!isError}
+                onLoadMore={loadMore}
+                loadLabel={isError ? 'Retry loading players' : 'Load 10 more'}
                 loadingLabel="Loading 10 more players…"
                 endLabel={cappedTotal >= MAX_RATINGS ? 'Top 100 loaded' : 'End of leaderboard'}
               />
 
-              {players.length > 0 && ratingsQuery.isError ? (
+              {players.length > 0 && isError ? (
                 <ErrorState
                   title="Could not load more players"
-                  message={getQueryError(ratingsQuery.error) || 'Please try again.'}
-                  onRetry={() => void ratingsQuery.fetchNextPage()}
+                  message={getQueryError(queryError) || 'Please try again.'}
+                  onRetry={() => void loadMore()}
                 />
               ) : null}
             </>

@@ -107,6 +107,25 @@ function buildLeagueRatingsParams(leagueIds: string[], page: number, pageSize: n
   });
 }
 
+function buildSiteRatingsParams(page: number, pageSize: number) {
+  return new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    include_provisional: 'false',
+  });
+}
+
+export function useTopSiteRatingsQuery(limit = 5, enabled = true) {
+  return useQuery({
+    queryKey: ['ratings', 'top', 'site', limit],
+    queryFn: ({ signal }: { signal: AbortSignal }) => {
+      const params = buildSiteRatingsParams(1, limit);
+      return apiFetch<RatingsResponse>(`/ratings?${params.toString()}`, signal);
+    },
+    enabled,
+  });
+}
+
 export function useTopRatingsQuery(leagueIds: string[], limit = 5, enabled = true) {
   const sortedLeagueIds = [...leagueIds].sort();
 
@@ -117,6 +136,27 @@ export function useTopRatingsQuery(leagueIds: string[], limit = 5, enabled = tru
       return apiFetch<LeagueRatingsResponse>(`/ratings/league?${params.toString()}`, signal);
     },
     enabled: enabled && sortedLeagueIds.length > 0,
+  });
+}
+
+export function useInfiniteSiteRatingsQuery(
+  pageSize = 10,
+  maxResults = 100,
+  enabled = true,
+) {
+  return useInfiniteQuery({
+    queryKey: ['ratings', 'top', 'site', 'infinite', pageSize, maxResults],
+    initialPageParam: 1,
+    queryFn: ({ pageParam, signal }: { pageParam: number; signal: AbortSignal }) => {
+      const params = buildSiteRatingsParams(pageParam, pageSize);
+      return apiFetch<RatingsResponse>(`/ratings?${params.toString()}`, signal);
+    },
+    getNextPageParam: (lastPage, pages) => {
+      const loaded = pages.reduce((sum, page) => sum + page.data.length, 0);
+      const cappedTotal = Math.min(lastPage.pagination.total, maxResults);
+      return loaded < cappedTotal ? pages.length + 1 : undefined;
+    },
+    enabled,
   });
 }
 
