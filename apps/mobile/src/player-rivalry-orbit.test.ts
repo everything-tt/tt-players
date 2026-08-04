@@ -79,7 +79,7 @@ describe('buildRivalryOrbitRecords', () => {
     expect(records.filter((record) => record.opponent_id === 'shared')).toHaveLength(1);
   });
 
-  it('keeps up to eight established rivals by default', () => {
+  it('keeps up to eight established rivals and ranks the closest record first', () => {
     const records = buildRivalryOrbitRecords(response(
       [
         rival('a', 'A', 6, 5),
@@ -96,7 +96,7 @@ describe('buildRivalryOrbitRecords', () => {
     ));
 
     expect(records).toHaveLength(8);
-    expect(records[0]?.opponent_id).toBe('a');
+    expect(records[0]?.opponent_id).toBe('c');
   });
 });
 
