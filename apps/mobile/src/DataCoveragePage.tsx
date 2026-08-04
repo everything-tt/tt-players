@@ -38,6 +38,7 @@ export function DataCoveragePage() {
     <AppShellPage className="tt-about-page">
       <AppHeader
         title="Data Coverage"
+        heading
         leftAction={{ iconClassName: 'fas fa-chevron-left', onClick: () => navigate(returnPath, { replace: true }), position: 1, ariaLabel: 'Back' }}
       />
       <AppHeaderSpacer />

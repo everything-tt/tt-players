@@ -132,7 +132,7 @@
 
 .tt-segmented__btn,
 .tt-segmented-control button {
-  min-height: 38px !important;
+  min-height: var(--tt-density-control-height) !important;
   padding: 0 12px !important;
   font-size: 12px !important;
 }

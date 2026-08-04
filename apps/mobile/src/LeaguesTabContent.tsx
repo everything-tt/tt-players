@@ -320,6 +320,7 @@ export function LeaguesTabContent({
           className="tt-leagues-dashboard-hero"
           eyebrow="Active season"
           title="Your leagues"
+          headingLevel={2}
           subtitle={`${visibleLeagues.length} selected league${visibleLeagues.length === 1 ? '' : 's'} · Player and team performance`}
           actions={(
             <AppButton size="s" tone="outline" onClick={onOpenLeagueSelector}>

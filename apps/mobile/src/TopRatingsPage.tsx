@@ -102,7 +102,7 @@ export function TopRatingsPage() {
 
   return (
     <TabShellPage>
-      <DetailHeader title="Top Rated Players" backFallback="" />
+      <DetailHeader title="Top Rated Players" backFallback="" heading />
       <AppPageContent className="tt-ratings-leaderboard-page">
         <PageSection
           surface="flat"

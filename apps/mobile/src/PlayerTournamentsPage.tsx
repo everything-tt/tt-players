@@ -19,7 +19,7 @@ export function PlayerTournamentsPage() {
 
   return (
     <TabShellPage>
-      <DetailHeader title={statsQuery.isLoading ? 'Tournaments' : stats?.player_name ?? 'Tournaments'} backFallback={playerId ? `player/${playerId}` : ''} />
+      <DetailHeader title={statsQuery.isLoading ? 'Tournaments' : stats?.player_name ?? 'Tournaments'} backFallback={playerId ? `player/${playerId}` : ''} heading />
       <div className="page-content app-shell-content">
         <PageSection surface="flat" density="compact" title="Player Tournaments" note={`${tournaments.length} events`}>
           {tournamentsQuery.isLoading ? (

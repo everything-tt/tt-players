@@ -38,6 +38,18 @@
 }
 
 body.theme-dark {
+  /* Re-declare the semantic indirection layer against the dark base tokens.
+     Without this, the :root declarations freeze to the light values of
+     --ink / --ink-muted / --canvas-parchment / etc., because CSS custom
+     properties resolve var() at the declaring element. The base tokens are
+     overridden on body.theme-dark in app-shell.css, so the semantic tokens
+     must be re-declared here to inherit those dark values. */
+  --tt-surface-canvas: var(--canvas-parchment);
+  --tt-surface-subtle: var(--surface-subtle);
+  --tt-surface-accent: var(--accent-subtle);
+  --tt-text-primary: var(--ink);
+  --tt-text-muted: var(--ink-muted);
+  --tt-border: var(--border-hairline);
   --tt-surface-raised: color-mix(in oklch, var(--surface-strong) 92%, var(--canvas-parchment));
   --tt-shadow-raised: 0 1px 2px oklch(0% 0 0 / .16), 0 10px 28px oklch(0% 0 0 / .18);
 }
