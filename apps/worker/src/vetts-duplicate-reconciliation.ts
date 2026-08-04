@@ -45,6 +45,7 @@ export function vettsDuplicateCandidateMatches(match: VettsMatchResult, candidat
 
 async function candidatesForMatch(
     database: Kysely<any>,
+    competitionId: string,
     match: VettsMatchResult,
 ): Promise<DuplicateCandidate[]> {
     if (match.isDoubles || !match.playedAt) return [];
@@ -63,7 +64,8 @@ async function candidatesForMatch(
         join fixtures f on f.id = r.fixture_id
         join external_players hp on hp.id = r.home_player_1_id
         join external_players ap on ap.id = r.away_player_1_id
-        where r.external_id <> ${match.externalId}
+        where f.competition_id = ${competitionId}
+          and r.external_id <> ${match.externalId}
           and r.external_id not like 'vetts:match:%'
           and r.deleted_at is null
           and coalesce(r.played_at::date, f.date_played::date) = ${match.playedAt.slice(0, 10)}::date
@@ -141,7 +143,7 @@ export async function reconcileVettsDuplicateRubbers(
             continue;
         }
 
-        const candidates = await candidatesForMatch(database, match);
+        const candidates = await candidatesForMatch(database, competitionId, match);
         const exact = candidates.filter((candidate) => vettsDuplicateCandidateMatches(match, candidate));
         if (exact.length === 1) {
             await linkSourceRow(database, sourceRow.id, exact[0]!.id);
