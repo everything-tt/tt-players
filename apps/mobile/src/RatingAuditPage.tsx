@@ -34,7 +34,7 @@ import {
 const SEARCH_PAGE_SIZE = 10;
 const EMPTY_RATING_HISTORY: PlayerRatingHistoryPoint[] = [];
 
-type HistoryAggregation = 'month' | 'quarter' | 'year';
+type HistoryAggregation = 'week' | 'month' | 'quarter' | 'year';
 
 interface AggregatedHistoryPoint {
   key: string;
@@ -49,6 +49,7 @@ interface AggregatedHistoryPoint {
 }
 
 const HISTORY_AGGREGATION_OPTIONS: Array<{ value: HistoryAggregation; label: string }> = [
+  { value: 'week', label: 'Week' },
   { value: 'month', label: 'Month' },
   { value: 'quarter', label: 'Quarter' },
   { value: 'year', label: 'Year' },
@@ -77,6 +78,13 @@ function historyBucket(point: PlayerRatingHistoryPoint, aggregation: HistoryAggr
   const date = new Date(`${point.snapshot_date}T12:00:00Z`);
   const year = date.getUTCFullYear();
   const month = date.getUTCMonth();
+
+  if (aggregation === 'week') {
+    return {
+      key: point.week_start,
+      label: `Week of ${formatDate(point.week_start)}`,
+    };
+  }
 
   if (aggregation === 'year') {
     return { key: String(year), label: String(year) };
@@ -143,6 +151,7 @@ function aggregateHistory(
 }
 
 function aggregationLabel(aggregation: HistoryAggregation): string {
+  if (aggregation === 'week') return 'weekly';
   if (aggregation === 'quarter') return 'quarterly';
   if (aggregation === 'year') return 'yearly';
   return 'monthly';
@@ -342,7 +351,7 @@ export function RatingAuditPage() {
           <FilterBar ariaLabel="Rating history aggregation">
             <SegmentedToggle
               full
-              ariaLabel="Aggregate rating history by month, quarter or year"
+              ariaLabel="Aggregate rating history by week, month, quarter or year"
               value={historyAggregation}
               onChange={setHistoryAggregation}
               options={HISTORY_AGGREGATION_OPTIONS}
@@ -374,7 +383,7 @@ export function RatingAuditPage() {
 
           <Surface variant="subtle">
             <p>
-              Each row uses the final rating snapshot in that month, quarter or year. Match totals are summed across
+              Each row uses the final rating snapshot in that week, month, quarter or year. Match totals are summed across
               the weekly snapshots in the period. Historical global rank is not shown because complete all-player rank
               snapshots are not currently persisted; the historical conservative ranking score is shown instead.
             </p>
