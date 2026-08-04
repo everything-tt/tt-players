@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DetailHeader } from './components/DetailHeader';
 import { SkeletonList } from './components/Skeleton';
@@ -8,6 +8,7 @@ import { useTabNavigation } from './navigation/tab-navigation';
 import { getInitials, getQueryError } from './player-shared';
 import {
   ratingConfidenceLabel,
+  type PlayerRatingHistoryPoint,
   usePlayerRatingHistoryQuery,
   usePlayerRatingQuery,
 } from './rating-queries';
@@ -20,16 +21,38 @@ import {
   DesignList,
   EmptyState,
   ErrorState,
+  FilterBar,
   ListItem,
   MetricGrid,
   PageSection,
   Pill,
   SearchToolbar,
+  SegmentedToggle,
   Surface,
 } from './ui/appkit';
 
 const SEARCH_PAGE_SIZE = 10;
-const RECENT_HISTORY_LIMIT = 12;
+
+type HistoryAggregation = 'month' | 'quarter' | 'year';
+
+interface AggregatedHistoryPoint {
+  key: string;
+  label: string;
+  snapshotDate: string;
+  rating: number;
+  conservativeRating: number;
+  ratingDeviation: number;
+  matches: number;
+  wins: number;
+  losses: number;
+  ratingChange: number | null;
+}
+
+const HISTORY_AGGREGATION_OPTIONS: Array<{ value: HistoryAggregation; label: string }> = [
+  { value: 'month', label: 'Month' },
+  { value: 'quarter', label: 'Quarter' },
+  { value: 'year', label: 'Year' },
+];
 
 function formatDate(value: string | null): string {
   if (!value) return 'Not available';
@@ -50,10 +73,88 @@ function formatRatingChange(value: number | null): string {
   return rounded > 0 ? `+${rounded}` : String(rounded);
 }
 
+function historyBucket(point: PlayerRatingHistoryPoint, aggregation: HistoryAggregation) {
+  const date = new Date(`${point.snapshot_date}T12:00:00Z`);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+
+  if (aggregation === 'year') {
+    return { key: String(year), label: String(year) };
+  }
+
+  if (aggregation === 'quarter') {
+    const quarter = Math.floor(month / 3) + 1;
+    return { key: `${year}-Q${quarter}`, label: `Q${quarter} ${year}` };
+  }
+
+  return {
+    key: `${year}-${String(month + 1).padStart(2, '0')}`,
+    label: new Intl.DateTimeFormat('en-GB', {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }).format(date),
+  };
+}
+
+function aggregateHistory(
+  history: PlayerRatingHistoryPoint[],
+  aggregation: HistoryAggregation,
+): AggregatedHistoryPoint[] {
+  const buckets = new Map<string, Omit<AggregatedHistoryPoint, 'ratingChange'>>();
+  const orderedHistory = [...history].sort((left, right) =>
+    left.snapshot_date.localeCompare(right.snapshot_date));
+
+  for (const point of orderedHistory) {
+    const bucket = historyBucket(point, aggregation);
+    const existing = buckets.get(bucket.key);
+
+    if (!existing) {
+      buckets.set(bucket.key, {
+        key: bucket.key,
+        label: bucket.label,
+        snapshotDate: point.snapshot_date,
+        rating: point.rating,
+        conservativeRating: point.conservative_rating,
+        ratingDeviation: point.rating_deviation,
+        matches: point.week_matches,
+        wins: point.week_wins,
+        losses: point.week_losses,
+      });
+      continue;
+    }
+
+    existing.snapshotDate = point.snapshot_date;
+    existing.rating = point.rating;
+    existing.conservativeRating = point.conservative_rating;
+    existing.ratingDeviation = point.rating_deviation;
+    existing.matches += point.week_matches;
+    existing.wins += point.week_wins;
+    existing.losses += point.week_losses;
+  }
+
+  const periods = Array.from(buckets.values()).sort((left, right) =>
+    left.snapshotDate.localeCompare(right.snapshotDate));
+
+  return periods
+    .map((period, index) => ({
+      ...period,
+      ratingChange: index === 0 ? null : period.rating - (periods[index - 1]?.rating ?? period.rating),
+    }))
+    .reverse();
+}
+
+function aggregationLabel(aggregation: HistoryAggregation): string {
+  if (aggregation === 'quarter') return 'quarterly';
+  if (aggregation === 'year') return 'yearly';
+  return 'monthly';
+}
+
 export function RatingAuditPage() {
   const navigate = useNavigate();
   const { playerId = '' } = useParams<{ playerId?: string }>();
   const { navigateInTab } = useTabNavigation();
+  const [historyAggregation, setHistoryAggregation] = useState<HistoryAggregation>('month');
   const search = useSearch({ minLength: 3, resetOnDisable: false });
   const searchList = usePlayerList({
     search: search.debouncedQuery,
@@ -67,9 +168,9 @@ export function RatingAuditPage() {
   const historyQuery = usePlayerRatingHistoryQuery(playerId, 'all', Boolean(playerId));
   const rating = ratingQuery.data?.data ?? null;
   const history = historyQuery.data?.data ?? [];
-  const recentHistory = useMemo(
-    () => [...history].reverse().slice(0, RECENT_HISTORY_LIMIT),
-    [history],
+  const aggregatedHistory = useMemo(
+    () => aggregateHistory(history, historyAggregation),
+    [history, historyAggregation],
   );
 
   const selectPlayer = (id: string) => {
@@ -235,27 +336,39 @@ export function RatingAuditPage() {
         <PageSection
           surface="flat"
           density="compact"
-          title="Recent rating periods"
-          note={history.length > 0 ? `${history.length} weekly snapshots available` : undefined}
+          title="Full rating history"
+          note={history.length > 0
+            ? `${aggregatedHistory.length} ${aggregationLabel(historyAggregation)} periods from ${history.length} weekly snapshots`
+            : undefined}
         >
+          <FilterBar ariaLabel="Rating history aggregation">
+            <SegmentedToggle
+              full
+              ariaLabel="Aggregate rating history by month, quarter or year"
+              value={historyAggregation}
+              onChange={setHistoryAggregation}
+              options={HISTORY_AGGREGATION_OPTIONS}
+            />
+          </FilterBar>
+
           {historyQuery.isLoading ? (
-            <SkeletonList rows={5} />
+            <SkeletonList rows={8} />
           ) : historyQuery.isError ? (
             <ErrorState message={getQueryError(historyQuery.error)} onRetry={() => void historyQuery.refetch()} />
-          ) : recentHistory.length === 0 ? (
+          ) : aggregatedHistory.length === 0 ? (
             <EmptyState
               iconClassName="fa fa-calendar-alt"
-              title="No weekly history yet"
-              message="Weekly snapshots will appear after this player has processed rating history."
+              title="No rating history yet"
+              message="History will appear after the rating-history rebuild has processed this player."
             />
           ) : (
             <DesignList density="compact" divider="hairline" paginate={false}>
-              {recentHistory.map((point) => (
+              {aggregatedHistory.map((period) => (
                 <ListItem
-                  key={point.week_start}
-                  title={formatDate(point.snapshot_date)}
-                  subtitle={`${point.week_matches} rated matches · ${point.week_wins}W ${point.week_losses}L · rating ${Math.round(point.rating)}`}
-                  trailing={<Pill tone="accent">{formatRatingChange(point.rating_change)}</Pill>}
+                  key={period.key}
+                  title={period.label}
+                  subtitle={`${period.matches} rated matches · ${period.wins}W ${period.losses}L · ability ${Math.round(period.rating)} · ranking score ${Math.round(period.conservativeRating)}`}
+                  trailing={<Pill tone="accent">{formatRatingChange(period.ratingChange)}</Pill>}
                 />
               ))}
             </DesignList>
@@ -263,8 +376,9 @@ export function RatingAuditPage() {
 
           <Surface variant="subtle">
             <p>
-              These are persisted weekly snapshots. Exact per-match rating changes are not stored yet, so this audit
-              does not claim a precise rating impact for an individual result.
+              Each row uses the final rating snapshot in that month, quarter or year. Match totals are summed across
+              the weekly snapshots in the period. Historical global rank is not shown because complete all-player rank
+              snapshots are not currently persisted; the historical conservative ranking score is shown instead.
             </p>
           </Surface>
         </PageSection>
