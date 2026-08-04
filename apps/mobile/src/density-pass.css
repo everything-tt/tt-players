@@ -1,51 +1,14 @@
 /*
  * Legacy screen density adjustments only.
- * Canonical list, control, card, state and hero geometry is owned by the
- * design-system styles imported before this file.
+ * Canonical list, control, card, state, hero and navigation geometry is owned
+ * by the design-system styles imported before this file.
  */
 
 :root {
   --tt-density-section-gap: 14px;
 }
 
-/* Bottom navigation and root navigation remain app-shell owned. */
-#footer-bar.tt-tab-bar {
-  --tab-bar-height: 58px;
-  min-height: calc(58px + env(safe-area-inset-bottom)) !important;
-  padding: 1px 4px env(safe-area-inset-bottom) !important;
-}
-
-#footer-bar.tt-tab-bar > .tt-tab-bar__item {
-  min-height: 54px !important;
-  padding: 3px 2px 2px !important;
-  gap: 0 !important;
-}
-
-#footer-bar.tt-tab-bar .tt-tab-bar__icon,
-#footer-bar.tt-tab-bar .tt-tab-bar__icon i {
-  display: grid !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-
-#footer-bar.tt-tab-bar .tt-tab-bar__icon {
-  place-items: center;
-  width: 32px;
-  height: 25px;
-}
-
-#footer-bar.tt-tab-bar .tt-tab-bar__icon i {
-  color: currentColor !important;
-  font-size: 16px !important;
-  line-height: 1 !important;
-}
-
-#footer-bar.tt-tab-bar .tt-tab-bar__label {
-  margin-top: 1px;
-  font-size: 9.5px !important;
-  line-height: 1.05 !important;
-}
-
+/* Root navigation and drawer remain app-owned while legacy screens migrate. */
 .tt-root-header,
 .tt-root-header--compact {
   --root-header-height: 64px;
@@ -60,7 +23,6 @@
   padding-top: calc(64px + env(safe-area-inset-top) + 5px) !important;
 }
 
-/* Legacy page-specific headings retain compact spacing while they migrate. */
 .tt-player-section-header,
 .tt-home-leaders-header {
   margin-bottom: 8px !important;
@@ -131,12 +93,10 @@
   padding: 7px 10px !important;
 }
 
-.tt-skeleton-row,
-.tt-list .tt-skeleton-row {
+.tt-skeleton-row {
   min-height: 58px !important;
 }
 
-/* Drawer geometry is owned by the app shell, not shared design-system rows. */
 .tt-drawer {
   width: min(86vw, 360px) !important;
   max-width: 360px !important;
