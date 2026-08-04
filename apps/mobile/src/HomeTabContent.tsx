@@ -188,9 +188,9 @@ export function HomeTabContent({
               <p className="tt-home-onboarding-copy">
                 Pick the leagues you follow, then Home will show active-season results and players for that scope.
               </p>
-              <button type="button" className="tt-home-onboarding-button" onClick={onOpenLeagueSelector}>
+              <AppButton size="m" rounded="m" full onClick={onOpenLeagueSelector}>
                 Select leagues
-              </button>
+              </AppButton>
             </div>
           </section>
 
