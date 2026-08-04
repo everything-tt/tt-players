@@ -3,6 +3,24 @@ name: Repair soft-deleted player aliases
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Diagnose one rubber or run the alias repair
+        required: true
+        default: diagnose-rubber
+        type: choice
+        options:
+          - diagnose-rubber
+          - repair
+      rubber_id:
+        description: Rubber UUID to inspect when diagnosing
+        required: false
+        default: de2f7e61-c727-4829-a82a-0d4b1ae89ee5
+        type: string
+      expected_player_ids:
+        description: Comma-separated canonical player UUIDs expected in the rubber
+        required: false
+        default: d0f7992f-bd3b-438c-874d-0af41d16a712,b3fa804d-05ee-465f-b508-dcbca48758c7
+        type: string
       scope:
         description: Repair all eligible aliases or only one canonical player
         required: true
@@ -12,7 +30,7 @@ on:
           - all
           - single
       canonical_player_id:
-        description: Canonical player UUID when scope is single
+        description: Canonical player UUID when repair scope is single
         required: false
         default: b3fa804d-05ee-465f-b508-dcbca48758c7
         type: string
@@ -22,7 +40,7 @@ on:
         default: false
         type: boolean
       confirm_all:
-        description: Type RESTORE_ALL when applying with scope all
+        description: Type RESTORE_ALL when applying with repair scope all
         required: false
         default: ''
         type: string
@@ -42,12 +60,37 @@ jobs:
     steps:
       - name: Validate inputs
         env:
+          OPERATION: ${{ inputs.operation }}
+          RUBBER_ID: ${{ inputs.rubber_id }}
+          EXPECTED_PLAYER_IDS: ${{ inputs.expected_player_ids }}
           REPAIR_SCOPE: ${{ inputs.scope }}
           CANONICAL_PLAYER_ID: ${{ inputs.canonical_player_id }}
           APPLY_REPAIR: ${{ inputs.apply }}
           CONFIRM_ALL: ${{ inputs.confirm_all }}
         run: |
           set -euo pipefail
+          uuid_regex='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+
+          if [[ "$OPERATION" == "diagnose-rubber" ]]; then
+            if [[ ! "$RUBBER_ID" =~ $uuid_regex ]]; then
+              echo "rubber_id must be a valid UUID: $RUBBER_ID" >&2
+              exit 64
+            fi
+            IFS=',' read -ra expected_ids <<< "$EXPECTED_PLAYER_IDS"
+            for expected_id in "${expected_ids[@]}"; do
+              expected_id="${expected_id//[[:space:]]/}"
+              if [[ ! "$expected_id" =~ $uuid_regex ]]; then
+                echo "expected_player_ids contains an invalid UUID: $expected_id" >&2
+                exit 64
+              fi
+            done
+            exit 0
+          fi
+
+          if [[ "$OPERATION" != "repair" ]]; then
+            echo "operation must be diagnose-rubber or repair: $OPERATION" >&2
+            exit 64
+          fi
 
           case "$REPAIR_SCOPE" in
             all)
@@ -57,7 +100,7 @@ jobs:
               fi
               ;;
             single)
-              if [[ ! "$CANONICAL_PLAYER_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ ]]; then
+              if [[ ! "$CANONICAL_PLAYER_ID" =~ $uuid_regex ]]; then
                 echo "canonical_player_id must be a valid UUID: $CANONICAL_PLAYER_ID" >&2
                 exit 64
               fi
@@ -73,6 +116,9 @@ jobs:
             exit 64
           fi
 
+      - name: Checkout selected workflow branch
+        uses: actions/checkout@v4
+
       - name: Configure SSH
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
@@ -86,7 +132,47 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
+      - name: Diagnose rubber identity from selected branch
+        if: ${{ inputs.operation == 'diagnose-rubber' }}
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          RUBBER_ID: ${{ inputs.rubber_id }}
+          EXPECTED_PLAYER_IDS: ${{ inputs.expected_player_ids }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_USER"
+
+          remote_name=".diagnose-player-rubber-identity-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.ts"
+          remote_path="/opt/tt-players/current/apps/worker/src/$remote_name"
+
+          cleanup() {
+            ssh "$VPS_USER@$VPS_HOST" "rm -f '$remote_path'" || true
+          }
+          trap cleanup EXIT
+
+          scp apps/worker/src/diagnose-player-rubber-identity.ts \
+            "$VPS_USER@$VPS_HOST:$remote_path"
+
+          ssh "$VPS_USER@$VPS_HOST" \
+            "systemd-run \
+              --quiet \
+              --wait \
+              --pipe \
+              --collect \
+              --unit=ttp-player-identity-diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} \
+              --uid=ttp \
+              --gid=ttp \
+              --property=EnvironmentFile=/etc/ttp/worker.env \
+              --property=WorkingDirectory=/opt/tt-players/current/apps/worker \
+              /opt/tt-players/current/apps/worker/node_modules/.bin/tsx \
+              src/$remote_name \
+              --rubber-id $RUBBER_ID \
+              --expected-player-ids $EXPECTED_PLAYER_IDS" \
+            | tee diagnostic-output.txt
+
       - name: Verify bulk repair command is deployed
+        if: ${{ inputs.operation == 'repair' }}
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -98,6 +184,7 @@ jobs:
              grep -q -- '--all' /opt/tt-players/current/apps/worker/src/repair-soft-deleted-player-aliases.ts"
 
       - name: Preview or repair aliases
+        if: ${{ inputs.operation == 'repair' }}
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -128,7 +215,7 @@ jobs:
               --wait \
               --pipe \
               --collect \
-              --unit=ttp-player-alias-repair \
+              --unit=ttp-player-alias-repair-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} \
               --uid=ttp \
               --gid=ttp \
               --property=EnvironmentFile=/etc/ttp/worker.env \
@@ -138,7 +225,7 @@ jobs:
             | tee repair-output.txt
 
       - name: Verify issue 104 live H2H
-        if: ${{ inputs.apply && (inputs.scope == 'all' || inputs.canonical_player_id == 'b3fa804d-05ee-465f-b508-dcbca48758c7') }}
+        if: ${{ inputs.operation == 'repair' && inputs.apply && (inputs.scope == 'all' || inputs.canonical_player_id == 'b3fa804d-05ee-465f-b508-dcbca48758c7') }}
         env:
           API_BASE_URL: https://ttp-api.tourneypilot.com/api
           WUDONG_PLAYER_ID: d0f7992f-bd3b-438c-874d-0af41d16a712
@@ -171,11 +258,58 @@ jobs:
       - name: Add workflow summary
         if: always()
         env:
+          OPERATION: ${{ inputs.operation }}
+          RUBBER_ID: ${{ inputs.rubber_id }}
+          EXPECTED_PLAYER_IDS: ${{ inputs.expected_player_ids }}
           REPAIR_SCOPE: ${{ inputs.scope }}
           CANONICAL_PLAYER_ID: ${{ inputs.canonical_player_id }}
           APPLY_REPAIR: ${{ inputs.apply }}
         run: |
           set -euo pipefail
+
+          if [[ "$OPERATION" == "diagnose-rubber" ]]; then
+            {
+              echo "## Player rubber identity diagnostic"
+              echo
+              echo "- Rubber: \`$RUBBER_ID\`"
+              echo "- Expected players: \`$EXPECTED_PLAYER_IDS\`"
+              echo "- Workflow ref: \`$GITHUB_REF_NAME\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            summary_line=$(grep '^IDENTITY_DIAGNOSTIC_SUMMARY=' diagnostic-output.txt 2>/dev/null | tail -n 1 || true)
+            if [[ -n "$summary_line" ]]; then
+              export SUMMARY_JSON="${summary_line#IDENTITY_DIAGNOSTIC_SUMMARY=}"
+              node <<'NODE'
+          const fs = require('node:fs');
+          const summary = JSON.parse(process.env.SUMMARY_JSON);
+          const lines = [
+            `- Rubber deleted: ${summary.rubberDeleted}`,
+            `- Fixture deleted: ${summary.fixtureDeleted}`,
+            `- Rubber participant IDs: ${summary.participantIds.map((id) => `\`${id}\``).join(', ') || 'none'}`,
+          ];
+          for (const player of summary.expectedPlayers) {
+            lines.push(
+              `- Expected \`${player.expectedPlayerId}\`: resolves=${player.resolves}, canonical=\`${player.canonicalId ?? 'none'}\`, represented=${player.representedInRubber}, matching IDs=${player.matchingRubberParticipantIds.join(', ') || 'none'}`,
+            );
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
+          NODE
+            fi
+
+            if [[ -f diagnostic-output.txt ]]; then
+              {
+                echo
+                echo "<details><summary>Full diagnostic output</summary>"
+                echo
+                echo '```json'
+                sed -n '1,720p' diagnostic-output.txt
+                echo '```'
+                echo "</details>"
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit 0
+          fi
+
           target="$CANONICAL_PLAYER_ID"
           if [[ "$REPAIR_SCOPE" == "all" ]]; then
             target="all canonical players"
