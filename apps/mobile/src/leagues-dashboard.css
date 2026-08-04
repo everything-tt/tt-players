@@ -1,0 +1,314 @@
+.tt-leagues-dashboard {
+  min-width: 0;
+}
+
+.tt-leagues-dashboard-hero {
+  margin-bottom: var(--tt-space-2);
+}
+
+.tt-leagues-dashboard-hero .tt-entity-hero__main {
+  align-items: flex-start;
+}
+
+.tt-leagues-dashboard-hero .tt-entity-hero__actions .tt-btn {
+  white-space: nowrap;
+}
+
+.tt-leagues-dashboard-hero .tt-entity-hero__highlights {
+  border-top: 1px solid color-mix(in oklch, var(--tt-border) 78%, transparent);
+  padding-top: var(--tt-space-3);
+}
+
+.tt-leagues-dashboard-hero .tt-metric-grid {
+  gap: 0;
+}
+
+.tt-leagues-dashboard-hero .tt-metric {
+  border-left: 1px solid color-mix(in oklch, var(--tt-border) 76%, transparent);
+}
+
+.tt-leagues-dashboard-hero .tt-metric:first-child {
+  border-left: 0;
+}
+
+.tt-leagues-dashboard-section {
+  border-bottom: 1px solid var(--tt-border);
+  padding-bottom: var(--tt-space-4);
+  padding-top: var(--tt-space-4);
+}
+
+.tt-leagues-dashboard-section:last-child {
+  border-bottom: 0;
+  padding-bottom: var(--tt-space-2);
+}
+
+.tt-leagues-dashboard-section .tt-section-header__action .tt-btn {
+  color: var(--accent);
+  padding-inline: var(--tt-space-1);
+}
+
+.tt-leagues-season__profile {
+  align-items: center;
+  display: flex;
+  gap: var(--tt-space-3);
+  min-width: 0;
+  padding: 2px 2px var(--tt-space-2);
+}
+
+.tt-leagues-season__identity {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.tt-leagues-season__identity > strong {
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 760;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.tt-leagues-season__identity > span:not(.tt-leagues-season__team-tag) {
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.tt-leagues-season__team-tag {
+  align-items: center;
+  color: var(--state-success, var(--accent));
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 700;
+  gap: 6px;
+  margin-top: 2px;
+  width: fit-content;
+}
+
+.tt-leagues-season__summary {
+  align-items: center;
+  display: grid;
+  gap: var(--tt-space-4);
+  grid-template-columns: minmax(0, 2fr) minmax(132px, 1fr);
+  padding: var(--tt-space-1) 0 var(--tt-space-3);
+}
+
+.tt-leagues-season__summary .tt-metric-grid {
+  gap: 0;
+}
+
+.tt-leagues-season__summary .tt-metric {
+  border-left: 1px solid color-mix(in oklch, var(--tt-border) 76%, transparent);
+  padding-inline: var(--tt-space-1);
+}
+
+.tt-leagues-season__summary .tt-metric:first-child {
+  border-left: 0;
+}
+
+.tt-leagues-season__form {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.tt-leagues-season__form > span:first-child {
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.tt-leagues-form-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tt-leagues-form-strip .tt-outcome {
+  min-width: 28px;
+}
+
+.tt-leagues-muted {
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+.tt-leagues-season__next {
+  border-top: 1px solid var(--tt-border);
+  padding-top: var(--tt-space-2);
+}
+
+.tt-leagues-season__next .tt-list-item__title::before {
+  color: var(--ink-muted);
+  content: 'Next match';
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .025em;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+}
+
+.tt-leagues-date {
+  align-items: center;
+  border-right: 1px solid color-mix(in oklch, var(--tt-border) 82%, transparent);
+  display: flex;
+  flex: 0 0 50px;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 48px;
+  padding-right: var(--tt-space-2);
+  text-align: center;
+}
+
+.tt-leagues-date__weekday,
+.tt-leagues-date__month {
+  color: var(--ink-muted);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .04em;
+  line-height: 1;
+}
+
+.tt-leagues-date__day {
+  color: var(--ink);
+  font-size: 19px;
+  line-height: 1.05;
+  margin-block: 2px;
+}
+
+.tt-leagues-fixture-meta {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 7px;
+}
+
+.tt-leagues-fixture-meta > span:not(.tt-pill) + span:not(.tt-pill)::before {
+  color: var(--ink-muted);
+  content: '·';
+  margin-right: 7px;
+}
+
+.tt-leagues-upcoming-row .tt-list-item__title {
+  font-weight: 720;
+}
+
+.tt-leagues-pulse .tt-filter-bar {
+  justify-content: space-between;
+}
+
+.tt-leagues-pulse-leading {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--tt-space-2);
+}
+
+.tt-leagues-pulse-you {
+  background: color-mix(in oklch, var(--state-success, var(--accent)) 8%, transparent);
+  border-radius: var(--tt-radius-md);
+}
+
+.tt-leagues-you-title {
+  align-items: baseline;
+  color: var(--state-success, var(--accent));
+  display: inline-flex;
+  gap: 5px;
+}
+
+.tt-leagues-you-title strong {
+  font-weight: 780;
+}
+
+.tt-leagues-league-trailing {
+  align-items: flex-end;
+  color: var(--ink-muted);
+  display: flex;
+  flex-direction: column;
+  font-size: 10px;
+  gap: 3px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.tt-leagues-league-trailing > i {
+  color: var(--accent);
+  font-size: 12px;
+  position: absolute;
+  right: 0;
+}
+
+.tt-leagues-selected .tt-list-item__trailing {
+  padding-right: var(--tt-space-3);
+  position: relative;
+}
+
+@media (max-width: 520px) {
+  .tt-leagues-dashboard-hero .tt-metric-grid--cols-4,
+  .tt-leagues-season__summary .tt-metric-grid--cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .tt-leagues-dashboard-hero .tt-metric,
+  .tt-leagues-season__summary .tt-metric {
+    padding: 8px 3px;
+  }
+
+  .tt-leagues-dashboard-hero .tt-metric__value,
+  .tt-leagues-season__summary .tt-metric__value {
+    font-size: 18px;
+  }
+
+  .tt-leagues-dashboard-hero .tt-metric__label,
+  .tt-leagues-season__summary .tt-metric__label {
+    font-size: 9px;
+  }
+
+  .tt-leagues-season__summary {
+    gap: var(--tt-space-3);
+    grid-template-columns: 1fr;
+  }
+
+  .tt-leagues-season__form {
+    align-items: center;
+    border-top: 1px solid color-mix(in oklch, var(--tt-border) 72%, transparent);
+    flex-direction: row;
+    justify-content: space-between;
+    padding-top: var(--tt-space-2);
+  }
+
+  .tt-leagues-pulse .tt-filter-bar {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 380px) {
+  .tt-leagues-dashboard-hero .tt-entity-hero__main {
+    flex-wrap: wrap;
+  }
+
+  .tt-leagues-dashboard-hero .tt-entity-hero__actions {
+    width: 100%;
+  }
+
+  .tt-leagues-dashboard-hero .tt-entity-hero__actions .tt-btn {
+    width: 100%;
+  }
+
+  .tt-leagues-season__identity > strong {
+    font-size: 18px;
+  }
+
+  .tt-leagues-date {
+    flex-basis: 44px;
+  }
+
+  .tt-leagues-league-trailing .tt-pill {
+    display: none;
+  }
+}
