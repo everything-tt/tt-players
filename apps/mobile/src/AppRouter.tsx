@@ -14,6 +14,7 @@ import { PlayerInsightsPage } from './PlayerInsightsPage';
 import { PlayerMatchesPage } from './PlayerMatchesPage';
 import { PlayerTournamentsPage } from './PlayerTournamentsPage';
 import { PlayerPage } from './PlayerPage';
+import { RatingAuditHealthPage } from './RatingAuditHealthPage';
 import { RatingAuditPage } from './RatingAuditPage';
 import { TopRatingsPage } from './TopRatingsPage';
 import { TeamPage } from './TeamPage';
@@ -68,7 +69,12 @@ export function AppRouter() {
                 <Route path="/about" element={<AboutPage />} />
                 <Route path="/data-coverage" element={<DataCoveragePage />} />
                 <Route path="/design-system" element={<DesignSystemPage />} />
-                <Route path="/rating-audit" element={<RatingAuditPage />} />
+                <Route path="/rating-audit" element={<RatingAuditHealthPage section="overview" />} />
+                <Route path="/rating-audit/player" element={<RatingAuditPage />} />
+                <Route path="/rating-audit/player/:playerId" element={<RatingAuditPage />} />
+                <Route path="/rating-audit/data" element={<RatingAuditHealthPage section="data" />} />
+                <Route path="/rating-audit/identities" element={<RatingAuditHealthPage section="identities" />} />
+                <Route path="/rating-audit/network" element={<RatingAuditHealthPage section="network" />} />
                 <Route path="/rating-audit/:playerId" element={<RatingAuditPage />} />
                 <Route path="/players/:playerId" element={<PlayerPage />} />
                 <Route path="/players/:playerId/insights" element={<PlayerInsightsPage />} />
