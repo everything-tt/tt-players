@@ -9,25 +9,6 @@
   margin: 0 var(--tt-gutter-flat) 12px;
 }
 
-.tt-tournament-controls-panel .tt-segmented {
-  padding: 3px;
-  border-radius: 12px;
-  background: var(--surface-subtle-strong);
-}
-
-.tt-tournament-controls-panel .tt-segmented__btn {
-  min-height: 38px;
-  border-radius: 9px;
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.tt-tournament-controls-panel .tt-segmented__btn--active {
-  background: var(--accent-subtle);
-  box-shadow: none;
-  color: var(--accent);
-}
-
 .tt-tournament-search-toolbar {
   margin: 0 var(--tt-gutter-flat);
 }
