@@ -10,15 +10,6 @@ export const vettsUrls = {
     },
 };
 
-export function vettsDiscoveryYears(
-    now: Date = new Date(),
-    count = Number(process.env['VETTS_DISCOVERY_YEARS'] ?? 2),
-): number[] {
-    const boundedCount = Number.isInteger(count) && count > 0 ? Math.min(count, 10) : 2;
-    const currentYear = now.getUTCFullYear();
-    return Array.from({ length: boundedCount }, (_value, index) => currentYear - index);
-}
-
 export async function fetchVettsHtml(url: string): Promise<string> {
     const response = await fetch(url, {
         headers: {
@@ -34,6 +25,15 @@ export async function fetchVettsHtml(url: string): Promise<string> {
     }
 
     return response.text();
+}
+
+export function vettsDiscoveryYears(
+    now: Date = new Date(),
+    count = Number(process.env['VETTS_DISCOVERY_YEARS'] ?? 2),
+): number[] {
+    const boundedCount = Number.isInteger(count) && count > 0 ? Math.min(count, 20) : 2;
+    const currentYear = now.getUTCFullYear();
+    return Array.from({ length: boundedCount }, (_value, index) => currentYear - index);
 }
 
 export async function fetchVettsDiscovery(year: number): Promise<string> {
