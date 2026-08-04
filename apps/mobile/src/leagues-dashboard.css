@@ -10,40 +10,26 @@
   padding-block: var(--tt-space-6);
 }
 
-.tt-leagues-dashboard-empty .tt-empty-state {
+.tt-leagues-dashboard-empty > * {
   max-width: 320px;
 }
 
+/* Configure shared primitives through their public variables. Internal
+ * EntityHero and MetricGrid geometry remains package-owned. */
 .tt-leagues-dashboard-hero {
+  --tt-entity-hero-main-align: flex-start;
+  --tt-entity-hero-highlights-border: 1px solid color-mix(in oklch, var(--tt-border) 78%, transparent);
+  --tt-entity-hero-highlights-padding-top: var(--tt-space-3);
+  --tt-metric-grid-gap: 0;
+  --tt-metric-separator: 1px solid color-mix(in oklch, var(--tt-border) 76%, transparent);
+
   margin-bottom: var(--tt-space-2);
 }
 
-.tt-leagues-dashboard-hero .tt-entity-hero__main {
-  align-items: flex-start;
-}
-
-.tt-leagues-dashboard-hero .tt-entity-hero__actions .tt-btn {
-  white-space: nowrap;
-}
-
-.tt-leagues-dashboard-hero .tt-entity-hero__highlights {
-  border-top: 1px solid color-mix(in oklch, var(--tt-border) 78%, transparent);
-  padding-top: var(--tt-space-3);
-}
-
-.tt-leagues-dashboard-hero .tt-metric-grid {
-  gap: 0;
-}
-
-.tt-leagues-dashboard-hero .tt-metric {
-  border-left: 1px solid color-mix(in oklch, var(--tt-border) 76%, transparent);
-}
-
-.tt-leagues-dashboard-hero .tt-metric:first-child {
-  border-left: 0;
-}
-
 .tt-leagues-dashboard-section {
+  --tt-btn-ghost-color: var(--accent);
+  --tt-btn-s-padding-inline: var(--tt-space-1);
+
   border-bottom: 1px solid var(--tt-border);
   padding-bottom: var(--tt-space-4);
   padding-top: var(--tt-space-4);
@@ -52,11 +38,6 @@
 .tt-leagues-dashboard-section:last-child {
   border-bottom: 0;
   padding-bottom: var(--tt-space-2);
-}
-
-.tt-leagues-dashboard-section .tt-section-header__action .tt-btn {
-  color: var(--accent);
-  padding-inline: var(--tt-space-1);
 }
 
 .tt-leagues-season__profile {
@@ -102,24 +83,15 @@
 }
 
 .tt-leagues-season__summary {
+  --tt-metric-grid-gap: 0;
+  --tt-metric-separator: 1px solid color-mix(in oklch, var(--tt-border) 76%, transparent);
+  --tt-metric-compact-padding: 10px var(--tt-space-1);
+
   align-items: center;
   display: grid;
   gap: var(--tt-space-4);
   grid-template-columns: minmax(0, 2fr) minmax(132px, 1fr);
   padding: var(--tt-space-1) 0 var(--tt-space-3);
-}
-
-.tt-leagues-season__summary .tt-metric-grid {
-  gap: 0;
-}
-
-.tt-leagues-season__summary .tt-metric {
-  border-left: 1px solid color-mix(in oklch, var(--tt-border) 76%, transparent);
-  padding-inline: var(--tt-space-1);
-}
-
-.tt-leagues-season__summary .tt-metric:first-child {
-  border-left: 0;
 }
 
 .tt-leagues-season__form {
@@ -151,19 +123,11 @@
 }
 
 .tt-leagues-season__next {
+  --tt-list-item-title-eyebrow: 'Next match';
+  --tt-list-item-title-eyebrow-color: var(--ink-muted);
+
   border-top: 1px solid var(--tt-border);
   padding-top: var(--tt-space-2);
-}
-
-.tt-leagues-season__next .tt-list-item__title::before {
-  color: var(--ink-muted);
-  content: 'Next match';
-  display: block;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .025em;
-  margin-bottom: 2px;
-  text-transform: uppercase;
 }
 
 .tt-leagues-date {
@@ -207,12 +171,12 @@
   margin-right: 7px;
 }
 
-.tt-leagues-upcoming-row .tt-list-item__title {
-  font-weight: 720;
+.tt-leagues-upcoming-row {
+  --tt-list-item-title-weight: 720;
 }
 
-.tt-leagues-pulse .tt-filter-bar {
-  justify-content: space-between;
+.tt-leagues-pulse {
+  --tt-filter-bar-justify: space-between;
 }
 
 .tt-leagues-pulse-leading {
@@ -238,47 +202,34 @@
 }
 
 .tt-leagues-league-trailing {
-  align-items: flex-end;
+  align-items: center;
   color: var(--ink-muted);
-  display: flex;
-  flex-direction: column;
+  display: grid;
   font-size: 10px;
-  gap: 3px;
+  gap: 3px 8px;
+  grid-template-columns: auto 12px;
   line-height: 1.2;
   white-space: nowrap;
+}
+
+.tt-leagues-league-trailing > .tt-pill,
+.tt-leagues-league-trailing > span {
+  grid-column: 1;
 }
 
 .tt-leagues-league-trailing > i {
   color: var(--accent);
   font-size: 12px;
-  position: absolute;
-  right: 0;
-}
-
-.tt-leagues-selected .tt-list-item__trailing {
-  padding-right: var(--tt-space-3);
-  position: relative;
+  grid-column: 2;
+  grid-row: 1 / 3;
 }
 
 @media (max-width: 520px) {
-  .tt-leagues-dashboard-hero .tt-metric-grid--cols-4,
-  .tt-leagues-season__summary .tt-metric-grid--cols-4 {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .tt-leagues-dashboard-hero .tt-metric,
-  .tt-leagues-season__summary .tt-metric {
-    padding: 8px 3px;
-  }
-
-  .tt-leagues-dashboard-hero .tt-metric__value,
-  .tt-leagues-season__summary .tt-metric__value {
-    font-size: 18px;
-  }
-
-  .tt-leagues-dashboard-hero .tt-metric__label,
-  .tt-leagues-season__summary .tt-metric__label {
-    font-size: 9px;
+  .tt-leagues-dashboard-hero,
+  .tt-leagues-season__summary {
+    --tt-metric-compact-padding: 8px 3px;
+    --tt-metric-value-size: 18px;
+    --tt-metric-label-size: 9px;
   }
 
   .tt-leagues-season__summary {
@@ -294,22 +245,15 @@
     padding-top: var(--tt-space-2);
   }
 
-  .tt-leagues-pulse .tt-filter-bar {
-    justify-content: flex-start;
+  .tt-leagues-pulse {
+    --tt-filter-bar-justify: flex-start;
   }
 }
 
 @media (max-width: 380px) {
-  .tt-leagues-dashboard-hero .tt-entity-hero__main {
-    flex-wrap: wrap;
-  }
-
-  .tt-leagues-dashboard-hero .tt-entity-hero__actions {
-    width: 100%;
-  }
-
-  .tt-leagues-dashboard-hero .tt-entity-hero__actions .tt-btn {
-    width: 100%;
+  .tt-leagues-dashboard-hero {
+    --tt-entity-hero-mobile-actions-width: 100%;
+    --tt-entity-hero-mobile-button-width: 100%;
   }
 
   .tt-leagues-season__identity > strong {

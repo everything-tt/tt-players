@@ -2,16 +2,22 @@ import type { ComponentProps } from 'react';
 import { cx } from '../utils/cx';
 import { Avatar, List } from './List';
 
-export type DesignListDensity = 'compact' | 'comfortable';
+export type DesignListDensity = 'compact' | 'comfortable' | 'editorial';
+export type DesignListSurface = 'flat' | 'grouped';
+export type DesignListTextWrap = 'single-line' | 'multiline' | 'rich';
 
 export interface DesignListProps extends ComponentProps<typeof List> {
   density?: DesignListDensity;
+  surface?: DesignListSurface;
+  textWrap?: DesignListTextWrap;
   /** Alias for the first client-rendered page size. */
   initialVisibleCount?: number;
 }
 
 export function DesignList({
   density = 'compact',
+  surface = 'flat',
+  textWrap = 'single-line',
   className,
   initialVisibleCount,
   pageSize,
@@ -21,7 +27,12 @@ export function DesignList({
     <List
       {...props}
       pageSize={initialVisibleCount ?? pageSize}
-      className={cx(`tt-list--${density}`, className)}
+      className={cx(
+        `tt-list--${density}`,
+        `tt-list--surface-${surface}`,
+        `tt-list--text-${textWrap}`,
+        className,
+      )}
     />
   );
 }

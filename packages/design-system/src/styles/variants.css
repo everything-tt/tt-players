@@ -1,0 +1,270 @@
+/* Reusable component variants. Application styles may place component roots,
+ * but canonical internal geometry and typography belong in this package. */
+
+.tt-list-item__clickable {
+  min-width: 0;
+}
+
+.tt-list--compact > .tt-list-item,
+.tt-list--comfortable > .tt-list-item,
+.tt-list--editorial > .tt-list-item {
+  padding: 0;
+}
+
+.tt-list--compact > .tt-list-item,
+.tt-list--compact > .tt-list-item > .tt-list-item__clickable {
+  min-height: var(--tt-row-height-compact);
+}
+
+.tt-list--compact > .tt-list-item > .tt-list-item__clickable {
+  padding: 5px 2px;
+}
+
+.tt-list--comfortable > .tt-list-item,
+.tt-list--comfortable > .tt-list-item > .tt-list-item__clickable {
+  min-height: var(--tt-row-height-comfortable);
+}
+
+.tt-list--comfortable > .tt-list-item > .tt-list-item__clickable {
+  padding: 9px 4px;
+}
+
+.tt-list--editorial > .tt-list-item,
+.tt-list--editorial > .tt-list-item > .tt-list-item__clickable {
+  min-height: 96px;
+}
+
+.tt-list--editorial > .tt-list-item > .tt-list-item__clickable {
+  padding: 14px;
+}
+
+.tt-list--surface-grouped {
+  overflow: hidden;
+  border: 1px solid var(--tt-border);
+  border-radius: 18px;
+  background: var(--tt-surface-raised);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, white 62%, transparent);
+}
+
+body.theme-dark .tt-list--surface-grouped {
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, white 4%, transparent);
+}
+
+.tt-list--surface-grouped > .tt-list-item {
+  border-bottom: 0;
+}
+
+.tt-list--surface-grouped > .tt-list-item + .tt-list-item {
+  border-top: 1px solid var(--tt-border);
+}
+
+.tt-list--text-multiline .tt-list-item__title,
+.tt-list--text-multiline .tt-list-item__subtitle,
+.tt-list--text-rich .tt-list-item__title {
+  display: -webkit-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+}
+
+.tt-list--text-multiline .tt-list-item__title,
+.tt-list--text-rich .tt-list-item__title {
+  -webkit-line-clamp: 2;
+}
+
+.tt-list--text-multiline .tt-list-item__subtitle {
+  -webkit-line-clamp: 2;
+}
+
+.tt-list--text-rich .tt-list-item__subtitle {
+  display: block;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  -webkit-line-clamp: unset;
+}
+
+/* Public list-item configuration points. Screen CSS may set these variables on
+ * the ListItem root or a composition wrapper without targeting internals. */
+.tt-list-item__title {
+  font-weight: var(--tt-list-item-title-weight, 600);
+}
+
+.tt-list-item__title::before {
+  display: block;
+  margin-bottom: var(--tt-list-item-title-eyebrow-gap, 2px);
+  color: var(--tt-list-item-title-eyebrow-color, var(--tt-text-muted));
+  content: var(--tt-list-item-title-eyebrow, none);
+  font-size: var(--tt-list-item-title-eyebrow-size, 10px);
+  font-weight: 700;
+  letter-spacing: .025em;
+  text-transform: uppercase;
+}
+
+/* MetricGrid owns responsive structure and internal metric geometry. */
+.tt-metric-grid {
+  gap: var(--tt-metric-grid-gap, var(--tt-space-2));
+}
+
+.tt-metric-grid--compact .tt-metric {
+  padding: var(--tt-metric-compact-padding, 10px 8px);
+}
+
+.tt-metric-grid--standard .tt-metric {
+  padding: var(--tt-metric-standard-padding, 12px 10px);
+}
+
+.tt-metric-grid > .tt-metric + .tt-metric {
+  border-left: var(--tt-metric-separator, 0);
+}
+
+.tt-metric-grid--separated {
+  --tt-metric-grid-gap: 0;
+  --tt-metric-separator: 1px solid color-mix(in oklch, var(--tt-border) 82%, transparent);
+}
+
+.tt-metric-grid .tt-metric__value {
+  overflow: hidden;
+  font-size: var(--tt-metric-value-size, 20px);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tt-metric-grid--value-compact {
+  --tt-metric-value-size: 18px;
+}
+
+.tt-metric-grid--value-standard {
+  --tt-metric-value-size: 20px;
+}
+
+.tt-metric-grid--value-prominent {
+  --tt-metric-value-size: 22px;
+}
+
+.tt-metric-grid .tt-metric__label {
+  margin-top: var(--tt-metric-label-margin-top, 0);
+  font-size: var(--tt-metric-label-size, 11px);
+  font-weight: var(--tt-metric-label-weight, 400);
+  letter-spacing: var(--tt-metric-label-letter-spacing, normal);
+  text-transform: var(--tt-metric-label-transform, none);
+}
+
+.tt-metric-grid--label-eyebrow {
+  --tt-metric-label-margin-top: 5px;
+  --tt-metric-label-size: 10px;
+  --tt-metric-label-weight: 800;
+  --tt-metric-label-letter-spacing: .04em;
+  --tt-metric-label-transform: uppercase;
+}
+
+/* Shared controls expose bounded composition variables rather than requiring
+ * screen styles to target `.tt-btn` or `.tt-segmented` internals. */
+.tt-btn {
+  min-width: var(--tt-btn-min-width, auto);
+  white-space: nowrap;
+}
+
+.tt-btn--s {
+  padding-inline: var(--tt-btn-s-padding-inline, 12px);
+}
+
+.tt-btn--ghost {
+  color: var(--tt-btn-ghost-color, var(--ink));
+}
+
+.tt-btn--icon-only {
+  width: var(--tt-control-height);
+  min-width: var(--tt-control-height);
+  height: var(--tt-control-height);
+  min-height: var(--tt-control-height);
+  padding: 0;
+}
+
+.tt-segmented {
+  margin-top: var(--tt-segmented-margin-top, 0);
+}
+
+.tt-filter-bar {
+  justify-content: var(--tt-filter-bar-justify, flex-start);
+}
+
+.tt-toggle-button--variant-icon {
+  position: relative;
+  width: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface-subtle-strong, var(--tt-surface-subtle));
+  color: var(--tt-text-primary);
+}
+
+.tt-toggle-button--variant-icon > span {
+  display: contents;
+}
+
+.tt-toggle-button--variant-icon.tt-toggle-button--pressed {
+  border: 0;
+  background: var(--tt-surface-accent);
+  color: var(--accent);
+}
+
+.tt-toggle-button--variant-filter {
+  min-height: 36px;
+  padding-inline: 12px;
+  border-color: transparent;
+  background: var(--surface-subtle-strong, var(--tt-surface-subtle));
+}
+
+.tt-toggle-button--variant-filter.tt-toggle-button--pressed {
+  border-color: transparent;
+  background: var(--tt-surface-accent);
+}
+
+.tt-entity-hero__main {
+  align-items: var(--tt-entity-hero-main-align, center);
+}
+
+.tt-entity-hero__highlights {
+  border-top: var(--tt-entity-hero-highlights-border, 0);
+  padding-top: var(--tt-entity-hero-highlights-padding-top, 0);
+}
+
+.tt-entity-hero--highlights-separated > .tt-entity-hero__highlights {
+  border-top: 1px solid color-mix(in oklch, var(--tt-border) 78%, transparent);
+  padding-top: var(--tt-space-3);
+}
+
+@media (max-width: 420px) {
+  .tt-metric-grid--cols-4 > .tt-metric:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .tt-metric-grid--cols-4 > .tt-metric:nth-child(n + 3) {
+    border-top: var(--tt-metric-separator, 0);
+  }
+}
+
+@media (max-width: 380px) {
+  .tt-list--editorial > .tt-list-item,
+  .tt-list--editorial > .tt-list-item > .tt-list-item__clickable {
+    min-height: 92px;
+  }
+
+  .tt-toggle-button--variant-icon {
+    width: 46px;
+    min-width: 46px;
+  }
+
+  .tt-entity-hero__actions {
+    width: var(--tt-entity-hero-mobile-actions-width, auto);
+  }
+
+  .tt-entity-hero__actions > .tt-btn {
+    width: var(--tt-entity-hero-mobile-button-width, auto);
+  }
+}

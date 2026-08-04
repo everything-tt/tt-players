@@ -16,6 +16,7 @@ export function FavouriteButton({ saved, onToggle, size = 'sm', className }: Fav
     <AppButton
       tone={saved ? 'primary' : 'outline'}
       size="sm"
+      iconOnly={size === 'icon'}
       onClick={(event) => { event.preventDefault(); event.stopPropagation(); onToggle(); }}
       aria-pressed={saved}
       aria-label={saved ? 'Remove from favourites' : 'Save to favourites'}

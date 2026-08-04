@@ -1,76 +1,13 @@
-/* Final mobile density pass: compact operational surfaces, preserve premium heroes. */
+/*
+ * Legacy screen density adjustments only.
+ * Canonical shell, list, control, card, state, hero and navigation geometry is
+ * owned by the design-system package.
+ */
 
 :root {
   --tt-density-section-gap: 14px;
-  --tt-density-row-height: 62px;
-  --tt-density-control-height: 44px;
 }
 
-/* Bottom navigation: always show every icon and trim unused vertical space. */
-#footer-bar.tt-tab-bar {
-  --tab-bar-height: 58px;
-  min-height: calc(58px + env(safe-area-inset-bottom)) !important;
-  padding: 1px 4px env(safe-area-inset-bottom) !important;
-}
-
-#footer-bar.tt-tab-bar > .tt-tab-bar__item {
-  min-height: 54px !important;
-  padding: 3px 2px 2px !important;
-  gap: 0 !important;
-}
-
-#footer-bar.tt-tab-bar .tt-tab-bar__icon,
-#footer-bar.tt-tab-bar .tt-tab-bar__icon i {
-  display: grid !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-
-#footer-bar.tt-tab-bar .tt-tab-bar__icon {
-  place-items: center;
-  width: 32px;
-  height: 25px;
-}
-
-#footer-bar.tt-tab-bar .tt-tab-bar__icon i {
-  color: currentColor !important;
-  font-size: 16px !important;
-  line-height: 1 !important;
-}
-
-#footer-bar.tt-tab-bar .tt-tab-bar__label {
-  margin-top: 1px;
-  font-size: 9.5px !important;
-  line-height: 1.05 !important;
-}
-
-/* Headers remain expressive, but should not consume a full content row. */
-.tt-root-header,
-.tt-root-header--compact {
-  --root-header-height: 64px;
-}
-
-.tt-root-header__title,
-.tt-root-header--compact .tt-root-header__title {
-  font-size: clamp(23px, 6.5vw, 28px) !important;
-}
-
-.tt-root-content {
-  padding-top: calc(64px + env(safe-area-inset-top) + 5px) !important;
-}
-
-/* Shared vertical rhythm. */
-.tt-page-content > * + *,
-.tt-root-content > * + * {
-  margin-top: var(--tt-density-section-gap);
-}
-
-.tt-card__content {
-  padding: 13px 14px !important;
-}
-
-/* Legacy page-specific headers keep their compact overrides. Canonical
- * .tt-section-header geometry is owned by the design-system stylesheet. */
 .tt-player-section-header,
 .tt-home-leaders-header {
   margin-bottom: 8px !important;
@@ -85,56 +22,6 @@
 .tt-home-leaders-desc {
   font-size: 11px !important;
   line-height: 1.25 !important;
-}
-
-/* Operational lists: denser, still comfortably tappable. */
-.tt-list-item,
-.tt-list-item__clickable {
-  min-height: var(--tt-density-row-height) !important;
-}
-
-.tt-list-item__clickable {
-  padding-block: 7px !important;
-}
-
-.tt-list-item__leading {
-  margin-right: 10px !important;
-}
-
-.tt-avatar--md {
-  width: 44px !important;
-  height: 44px !important;
-  min-width: 44px !important;
-  font-size: 14px !important;
-}
-
-.tt-list-item__title {
-  font-size: 15px !important;
-  line-height: 1.25 !important;
-}
-
-.tt-list-item__subtitle {
-  margin-top: 2px !important;
-  font-size: 11px !important;
-  line-height: 1.25 !important;
-}
-
-.tt-list-item__trailing {
-  gap: 6px;
-}
-
-/* Controls: compact appearance with 44px interaction targets. */
-.tt-segmented,
-.tt-segmented-control {
-  min-height: var(--tt-density-control-height) !important;
-  padding: 3px !important;
-}
-
-.tt-segmented__btn,
-.tt-segmented-control button {
-  min-height: var(--tt-density-control-height) !important;
-  padding: 0 12px !important;
-  font-size: 12px !important;
 }
 
 .tt-search-toolbar .search-box,
@@ -153,9 +40,7 @@
   line-height: 1.05 !important;
 }
 
-/* Hero surfaces retain visual character, but bring useful information upward. */
-.tt-player-hero,
-.tt-hero {
+.tt-player-hero {
   padding: 16px !important;
 }
 
@@ -165,8 +50,7 @@
   margin-top: 10px !important;
 }
 
-.tt-player-title,
-.tt-hero h1 {
+.tt-player-title {
   font-size: clamp(27px, 8vw, 36px) !important;
   line-height: 1.04 !important;
 }
@@ -194,23 +78,10 @@
   padding: 7px 10px !important;
 }
 
-/* Empty/loading surfaces should not dominate the viewport. */
-.tt-state {
-  min-height: 120px !important;
-  padding: 18px 14px !important;
-}
-
-.tt-state__icon {
-  width: 42px !important;
-  height: 42px !important;
-}
-
-.tt-skeleton-row,
-.tt-list .tt-skeleton-row {
+.tt-skeleton-row {
   min-height: 58px !important;
 }
 
-/* Drawer: premium sheet proportions without near-full-screen bulk. */
 .tt-drawer {
   width: min(86vw, 360px) !important;
   max-width: 360px !important;
@@ -260,19 +131,10 @@
 @media (max-width: 380px) {
   :root {
     --tt-density-section-gap: 12px;
-    --tt-density-row-height: 58px;
   }
 
-  .tt-card__content,
   .tt-player-section,
-  .tt-player-hero,
-  .tt-hero {
+  .tt-player-hero {
     padding: 12px !important;
-  }
-
-  .tt-avatar--md {
-    width: 42px !important;
-    height: 42px !important;
-    min-width: 42px !important;
   }
 }

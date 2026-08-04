@@ -4,14 +4,14 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * PR-focused UI review for the issue #97 audit fixes:
- *  - B1: dark-mode semantic-token indirection resolves to dark base values
- *    (previously froze to light values, making secondary text invisible).
- *  - B3: full-route pages expose exactly one <h1> page landmark heading.
- *  - B2: segmented controls meet the 44px touch-target minimum.
- *
- * The scenario asserts the fixed behaviour before capturing screenshots, and
- * writes them through the shared ui-review manifest/report mechanism.
+ * PR-focused UI review for shared design-system contracts:
+ *  - semantic tokens resolve correctly in dark and light themes
+ *  - root shell/header/tab-bar geometry is package-owned and visible
+ *  - four-column metric groups reflow without clipping on mobile
+ *  - the package-owned league scope sheet preserves fixed controls and actions
+ *  - the Leagues dashboard composes shared primitives without internal overrides
+ *  - segmented controls retain the 44px touch-target minimum
+ *  - full-route pages expose one h1 landmark
  */
 
 interface ScreenshotEntry {
@@ -125,28 +125,57 @@ async function tokenOnBody(page: Page, name: string): Promise<string> {
   return page.evaluate((n) => getComputedStyle(document.body).getPropertyValue(n).trim(), name);
 }
 
-test('dark-mode semantic tokens resolve to dark base values and full routes expose one h1', async ({ page }, testInfo) => {
+async function assertRootShellContract(page: Page) {
+  const rootHeader = page.locator('.tt-root-header');
+  await expect(rootHeader).toBeVisible();
+  const headerHeight = await rootHeader.evaluate((el) => Math.round(el.getBoundingClientRect().height));
+  expect(headerHeight, 'expanded root header should use the compact design-system shell token').toBeGreaterThanOrEqual(56);
+  expect(headerHeight, 'expanded root header must not regress to the legacy 96px app-owned geometry').toBeLessThanOrEqual(72);
+
+  const tabIcons = page.locator('#footer-bar.tt-tab-bar .tt-tab-bar__icon');
+  await expect(tabIcons).toHaveCount(5);
+  for (let index = 0; index < 5; index += 1) {
+    await expect(tabIcons.nth(index), `tab icon ${index + 1} should remain visible`).toBeVisible();
+  }
+}
+
+async function assertResponsiveMetricContract(page: Page, selector: string, description: string) {
+  const metricGrid = page.locator(selector);
+  await expect(metricGrid).toBeVisible();
+  await expect(metricGrid.locator('.tt-metric')).toHaveCount(4);
+
+  const columnCount = await metricGrid.evaluate((el) => {
+    const template = getComputedStyle(el).gridTemplateColumns.trim();
+    return template ? template.split(/\s+/).length : 0;
+  });
+  expect(columnCount, `${description} should reflow to a 2-column mobile grid`).toBe(2);
+
+  const overflowedValues = await metricGrid.locator('.tt-metric__value').evaluateAll((elements) =>
+    elements.filter((element) => element.scrollWidth > element.clientWidth + 1).map((element) => element.textContent),
+  );
+  expect(overflowedValues, `${description} values must not be clipped or ellipsized`).toEqual([]);
+}
+
+test('design-system shell, tokens, metrics and route landmarks remain intact', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
 
-  // --- B1: dark-mode semantic tokens ---
+  // Dark-theme tokens and package-owned shell contracts.
   await prepareAppState(page, 'dark-mode');
   await page.goto(`${previewUrl}/tabs/home`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
+  await assertRootShellContract(page);
+  await assertResponsiveMetricContract(page, '.tt-home-summary-metrics', 'Home summary metrics');
 
   const ttTextMuted = await tokenOnBody(page, '--tt-text-muted');
   const ttTextPrimary = await tokenOnBody(page, '--tt-text-primary');
   const ttSurfaceCanvas = await tokenOnBody(page, '--tt-surface-canvas');
   const ttBorder = await tokenOnBody(page, '--tt-border');
 
-  // Dark base: --ink / --ink-muted are ~94% L (light), canvas ~20% L (dark).
-  // The pre-fix bug froze these to the light values (21% / 96%).
   expect(ttTextMuted, 'dark --tt-text-muted must be light (~94%), not frozen to light-mode 21%').toContain('94%');
   expect(ttTextPrimary, 'dark --tt-text-primary must be light (~94%)').toContain('94%');
   expect(ttSurfaceCanvas, 'dark --tt-surface-canvas must be dark (~20%)').toContain('20%');
   expect(ttBorder, 'dark --tt-border must be the light-on-dark hairline (~94%)').toContain('94%');
 
-  // A section description must render in a light colour (readable on the dark canvas),
-  // not the frozen light-mode dark ink (oklch(0.21 ...)).
   const subColor = await page.evaluate(() => {
     const el = [...document.querySelectorAll<HTMLElement>('*')].find(
       (e) => /Sign in to unlock your profile/.test(e.textContent ?? '') && e.children.length === 0,
@@ -155,16 +184,48 @@ test('dark-mode semantic tokens resolve to dark base values and full routes expo
   });
   expect(subColor, 'dark secondary text must not be the frozen light-mode dark ink').not.toContain('0.21');
 
+  const signInButton = page.getByRole('button', { name: 'Sign in with Google' });
+  await expect(signInButton).toBeVisible();
+  await signInButton.scrollIntoViewIfNeeded();
+  const [buttonBox, tabBarBox] = await Promise.all([
+    signInButton.boundingBox(),
+    page.locator('#footer-bar.tt-tab-bar').boundingBox(),
+  ]);
+  expect(buttonBox).not.toBeNull();
+  expect(tabBarBox).not.toBeNull();
+  expect(buttonBox!.y + buttonBox!.height, 'page bottom inset must keep the CTA above the fixed tab bar')
+    .toBeLessThanOrEqual(tabBarBox!.y);
+
   await capture(page, testInfo, 'home-dark-mode-tokens');
 
-  // --- B2: segmented control touch targets (>=44px) ---
+  // The package-owned page sheet keeps 44px controls and can complete a real
+  // league selection without page-level primitive overrides.
   await page.goto(`${previewUrl}/tabs/leagues`, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'Your leagues', level: 2 })).toBeVisible();
-  const segHeight = await page.locator('.tt-segmented__btn').first().evaluate((el) => Math.round(el.getBoundingClientRect().height));
+  const openLeagueScope = page.locator('.tt-leagues-dashboard-empty').getByRole('button', { name: 'Select leagues' });
+  await expect(openLeagueScope).toBeVisible();
+  await openLeagueScope.click();
+  const doneButton = page.getByRole('button', { name: 'Done' });
+  await expect(doneButton).toBeVisible();
+  const segmentedButton = page.locator('.tt-segmented__btn').first();
+  await expect(segmentedButton).toBeVisible();
+  const segHeight = await segmentedButton.evaluate((el) => Math.round(el.getBoundingClientRect().height));
   expect(segHeight, 'segmented control buttons must meet the 44px touch-target minimum').toBeGreaterThanOrEqual(44);
   await capture(page, testInfo, 'leagues-segmented-touch-target');
 
-  // --- B3: full-route pages expose exactly one <h1> ---
+  const firstLeague = page.locator('.tt-league-scope__content .tt-list-item__clickable').first();
+  await expect(firstLeague).toBeVisible();
+  await firstLeague.click();
+  await expect(doneButton).toBeEnabled();
+  await doneButton.click();
+  await expect(page.getByRole('heading', { name: 'Your leagues', level: 2 })).toBeVisible();
+  await assertResponsiveMetricContract(
+    page,
+    '.tt-leagues-dashboard-hero .tt-metric-grid',
+    'Leagues dashboard hero metrics',
+  );
+  await capture(page, testInfo, 'leagues-dashboard-design-system');
+
+  // Full-route pages expose exactly one h1.
   for (const path of ['/data-coverage', '/tabs/home/ratings']) {
     await page.goto(`${previewUrl}${path}`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('h1')).toHaveCount(1);
@@ -173,9 +234,12 @@ test('dark-mode semantic tokens resolve to dark base values and full routes expo
   await expect(page.getByRole('heading', { name: 'Data Coverage', level: 1 })).toBeVisible();
   await capture(page, testInfo, 'data-coverage-h1');
 
-  // Light-mode sanity: tokens resolve to light base values.
+  // Light-mode sanity repeats the shared shell/metric checks.
   await prepareAppState(page, 'light-mode');
   await page.goto(`${previewUrl}/tabs/home`, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
+  await assertRootShellContract(page);
+  await assertResponsiveMetricContract(page, '.tt-home-summary-metrics', 'Home summary metrics');
   const lightTextMuted = await tokenOnBody(page, '--tt-text-muted');
   expect(lightTextMuted, 'light --tt-text-muted must be the dark ink (~21%)').toContain('21%');
   await capture(page, testInfo, 'home-light-mode-tokens');
