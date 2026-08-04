@@ -8,6 +8,9 @@ import {
 } from '../vetts-parser.js';
 import { vettsDuplicateCandidateMatches } from '../vetts-duplicate-reconciliation.js';
 import { vettsSourceAdapter } from '../vetts-adapter.js';
+import { vettsDiscoveryYears, vettsUrls } from '../vetts-client.js';
+import { deriveVettsEventStatus } from '../vetts-loader.js';
+import { stabilizeVettsPlayerIdentities } from '../vetts-player-identity.js';
 
 const TOURNAMENT_ID = '4af81622-d21a-47ed-a046-86c492b4cfe9';
 const SOURCE_URL = `https://vetts.tournamentsoftware.com/tournament/${TOURNAMENT_ID}`;
@@ -33,7 +36,7 @@ const matchesHtml = `
   <td class="participant winner"><a href="/sport/player.aspx?id=${TOURNAMENT_ID}&player=849">Alan Pearse</a></td>
   <td><span class="score">13</span><span class="score">11</span><span class="score">11</span><span class="score">7</span><span class="score">11</span><span class="score">9</span></td>
   <td class="participant"><a href="/sport/player.aspx?id=${TOURNAMENT_ID}&player=6797">Raymond Sutton</a></td>
-  <td><a href="/match-info/abc-123">Details</a></td>
+  <td><a href="/sport/match.aspx?id=${TOURNAMENT_ID}&match=abc-123&T1P1MemberID=1017&T2P1MemberID=6797">Details</a></td>
 </tr>
 <tr>
   <td>09:00</td>
@@ -49,6 +52,7 @@ const matchesHtml = `
   <td class="participant winner"><a href="/sport/player.aspx?id=${TOURNAMENT_ID}&player=1">Adam Fuzes [1]</a><a href="/sport/player.aspx?id=${TOURNAMENT_ID}&player=2">Sara Williams</a></td>
   <td class="score">12</td><td class="score">10</td><td class="score">11</td><td class="score">3</td><td class="score">11</td><td class="score">6</td>
   <td class="participant"><a href="/sport/player.aspx?id=${TOURNAMENT_ID}&player=3">Stephen Horton</a><a href="/sport/player.aspx?id=${TOURNAMENT_ID}&player=4">Sarah Horsnell</a></td>
+  <td><a href="/sport/match.aspx?id=${TOURNAMENT_ID}&match=doubles-1&T1P1MemberID=6779&T1P2MemberID=5476&T2P1MemberID=1172&T2P2MemberID=5505">Details</a></td>
 </tr>
 <tr>
   <td>09:30</td>
@@ -64,22 +68,58 @@ const matchesHtml = `
 </tbody>
 </table>`;
 
+function parseMatches() {
+    return stabilizeVettsPlayerIdentities(
+        matchesHtml,
+        TOURNAMENT_ID,
+        parseVettsMatchesPage(matchesHtml, {
+            tournamentId: TOURNAMENT_ID,
+            sourceUrl: `${SOURCE_URL}/matches/20260517`,
+            date: '2026-05-17',
+        }),
+    );
+}
+
 describe('VETTS tournament parsing', () => {
-    it('publishes a source adapter manifest for event and result resources', () => {
+    it('publishes a source adapter manifest for every registered resource type', () => {
         expect(vettsSourceAdapter.manifest).toMatchObject({
             key: 'tournamentsoftware-vetts',
-            version: '1.0.0',
-            supportedResourceTypes: ['event', 'event-results'],
+            version: '1.1.0',
+            supportedResourceTypes: ['directory', 'event', 'event-results'],
         });
     });
+
+    it('uses bounded official VETTS year calendars for discovery', () => {
+        expect(vettsUrls.discovery(2026)).toBe('https://www.vetts.org.uk/tournaments.aspx?year=2026');
+        expect(vettsDiscoveryYears(new Date('2026-08-04T00:00:00Z'), 3)).toEqual([2026, 2025, 2024]);
+        expect(vettsDiscoveryYears(new Date('2026-08-04T00:00:00Z'), 99)).toHaveLength(10);
+    });
+
     it('discovers modern and legacy tournament links with stable UUIDs', () => {
         const links = parseVettsTournamentLinks(`
-          <a href="/tournament/${TOURNAMENT_ID}">Nationals</a>
-          <a href="/sport/tournament.aspx?id=7ed3b6c4-2370-4fd2-a010-f3dfaa1d6f2e">Southern</a>
-          <a href="/tournament/${TOURNAMENT_ID}">Duplicate</a>
-        `);
+          <a href="https://vetts.tournamentsoftware.com/tournament/${TOURNAMENT_ID}">Nationals</a>
+          <a href="https://vetts.tournamentsoftware.com/sport/tournament.aspx?id=7ed3b6c4-2370-4fd2-a010-f3dfaa1d6f2e">Southern</a>
+          <a href="https://vetts.tournamentsoftware.com/tournament/${TOURNAMENT_ID}">Duplicate</a>
+        `, vettsUrls.discovery(2026));
         expect(links).toHaveLength(2);
         expect(links[0]).toMatchObject({ tournamentId: TOURNAMENT_ID, name: 'Nationals' });
+    });
+
+    it('transforms directory resources through the adapter contract', async () => {
+        const result = await vettsSourceAdapter.transform(
+            `<a href="https://vetts.tournamentsoftware.com/tournament/${TOURNAMENT_ID}">Nationals</a>`,
+            {
+                sourceInstanceId: 'instance',
+                sourceResourceId: 'resource',
+                resourceType: 'directory',
+                externalId: 'calendar-2026',
+                url: vettsUrls.discovery(2026),
+                config: {},
+            },
+        );
+        expect(result).toEqual([
+            expect.objectContaining({ tournamentId: TOURNAMENT_ID, name: 'Nationals' }),
+        ]);
     });
 
     it('parses representative overview metadata', () => {
@@ -96,12 +136,23 @@ describe('VETTS tournament parsing', () => {
         });
     });
 
+    it('preserves upcoming and in-progress tournament lifecycle states', () => {
+        expect(deriveVettsEventStatus(
+            { startDate: '2026-08-29', endDate: '2026-08-30' },
+            new Date('2026-08-04T12:00:00Z'),
+        )).toBe('upcoming');
+        expect(deriveVettsEventStatus(
+            { startDate: '2026-08-29', endDate: '2026-08-30' },
+            new Date('2026-08-29T12:00:00Z'),
+        )).toBe('in_progress');
+        expect(deriveVettsEventStatus(
+            { startDate: '2026-08-29', endDate: '2026-08-30' },
+            new Date('2026-08-31T12:00:00Z'),
+        )).toBe('completed');
+    });
+
     it('parses singles, walkovers and doubles while rejecting invalid scores and byes', () => {
-        const page = parseVettsMatchesPage(matchesHtml, {
-            tournamentId: TOURNAMENT_ID,
-            sourceUrl: `${SOURCE_URL}/matches/20260517`,
-            date: '2026-05-17',
-        });
+        const page = parseMatches();
         expect(page.matches).toHaveLength(3);
         expect(page.issues.map((issue) => issue.reason)).toEqual(['invalid-score', 'bye']);
 
@@ -112,8 +163,8 @@ describe('VETTS tournament parsing', () => {
             { home: 11, away: 7 },
             { home: 11, away: 9 },
         ]);
-        expect(singles.homeGamesWon).toBe(3);
-        expect(singles.awayGamesWon).toBe(0);
+        expect(singles.homePlayers[0]?.externalId).toBe('tournamentsoftware:member:1017');
+        expect(singles.awayPlayers[0]?.externalId).toBe('tournamentsoftware:member:6797');
 
         const walkover = page.matches[1]!;
         expect(walkover).toMatchObject({
@@ -121,36 +172,31 @@ describe('VETTS tournament parsing', () => {
             scoreSource: 'win_loss_only',
             winnerSide: 'home',
         });
+        expect(walkover.homePlayers[0]?.externalId).toBe(
+            `tournamentsoftware:entry:${TOURNAMENT_ID}:100`,
+        );
 
         const doubles = page.matches[2]!;
         expect(doubles.isDoubles).toBe(true);
-        expect(doubles.homePlayers).toHaveLength(2);
-        expect(doubles.awayPlayers).toHaveLength(2);
+        expect(doubles.homePlayers.map((player) => player.externalId)).toEqual([
+            'tournamentsoftware:member:6779',
+            'tournamentsoftware:member:5476',
+        ]);
+        expect(doubles.awayPlayers.map((player) => player.externalId)).toEqual([
+            'tournamentsoftware:member:1172',
+            'tournamentsoftware:member:5505',
+        ]);
     });
 
     it('produces idempotent canonical loader payloads', () => {
         const tournament = parseVettsTournamentOverview(overviewHtml, SOURCE_URL);
-        const first = parseVettsMatchesPage(matchesHtml, {
-            tournamentId: TOURNAMENT_ID,
-            sourceUrl: `${SOURCE_URL}/matches/20260517`,
-            date: '2026-05-17',
-        });
-        const second = parseVettsMatchesPage(matchesHtml, {
-            tournamentId: TOURNAMENT_ID,
-            sourceUrl: `${SOURCE_URL}/matches/20260517`,
-            date: '2026-05-17',
-        });
-        expect(vettsMatchesToParsedData(tournament, first.matches)).toEqual(
-            vettsMatchesToParsedData(tournament, second.matches),
+        expect(vettsMatchesToParsedData(tournament, parseMatches().matches)).toEqual(
+            vettsMatchesToParsedData(tournament, parseMatches().matches),
         );
     });
 
-    it('matches an equivalent Sport:80-style canonical rubber once', () => {
-        const match = parseVettsMatchesPage(matchesHtml, {
-            tournamentId: TOURNAMENT_ID,
-            sourceUrl: `${SOURCE_URL}/matches/20260517`,
-            date: '2026-05-17',
-        }).matches[0]!;
+    it('matches an equivalent cross-provider canonical rubber once', () => {
+        const match = parseMatches().matches[0]!;
         expect(vettsDuplicateCandidateMatches(match, {
             id: 'canonical-rubber',
             home_name: 'Alan Pearse',
