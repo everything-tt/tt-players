@@ -19,7 +19,7 @@ describe('VETTS discovery task', () => {
         process.env['VETTS_DISCOVERY_LIMIT'] = '30';
     });
 
-    it('queues successful discoveries with the shared retry policy, then reports partial failure', async () => {
+    it('queues successful discoveries with serialization and shared retry policy, then reports partial failure', async () => {
         mocks.discoverVettsTournaments.mockResolvedValue({
             tournaments: [{
                 tournamentId: TOURNAMENT_ID,
@@ -42,6 +42,7 @@ describe('VETTS discovery task', () => {
             expect.objectContaining({
                 maxAttempts: 3,
                 jobKeyMode: 'unsafe_dedupe',
+                queueName: 'vetts-tournamentsoftware',
                 jobKey: expect.stringMatching(/^scrape-vetts-tournament:/),
             }),
         );
