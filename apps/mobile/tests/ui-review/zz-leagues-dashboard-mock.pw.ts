@@ -397,7 +397,7 @@ test('reviews the personalised dashboard, rating scopes, and empty league state'
   await page.evaluate(() => sessionStorage.setItem('tt_review_empty_leagues', 'true'));
   await page.goto(`${previewUrl}/tabs/leagues`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Select your leagues' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Select leagues' })).toBeVisible();
+  await expect(page.getByText('Select leagues', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Your leagues' })).toHaveCount(0);
   await capture(page, testInfo, 'leagues-empty-selection', {
     selectedLeagues: 0,
