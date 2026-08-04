@@ -31,7 +31,7 @@ export function vettsDiscoveryYears(
     now: Date = new Date(),
     count = Number(process.env['VETTS_DISCOVERY_YEARS'] ?? 2),
 ): number[] {
-    const boundedCount = Number.isInteger(count) && count > 0 ? Math.min(count, 20) : 2;
+    const boundedCount = Number.isInteger(count) && count > 0 ? Math.min(count, 10) : 2;
     const currentYear = now.getUTCFullYear();
     return Array.from({ length: boundedCount }, (_value, index) => currentYear - index);
 }
