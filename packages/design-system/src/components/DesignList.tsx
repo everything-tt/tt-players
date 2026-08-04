@@ -4,7 +4,7 @@ import { Avatar, List } from './List';
 
 export type DesignListDensity = 'compact' | 'comfortable' | 'editorial';
 export type DesignListSurface = 'flat' | 'grouped';
-export type DesignListTextWrap = 'single-line' | 'multiline';
+export type DesignListTextWrap = 'single-line' | 'multiline' | 'rich';
 
 export interface DesignListProps extends ComponentProps<typeof List> {
   density?: DesignListDensity;
