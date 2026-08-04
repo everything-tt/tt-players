@@ -4,13 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Discover completed tournaments or process explicit Tournament Software UUIDs
+        description: Discover from official year calendars or process explicit Tournament Software UUIDs
         required: true
         default: discovery
         type: choice
         options:
           - discovery
           - tournament_ids
+      discovery_years:
+        description: Number of descending calendar years to scan (1-10; ignored for explicit IDs)
+        required: true
+        default: '2'
+        type: string
       discovery_limit:
         description: Maximum discovered tournaments to process (1-100; ignored for explicit IDs)
         required: true
@@ -43,6 +48,7 @@ jobs:
       - name: Validate inputs
         env:
           BACKFILL_MODE: ${{ inputs.mode }}
+          DISCOVERY_YEARS: ${{ inputs.discovery_years }}
           DISCOVERY_LIMIT: ${{ inputs.discovery_limit }}
           TOURNAMENT_IDS: ${{ inputs.tournament_ids }}
           CONFIRM_BACKFILL: ${{ inputs.confirm }}
@@ -51,6 +57,11 @@ jobs:
 
           if [[ "$CONFIRM_BACKFILL" != "BACKFILL_VETTS" ]]; then
             echo "Production backfill requires confirm=BACKFILL_VETTS" >&2
+            exit 64
+          fi
+
+          if [[ ! "$DISCOVERY_YEARS" =~ ^[0-9]+$ ]] || (( DISCOVERY_YEARS < 1 || DISCOVERY_YEARS > 10 )); then
+            echo "discovery_years must be an integer from 1 to 10: $DISCOVERY_YEARS" >&2
             exit 64
           fi
 
@@ -118,6 +129,7 @@ jobs:
           test -n "$VPS_USER"
           ssh "$VPS_USER@$VPS_HOST" \
             "test -f /opt/tt-players/current/apps/worker/src/scrape-vetts-once.ts && \
+             grep -q 'VETTS_DISCOVERY_YEARS' /opt/tt-players/current/apps/worker/src/vetts-client.ts && \
              grep -q 'VETTS_DISCOVERY_LIMIT' /opt/tt-players/current/apps/worker/src/scrape-vetts-once.ts"
 
       - name: Run VETTS results backfill
@@ -125,12 +137,13 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           BACKFILL_MODE: ${{ inputs.mode }}
+          DISCOVERY_YEARS: ${{ inputs.discovery_years }}
           DISCOVERY_LIMIT: ${{ inputs.discovery_limit }}
         run: |
           set -euo pipefail
 
           ssh "$VPS_USER@$VPS_HOST" \
-            "BACKFILL_MODE='$BACKFILL_MODE' DISCOVERY_LIMIT='$DISCOVERY_LIMIT' TOURNAMENT_IDS='$NORMALIZED_TOURNAMENT_IDS' bash -s" \
+            "BACKFILL_MODE='$BACKFILL_MODE' DISCOVERY_YEARS='$DISCOVERY_YEARS' DISCOVERY_LIMIT='$DISCOVERY_LIMIT' TOURNAMENT_IDS='$NORMALIZED_TOURNAMENT_IDS' bash -s" \
             <<'REMOTE' | tee vetts-backfill-output.txt
           set -euo pipefail
 
@@ -147,7 +160,10 @@ jobs:
           )
 
           if [[ "$BACKFILL_MODE" == "discovery" ]]; then
-            run_args+=(--setenv="VETTS_DISCOVERY_LIMIT=$DISCOVERY_LIMIT")
+            run_args+=(
+              --setenv="VETTS_DISCOVERY_YEARS=$DISCOVERY_YEARS"
+              --setenv="VETTS_DISCOVERY_LIMIT=$DISCOVERY_LIMIT"
+            )
           fi
 
           run_args+=(
@@ -167,6 +183,7 @@ jobs:
         if: always()
         env:
           BACKFILL_MODE: ${{ inputs.mode }}
+          DISCOVERY_YEARS: ${{ inputs.discovery_years }}
           DISCOVERY_LIMIT: ${{ inputs.discovery_limit }}
           JOB_STATUS: ${{ job.status }}
         run: |
@@ -178,6 +195,7 @@ jobs:
             echo "- Status: \`$JOB_STATUS\`"
             echo "- Mode: \`$BACKFILL_MODE\`"
             if [[ "$BACKFILL_MODE" == "discovery" ]]; then
+              echo "- Calendar years: \`$DISCOVERY_YEARS\`"
               echo "- Discovery limit: \`$DISCOVERY_LIMIT\`"
             else
               echo "- Tournament IDs: \`${NORMALIZED_TOURNAMENT_IDS:-not validated}\`"
