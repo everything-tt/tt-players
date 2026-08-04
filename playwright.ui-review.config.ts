@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // Icon filters, category combinations, and results-only completed events.
-  testMatch: 'zz-tournament-filters-results.pw.ts',
+  // Personal season, upcoming fixtures, league pulse, and selected leagues.
+  testMatch: 'zz-leagues-dashboard-mock.pw.ts',
 
   timeout: 120_000,
   expect: {
