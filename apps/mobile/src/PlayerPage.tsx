@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import './app-shell.css';
 import { useTabNavigation } from './navigation/tab-navigation';
 import {
@@ -18,6 +18,7 @@ import { usePagedPlayerMatches } from './hooks/usePagedPlayerMatches';
 import { SkeletonBlock, SkeletonList } from './components/Skeleton';
 import { PlayerMatchList } from './components/PlayerMatchList';
 import { PlayerProfileHero } from './components/PlayerProfileHero';
+import { PlayerRivalryOrbit } from './components/PlayerRivalryOrbit';
 import { TabShellPage } from './TabShellPage';
 import {
   AppButtonLink,
@@ -123,6 +124,7 @@ function PlayerProfileSkeleton() {
 }
 
 export function PlayerPage() {
+  const navigate = useNavigate();
   const { navigateInActiveTab, navigateInTab, switchTab } = useTabNavigation();
   const { playerId = '' } = useParams<{ playerId: string }>();
 
@@ -265,6 +267,13 @@ export function PlayerPage() {
               onClearIdentity={clearMyPlayer}
               onOpenInsights={() => navigateInActiveTab(`player/${playerId}/insights`)}
               onOpenRatingHistory={() => navigateInActiveTab(`player/${playerId}/insights#rating-history`)}
+            />
+
+            <PlayerRivalryOrbit
+              playerId={stats.player_id}
+              playerName={stats.player_name}
+              recentMatches={recentMatchesState.matches}
+              onOpenPlayer={(opponentId) => navigate(`/h2h/${stats.player_id}/${opponentId}`)}
             />
 
             <section className="tt-player-section" aria-label="Current season clubs and tournaments">
