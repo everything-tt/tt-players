@@ -350,7 +350,9 @@ function playerCellIndexes(
     anchors: any[],
 ): number[] {
     const cells = row.find('td').toArray();
-    return anchors.map((anchor) => cells.indexOf($(anchor).closest('td').get(0)!));
+    return anchors.map((anchor) =>
+        cells.indexOf($(anchor).closest('td').get(0)! as (typeof cells)[number])
+    );
 }
 
 function winnerFromMarkup(
