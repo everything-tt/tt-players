@@ -89,7 +89,7 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
               navigate(`/rating-audit/${playerId}`);
             }}
           >
-            <i className="fa fa-magnifying-glass-chart" aria-hidden="true" />
+            <i className="fa fa-search" aria-hidden="true" />
             Why This Rating?
           </AppButtonLink>
 
