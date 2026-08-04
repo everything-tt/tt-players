@@ -2,6 +2,18 @@
   min-width: 0;
 }
 
+.tt-leagues-dashboard-empty {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 56dvh;
+  padding-block: var(--tt-space-6);
+}
+
+.tt-leagues-dashboard-empty .tt-empty-state {
+  max-width: 320px;
+}
+
 .tt-leagues-dashboard-hero {
   margin-bottom: var(--tt-space-2);
 }
