@@ -1,6 +1,10 @@
 /* Reusable component variants. Application styles may place component roots,
  * but canonical internal geometry and typography belong in this package. */
 
+.tt-list-item__clickable {
+  min-width: 0;
+}
+
 .tt-list--compact > .tt-list-item,
 .tt-list--comfortable > .tt-list-item,
 .tt-list--editorial > .tt-list-item {
