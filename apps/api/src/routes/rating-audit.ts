@@ -254,13 +254,18 @@ export function ratingAuditRoutes(db: Kysely<Database>): FastifyPluginAsync {
                                 WHERE deleted_at IS NULL
                                   AND COALESCE(canonical_player_id, id) = id
                             )::int AS canonical_players,
-                            COUNT(*) FILTER (WHERE canonical_player_id IS DISTINCT FROM id)::int AS linked_aliases,
                             COUNT(*) FILTER (
-                                WHERE canonical_player_id IS DISTINCT FROM id
+                                WHERE canonical_player_id IS NOT NULL
+                                  AND canonical_player_id <> id
+                            )::int AS linked_aliases,
+                            COUNT(*) FILTER (
+                                WHERE canonical_player_id IS NOT NULL
+                                  AND canonical_player_id <> id
                                   AND deleted_at IS NULL
                             )::int AS active_aliases,
                             COUNT(*) FILTER (
-                                WHERE canonical_player_id IS DISTINCT FROM id
+                                WHERE canonical_player_id IS NOT NULL
+                                  AND canonical_player_id <> id
                                   AND deleted_at IS NOT NULL
                             )::int AS soft_deleted_aliases,
                             COUNT(*) FILTER (WHERE canonical_player_id IS NULL)::int AS unassigned_records,
@@ -269,9 +274,10 @@ export function ratingAuditRoutes(db: Kysely<Database>): FastifyPluginAsync {
                                   AND target_id IS NULL
                             )::int AS broken_targets,
                             COUNT(*) FILTER (
-                                WHERE canonical_player_id IS DISTINCT FROM id
+                                WHERE canonical_player_id IS NOT NULL
+                                  AND canonical_player_id <> id
                                   AND target_canonical_player_id IS NOT NULL
-                                  AND target_canonical_player_id IS DISTINCT FROM target_id
+                                  AND target_canonical_player_id <> target_id
                             )::int AS chained_links,
                             COUNT(*) FILTER (
                                 WHERE canonical_player_id IS NOT NULL
