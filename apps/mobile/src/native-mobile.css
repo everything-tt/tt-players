@@ -1,5 +1,5 @@
 /* Native-mobile interaction and accessibility hardening.
- * Loaded after the legacy AppKit CSS and the shared design tokens.
+ * Shared component geometry belongs to the design-system package.
  */
 
 body,
@@ -16,12 +16,9 @@ h6 {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif !important;
 }
 
-/* Keep all common actions at or above the platform-recommended 44px target. */
+/* App-specific controls that are not shared design-system primitives. */
 .header .header-icon,
 .app-shell-page .page-title-icon,
-#footer-bar > button,
-#footer-bar > a,
-.tt-segmented__btn,
 .tt-sheet__close,
 .tt-external-link,
 .tt-search-input__clear,
@@ -37,69 +34,6 @@ h6 {
 .header .header-icon.tt-detail-header-action--feedback {
   left: auto !important;
   right: 80px !important;
-}
-
-/* Semantic footer buttons replace the legacy fake links. */
-#footer-bar {
-  align-items: stretch;
-  display: flex;
-  height: auto;
-  min-height: 60px;
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-#footer-bar > button,
-#footer-bar > a {
-  align-items: center;
-  appearance: none;
-  background: transparent;
-  border: 0;
-  color: var(--ink);
-  cursor: pointer;
-  display: flex;
-  flex: 1 1 20%;
-  flex-direction: column;
-  font: inherit;
-  gap: 2px;
-  justify-content: center;
-  margin: 0;
-  padding: 7px 4px 5px;
-  text-align: center;
-  text-decoration: none;
-}
-
-#footer-bar > button i,
-#footer-bar > a i {
-  font-size: 18px;
-  line-height: 1;
-}
-
-#footer-bar > button span,
-#footer-bar > a span {
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-/* Long segmented controls remain usable on narrow phones. */
-.tt-segmented {
-  max-width: 100%;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.tt-segmented::-webkit-scrollbar {
-  display: none;
-}
-
-.tt-segmented__btn {
-  flex-shrink: 0;
-}
-
-.tt-segmented--full .tt-segmented__btn {
-  min-width: 0;
 }
 
 /* Modal sheets render in a portal outside the inert application root. */
@@ -242,10 +176,6 @@ button.tt-backdrop {
   padding: 16px var(--space-card-pad) 24px;
 }
 
-.tt-league-scope__content .tt-section-header {
-  margin-bottom: 10px;
-}
-
 .tt-league-scope__footer {
   align-items: center;
   display: flex;
@@ -372,24 +302,6 @@ button.tt-backdrop {
 @keyframes tt-page-modal-enter {
   from { opacity: 0; }
   to { opacity: 1; }
-}
-
-/* Preserve useful context instead of truncating every data row to one line. */
-.tt-list-item__title,
-.tt-list-item__subtitle {
-  display: -webkit-box;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: normal;
-  -webkit-box-orient: vertical;
-}
-
-.tt-list-item__title {
-  -webkit-line-clamp: 2;
-}
-
-.tt-list-item__subtitle {
-  -webkit-line-clamp: 2;
 }
 
 @media (min-width: 720px) {
