@@ -130,21 +130,21 @@ function Overview({ audit }: { audit: RatingAuditSummaryResponse }) {
             leading={<i className="fa fa-filter" aria-hidden="true" />}
             title="Data health"
             subtitle={`${audit.data.eligible_singles.toLocaleString('en-GB')} eligible singles from ${audit.data.active_rubbers.toLocaleString('en-GB')} active rubbers.`}
-            trailing={<Pill label={formatPercent(audit.data.eligible_singles, audit.data.active_rubbers)} tone="accent" />}
+            trailing={<Pill tone="accent">{formatPercent(audit.data.eligible_singles, audit.data.active_rubbers)}</Pill>}
             onClick={() => navigate('/rating-audit/data')}
           />
           <ListItem
             leading={<i className="fa fa-fingerprint" aria-hidden="true" />}
             title="Identity health"
             subtitle={`${audit.identities.linked_aliases.toLocaleString('en-GB')} linked aliases across ${audit.identities.canonical_players.toLocaleString('en-GB')} canonical players.`}
-            trailing={<Pill label={identityIssues === 0 ? 'Healthy' : `${identityIssues} issues`} tone={issueTone(identityIssues)} />}
+            trailing={<Pill tone={issueTone(identityIssues)}>{identityIssues === 0 ? 'Healthy' : `${identityIssues} issues`}</Pill>}
             onClick={() => navigate('/rating-audit/identities')}
           />
           <ListItem
             leading={<i className="fa fa-project-diagram" aria-hidden="true" />}
             title="Rating network"
             subtitle={`${audit.network.connected_players.toLocaleString('en-GB')} players and ${audit.network.unique_pairings.toLocaleString('en-GB')} unique opponent pairings.`}
-            trailing={<Pill label={`${audit.network.three_or_fewer_opponent_players} thin`} tone={issueTone(audit.network.three_or_fewer_opponent_players)} />}
+            trailing={<Pill tone={issueTone(audit.network.three_or_fewer_opponent_players)}>{audit.network.three_or_fewer_opponent_players} thin</Pill>}
             onClick={() => navigate('/rating-audit/network')}
           />
         </DesignList>
@@ -177,10 +177,10 @@ function DataHealth({ audit }: { audit: RatingAuditSummaryResponse }) {
       <DesignList density="compact" divider="hairline" paginate={false}>
         <ListItem title="Doubles" subtitle="Excluded from the singles model." trailing={data.doubles.toLocaleString('en-GB')} />
         <ListItem title="Walkover, retired or void" subtitle="Only normal completed outcomes are rated." trailing={data.non_normal_outcome.toLocaleString('en-GB')} />
-        <ListItem title="Missing result date" subtitle="Neither rubber nor active fixture supplies a date." trailing={<Pill label={String(data.missing_date)} tone={issueTone(data.missing_date)} />} />
-        <ListItem title="Missing player identity" subtitle="One side cannot be resolved to a player record." trailing={<Pill label={String(data.missing_identity)} tone={issueTone(data.missing_identity)} />} />
-        <ListItem title="Same canonical player" subtitle="Both sides resolve to the same person after deduplication." trailing={<Pill label={String(data.same_canonical_player)} tone={issueTone(data.same_canonical_player)} />} />
-        <ListItem title="Tied games score" subtitle="A winner cannot be determined from the recorded score." trailing={<Pill label={String(data.tied_score)} tone={issueTone(data.tied_score)} />} />
+        <ListItem title="Missing result date" subtitle="Neither rubber nor active fixture supplies a date." trailing={<Pill tone={issueTone(data.missing_date)}>{data.missing_date}</Pill>} />
+        <ListItem title="Missing player identity" subtitle="One side cannot be resolved to a player record." trailing={<Pill tone={issueTone(data.missing_identity)}>{data.missing_identity}</Pill>} />
+        <ListItem title="Same canonical player" subtitle="Both sides resolve to the same person after deduplication." trailing={<Pill tone={issueTone(data.same_canonical_player)}>{data.same_canonical_player}</Pill>} />
+        <ListItem title="Tied games score" subtitle="A winner cannot be determined from the recorded score." trailing={<Pill tone={issueTone(data.tied_score)}>{data.tied_score}</Pill>} />
       </DesignList>
 
       <Surface variant="subtle" padding="standard">
@@ -218,13 +218,13 @@ function IdentityHealth({ audit }: { audit: RatingAuditSummaryResponse }) {
 
       <DesignList density="compact" divider="hairline" paginate={false}>
         <ListItem title="Active source records" trailing={identities.active_records.toLocaleString('en-GB')} />
-        <ListItem title="Active aliases" subtitle="Linked records still visible as active rows." trailing={<Pill label={String(identities.active_aliases)} tone={issueTone(identities.active_aliases)} />} />
+        <ListItem title="Active aliases" subtitle="Linked records still visible as active rows." trailing={<Pill tone={issueTone(identities.active_aliases)}>{identities.active_aliases}</Pill>} />
         <ListItem title="Soft-deleted aliases" subtitle="Preserved source identities linked to a canonical player." trailing={identities.soft_deleted_aliases.toLocaleString('en-GB')} />
-        <ListItem title="Unassigned records" subtitle="Canonical identity is null; rating code falls back to the record itself." trailing={<Pill label={String(identities.unassigned_records)} tone={issueTone(identities.unassigned_records)} />} />
-        <ListItem title="Broken canonical targets" subtitle="The referenced canonical record does not exist." trailing={<Pill label={String(identities.broken_targets)} tone={issueTone(identities.broken_targets)} />} />
-        <ListItem title="Identity chains" subtitle="An alias points to another alias instead of a final canonical record." trailing={<Pill label={String(identities.chained_links)} tone={issueTone(identities.chained_links)} />} />
-        <ListItem title="Deleted canonical targets" subtitle="An identity resolves to a soft-deleted canonical player." trailing={<Pill label={String(identities.deleted_targets)} tone={issueTone(identities.deleted_targets)} />} />
-        <ListItem title="Same-name candidate groups" subtitle="Active canonical records sharing the same normalised name; review may be needed." trailing={<Pill label={String(identities.same_name_candidate_groups)} tone={issueTone(identities.same_name_candidate_groups)} />} />
+        <ListItem title="Unassigned records" subtitle="Canonical identity is null; rating code falls back to the record itself." trailing={<Pill tone={issueTone(identities.unassigned_records)}>{identities.unassigned_records}</Pill>} />
+        <ListItem title="Broken canonical targets" subtitle="The referenced canonical record does not exist." trailing={<Pill tone={issueTone(identities.broken_targets)}>{identities.broken_targets}</Pill>} />
+        <ListItem title="Identity chains" subtitle="An alias points to another alias instead of a final canonical record." trailing={<Pill tone={issueTone(identities.chained_links)}>{identities.chained_links}</Pill>} />
+        <ListItem title="Deleted canonical targets" subtitle="An identity resolves to a soft-deleted canonical player." trailing={<Pill tone={issueTone(identities.deleted_targets)}>{identities.deleted_targets}</Pill>} />
+        <ListItem title="Same-name candidate groups" subtitle="Active canonical records sharing the same normalised name; review may be needed." trailing={<Pill tone={issueTone(identities.same_name_candidate_groups)}>{identities.same_name_candidate_groups}</Pill>} />
       </DesignList>
 
       <Surface variant="subtle" padding="standard">
@@ -261,8 +261,8 @@ function NetworkHealth({ audit }: { audit: RatingAuditSummaryResponse }) {
         />
 
         <DesignList density="compact" divider="hairline" paginate={false}>
-          <ListItem title="Players with one opponent" subtitle="Ratings are highly dependent on a single comparison." trailing={<Pill label={String(network.one_opponent_players)} tone={issueTone(network.one_opponent_players)} />} />
-          <ListItem title="Players with three or fewer opponents" subtitle="A thin comparison network can make apparent strength less transferable." trailing={<Pill label={String(network.three_or_fewer_opponent_players)} tone={issueTone(network.three_or_fewer_opponent_players)} />} />
+          <ListItem title="Players with one opponent" subtitle="Ratings are highly dependent on a single comparison." trailing={<Pill tone={issueTone(network.one_opponent_players)}>{network.one_opponent_players}</Pill>} />
+          <ListItem title="Players with three or fewer opponents" subtitle="A thin comparison network can make apparent strength less transferable." trailing={<Pill tone={issueTone(network.three_or_fewer_opponent_players)}>{network.three_or_fewer_opponent_players}</Pill>} />
           <ListItem title="Maximum unique opponents" trailing={network.maximum_unique_opponents.toLocaleString('en-GB')} />
           <ListItem title="Network date range" trailing={`${formatDate(network.first_match_date)} – ${formatDate(network.last_match_date)}`} />
         </DesignList>
@@ -293,7 +293,7 @@ function NetworkHealth({ audit }: { audit: RatingAuditSummaryResponse }) {
                 key={player.player_id}
                 title={player.player_name}
                 subtitle={`${player.unique_opponents} opponents · ${player.rated_matches} rated matches · RD ${Math.round(player.rating_deviation)}`}
-                trailing={<Pill label={player.provisional ? 'Provisional' : `Rating ${Math.round(player.rating)}`} tone={player.provisional ? 'warning' : 'accent'} />}
+                trailing={<Pill tone={player.provisional ? 'warning' : 'accent'}>{player.provisional ? 'Provisional' : `Rating ${Math.round(player.rating)}`}</Pill>}
                 onClick={() => navigate(`/rating-audit/player/${player.player_id}`)}
               />
             ))}
