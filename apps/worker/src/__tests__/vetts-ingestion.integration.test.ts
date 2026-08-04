@@ -1,30 +1,15 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { Kysely, PostgresDialect, sql } from 'kysely';
 import pg from 'pg';
 import type { Database } from '@tt-players/db';
-import { storeScrapePayload } from '../extractor.js';
-import { loadTTLeaguesData } from '../loader.js';
-import {
-    recordSourceResourceSuccess,
-    upsertSourceInstance,
-    upsertSourceResource,
-} from '../sources/registry.js';
-import { VETTS_ADAPTER_KEY, VETTS_ADAPTER_VERSION } from '../vetts-adapter.js';
-import { reconcileVettsDuplicateRubbers } from '../vetts-duplicate-reconciliation.js';
-import {
-    upsertVettsPlatform,
-    upsertVettsResultRows,
-    upsertVettsSourceEvent,
-} from '../vetts-loader.js';
-import {
-    vettsMatchesToParsedData,
-    type VettsMatchResult,
-    type VettsTournamentMetadata,
-} from '../vetts-parser.js';
+import { VETTS_ADAPTER_VERSION } from '../vetts-adapter.js';
+import { syncVettsTournament } from '../vetts-sync.js';
 
 const { Pool } = pg;
+const TOURNAMENT_ID = '4af81622-d21a-47ed-a046-86c492b4cfe9';
+const TOURNAMENT_URL = `https://vetts.tournamentsoftware.com/tournament/${TOURNAMENT_ID}`;
 const TEST_DATABASE_NAME = `tt_players_vetts_ingestion_${process.pid}`;
 const ADMIN_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/postgres';
 const TEST_DATABASE_URL = `postgres://postgres:postgres@localhost:5432/${TEST_DATABASE_NAME}`;
@@ -32,45 +17,32 @@ const dbPackageDirectory = path.resolve(import.meta.dirname, '..', '..', '..', '
 
 let db: Kysely<Database>;
 
-const metadata: VettsTournamentMetadata = {
-    tournamentId: '4af81622-d21a-47ed-a046-86c492b4cfe9',
-    sourceUrl: 'https://vetts.tournamentsoftware.com/tournament/4af81622-d21a-47ed-a046-86c492b4cfe9',
-    name: 'VETTS Nationals 2026',
-    organisation: 'Veterans English Table Tennis Society',
-    location: 'Wolverhampton',
-    startDate: '2026-05-16',
-    endDate: '2026-05-17',
-    venueName: 'Aldersley Leisure Village',
-    venueAddress: 'Aldersley Road',
-    venueTown: 'Wolverhampton',
-    venuePostcode: 'WV6 9NW',
-    eventCount: 24,
-    entryCount: 310,
-};
+const overviewHtml = `
+<html>
+<head><title>VETTS Nationals 2026 | VETTS</title></head>
+<body>
+<main>
+  <section><h2>VETTS Nationals 2026</h2><p>Veterans English Table Tennis Society | Wolverhampton 16 May to 17 May</p></section>
+  <dl><dt>Events</dt><dd>24</dd><dt>Entries</dt><dd>310</dd></dl>
+  <section><h3>Venue</h3><h5>Aldersley Leisure Village</h5><p>Aldersley Road</p><p>WV6 9NW Wolverhampton</p></section>
+</main>
+</body>
+</html>`;
 
-const match: VettsMatchResult = {
-    externalId: 'vetts:match:abc-123',
-    sourceUrl: `${metadata.sourceUrl}/Matches`,
-    eventExternalId: '917',
-    eventName: "O70 Men's Singles - Group C 1",
-    roundName: 'Round 1',
-    roundOrder: 10,
-    playedAt: '2026-05-17 08:30:00',
-    homePlayers: [{ externalId: 'tournamentsoftware:member:1017', name: 'Alan Pearse' }],
-    awayPlayers: [{ externalId: 'tournamentsoftware:member:6797', name: 'Raymond Sutton' }],
-    winnerSide: 'home',
-    homeGamesWon: 3,
-    awayGamesWon: 0,
-    gameScores: [
-        { home: 13, away: 11 },
-        { home: 11, away: 7 },
-        { home: 11, away: 9 },
-    ],
-    outcomeType: 'normal',
-    scoreSource: 'games',
-    isDoubles: false,
-    rawText: 'representative VETTS result row',
-};
+const emptyMatchesHtml = '<table class="matches"><tbody></tbody></table>';
+const matchesHtml = `
+<table class="matches">
+<tbody>
+<tr>
+  <td>08:30</td>
+  <td><a href="/sport/draw.aspx?draw=917&id=${TOURNAMENT_ID}">O70 Men's Singles - Group C 1</a><span class="round">Round 1</span></td>
+  <td class="participant winner"><a href="/sport/player.aspx?id=${TOURNAMENT_ID}&player=849">Alan Pearse</a></td>
+  <td><span class="score">13</span><span class="score">11</span><span class="score">11</span><span class="score">7</span><span class="score">11</span><span class="score">9</span></td>
+  <td class="participant"><a href="/sport/player.aspx?id=${TOURNAMENT_ID}&player=6797">Raymond Sutton</a></td>
+  <td><a href="/sport/match.aspx?id=${TOURNAMENT_ID}&match=abc-123&T1P1MemberID=1017&T2P1MemberID=6797">Details</a></td>
+</tr>
+</tbody>
+</table>`;
 
 async function recreateDatabase(): Promise<void> {
     const admin = new Pool({ connectionString: ADMIN_DATABASE_URL });
@@ -128,10 +100,11 @@ describe('VETTS ingestion integration', () => {
     }, 120_000);
 
     afterAll(async () => {
+        vi.unstubAllGlobals();
         await dropDatabase();
     }, 30_000);
 
-    it('keeps provenance idempotent and one canonical rubber effective across reruns', async () => {
+    it('imports a representative tournament end to end without double-counting on rerun', async () => {
         const calendarPlatform = await db
             .insertInto('platforms')
             .values({ name: 'Table Tennis England', base_url: 'https://www.tabletennisengland.co.uk' })
@@ -160,12 +133,16 @@ describe('VETTS ingestion integration', () => {
             .values({
                 season_id: calendarSeason.id,
                 external_id: 'tte:event:vetts-nationals-2026',
-                name: metadata.name,
-                display_name: metadata.name,
+                name: 'VETTS Nationals 2026',
+                display_name: 'VETTS Nationals 2026',
                 type: 'individual',
                 source: 'tte-calendar',
-                start_date: metadata.startDate,
-                end_date: metadata.endDate,
+                source_url: 'https://www.vetts.org.uk/tournaments.aspx?year=2026',
+                start_date: '2026-05-16',
+                end_date: '2026-05-17',
+                venue_name: 'Aldersley Leisure Village',
+                venue_town: 'Wolverhampton',
+                venue_postcode: 'WV6 9NW',
                 event_status: 'completed',
             })
             .returning('id')
@@ -205,71 +182,42 @@ describe('VETTS ingestion integration', () => {
                 away_games_won: 0,
                 outcome_type: 'normal',
                 score_source: 'games',
-                played_at: match.playedAt,
+                played_at: '2026-05-17 08:30:00',
             })
             .returning('id')
             .executeTakeFirstOrThrow();
 
-        const vettsPlatformId = await upsertVettsPlatform(db);
-        const instance = await upsertSourceInstance(db, {
-            platformId: vettsPlatformId,
-            key: 'vetts',
-            name: 'Veterans English Table Tennis Society',
-            baseUrl: 'https://vetts.tournamentsoftware.com',
-            adapterKey: VETTS_ADAPTER_KEY,
-            config: { organisation: 'VETTS' },
-        });
-        const resource = await upsertSourceResource(db, {
-            sourceInstanceId: instance.id,
-            resourceType: 'event-results',
-            externalId: `${metadata.tournamentId}:matches`,
-            adapterVersion: VETTS_ADAPTER_VERSION,
-            competitionId: competition.id,
-            publicUrl: match.sourceUrl,
-        });
-        await recordSourceResourceSuccess(db, resource.id);
-
-        const sourceEventId = await upsertVettsSourceEvent(
-            db as Kysely<any>,
-            vettsPlatformId,
-            competition.id,
-            metadata,
-        );
-        expect(await upsertVettsSourceEvent(
-            db as Kysely<any>,
-            vettsPlatformId,
-            competition.id,
-            metadata,
-        )).toBe(sourceEventId);
-
-        const logId = await storeScrapePayload(
-            match.sourceUrl,
-            vettsPlatformId,
-            '<html>result page</html>',
-            db,
-        );
-        expect(await storeScrapePayload(
-            match.sourceUrl,
-            vettsPlatformId,
-            '<html>result page</html>',
-            db,
-        )).toBe(logId);
+        vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+            const url = String(input);
+            if (url === TOURNAMENT_URL) {
+                return new Response(overviewHtml, { status: 200 });
+            }
+            if (url === `${TOURNAMENT_URL}/matches/20260516`) {
+                return new Response(emptyMatchesHtml, { status: 200 });
+            }
+            if (url === `${TOURNAMENT_URL}/matches/20260517`) {
+                return new Response(matchesHtml, { status: 200 });
+            }
+            throw new Error(`Unexpected VETTS URL in integration test: ${url}`);
+        }));
 
         for (let run = 0; run < 2; run += 1) {
-            await upsertVettsResultRows(db as Kysely<any>, sourceEventId, [match]);
-            await loadTTLeaguesData(db, {
+            const result = await syncVettsTournament(db, TOURNAMENT_ID);
+            expect(result).toMatchObject({
+                tournamentId: TOURNAMENT_ID,
                 competitionId: competition.id,
-                platformId: vettsPlatformId,
-                parsedData: vettsMatchesToParsedData(metadata, [match]),
-                scrapeLogIds: [logId],
+                matchRows: 1,
+                rejectedRows: 0,
+                duplicateLinks: 1,
+                duplicateConflicts: 0,
             });
-            expect(await reconcileVettsDuplicateRubbers(
-                db as Kysely<any>,
-                competition.id,
-                [match],
-            )).toMatchObject({ linked: 1, conflicts: 0 });
         }
 
+        const vettsPlatform = await db
+            .selectFrom('platforms')
+            .select('id')
+            .where('base_url', '=', 'https://www.tournamentsoftware.com')
+            .executeTakeFirstOrThrow();
         const sourceEvents = await db
             .selectFrom('staging.source_events')
             .select(sql<number>`count(*)::int`.as('count'))
@@ -282,15 +230,16 @@ describe('VETTS ingestion integration', () => {
             .execute();
         const vettsPlayers = await db
             .selectFrom('external_players')
-            .select(sql<number>`count(*)::int`.as('count'))
-            .where('platform_id', '=', vettsPlatformId)
-            .executeTakeFirstOrThrow();
+            .select(['external_id', sql<number>`count(*) over ()::int`.as('count')])
+            .where('platform_id', '=', vettsPlatform.id)
+            .orderBy('external_id')
+            .execute();
         const vettsRubbers = await db
             .selectFrom('rubbers as rubber')
             .innerJoin('fixtures as fixture', 'fixture.id', 'rubber.fixture_id')
-            .select('rubber.deleted_at')
+            .select(['rubber.id', 'rubber.deleted_at'])
             .where('fixture.competition_id', '=', competition.id)
-            .where('rubber.external_id', '=', match.externalId)
+            .where('rubber.external_id', '=', 'vetts:match:abc-123')
             .execute();
         const activeRubbers = await db
             .selectFrom('rubbers as rubber')
@@ -299,30 +248,62 @@ describe('VETTS ingestion integration', () => {
             .where('fixture.competition_id', '=', competition.id)
             .where('rubber.deleted_at', 'is', null)
             .executeTakeFirstOrThrow();
-        const registry = await db
+        const resources = await db
             .selectFrom('source_resources')
-            .select(['adapter_version', 'last_succeeded_at', 'consecutive_failures'])
-            .where('id', '=', resource.id)
-            .executeTakeFirstOrThrow();
+            .select(['resource_type', 'adapter_version', 'last_succeeded_at', 'consecutive_failures'])
+            .where('competition_id', '=', competition.id)
+            .orderBy('resource_type')
+            .execute();
         const rawLogs = await db
             .selectFrom('staging.raw_scrape_logs')
-            .select(['status', sql<number>`count(*) over ()::int`.as('count')])
-            .where('endpoint_url', '=', match.sourceUrl)
+            .select(['endpoint_url', 'status', sql<number>`count(*) over ()::int`.as('count')])
+            .where('endpoint_url', 'like', `${TOURNAMENT_URL}%`)
+            .orderBy('endpoint_url')
             .execute();
+        const sourceLink = await db
+            .selectFrom('tournament_sources')
+            .select(['competition_id', 'match_method'])
+            .where('provider', '=', 'vetts')
+            .where('source_key', '=', TOURNAMENT_ID)
+            .executeTakeFirstOrThrow();
 
+        expect(sourceLink).toMatchObject({
+            competition_id: competition.id,
+            match_method: 'automatic',
+        });
         expect(sourceEvents.count).toBe(1);
         expect(sourceRows).toEqual([
             expect.objectContaining({ count: 1, canonical_rubber_id: canonicalRubber.id }),
         ]);
-        expect(vettsPlayers.count).toBe(2);
+        expect(vettsPlayers).toEqual([
+            expect.objectContaining({
+                count: 2,
+                external_id: 'tournamentsoftware:vetts:member:1017',
+            }),
+            expect.objectContaining({
+                count: 2,
+                external_id: 'tournamentsoftware:vetts:member:6797',
+            }),
+        ]);
         expect(vettsRubbers).toHaveLength(1);
         expect(vettsRubbers[0]!.deleted_at).not.toBeNull();
         expect(activeRubbers.count).toBe(1);
-        expect(registry).toMatchObject({
-            adapter_version: VETTS_ADAPTER_VERSION,
-            consecutive_failures: 0,
-        });
-        expect(registry.last_succeeded_at).not.toBeNull();
-        expect(rawLogs).toEqual([expect.objectContaining({ count: 1, status: 'processed' })]);
+        expect(resources).toHaveLength(2);
+        expect(resources).toEqual([
+            expect.objectContaining({
+                resource_type: 'event',
+                adapter_version: VETTS_ADAPTER_VERSION,
+                consecutive_failures: 0,
+                last_succeeded_at: expect.any(Date),
+            }),
+            expect.objectContaining({
+                resource_type: 'event-results',
+                adapter_version: VETTS_ADAPTER_VERSION,
+                consecutive_failures: 0,
+                last_succeeded_at: expect.any(Date),
+            }),
+        ]);
+        expect(rawLogs).toHaveLength(3);
+        expect(rawLogs.every((row) => row.status === 'processed' && row.count === 3)).toBe(true);
     }, 120_000);
 });
