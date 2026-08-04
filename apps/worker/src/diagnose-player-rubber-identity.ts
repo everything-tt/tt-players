@@ -82,7 +82,7 @@ async function loadCanonicalChain(requestedId: string): Promise<ChainResult> {
         }
 
         nodes.push({ ...player, depth });
-        if (!player.canonical_player_id) {
+        if (!player.canonical_player_id || player.canonical_player_id === player.id) {
             return {
                 requestedId,
                 nodes,
