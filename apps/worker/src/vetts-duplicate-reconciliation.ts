@@ -45,7 +45,6 @@ export function vettsDuplicateCandidateMatches(match: VettsMatchResult, candidat
 
 async function candidatesForMatch(
     database: Kysely<any>,
-    competitionId: string,
     match: VettsMatchResult,
 ): Promise<DuplicateCandidate[]> {
     if (match.isDoubles || !match.playedAt) return [];
@@ -64,7 +63,8 @@ async function candidatesForMatch(
         join fixtures f on f.id = r.fixture_id
         join external_players hp on hp.id = r.home_player_1_id
         join external_players ap on ap.id = r.away_player_1_id
-        where f.competition_id <> ${competitionId}
+        where r.external_id <> ${match.externalId}
+          and r.external_id not like 'vetts:match:%'
           and r.deleted_at is null
           and coalesce(r.played_at::date, f.date_played::date) = ${match.playedAt.slice(0, 10)}::date
           and (
@@ -83,6 +83,29 @@ async function candidatesForMatch(
     return result.rows;
 }
 
+async function linkSourceRow(
+    database: Kysely<any>,
+    sourceRowId: string,
+    canonicalRubberId: string,
+): Promise<void> {
+    await database
+        .updateTable('staging.source_event_result_rows')
+        .set({ canonical_rubber_id: canonicalRubberId, updated_at: new Date() })
+        .where('id', '=', sourceRowId)
+        .execute();
+}
+
+async function makeIncomingEffective(
+    database: Kysely<any>,
+    incomingRubberId: string,
+): Promise<void> {
+    await database
+        .updateTable('rubbers')
+        .set({ deleted_at: null, updated_at: new Date() })
+        .where('id', '=', incomingRubberId)
+        .execute();
+}
+
 export async function reconcileVettsDuplicateRubbers(
     database: Kysely<any>,
     competitionId: string,
@@ -93,11 +116,6 @@ export async function reconcileVettsDuplicateRubbers(
     let unmatched = 0;
 
     for (const match of matches) {
-        if (match.isDoubles) {
-            unmatched += 1;
-            continue;
-        }
-
         const sourceRow = await database
             .selectFrom('staging.source_event_result_rows')
             .select('id')
@@ -110,21 +128,23 @@ export async function reconcileVettsDuplicateRubbers(
             .select('rubber.id')
             .where('fixture.competition_id', '=', competitionId)
             .where('rubber.external_id', '=', match.externalId)
-            .where('rubber.deleted_at', 'is', null)
             .executeTakeFirst();
         if (!sourceRow || !incomingRubber) {
             unmatched += 1;
             continue;
         }
 
-        const candidates = await candidatesForMatch(database, competitionId, match);
+        if (match.isDoubles) {
+            await makeIncomingEffective(database, incomingRubber.id);
+            await linkSourceRow(database, sourceRow.id, incomingRubber.id);
+            unmatched += 1;
+            continue;
+        }
+
+        const candidates = await candidatesForMatch(database, match);
         const exact = candidates.filter((candidate) => vettsDuplicateCandidateMatches(match, candidate));
         if (exact.length === 1) {
-            await database
-                .updateTable('staging.source_event_result_rows')
-                .set({ canonical_rubber_id: exact[0]!.id, updated_at: new Date() })
-                .where('id', '=', sourceRow.id)
-                .execute();
+            await linkSourceRow(database, sourceRow.id, exact[0]!.id);
             await database
                 .updateTable('rubbers')
                 .set({ deleted_at: new Date(), updated_at: new Date() })
@@ -133,6 +153,9 @@ export async function reconcileVettsDuplicateRubbers(
             linked += 1;
             continue;
         }
+
+        await makeIncomingEffective(database, incomingRubber.id);
+        await linkSourceRow(database, sourceRow.id, incomingRubber.id);
 
         if (candidates.length > 0) {
             await database
@@ -152,11 +175,6 @@ export async function reconcileVettsDuplicateRubbers(
             continue;
         }
 
-        await database
-            .updateTable('staging.source_event_result_rows')
-            .set({ canonical_rubber_id: incomingRubber.id, updated_at: new Date() })
-            .where('id', '=', sourceRow.id)
-            .execute();
         unmatched += 1;
     }
 
