@@ -37,6 +37,14 @@ function roundedRating(value: number | null | undefined): string {
   return value == null ? 'Unrated' : String(Math.round(value));
 }
 
+function compactPlayerName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0] ?? name;
+  const compactFirst = first.length > 9 ? `${first.slice(0, 8)}…` : first;
+  if (parts.length < 2) return compactFirst;
+  return `${compactFirst} ${parts[parts.length - 1]?.charAt(0) ?? ''}.`;
+}
+
 function handleKeyboardAction(
   event: KeyboardEvent<SVGGElement>,
   action: () => void,
@@ -48,8 +56,8 @@ function handleKeyboardAction(
 
 function lineMidpoint(point: RivalryOrbitPoint): { x: number; y: number } {
   return {
-    x: CENTRE_X + (point.x - CENTRE_X) * 0.52,
-    y: CENTRE_Y + (point.y - CENTRE_Y) * 0.52,
+    x: CENTRE_X + (point.x - CENTRE_X) * 0.58,
+    y: CENTRE_Y + (point.y - CENTRE_Y) * 0.58,
   };
 }
 
@@ -71,7 +79,7 @@ function PlayerNode({
   const width = focus ? 144 : 124;
   const height = focus ? 70 : 60;
   const initials = getInitials(name);
-  const shortName = name.split(' ')[0] || name;
+  const shortName = compactPlayerName(name);
   const interactiveProps = onClick ? {
     role: 'button' as const,
     tabIndex: 0,
