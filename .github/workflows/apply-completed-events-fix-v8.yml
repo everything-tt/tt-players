@@ -1,0 +1,102 @@
+name: Apply completed event pagination fix v8
+
+on:
+  push:
+    branches:
+      - fix/completed-events-avoid-exact-count
+    paths:
+      - '.github/workflows/apply-completed-events-fix-v8.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/completed-events-avoid-exact-count
+          fetch-depth: 0
+
+      - name: Apply source transformation
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          source = Path('.github/workflows/apply-completed-events-fix-v6.yml').read_text()
+          marker = '      - name: Repair and run source transformation\n        run: |\n'
+          start = source.index(marker) + len(marker)
+          end = source.index('\n      - name: Install pnpm', start)
+          shell = textwrap.dedent(source[start:end])
+          Path('/tmp/apply-fix.sh').write_text('set -euo pipefail\n' + shell + '\n')
+          PY
+          bash /tmp/apply-fix.sh
+
+          python <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('apps/api/src/__tests__/events.test.ts')
+          source = path.read_text()
+          source, count = re.subn(
+              r'(expect\(res\.body\)\.toEqual\(\{\n\s*data: \[\],\n\s*total: 0,\n\s*limit: 20,\n\s*offset: 0,\n)(\s*\}\);)',
+              r'\1            has_more: false,\n\2',
+              source,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit(f'Expected one empty response assertion, found {count}')
+          path.write_text(source)
+          PY
+
+          rm -f .github/workflows/apply-completed-events-fix-v7.yml
+          rm -f .github/workflows/apply-completed-events-fix-v8.yml
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Backend quality gate
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+        run: pnpm run check:backend
+
+      - name: Mobile tests
+        run: pnpm --filter @tt-players/mobile test
+
+      - name: Commit fix
+        run: |
+          set -euo pipefail
+          git config user.name 'Wudong Liu'
+          git config user.email 'wudong.liu@gmail.com'
+          git add apps/api apps/mobile .github/workflows
+          git commit -m 'fix(api): bound completed event eligibility scans'
+          git push origin HEAD:fix/completed-events-avoid-exact-count
