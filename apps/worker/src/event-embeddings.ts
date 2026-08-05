@@ -22,10 +22,14 @@ const REVIEW_THRESHOLD = 0.75;
 const AMBIGUITY_MARGIN = 0.05;
 
 const CloudflareEmbeddingResponseSchema = z.object({
-    data: z.array(z.object({
-        index: z.number().int().nonnegative(),
-        embedding: z.array(z.number()),
-    })).min(1),
+    success: z.literal(true),
+    result: z.object({
+        shape: z.array(z.number().int().nonnegative()).optional(),
+        data: z.union([
+            z.array(z.array(z.number())).min(1),
+            z.array(z.number()).min(1),
+        ]),
+    }),
 });
 
 type EmbeddingFetchResponse = {
@@ -199,7 +203,7 @@ function resolveOptions(
 }
 
 function embeddingsEndpoint(options: ResolvedCloudflareEmbeddingOptions): string {
-    return `${options.apiBaseUrl}/accounts/${encodeURIComponent(options.accountId)}/ai/v1/embeddings`;
+    return `${options.apiBaseUrl}/accounts/${encodeURIComponent(options.accountId)}/ai/run/${options.model}`;
 }
 
 function isRetryableStatus(status: number): boolean {
@@ -233,9 +237,7 @@ async function requestCloudflareEmbeddings(
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    model: options.model,
-                    input: inputTexts,
-                    encoding_format: 'float',
+                    text: inputTexts,
                 }),
                 signal: controller.signal,
             });
@@ -252,25 +254,26 @@ async function requestCloudflareEmbeddings(
             }
 
             const parsed = CloudflareEmbeddingResponseSchema.parse(
-                await response.json(),
-            );
-            const ordered = [...parsed.data].sort(
-                (left, right) => left.index - right.index,
-            );
-            if (ordered.length !== inputTexts.length) {
-                throw new Error(
-                    `Cloudflare embeddings response returned ${ordered.length} vectors for ${inputTexts.length} inputs`,
+                    await response.json(),
                 );
-            }
-
-            return ordered.map((item) => {
-                if (item.embedding.length !== options.dimensions) {
+                const rawData = parsed.result.data;
+                const vectors = Array.isArray(rawData[0])
+                    ? rawData as number[][]
+                    : [rawData as number[]];
+                if (vectors.length !== inputTexts.length) {
                     throw new Error(
-                        `Cloudflare embedding has ${item.embedding.length} dimensions; expected ${options.dimensions}`,
+                        `Cloudflare embeddings response returned ${vectors.length} vectors for ${inputTexts.length} inputs`,
                     );
                 }
-                return item.embedding;
-            });
+
+                return vectors.map((embedding) => {
+                    if (embedding.length !== options.dimensions) {
+                        throw new Error(
+                            `Cloudflare embedding has ${embedding.length} dimensions; expected ${options.dimensions}`,
+                        );
+                    }
+                    return embedding;
+                });
         } catch (error) {
             if (attempt === 0 && isRetryableError(error)) {
                 await delay(250);
