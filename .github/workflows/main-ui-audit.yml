@@ -105,10 +105,32 @@ jobs:
             ui-review-report/
             test-results/main-audit/
 
+      - name: Deploy main UI audit report to Netlify
+        if: always() && hashFiles('ui-review-report/index.html') != ''
+        id: report
+        continue-on-error: true
+        uses: nwtgck/actions-netlify@v3.0
+        with:
+          publish-dir: ./ui-review-report
+          production-branch: main
+          production-deploy: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          deploy-message: "Main UI audit ${{ github.run_id }}.${{ github.run_attempt }} for ${{ inputs.target_url }} (${{ github.sha }})"
+          alias: main-ui-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          enable-pull-request-comment: false
+          enable-commit-comment: false
+          enable-commit-status: false
+          enable-github-deployment: false
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        timeout-minutes: 5
+
       - name: Add main UI audit summary
         if: always()
         env:
           ARTIFACT_NAME: main-ui-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          REPORT_URL: ${{ steps.report.outputs.deploy-url }}
         run: |
           node <<'NODE'
           const fs = require('node:fs');
@@ -122,6 +144,7 @@ jobs:
             (total, item) => total + (Number(item.eventCount) || 0),
             0,
           );
+          const reportUrl = process.env.REPORT_URL?.trim();
           const lines = [
             '## Main UI audit',
             '',
@@ -132,8 +155,10 @@ jobs:
             `- Skipped screens: ${count('skipped')}`,
             `- Capture errors: ${count('error')}`,
             `- Diagnostic events: ${diagnosticEvents}`,
-            `- Artifact: \`${process.env.ARTIFACT_NAME}\``,
-            '- Open `ui-review-report/index.html` from the artifact for the screenshot report.',
+            reportUrl
+              ? `- Netlify report: [Open the UI audit report](${reportUrl})`
+              : '- Netlify report: unavailable; use the GitHub artifact below',
+            `- Artifact fallback: \`${process.env.ARTIFACT_NAME}\``,
             '',
           ];
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
