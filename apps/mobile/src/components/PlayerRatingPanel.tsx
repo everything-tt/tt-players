@@ -79,14 +79,14 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
           ) : null}
 
           <AppButtonLink
-            href={`/rating-audit/${playerId}`}
+            href={`/rating-audit/player/${playerId}`}
             full
             size="sm"
             tone="primary"
             className="tt-rating-history-link"
             onClick={(event) => {
               event.preventDefault();
-              navigate(`/rating-audit/${playerId}`);
+              navigate(`/rating-audit/player/${playerId}`);
             }}
           >
             <i className="fa fa-search" aria-hidden="true" />

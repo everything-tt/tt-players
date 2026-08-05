@@ -179,6 +179,44 @@
   margin-top: 8px;
 }
 
+.tt-rating-audit-navigation {
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+}
+
+.tt-drawer__submenu {
+  background: color-mix(in oklch, var(--accent-subtle) 44%, var(--tt-home-surface));
+  border-bottom: 1px solid var(--border-hairline);
+  padding: 5px 8px 8px 42px;
+}
+
+.tt-drawer__subrow {
+  align-items: center;
+  border-radius: 10px;
+  color: var(--ink-muted);
+  display: grid;
+  font-size: 13px;
+  font-weight: 650;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 42px;
+  padding: 0 10px;
+  text-decoration: none;
+}
+
+.tt-drawer__subrow > i {
+  font-size: 10px;
+}
+
+.tt-drawer__subrow--active {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.tt-drawer__subrow:focus-visible {
+  outline: 3px solid var(--accent-ring);
+  outline-offset: -3px;
+}
+
 main.app-shell-content:has(#tt-player-title),
 main.app-shell-content:has(.tt-player-hero[aria-label="Loading player profile"]) {
   display: flex;

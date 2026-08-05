@@ -77,6 +77,7 @@ describe('migration preflight', () => {
             '037_correct_tournament_lifecycle_statuses',
             '038_flatten_player_identity_chains',
             '039_restore_query_performance_indexes',
+            '040_create_rating_audit_snapshots',
         ]);
     });
 });

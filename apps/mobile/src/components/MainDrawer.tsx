@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useLocation } from 'react-router-dom';
 import { TAB_METADATA } from '../player-shared';
 import type { AppTabId } from '../navigation/tab-navigation';
 import { AppSwitch } from '../ui/appkit';
@@ -13,6 +14,14 @@ const FOCUSABLE_SELECTOR = [
   'input:not([disabled])',
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
+
+const RATING_AUDIT_LINKS = [
+  { label: 'Overview', path: '/rating-audit' },
+  { label: 'Player Audit', path: '/rating-audit/player' },
+  { label: 'Data Health', path: '/rating-audit/data' },
+  { label: 'Identity Health', path: '/rating-audit/identities' },
+  { label: 'Rating Network', path: '/rating-audit/network' },
+] as const;
 
 interface MainDrawerProps {
   isOpen: boolean;
@@ -46,10 +55,17 @@ export function MainDrawer({
   onThemeChange,
 }: MainDrawerProps) {
   const auth = useAuth();
+  const location = useLocation();
   const { canUpdate, updateApp } = usePWAInstallContext();
+  const ratingAuditActive = location.pathname.startsWith('/rating-audit');
+  const [isRatingAuditOpen, setIsRatingAuditOpen] = useState(ratingAuditActive);
   const dialogRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (ratingAuditActive) setIsRatingAuditOpen(true);
+  }, [ratingAuditActive]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -110,6 +126,16 @@ export function MainDrawer({
     void updateApp();
   };
 
+  const auditLinkActive = (path: string) => {
+    if (path === '/rating-audit') return location.pathname === path;
+    if (path === '/rating-audit/player') {
+      const section = location.pathname.split('/')[2] ?? '';
+      return section === 'player'
+        || (ratingAuditActive && !['', 'data', 'identities', 'network'].includes(section));
+    }
+    return location.pathname.startsWith(path);
+  };
+
   return createPortal(
     <div className="tt-drawer-layer">
       <button type="button" className="tt-drawer-backdrop" onClick={onClose} aria-label="Close menu" />
@@ -148,11 +174,36 @@ export function MainDrawer({
                 </button>
               );
             })}
-            <a className="tt-drawer__row" href="/rating-audit" onClick={onClose}>
+            <button
+              type="button"
+              className={`tt-drawer__row${ratingAuditActive ? ' tt-drawer__row--active' : ''}`}
+              aria-expanded={isRatingAuditOpen}
+              aria-controls="tt-rating-audit-submenu"
+              onClick={() => setIsRatingAuditOpen((open) => !open)}
+            >
               <i className="fa fa-chart-line" aria-hidden="true" />
               <span>Rating Audit</span>
-              <i className="fa fa-angle-right" aria-hidden="true" />
-            </a>
+              <i className={`fa fa-angle-${isRatingAuditOpen ? 'up' : 'down'}`} aria-hidden="true" />
+            </button>
+            {isRatingAuditOpen ? (
+              <div id="tt-rating-audit-submenu" className="tt-drawer__submenu">
+                {RATING_AUDIT_LINKS.map((item) => {
+                  const selected = auditLinkActive(item.path);
+                  return (
+                    <a
+                      key={item.path}
+                      className={`tt-drawer__subrow${selected ? ' tt-drawer__subrow--active' : ''}`}
+                      href={item.path}
+                      aria-current={selected ? 'page' : undefined}
+                      onClick={onClose}
+                    >
+                      <span>{item.label}</span>
+                      <i className="fa fa-angle-right" aria-hidden="true" />
+                    </a>
+                  );
+                })}
+              </div>
+            ) : null}
           </nav>
 
           <h3 className="tt-drawer__section-title">Settings</h3>
