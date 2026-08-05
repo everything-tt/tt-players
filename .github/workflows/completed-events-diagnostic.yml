@@ -101,6 +101,41 @@ jobs:
               coalesce(c.display_name, c.name) ASC,
               c.id ASC
           LIMIT 11 OFFSET 0;
+
+          \echo '=== ordered candidates with lateral eligibility ==='
+          EXPLAIN (ANALYZE, BUFFERS, SETTINGS)
+          WITH ordered_candidates AS MATERIALIZED (
+              SELECT
+                  c.id,
+                  row_number() OVER (
+                      ORDER BY
+                          coalesce(c.start_date, c.event_date) DESC,
+                          coalesce(c.display_name, c.name) ASC,
+                          c.id ASC
+                  ) AS ordinal
+              FROM competitions c
+              WHERE c.type = 'individual'
+                AND c.deleted_at IS NULL
+                AND c.event_status = 'completed'
+              ORDER BY
+                  coalesce(c.start_date, c.event_date) DESC,
+                  coalesce(c.display_name, c.name) ASC,
+                  c.id ASC
+          )
+          SELECT candidate.id
+          FROM ordered_candidates candidate
+          JOIN LATERAL (
+              SELECT 1
+              FROM fixtures f
+              JOIN rubbers r ON r.fixture_id = f.id
+              WHERE f.competition_id = candidate.id
+                AND f.deleted_at IS NULL
+                AND r.deleted_at IS NULL
+                AND r.is_doubles = false
+              LIMIT 1
+          ) eligible ON true
+          ORDER BY candidate.ordinal
+          LIMIT 11 OFFSET 0;
           SQL
           chown ttp:ttp "$sql_file"
           chmod 600 "$sql_file"
