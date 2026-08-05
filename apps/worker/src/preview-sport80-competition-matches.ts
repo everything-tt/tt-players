@@ -26,17 +26,17 @@ async function loadPreviewSources(): Promise<PreviewSourceRow[]> {
     return database
         .selectFrom('tournament_sources as source')
         .innerJoin(
-            'competitions as currentCompetition',
-            'currentCompetition.id',
+            'competitions as current_competition',
+            'current_competition.id',
             'source.competition_id',
         )
         .select([
             sql<string>`coalesce(source.external_id, source.source_key)`.as('eventId'),
-            sql<string>`coalesce(source.raw_payload ->> 'name', currentCompetition.display_name, currentCompetition.name)`.as('incomingName'),
-            sql<string | null>`coalesce(source.raw_payload ->> 'date', currentCompetition.start_date::text, currentCompetition.event_date::text)`.as('eventDate'),
-            sql<string | null>`coalesce(source.raw_payload ->> 'category', currentCompetition.category)`.as('category'),
+            sql<string>`coalesce(source.raw_payload ->> 'name', current_competition.display_name, current_competition.name)`.as('incomingName'),
+            sql<string | null>`coalesce(source.raw_payload ->> 'date', current_competition.start_date::text, current_competition.event_date::text)`.as('eventDate'),
+            sql<string | null>`coalesce(source.raw_payload ->> 'category', current_competition.category)`.as('category'),
             'source.competition_id as currentCompetitionId',
-            sql<string>`coalesce(currentCompetition.display_name, currentCompetition.name)`.as('currentCompetitionName'),
+            sql<string>`coalesce(current_competition.display_name, current_competition.name)`.as('currentCompetitionName'),
             'source.match_method as currentMatchMethod',
         ])
         .where('source.provider', '=', 'sport80')
