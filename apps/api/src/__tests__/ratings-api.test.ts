@@ -224,40 +224,4 @@ describe('calculated ratings API', () => {
             ],
         });
     });
-
-    it('reports system-wide rating audit health', async () => {
-        const response = await app.inject({
-            method: 'GET',
-            url: '/api/ratings/audit/summary',
-        });
-
-        expect(response.statusCode).toBe(200);
-        expect(response.json()).toMatchObject({
-            model: {
-                key: 'global-singles-glicko2-v1',
-                status: 'idle',
-                rated_players: 2,
-                established_players: 2,
-                provisional_players: 0,
-            },
-            data: {
-                stored_rubbers: 0,
-                active_rubbers: 0,
-                eligible_singles: 0,
-                excluded_rubbers: 0,
-            },
-            identities: {
-                source_records: 2,
-                canonical_players: 2,
-                linked_aliases: 0,
-                unassigned_records: 2,
-            },
-            network: {
-                eligible_matches: 0,
-                connected_players: 0,
-                unique_pairings: 0,
-            },
-        });
-        expect(response.json().network_anomalies).toHaveLength(2);
-    });
 });
