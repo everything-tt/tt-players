@@ -550,19 +550,19 @@ export function eventsRoutes(db: Kysely<any>): FastifyPluginAsync {
                 const query = request.query;
 
                 const page = query.include_total
-            ? await fetchExactEventPage(db, query)
-            : await fetchFastEventPage(db, query);
-        const { pageIds, total, hasMore } = page;
+                    ? await fetchExactEventPage(db, query)
+                    : await fetchFastEventPage(db, query);
+                const { pageIds, total, hasMore } = page;
 
-        if (pageIds.length === 0) {
-            return {
-                data: [],
-                total,
-                limit: query.limit,
-                offset: query.offset,
-                has_more: hasMore,
-            };
-        }
+                if (pageIds.length === 0) {
+                    return {
+                        data: [],
+                        total,
+                        limit: query.limit,
+                        offset: query.offset,
+                        has_more: hasMore,
+                    };
+                }
 
                 const enrichedRows = await db
                     .selectFrom('competitions as c')

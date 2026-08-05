@@ -56,8 +56,8 @@ export function useTournamentList({
     setOffset(0);
     setItems([]);
     setTotal(0);
-  setHasMore(false);
-}, [categoriesKey, normalizedSearch, status, savedKey, pageSize]);
+    setHasMore(false);
+  }, [categoriesKey, normalizedSearch, status, savedKey, pageSize]);
 
   const query = useQuery({
     queryKey: ['events', 'list', status, normalizedSearch, savedKey, categoriesKey, pageSize, offset],
@@ -76,12 +76,12 @@ export function useTournamentList({
   });
 
   useEffect(() => {
-  if (!query.data) return;
-  const page = normalizePagedResponse(query.data, offset);
-  setHasMore(page.hasMore);
-  setTotal(page.total ?? offset + page.data.length + (page.hasMore ? 1 : 0));
-  setItems((previous) => mergePageById(previous, page.data, offset === 0));
-}, [offset, query.data]);
+    if (!query.data) return;
+    const page = normalizePagedResponse(query.data, offset);
+    setHasMore(page.hasMore);
+    setTotal(page.total ?? offset + page.data.length + (page.hasMore ? 1 : 0));
+    setItems((previous) => mergePageById(previous, page.data, offset === 0));
+  }, [offset, query.data]);
   const isLoadingInitial = enabled && query.isLoading && offset === 0;
   const isLoadingMore = enabled && query.isFetching && offset > 0;
   const error = getQueryError(query.error);
