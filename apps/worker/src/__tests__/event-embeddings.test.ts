@@ -31,36 +31,40 @@ describe('event embeddings', () => {
         ].join('\n'));
     });
 
-    it('calls the Cloudflare OpenAI-compatible endpoint in a batch', async () => {
+    it('calls the Cloudflare Workers AI model endpoint in a batch', async () => {
         const fetchImpl = vi.fn(async (url: string, init: {
             headers: Record<string, string>;
             body: string;
         }) => {
             expect(url).toBe(
-                'https://api.cloudflare.test/client/v4/accounts/account-123/ai/v1/embeddings',
+                'https://api.cloudflare.test/client/v4/accounts/account-123/ai/run/@cf/baai/bge-small-en-v1.5',
             );
             expect(init.headers.Authorization).toBe('Bearer test-token');
 
             const body = JSON.parse(init.body) as Record<string, unknown>;
-            expect(body).toMatchObject({
-                model: '@cf/baai/bge-small-en-v1.5',
-                encoding_format: 'float',
+            expect(body).toEqual({
+                text: [
+                    'table tennis tournament: first open',
+                    'table tennis tournament: second open',
+                ],
             });
-            expect(body).not.toHaveProperty('dimensions');
-            expect(body.input).toEqual([
-                'table tennis tournament: first open',
-                'table tennis tournament: second open',
-            ]);
 
             return {
                 ok: true,
                 status: 200,
                 statusText: 'OK',
                 json: async () => ({
-                    data: [
-                        { index: 1, embedding: [0, 1] },
-                        { index: 0, embedding: [1, 0] },
-                    ],
+                    success: true,
+                    result: {
+                        shape: [2, 2],
+                        data: [
+                            [1, 0],
+                            [0, 1],
+                        ],
+                        pooling: 'mean',
+                    },
+                    errors: [],
+                    messages: [],
                 }),
                 text: async () => '',
             };
