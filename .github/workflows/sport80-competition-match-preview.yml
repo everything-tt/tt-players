@@ -10,7 +10,6 @@ on:
   push:
     branches: [main]
     paths:
-      - 'apps/worker/src/preview-sport80-competition-matches.ts'
       - '.github/workflows/sport80-competition-match-preview.yml'
 
 concurrency:
@@ -39,26 +38,6 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
-      - name: Wait for matching release to be deployed
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-        run: |
-          set -euo pipefail
-          test -n "$VPS_USER"
-          for attempt in $(seq 1 90); do
-            deployed_sha=$(ssh "$VPS_USER@$VPS_HOST" \
-              "sed -n 's/^commit_sha=//p' /opt/tt-players/current/.release-metadata 2>/dev/null | head -n 1" || true)
-            if [[ "$deployed_sha" == "$GITHUB_SHA" ]]; then
-              echo "Release $GITHUB_SHA is active"
-              exit 0
-            fi
-            echo "Waiting for release $GITHUB_SHA; current=${deployed_sha:-none}"
-            sleep 5
-          done
-          echo "Timed out waiting for release $GITHUB_SHA" >&2
-          exit 1
-
       - name: Run live embedding match preview
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
@@ -66,6 +45,7 @@ jobs:
           PREVIEW_LIMIT: ${{ inputs.limit || '20' }}
         run: |
           set -euo pipefail
+          test -n "$VPS_USER"
           test -n "$PREVIEW_LIMIT"
           ssh "$VPS_USER@$VPS_HOST" \
             "PREVIEW_LIMIT='$PREVIEW_LIMIT' bash -s" <<'REMOTE' | tee preview.log
