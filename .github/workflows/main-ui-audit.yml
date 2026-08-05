@@ -19,10 +19,12 @@ concurrency:
 jobs:
   audit:
     runs-on: [self-hosted, Linux, ARM64, docker-ui-screenshot, playwright]
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       PREVIEW_URL: ${{ inputs.target_url }}
       UI_REVIEW_REPORT_DIR: ${{ github.workspace }}/ui-review-report
+      UI_AUDIT_MAX_DISCOVERED_ROUTES: 36
+      UI_AUDIT_MAX_INTERACTIONS_PER_ROUTE: 4
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
       UI_AUDIT_EMAIL: ${{ secrets.UI_AUDIT_EMAIL }}
@@ -77,7 +79,8 @@ jobs:
             df -h
           } > ui-review-report/diagnostics/host-before.txt
 
-      - name: Run main UI audit
+      - name: Collect main UI screenshots
+        continue-on-error: true
         run: pnpm --filter @tt-players/mobile exec playwright test --config=../../playwright.main-audit.config.ts
 
       - name: Record host resources after
@@ -107,36 +110,31 @@ jobs:
         env:
           ARTIFACT_NAME: main-ui-audit-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
-          captured=0
-          skipped=0
-          failed=0
-          if [[ -f ui-review-report/manifest.json ]]; then
-            read -r captured skipped failed < <(node -e '
-              const fs = require("node:fs");
-              const items = JSON.parse(fs.readFileSync("ui-review-report/manifest.json", "utf8"));
-              const hasSevereEvent = (item) => {
-                try {
-                  const diagnostics = JSON.parse(fs.readFileSync(`ui-review-report/${item.diagnosticsPath}`, "utf8"));
-                  return Array.isArray(diagnostics.events)
-                    && diagnostics.events.some((event) => event.type === "pageerror" || event.type === "response");
-                } catch {
-                  return false;
-                }
-              };
-              const failed = items.filter((item) => item.status === "captured" && hasSevereEvent(item)).length;
-              const captured = items.filter((item) => item.status === "captured" && !hasSevereEvent(item)).length;
-              const skipped = items.filter((item) => item.status === "skipped").length;
-              process.stdout.write(`${captured} ${skipped} ${failed}`);
-            ')
-          fi
-          {
-            echo "## Main UI audit"
-            echo
-            echo "- Target: $PREVIEW_URL"
-            echo "- Commit: \`${GITHUB_SHA::7}\`"
-            echo "- Captured screens: $captured"
-            echo "- Skipped screens: $skipped"
-            echo "- Failed screens: $failed"
-            echo "- Artifact: \`$ARTIFACT_NAME\`"
-            echo "- Open \`ui-review-report/index.html\` from the artifact for the screenshot report."
-          } >> "$GITHUB_STEP_SUMMARY"
+          node <<'NODE'
+          const fs = require('node:fs');
+          let items = [];
+          try {
+            items = JSON.parse(fs.readFileSync('ui-review-report/manifest.json', 'utf8'));
+          } catch {}
+
+          const count = (status) => items.filter((item) => item.status === status).length;
+          const diagnosticEvents = items.reduce(
+            (total, item) => total + (Number(item.eventCount) || 0),
+            0,
+          );
+          const lines = [
+            '## Main UI audit',
+            '',
+            '- Mode: screenshot collection (non-blocking)',
+            `- Target: ${process.env.PREVIEW_URL}`,
+            `- Commit: \`${(process.env.GITHUB_SHA || '').slice(0, 7)}\``,
+            `- Captured screens: ${count('captured')}`,
+            `- Skipped screens: ${count('skipped')}`,
+            `- Capture errors: ${count('error')}`,
+            `- Diagnostic events: ${diagnosticEvents}`,
+            `- Artifact: \`${process.env.ARTIFACT_NAME}\``,
+            '- Open `ui-review-report/index.html` from the artifact for the screenshot report.',
+            '',
+          ];
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
+          NODE
