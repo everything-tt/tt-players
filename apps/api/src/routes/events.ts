@@ -201,9 +201,10 @@ function applyEventFilters<T>(builder: T, query: EventQuery): T {
         if (query.status === 'completed') {
             filtered = filtered.where(sql<boolean>`exists (
                 select 1
-                from rubbers r
-                join fixtures f on f.id = r.fixture_id
+                from fixtures f
+                join rubbers r on r.fixture_id = f.id
                 where f.competition_id = c.id
+                  and f.deleted_at is null
                   and r.deleted_at is null
                   and r.is_doubles = false
             )`);
@@ -236,6 +237,22 @@ function applyEventFilters<T>(builder: T, query: EventQuery): T {
     }
 
     return filtered as T;
+}
+
+function applyEventOrdering<T>(builder: T, query: EventQuery): T {
+    let ordered = builder as any;
+    if (query.status === 'upcoming' || query.status === 'in_progress') {
+        ordered = ordered
+            .orderBy(sql`coalesce(c.start_date, c.event_date)`, 'asc')
+            .orderBy(sql`coalesce(c.display_name, c.name)`, 'asc')
+            .orderBy('c.id', 'asc');
+    } else {
+        ordered = ordered
+            .orderBy(sql`coalesce(c.start_date, c.event_date)`, 'desc')
+            .orderBy(sql`coalesce(c.display_name, c.name)`, 'asc')
+            .orderBy('c.id', 'asc');
+    }
+    return ordered as T;
 }
 
 function calendarPayloadField(field: string) {
@@ -284,9 +301,10 @@ function eventSelection() {
         'p.name as platform_name',
         sql<number>`(
             select count(*)
-            from rubbers r
-            join fixtures f on f.id = r.fixture_id
+            from fixtures f
+            join rubbers r on r.fixture_id = f.id
             where f.competition_id = c.id
+              and f.deleted_at is null
               and r.deleted_at is null
               and r.is_doubles = false
         )`.as('match_count'),
@@ -394,39 +412,67 @@ export function eventsRoutes(db: Kysely<any>): FastifyPluginAsync {
             },
             async (request) => {
                 const query = request.query;
-                let countBuilder = db
+
+                // Match and page lightweight tournament IDs first. Expensive metadata and
+                // rubber/source aggregation is deliberately deferred until after LIMIT/OFFSET,
+                // mirroring the candidate-first player search strategy.
+                let pageBuilder = db
                     .selectFrom('competitions as c')
-                    .select(db.fn.countAll().as('count'));
-                countBuilder = applyEventFilters(countBuilder, query);
+                    .select([
+                        'c.id',
+                        sql<number>`count(*) over()`.as('total'),
+                    ]);
+                pageBuilder = applyEventFilters(pageBuilder, query);
+                pageBuilder = applyEventOrdering(pageBuilder, query);
 
-                const countRes = await countBuilder.executeTakeFirst();
-                const total = Number(countRes?.count ?? 0);
+                const pageRows = await pageBuilder
+                    .limit(query.limit)
+                    .offset(query.offset)
+                    .execute();
+                const pageIds = pageRows.map((row: { id: string }) => row.id);
 
-                let queryBuilder = db
+                let total = pageRows.length > 0
+                    ? Number((pageRows[0] as { total: number | string }).total)
+                    : 0;
+
+                // Preserve total for an out-of-range offset. Normal first-page and infinite
+                // scroll requests never need this fallback count.
+                if (pageRows.length === 0 && query.offset > 0) {
+                    let countBuilder = db
+                        .selectFrom('competitions as c')
+                        .select(db.fn.countAll().as('count'));
+                    countBuilder = applyEventFilters(countBuilder, query);
+                    const countRes = await countBuilder.executeTakeFirst();
+                    total = Number(countRes?.count ?? 0);
+                }
+
+                if (pageIds.length === 0) {
+                    return {
+                        data: [],
+                        total,
+                        limit: query.limit,
+                        offset: query.offset,
+                    };
+                }
+
+                const enrichedRows = await db
                     .selectFrom('competitions as c')
                     .innerJoin('seasons as s', 's.id', 'c.season_id')
                     .innerJoin('leagues as l', 'l.id', 's.league_id')
                     .innerJoin('platforms as p', 'p.id', 'l.platform_id')
-                    .select(eventSelection());
-                queryBuilder = applyEventFilters(queryBuilder, query);
-
-                if (query.status === 'upcoming' || query.status === 'in_progress') {
-                    queryBuilder = queryBuilder
-                        .orderBy(sql`coalesce(c.start_date, c.event_date)`, 'asc')
-                        .orderBy(sql`coalesce(c.display_name, c.name)`, 'asc');
-                } else {
-                    queryBuilder = queryBuilder
-                        .orderBy(sql`coalesce(c.start_date, c.event_date)`, 'desc')
-                        .orderBy(sql`coalesce(c.display_name, c.name)`, 'asc');
-                }
-
-                const events = await queryBuilder
-                    .limit(query.limit)
-                    .offset(query.offset)
+                    .select(eventSelection())
+                    .where('c.id', 'in', pageIds)
                     .execute();
 
+                const enrichedById = new Map(
+                    enrichedRows.map((event: Record<string, unknown>) => [String(event.id), event]),
+                );
+                const events = pageIds
+                    .map((id) => enrichedById.get(id))
+                    .filter((event): event is Record<string, unknown> => event !== undefined);
+
                 return {
-                    data: events.map((event: Record<string, unknown>) => mapEvent(event)),
+                    data: events.map((event) => mapEvent(event)),
                     total,
                     limit: query.limit,
                     offset: query.offset,
