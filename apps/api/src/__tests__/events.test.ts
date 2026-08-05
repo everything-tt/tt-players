@@ -35,6 +35,7 @@ describe('Events API', () => {
             total: 0,
             limit: 20,
             offset: 0,
+            has_more: false,
         });
     });
 

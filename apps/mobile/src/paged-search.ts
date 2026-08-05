@@ -20,7 +20,7 @@ export interface TournamentListPathOptions {
 
 export interface PagedResponse<T> {
   data: T[];
-  total?: number | string;
+  total?: number | string | null;
   limit?: number | string;
   offset?: number | string;
   has_more?: boolean;
@@ -36,8 +36,8 @@ function sortedUnique(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean))).sort();
 }
 
-function finiteNumber(value: number | string | undefined): number | null {
-  if (value === undefined) return null;
+function finiteNumber(value: number | string | null | undefined): number | null {
+  if (value === undefined || value === null) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
@@ -107,6 +107,7 @@ export function buildTournamentListPath({
   if (normalizedSavedIds.length > 0) params.set('saved_ids', normalizedSavedIds.join(','));
   const normalizedCategories = sortedUnique(categories);
   if (normalizedCategories.length > 0) params.set('categories', normalizedCategories.join(','));
+  params.set('include_total', 'false');
   params.set('limit', String(limit));
   params.set('offset', String(offset));
   return `/events?${params.toString()}`;

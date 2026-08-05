@@ -19,6 +19,13 @@ describe('events list query shape', () => {
         expect(enrichment).toBeGreaterThan(pageQuery);
     });
 
+    it('uses bounded candidate batches for fast completed pagination', () => {
+        expect(routeSource).toContain('fetchFastEventPage');
+        expect(routeSource).toContain('includeCompletedResults: false');
+        expect(routeSource).toContain(".where('f.competition_id', 'in', candidateIds)");
+        expect(routeSource).toContain('.limit(batchSize)');
+    });
+
     it('does not run the expensive metadata selection in the candidate query', () => {
         const pageStart = routeSource.indexOf("let pageBuilder = db");
         const pageEnd = routeSource.indexOf("const pageRows = await pageBuilder", pageStart);
