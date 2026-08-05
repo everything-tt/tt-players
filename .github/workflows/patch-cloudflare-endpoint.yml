@@ -24,7 +24,7 @@ jobs:
           import re
 
           def replace_once(text: str, pattern: str, replacement: str, label: str) -> str:
-              updated, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+              updated, count = re.subn(pattern, replacement, text, count=1, flags=re.S | re.M)
               if count != 1:
                   raise SystemExit(f'Expected one {label} block, found {count}')
               return updated
