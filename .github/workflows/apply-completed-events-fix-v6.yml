@@ -1,0 +1,170 @@
+name: Apply completed event pagination fix v6
+
+on:
+  push:
+    branches:
+      - fix/completed-events-avoid-exact-count
+    paths:
+      - '.github/workflows/apply-completed-events-fix-v6.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/completed-events-avoid-exact-count
+          fetch-depth: 0
+
+      - name: Repair and run source transformation
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import re
+          import textwrap
+
+          workflow = Path('.github/workflows/completed-events-diagnostic.yml')
+          content = workflow.read_text()
+
+          response_js = r'''const listResponsePattern = /(return \{\n\s*data: events\.map\(\(event\) => mapEvent\(event\)\),[\s\S]*?offset: query\.offset,\n)(\s*\};)/;
+          if (!listResponsePattern.test(route)) {
+            throw new Error('Could not locate enriched list response');
+          }
+          route = route.replace(
+            listResponsePattern,
+            `$1                    has_more: hasMore,\n$2`,
+          );'''
+          content, response_count = re.subn(
+              r"\s*route = replaceOnce\(route, `\s*offset: query\.offset,[\s\S]*?'list response has_more'\);",
+              lambda _: '\n' + textwrap.indent(response_js, '          '),
+              content,
+              count=1,
+          )
+          if response_count != 1:
+              raise SystemExit(f'Expected one response patch block, found {response_count}')
+
+          hook_js = r'''const hookPath = 'apps/mobile/src/hooks/useTournamentList.ts';
+          let hook = read(hookPath);
+          hook = replaceOnce(
+            hook,
+            "import { buildTournamentListPath, mergePageById } from '../paged-search';",
+            `import {
+            buildTournamentListPath,
+            mergePageById,
+            normalizePagedResponse,
+            type PagedResponse,
+          } from '../paged-search';`,
+            'paged response imports',
+          );
+          hook = replaceOnce(
+            hook,
+            `interface TournamentEventsResponse {
+            data: TournamentEventItem[];
+            total: number;
+            limit: number;
+            offset: number;
+          }`,
+            `type TournamentEventsResponse = PagedResponse<TournamentEventItem>;`,
+            'tournament response type',
+          );
+          hook = replaceOnce(
+            hook,
+            `  const [total, setTotal] = useState(0);`,
+            `  const [total, setTotal] = useState(0);
+            const [hasMore, setHasMore] = useState(false);`,
+            'has more state',
+          );
+
+          const resetPattern = /    setTotal\(0\);\n  \}, \[categoriesKey, normalizedSearch, status, savedKey, pageSize\]\);/;
+          if (!resetPattern.test(hook)) throw new Error('Missing reset has more anchor');
+          hook = hook.replace(
+            resetPattern,
+            `    setTotal(0);
+            setHasMore(false);
+          }, [categoriesKey, normalizedSearch, status, savedKey, pageSize]);`,
+          );
+
+          const responsePattern = /  useEffect\(\(\) => \{\n    if \(!query\.data\) return;\n    setTotal\(query\.data\.total\);\n    setItems\(\(previous\) => mergePageById\(previous, query\.data!\.data, offset === 0\)\);\n  \}, \[offset, query\.data\]\);\n\n  const hasMore = items\.length < total;/;
+          if (!responsePattern.test(hook)) throw new Error('Missing tournament response anchor');
+          hook = hook.replace(
+            responsePattern,
+            `  useEffect(() => {
+            if (!query.data) return;
+            const page = normalizePagedResponse(query.data, offset);
+            setHasMore(page.hasMore);
+            setTotal(page.total ?? offset + page.data.length + (page.hasMore ? 1 : 0));
+            setItems((previous) => mergePageById(previous, page.data, offset === 0));
+          }, [offset, query.data]);`,
+          );
+          write(hookPath, hook);'''
+          hook_start = content.index("          const hookPath = 'apps/mobile/src/hooks/useTournamentList.ts';")
+          hook_end_marker = "          write(hookPath, hook);"
+          hook_end = content.index(hook_end_marker, hook_start) + len(hook_end_marker)
+          content = (
+              content[:hook_start]
+              + textwrap.indent(hook_js, '          ')
+              + content[hook_end:]
+          )
+
+          marker = "          node <<'NODE'\n"
+          start = content.index(marker) + len(marker)
+          end = content.index("\n          NODE", start)
+          script = textwrap.dedent(content[start:end])
+          Path('/tmp/apply-completed-events-fix.js').write_text(script)
+          PY
+          node /tmp/apply-completed-events-fix.js
+          rm -f .github/workflows/apply-completed-events-fix-v2.yml
+          rm -f .github/workflows/apply-completed-events-fix-v3.yml
+          rm -f .github/workflows/apply-completed-events-fix-v4.yml
+          rm -f .github/workflows/apply-completed-events-fix-v5.yml
+          rm -f .github/workflows/apply-completed-events-fix-v6.yml
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Backend quality gate
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+        run: pnpm run check:backend
+
+      - name: Mobile tests
+        run: pnpm --filter @tt-players/mobile test
+
+      - name: Commit fix
+        run: |
+          set -euo pipefail
+          git config user.name 'Wudong Liu'
+          git config user.email 'wudong.liu@gmail.com'
+          git add apps/api apps/mobile .github/workflows
+          git commit -m 'fix(api): bound completed event eligibility scans'
+          git push origin HEAD:fix/completed-events-avoid-exact-count
