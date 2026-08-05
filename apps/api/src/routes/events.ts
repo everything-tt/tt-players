@@ -204,6 +204,7 @@ function applyEventFilters<T>(builder: T, query: EventQuery): T {
                 from fixtures f
                 join rubbers r on r.fixture_id = f.id
                 where f.competition_id = c.id
+                  and f.deleted_at is null
                   and r.deleted_at is null
                   and r.is_doubles = false
             )`);
@@ -303,6 +304,7 @@ function eventSelection() {
             from fixtures f
             join rubbers r on r.fixture_id = f.id
             where f.competition_id = c.id
+              and f.deleted_at is null
               and r.deleted_at is null
               and r.is_doubles = false
         )`.as('match_count'),
