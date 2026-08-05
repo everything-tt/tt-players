@@ -1,0 +1,108 @@
+name: Actions housekeeping
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: >-
+          Dry-run lists retired workflows. Delete mode permanently removes their
+          completed run history, logs, and artifacts.
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - delete-retired-runs
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  prune-retired-workflows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Find and prune retired workflow histories
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          MODE: ${{ inputs.mode }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          default_branch=$(gh api "repos/$GH_REPO" --jq '.default_branch')
+          retired_workflows=0
+          completed_runs=0
+          deleted_runs=0
+          skipped_runs=0
+          details=$(mktemp)
+
+          while IFS=$'\t' read -r workflow_id workflow_path workflow_name workflow_state; do
+            [[ -n "$workflow_id" ]] || continue
+
+            # A workflow is retired only when its file no longer exists on the
+            # repository's default branch. Current workflows are never touched.
+            if gh api \
+              "repos/$GH_REPO/contents/$workflow_path?ref=$default_branch" \
+              >/dev/null 2>&1; then
+              continue
+            fi
+
+            retired_workflows=$((retired_workflows + 1))
+            printf -- '- `%s` — `%s` (%s)\n' \
+              "$workflow_name" "$workflow_path" "$workflow_state" >> "$details"
+
+            while IFS=$'\t' read -r run_id run_status run_created run_url; do
+              [[ -n "$run_id" ]] || continue
+
+              if [[ "$run_status" != "completed" ]]; then
+                skipped_runs=$((skipped_runs + 1))
+                printf '  - skipped non-completed run [%s](%s) from %s\n' \
+                  "$run_id" "$run_url" "$run_created" >> "$details"
+                continue
+              fi
+
+              completed_runs=$((completed_runs + 1))
+              if [[ "$MODE" == "delete-retired-runs" ]]; then
+                gh api --method DELETE \
+                  "repos/$GH_REPO/actions/runs/$run_id"
+                deleted_runs=$((deleted_runs + 1))
+                printf '  - deleted run `%s` from %s\n' \
+                  "$run_id" "$run_created" >> "$details"
+              else
+                printf '  - would delete run [%s](%s) from %s\n' \
+                  "$run_id" "$run_url" "$run_created" >> "$details"
+              fi
+            done < <(
+              gh api --paginate \
+                "repos/$GH_REPO/actions/workflows/$workflow_id/runs?per_page=100" \
+                --jq '.workflow_runs[] | [.id, .status, .created_at, .html_url] | @tsv'
+            )
+          done < <(
+            gh api --paginate \
+              "repos/$GH_REPO/actions/workflows?per_page=100" \
+              --jq '.workflows[] | [.id, .path, .name, .state] | @tsv'
+          )
+
+          {
+            echo '### Actions housekeeping'
+            echo
+            echo "- Mode: \`$MODE\`"
+            echo "- Default branch: \`$default_branch\`"
+            echo "- Retired workflow records: \`$retired_workflows\`"
+            echo "- Completed runs found: \`$completed_runs\`"
+            echo "- Runs deleted: \`$deleted_runs\`"
+            echo "- Non-completed runs skipped: \`$skipped_runs\`"
+            echo
+            if [[ "$retired_workflows" -eq 0 ]]; then
+              echo 'No retired workflow histories were found.'
+            else
+              echo '#### Details'
+              cat "$details"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          rm -f "$details"
