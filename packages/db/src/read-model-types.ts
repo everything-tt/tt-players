@@ -21,6 +21,17 @@ export type SourceQualitySnapshot = Selectable<SourceQualitySnapshotsTable>;
 export type NewSourceQualitySnapshot = Insertable<SourceQualitySnapshotsTable>;
 export type SourceQualitySnapshotUpdate = Updateable<SourceQualitySnapshotsTable>;
 
+export interface RatingAuditSnapshotsTable {
+    model_id: string;
+    content: unknown;
+    generated_at: ColumnType<Date, Date | string, Date | string>;
+    updated_at: ColumnType<Date, Date | undefined, Date>;
+}
+
+export type RatingAuditSnapshot = Selectable<RatingAuditSnapshotsTable>;
+export type NewRatingAuditSnapshot = Insertable<RatingAuditSnapshotsTable>;
+export type RatingAuditSnapshotUpdate = Updateable<RatingAuditSnapshotsTable>;
+
 export interface PlayerActiveLeaguesTable {
     player_id: string;
     league_id: string;
@@ -34,5 +45,6 @@ export type PlayerActiveLeagueUpdate = Updateable<PlayerActiveLeaguesTable>;
 export interface ReadModelDatabase {
     data_versions: DataVersionsTable;
     source_quality_snapshots: SourceQualitySnapshotsTable;
+    rating_audit_snapshots: RatingAuditSnapshotsTable;
     player_active_leagues: PlayerActiveLeaguesTable;
 }
