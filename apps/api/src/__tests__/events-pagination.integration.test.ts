@@ -118,6 +118,7 @@ describe('Events API pagination', () => {
             .expect(200);
 
         expect(firstPage.body.total).toBe(3);
+        expect(firstPage.body.has_more).toBe(true);
         expect(firstPage.body.data.map((event: { id: string }) => event.id)).toEqual([
             eventIds[2],
             eventIds[1],
@@ -129,8 +130,43 @@ describe('Events API pagination', () => {
             .expect(200);
 
         expect(secondPage.body.total).toBe(3);
+        expect(secondPage.body.has_more).toBe(false);
         expect(secondPage.body.data).toHaveLength(1);
         expect(secondPage.body.data[0]).toMatchObject({
+            id: eventIds[0],
+            match_count: 1,
+        });
+    });
+
+    it('returns fast completed pages without scanning for an exact total', async () => {
+        const firstPage = await request
+            .get('/api/events?status=completed&q=Page%20First&include_total=false&limit=2&offset=0')
+            .expect(200);
+
+        expect(firstPage.body).toMatchObject({
+            total: null,
+            has_more: true,
+            limit: 2,
+            offset: 0,
+        });
+        expect(firstPage.body.data.map((event: { id: string }) => event.id)).toEqual([
+            eventIds[2],
+            eventIds[1],
+        ]);
+        expect(firstPage.body.data.map((event: { match_count: number }) => event.match_count)).toEqual([3, 2]);
+
+        const finalPage = await request
+            .get('/api/events?status=completed&q=Page%20First&include_total=false&limit=2&offset=2')
+            .expect(200);
+
+        expect(finalPage.body).toMatchObject({
+            total: null,
+            has_more: false,
+            limit: 2,
+            offset: 2,
+        });
+        expect(finalPage.body.data).toHaveLength(1);
+        expect(finalPage.body.data[0]).toMatchObject({
             id: eventIds[0],
             match_count: 1,
         });
@@ -146,6 +182,7 @@ describe('Events API pagination', () => {
             total: 3,
             limit: 2,
             offset: 10,
+            has_more: false,
         });
     });
 });

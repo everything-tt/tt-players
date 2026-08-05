@@ -49,9 +49,10 @@ const TournamentSourceSchema = z.object({
 
 const ListResponseSchema = z.object({
     data: z.array(EventItemSchema),
-    total: z.number().int(),
+    total: z.number().int().nullable(),
     limit: z.number().int(),
     offset: z.number().int(),
+    has_more: z.boolean(),
 });
 
 const EventResultRowSchema = z.object({
@@ -118,6 +119,9 @@ const QuerySchema = z.object({
     category: z.string().optional(),
     categories: CategoriesSchema.optional(),
     saved_ids: SavedIdsSchema.optional(),
+    include_total: z.enum(['true', 'false'])
+        .optional()
+        .transform((value) => value !== 'false'),
     limit: z.coerce.number().int().min(1).max(100).default(20),
     offset: z.coerce.number().int().min(0).default(0),
 });
@@ -165,7 +169,15 @@ function parseCategories(value: string | undefined): TournamentCategory[] {
         .filter((category): category is TournamentCategory => TournamentCategorySchema.safeParse(category).success);
 }
 
-function applyEventFilters<T>(builder: T, query: EventQuery): T {
+interface EventFilterOptions {
+    includeCompletedResults?: boolean;
+}
+
+function applyEventFilters<T>(
+    builder: T,
+    query: EventQuery,
+    options: EventFilterOptions = {},
+): T {
     let filtered = builder as any;
     filtered = filtered
         .where('c.type', '=', 'individual')
@@ -198,7 +210,7 @@ function applyEventFilters<T>(builder: T, query: EventQuery): T {
             filtered = filtered.where('c.event_status', '=', query.status);
         }
 
-        if (query.status === 'completed') {
+        if (query.status === 'completed' && options.includeCompletedResults !== false) {
             filtered = filtered.where(sql<boolean>`exists (
                 select 1
                 from fixtures f
@@ -253,6 +265,130 @@ function applyEventOrdering<T>(builder: T, query: EventQuery): T {
             .orderBy('c.id', 'asc');
     }
     return ordered as T;
+}
+
+interface EventPage {
+    pageIds: string[];
+    total: number | null;
+    hasMore: boolean;
+}
+
+async function fetchExactEventPage(
+    db: Kysely<any>,
+    query: EventQuery,
+): Promise<EventPage> {
+    let pageBuilder = db
+        .selectFrom('competitions as c')
+        .select([
+            'c.id',
+            sql<number>`count(*) over()`.as('total'),
+        ]);
+    pageBuilder = applyEventFilters(pageBuilder, query);
+    pageBuilder = applyEventOrdering(pageBuilder, query);
+
+    const pageRows = await pageBuilder
+        .limit(query.limit)
+        .offset(query.offset)
+        .execute();
+    const pageIds = pageRows.map((row: { id: string }) => row.id);
+
+    let total = pageRows.length > 0
+        ? Number((pageRows[0] as { total: number | string }).total)
+        : 0;
+
+    if (pageRows.length === 0 && query.offset > 0) {
+        let countBuilder = db
+            .selectFrom('competitions as c')
+            .select(db.fn.countAll().as('count'));
+        countBuilder = applyEventFilters(countBuilder, query);
+        const countRes = await countBuilder.executeTakeFirst();
+        total = Number(countRes?.count ?? 0);
+    }
+
+    return {
+        pageIds,
+        total,
+        hasMore: query.offset + pageIds.length < total,
+    };
+}
+
+async function fetchFastEventPage(
+    db: Kysely<any>,
+    query: EventQuery,
+): Promise<EventPage> {
+    if (query.status !== 'completed') {
+        let pageBuilder = db
+            .selectFrom('competitions as c')
+            .select('c.id');
+        pageBuilder = applyEventFilters(pageBuilder, query);
+        pageBuilder = applyEventOrdering(pageBuilder, query);
+
+        const pageRows = await pageBuilder
+            .limit(query.limit + 1)
+            .offset(query.offset)
+            .execute();
+
+        return {
+            pageIds: pageRows
+                .slice(0, query.limit)
+                .map((row: { id: string }) => row.id),
+            total: null,
+            hasMore: pageRows.length > query.limit,
+        };
+    }
+
+    const targetEligibleCount = query.offset + query.limit + 1;
+    const batchSize = Math.min(
+        500,
+        Math.max(100, targetEligibleCount * 2),
+    );
+    const eligibleIds: string[] = [];
+    let candidateOffset = 0;
+
+    while (eligibleIds.length < targetEligibleCount) {
+        let candidateBuilder = db
+            .selectFrom('competitions as c')
+            .select('c.id');
+        candidateBuilder = applyEventFilters(candidateBuilder, query, {
+            includeCompletedResults: false,
+        });
+        candidateBuilder = applyEventOrdering(candidateBuilder, query);
+
+        const candidateRows = await candidateBuilder
+            .limit(batchSize)
+            .offset(candidateOffset)
+            .execute();
+        const candidateIds = candidateRows.map((row: { id: string }) => row.id);
+
+        if (candidateIds.length === 0) break;
+        candidateOffset += candidateIds.length;
+
+        const eligibleRows = await db
+            .selectFrom('fixtures as f')
+            .innerJoin('rubbers as r', 'r.fixture_id', 'f.id')
+            .select('f.competition_id as id')
+            .where('f.competition_id', 'in', candidateIds)
+            .where('f.deleted_at', 'is', null)
+            .where('r.deleted_at', 'is', null)
+            .where('r.is_doubles', '=', false)
+            .groupBy('f.competition_id')
+            .execute();
+        const eligibleSet = new Set(
+            eligibleRows.map((row: { id: string }) => row.id),
+        );
+
+        for (const id of candidateIds) {
+            if (eligibleSet.has(id)) eligibleIds.push(id);
+        }
+
+        if (candidateIds.length < batchSize) break;
+    }
+
+    return {
+        pageIds: eligibleIds.slice(query.offset, query.offset + query.limit),
+        total: null,
+        hasMore: eligibleIds.length > query.offset + query.limit,
+    };
 }
 
 function calendarPayloadField(field: string) {
@@ -413,47 +549,20 @@ export function eventsRoutes(db: Kysely<any>): FastifyPluginAsync {
             async (request) => {
                 const query = request.query;
 
-                // Match and page lightweight tournament IDs first. Expensive metadata and
-                // rubber/source aggregation is deliberately deferred until after LIMIT/OFFSET,
-                // mirroring the candidate-first player search strategy.
-                let pageBuilder = db
-                    .selectFrom('competitions as c')
-                    .select([
-                        'c.id',
-                        sql<number>`count(*) over()`.as('total'),
-                    ]);
-                pageBuilder = applyEventFilters(pageBuilder, query);
-                pageBuilder = applyEventOrdering(pageBuilder, query);
+                const page = query.include_total
+            ? await fetchExactEventPage(db, query)
+            : await fetchFastEventPage(db, query);
+        const { pageIds, total, hasMore } = page;
 
-                const pageRows = await pageBuilder
-                    .limit(query.limit)
-                    .offset(query.offset)
-                    .execute();
-                const pageIds = pageRows.map((row: { id: string }) => row.id);
-
-                let total = pageRows.length > 0
-                    ? Number((pageRows[0] as { total: number | string }).total)
-                    : 0;
-
-                // Preserve total for an out-of-range offset. Normal first-page and infinite
-                // scroll requests never need this fallback count.
-                if (pageRows.length === 0 && query.offset > 0) {
-                    let countBuilder = db
-                        .selectFrom('competitions as c')
-                        .select(db.fn.countAll().as('count'));
-                    countBuilder = applyEventFilters(countBuilder, query);
-                    const countRes = await countBuilder.executeTakeFirst();
-                    total = Number(countRes?.count ?? 0);
-                }
-
-                if (pageIds.length === 0) {
-                    return {
-                        data: [],
-                        total,
-                        limit: query.limit,
-                        offset: query.offset,
-                    };
-                }
+        if (pageIds.length === 0) {
+            return {
+                data: [],
+                total,
+                limit: query.limit,
+                offset: query.offset,
+                has_more: hasMore,
+            };
+        }
 
                 const enrichedRows = await db
                     .selectFrom('competitions as c')
@@ -476,6 +585,7 @@ export function eventsRoutes(db: Kysely<any>): FastifyPluginAsync {
                     total,
                     limit: query.limit,
                     offset: query.offset,
+                    has_more: hasMore,
                 };
             },
         );

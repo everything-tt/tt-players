@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, getQueryError, type EventItem } from '../player-shared';
-import { buildTournamentListPath, mergePageById } from '../paged-search';
+import {
+  buildTournamentListPath,
+  mergePageById,
+  normalizePagedResponse,
+  type PagedResponse,
+} from '../paged-search';
 import type { TournamentCategoryFilter } from '../tournament-category-filter';
 
 export type TournamentListStatus = 'upcoming' | 'completed';
@@ -20,12 +25,7 @@ export interface TournamentEventItem extends EventItem {
   source_count: number;
 }
 
-interface TournamentEventsResponse {
-  data: TournamentEventItem[];
-  total: number;
-  limit: number;
-  offset: number;
-}
+type TournamentEventsResponse = PagedResponse<TournamentEventItem>;
 
 interface UseTournamentListOptions {
   status: TournamentListStatus;
@@ -50,12 +50,14 @@ export function useTournamentList({
   const [items, setItems] = useState<TournamentEventItem[]>([]);
   const [offset, setOffset] = useState(0);
   const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
     setOffset(0);
     setItems([]);
     setTotal(0);
-  }, [categoriesKey, normalizedSearch, status, savedKey, pageSize]);
+  setHasMore(false);
+}, [categoriesKey, normalizedSearch, status, savedKey, pageSize]);
 
   const query = useQuery({
     queryKey: ['events', 'list', status, normalizedSearch, savedKey, categoriesKey, pageSize, offset],
@@ -74,12 +76,12 @@ export function useTournamentList({
   });
 
   useEffect(() => {
-    if (!query.data) return;
-    setTotal(query.data.total);
-    setItems((previous) => mergePageById(previous, query.data!.data, offset === 0));
-  }, [offset, query.data]);
-
-  const hasMore = items.length < total;
+  if (!query.data) return;
+  const page = normalizePagedResponse(query.data, offset);
+  setHasMore(page.hasMore);
+  setTotal(page.total ?? offset + page.data.length + (page.hasMore ? 1 : 0));
+  setItems((previous) => mergePageById(previous, page.data, offset === 0));
+}, [offset, query.data]);
   const isLoadingInitial = enabled && query.isLoading && offset === 0;
   const isLoadingMore = enabled && query.isFetching && offset > 0;
   const error = getQueryError(query.error);
