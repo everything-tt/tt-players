@@ -184,12 +184,6 @@
   padding-bottom: 4px;
 }
 
-.tt-rating-audit-navigation .tt-btn {
-  flex: 0 0 auto;
-  min-height: 40px;
-  white-space: nowrap;
-}
-
 .tt-drawer__submenu {
   background: color-mix(in oklch, var(--accent-subtle) 44%, var(--tt-home-surface));
   border-bottom: 1px solid var(--border-hairline);
