@@ -1,0 +1,116 @@
+name: Format completed event fix
+
+on:
+  push:
+    branches:
+      - fix/completed-events-avoid-exact-count
+    paths:
+      - '.github/workflows/format-completed-events-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/completed-events-avoid-exact-count
+          fetch-depth: 0
+
+      - name: Format changed blocks
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          route_path = Path('apps/api/src/routes/events.ts')
+          route = route_path.read_text()
+          old = """                const page = query.include_total
+            ? await fetchExactEventPage(db, query)
+            : await fetchFastEventPage(db, query);
+        const { pageIds, total, hasMore } = page;
+
+        if (pageIds.length === 0) {
+            return {
+                data: [],
+                total,
+                limit: query.limit,
+                offset: query.offset,
+                has_more: hasMore,
+            };
+        }
+"""
+          new = """                const page = query.include_total
+                    ? await fetchExactEventPage(db, query)
+                    : await fetchFastEventPage(db, query);
+                const { pageIds, total, hasMore } = page;
+
+                if (pageIds.length === 0) {
+                    return {
+                        data: [],
+                        total,
+                        limit: query.limit,
+                        offset: query.offset,
+                        has_more: hasMore,
+                    };
+                }
+"""
+          if route.count(old) != 1:
+              raise SystemExit(f'Expected one route block, found {route.count(old)}')
+          route_path.write_text(route.replace(old, new))
+
+          hook_path = Path('apps/mobile/src/hooks/useTournamentList.ts')
+          hook = hook_path.read_text()
+          old = """  useEffect(() => {
+    setOffset(0);
+    setItems([]);
+    setTotal(0);
+  setHasMore(false);
+}, [categoriesKey, normalizedSearch, status, savedKey, pageSize]);
+"""
+          new = """  useEffect(() => {
+    setOffset(0);
+    setItems([]);
+    setTotal(0);
+    setHasMore(false);
+  }, [categoriesKey, normalizedSearch, status, savedKey, pageSize]);
+"""
+          if hook.count(old) != 1:
+              raise SystemExit(f'Expected one reset block, found {hook.count(old)}')
+          hook = hook.replace(old, new)
+
+          old = """  useEffect(() => {
+  if (!query.data) return;
+  const page = normalizePagedResponse(query.data, offset);
+  setHasMore(page.hasMore);
+  setTotal(page.total ?? offset + page.data.length + (page.hasMore ? 1 : 0));
+  setItems((previous) => mergePageById(previous, page.data, offset === 0));
+}, [offset, query.data]);
+"""
+          new = """  useEffect(() => {
+    if (!query.data) return;
+    const page = normalizePagedResponse(query.data, offset);
+    setHasMore(page.hasMore);
+    setTotal(page.total ?? offset + page.data.length + (page.hasMore ? 1 : 0));
+    setItems((previous) => mergePageById(previous, page.data, offset === 0));
+  }, [offset, query.data]);
+"""
+          if hook.count(old) != 1:
+              raise SystemExit(f'Expected one response block, found {hook.count(old)}')
+          hook_path.write_text(hook.replace(old, new))
+          PY
+
+      - name: Commit formatting
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/finalize-completed-events-fix.yml
+          rm -f .github/workflows/format-completed-events-fix.yml
+          git config user.name 'Wudong Liu'
+          git config user.email 'wudong.liu@gmail.com'
+          git add apps/api apps/mobile .github/workflows
+          git commit -m 'style: format completed event pagination changes'
+          git push origin HEAD:fix/completed-events-avoid-exact-count
