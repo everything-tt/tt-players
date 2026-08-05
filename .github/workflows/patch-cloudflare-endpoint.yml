@@ -21,17 +21,21 @@ jobs:
         run: |
           python <<'PY'
           from pathlib import Path
+          import re
+
+          def replace_once(text: str, pattern: str, replacement: str, label: str) -> str:
+              updated, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+              if count != 1:
+                  raise SystemExit(f'Expected one {label} block, found {count}')
+              return updated
 
           client_path = Path('apps/worker/src/event-embeddings.ts')
           client = client_path.read_text()
 
-          old_schema = """const CloudflareEmbeddingResponseSchema = z.object({
-              data: z.array(z.object({
-                  index: z.number().int().nonnegative(),
-                  embedding: z.array(z.number()),
-              })).min(1),
-          });"""
-          new_schema = """const CloudflareEmbeddingResponseSchema = z.object({
+          client = replace_once(
+              client,
+              r"const CloudflareEmbeddingResponseSchema = z\.object\(\{.*?^\}\);",
+              """const CloudflareEmbeddingResponseSchema = z.object({
               success: z.literal(true),
               result: z.object({
                   shape: z.array(z.number().int().nonnegative()).optional(),
@@ -40,45 +44,29 @@ jobs:
                       z.array(z.number()).min(1),
                   ]),
               }),
-          });"""
-
-          old_endpoint = """function embeddingsEndpoint(options: ResolvedCloudflareEmbeddingOptions): string {
-              return `${options.apiBaseUrl}/accounts/${encodeURIComponent(options.accountId)}/ai/v1/embeddings`;
-          }"""
-          new_endpoint = """function embeddingsEndpoint(options: ResolvedCloudflareEmbeddingOptions): string {
+          });""",
+              'response schema',
+          )
+          client = replace_once(
+              client,
+              r"function embeddingsEndpoint\(options: ResolvedCloudflareEmbeddingOptions\): string \{.*?^\}",
+              """function embeddingsEndpoint(options: ResolvedCloudflareEmbeddingOptions): string {
               return `${options.apiBaseUrl}/accounts/${encodeURIComponent(options.accountId)}/ai/run/${options.model}`;
-          }"""
-
-          old_body = """body: JSON.stringify({
-                              model: options.model,
-                              input: inputTexts,
-                              encoding_format: 'float',
-                          }),"""
-          new_body = """body: JSON.stringify({
+          }""",
+              'endpoint',
+          )
+          client = replace_once(
+              client,
+              r"body: JSON\.stringify\(\{\s*model: options\.model,\s*input: inputTexts,\s*encoding_format: 'float',\s*\}\),",
+              """body: JSON.stringify({
                               text: inputTexts,
-                          }),"""
-
-          old_parse = """            const parsed = CloudflareEmbeddingResponseSchema.parse(
-                              await response.json(),
-                          );
-                          const ordered = [...parsed.data].sort(
-                              (left, right) => left.index - right.index,
-                          );
-                          if (ordered.length !== inputTexts.length) {
-                              throw new Error(
-                                  `Cloudflare embeddings response returned ${ordered.length} vectors for ${inputTexts.length} inputs`,
-                              );
-                          }
-
-                          return ordered.map((item) => {
-                              if (item.embedding.length !== options.dimensions) {
-                                  throw new Error(
-                                      `Cloudflare embedding has ${item.embedding.length} dimensions; expected ${options.dimensions}`,
-                                  );
-                              }
-                              return item.embedding;
-                          });"""
-          new_parse = """            const parsed = CloudflareEmbeddingResponseSchema.parse(
+                          }),""",
+              'request body',
+          )
+          client = replace_once(
+              client,
+              r"const parsed = CloudflareEmbeddingResponseSchema\.parse\(\s*await response\.json\(\),\s*\);\s*const ordered = \[\.\.\.parsed\.data\]\.sort\(.*?return item\.embedding;\s*\}\);",
+              """const parsed = CloudflareEmbeddingResponseSchema.parse(
                               await response.json(),
                           );
                           const rawData = parsed.result.data;
@@ -98,18 +86,9 @@ jobs:
                                   );
                               }
                               return embedding;
-                          });"""
-
-          replacements = [
-              (old_schema, new_schema),
-              (old_endpoint, new_endpoint),
-              (old_body, new_body),
-              (old_parse, new_parse),
-          ]
-          for old, new in replacements:
-              if client.count(old) != 1:
-                  raise SystemExit(f'Expected exactly one client block, found {client.count(old)}')
-              client = client.replace(old, new)
+                          });""",
+              'response parser',
+          )
           client_path.write_text(client)
 
           test_path = Path('apps/worker/src/__tests__/event-embeddings.test.ts')
@@ -122,30 +101,22 @@ jobs:
               "https://api.cloudflare.test/client/v4/accounts/account-123/ai/v1/embeddings",
               "https://api.cloudflare.test/client/v4/accounts/account-123/ai/run/@cf/baai/bge-small-en-v1.5",
           )
-          old_assertions = """            const body = JSON.parse(init.body) as Record<string, unknown>;
-                      expect(body).toMatchObject({
-                          model: '@cf/baai/bge-small-en-v1.5',
-                          encoding_format: 'float',
-                      });
-                      expect(body).not.toHaveProperty('dimensions');
-                      expect(body.input).toEqual([
-                          'table tennis tournament: first open',
-                          'table tennis tournament: second open',
-                      ]);"""
-          new_assertions = """            const body = JSON.parse(init.body) as Record<string, unknown>;
+          test = replace_once(
+              test,
+              r"const body = JSON\.parse\(init\.body\) as Record<string, unknown>;\s*expect\(body\)\.toMatchObject\(\{.*?expect\(body\.input\)\.toEqual\(\[.*?\]\);",
+              """const body = JSON.parse(init.body) as Record<string, unknown>;
                       expect(body).toEqual({
                           text: [
                               'table tennis tournament: first open',
                               'table tennis tournament: second open',
                           ],
-                      });"""
-          old_response = """                json: async () => ({
-                              data: [
-                                  { index: 1, embedding: [0, 1] },
-                                  { index: 0, embedding: [1, 0] },
-                              ],
-                          }),"""
-          new_response = """                json: async () => ({
+                      });""",
+              'test request assertion',
+          )
+          test = replace_once(
+              test,
+              r"json: async \(\) => \(\{\s*data: \[\s*\{ index: 1, embedding: \[0, 1\] \},\s*\{ index: 0, embedding: \[1, 0\] \},\s*\],\s*\}\),",
+              """json: async () => ({
                               success: true,
                               result: {
                                   shape: [2, 2],
@@ -157,11 +128,9 @@ jobs:
                               },
                               errors: [],
                               messages: [],
-                          }),"""
-          for old, new in [(old_assertions, new_assertions), (old_response, new_response)]:
-              if test.count(old) != 1:
-                  raise SystemExit(f'Expected exactly one test block, found {test.count(old)}')
-              test = test.replace(old, new)
+                          }),""",
+              'test response',
+          )
           test_path.write_text(test)
 
           Path('.github/workflows/patch-cloudflare-endpoint.yml').unlink()
