@@ -1,0 +1,176 @@
+name: Patch Cloudflare embedding endpoint
+
+on:
+  push:
+    branches: [fix/cloudflare-workers-ai-run-endpoint]
+    paths:
+      - '.github/workflows/patch-cloudflare-endpoint.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/cloudflare-workers-ai-run-endpoint
+
+      - name: Patch client and tests
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          client_path = Path('apps/worker/src/event-embeddings.ts')
+          client = client_path.read_text()
+
+          old_schema = """const CloudflareEmbeddingResponseSchema = z.object({
+              data: z.array(z.object({
+                  index: z.number().int().nonnegative(),
+                  embedding: z.array(z.number()),
+              })).min(1),
+          });"""
+          new_schema = """const CloudflareEmbeddingResponseSchema = z.object({
+              success: z.literal(true),
+              result: z.object({
+                  shape: z.array(z.number().int().nonnegative()).optional(),
+                  data: z.union([
+                      z.array(z.array(z.number())).min(1),
+                      z.array(z.number()).min(1),
+                  ]),
+              }),
+          });"""
+
+          old_endpoint = """function embeddingsEndpoint(options: ResolvedCloudflareEmbeddingOptions): string {
+              return `${options.apiBaseUrl}/accounts/${encodeURIComponent(options.accountId)}/ai/v1/embeddings`;
+          }"""
+          new_endpoint = """function embeddingsEndpoint(options: ResolvedCloudflareEmbeddingOptions): string {
+              return `${options.apiBaseUrl}/accounts/${encodeURIComponent(options.accountId)}/ai/run/${options.model}`;
+          }"""
+
+          old_body = """body: JSON.stringify({
+                              model: options.model,
+                              input: inputTexts,
+                              encoding_format: 'float',
+                          }),"""
+          new_body = """body: JSON.stringify({
+                              text: inputTexts,
+                          }),"""
+
+          old_parse = """            const parsed = CloudflareEmbeddingResponseSchema.parse(
+                              await response.json(),
+                          );
+                          const ordered = [...parsed.data].sort(
+                              (left, right) => left.index - right.index,
+                          );
+                          if (ordered.length !== inputTexts.length) {
+                              throw new Error(
+                                  `Cloudflare embeddings response returned ${ordered.length} vectors for ${inputTexts.length} inputs`,
+                              );
+                          }
+
+                          return ordered.map((item) => {
+                              if (item.embedding.length !== options.dimensions) {
+                                  throw new Error(
+                                      `Cloudflare embedding has ${item.embedding.length} dimensions; expected ${options.dimensions}`,
+                                  );
+                              }
+                              return item.embedding;
+                          });"""
+          new_parse = """            const parsed = CloudflareEmbeddingResponseSchema.parse(
+                              await response.json(),
+                          );
+                          const rawData = parsed.result.data;
+                          const vectors = Array.isArray(rawData[0])
+                              ? rawData as number[][]
+                              : [rawData as number[]];
+                          if (vectors.length !== inputTexts.length) {
+                              throw new Error(
+                                  `Cloudflare embeddings response returned ${vectors.length} vectors for ${inputTexts.length} inputs`,
+                              );
+                          }
+
+                          return vectors.map((embedding) => {
+                              if (embedding.length !== options.dimensions) {
+                                  throw new Error(
+                                      `Cloudflare embedding has ${embedding.length} dimensions; expected ${options.dimensions}`,
+                                  );
+                              }
+                              return embedding;
+                          });"""
+
+          replacements = [
+              (old_schema, new_schema),
+              (old_endpoint, new_endpoint),
+              (old_body, new_body),
+              (old_parse, new_parse),
+          ]
+          for old, new in replacements:
+              if client.count(old) != 1:
+                  raise SystemExit(f'Expected exactly one client block, found {client.count(old)}')
+              client = client.replace(old, new)
+          client_path.write_text(client)
+
+          test_path = Path('apps/worker/src/__tests__/event-embeddings.test.ts')
+          test = test_path.read_text()
+          test = test.replace(
+              "it('calls the Cloudflare OpenAI-compatible endpoint in a batch', async () => {",
+              "it('calls the Cloudflare Workers AI model endpoint in a batch', async () => {",
+          )
+          test = test.replace(
+              "https://api.cloudflare.test/client/v4/accounts/account-123/ai/v1/embeddings",
+              "https://api.cloudflare.test/client/v4/accounts/account-123/ai/run/@cf/baai/bge-small-en-v1.5",
+          )
+          old_assertions = """            const body = JSON.parse(init.body) as Record<string, unknown>;
+                      expect(body).toMatchObject({
+                          model: '@cf/baai/bge-small-en-v1.5',
+                          encoding_format: 'float',
+                      });
+                      expect(body).not.toHaveProperty('dimensions');
+                      expect(body.input).toEqual([
+                          'table tennis tournament: first open',
+                          'table tennis tournament: second open',
+                      ]);"""
+          new_assertions = """            const body = JSON.parse(init.body) as Record<string, unknown>;
+                      expect(body).toEqual({
+                          text: [
+                              'table tennis tournament: first open',
+                              'table tennis tournament: second open',
+                          ],
+                      });"""
+          old_response = """                json: async () => ({
+                              data: [
+                                  { index: 1, embedding: [0, 1] },
+                                  { index: 0, embedding: [1, 0] },
+                              ],
+                          }),"""
+          new_response = """                json: async () => ({
+                              success: true,
+                              result: {
+                                  shape: [2, 2],
+                                  data: [
+                                      [1, 0],
+                                      [0, 1],
+                                  ],
+                                  pooling: 'mean',
+                              },
+                              errors: [],
+                              messages: [],
+                          }),"""
+          for old, new in [(old_assertions, new_assertions), (old_response, new_response)]:
+              if test.count(old) != 1:
+                  raise SystemExit(f'Expected exactly one test block, found {test.count(old)}')
+              test = test.replace(old, new)
+          test_path.write_text(test)
+
+          Path('.github/workflows/patch-cloudflare-endpoint.yml').unlink()
+          PY
+
+      - name: Commit patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add apps/worker/src/event-embeddings.ts apps/worker/src/__tests__/event-embeddings.test.ts .github/workflows/patch-cloudflare-endpoint.yml
+          git commit -m 'fix: use Cloudflare Workers AI model endpoint'
+          git push origin HEAD:fix/cloudflare-workers-ai-run-endpoint
