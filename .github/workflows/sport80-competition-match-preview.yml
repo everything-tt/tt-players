@@ -38,6 +38,90 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
+      - name: Diagnose Cloudflare Workers AI access
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_USER"
+          ssh "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          diagnostic=$(mktemp --suffix=.mjs)
+          cat > "$diagnostic" <<'NODE'
+          const base = 'https://api.cloudflare.com/client/v4';
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+
+          async function request(path, init = {}) {
+            const response = await fetch(`${base}${path}`, {
+              ...init,
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                ...(init.headers ?? {}),
+              },
+            });
+            let body = null;
+            try {
+              body = await response.json();
+            } catch {
+              body = null;
+            }
+            return { response, body };
+          }
+
+          function summary(result) {
+            const errors = Array.isArray(result.body?.errors) ? result.body.errors : [];
+            return {
+              httpStatus: result.response.status,
+              success: result.body?.success ?? result.response.ok,
+              errorCodes: errors.map((error) => error.code),
+              errorMessages: errors.map((error) => error.message),
+            };
+          }
+
+          const tokenCheck = await request('/user/tokens/verify');
+          const accountsCheck = await request('/accounts?per_page=100');
+          const accessibleAccountIds = Array.isArray(accountsCheck.body?.result)
+            ? accountsCheck.body.result.map((account) => account.id)
+            : [];
+          const accountCheck = await request(`/accounts/${accountId}`);
+          const accountTokenCheck = await request(`/accounts/${accountId}/tokens/verify`);
+          const modelCheck = await request(
+            `/accounts/${accountId}/ai/run/@cf/baai/bge-small-en-v1.5`,
+            {
+              method: 'POST',
+              body: JSON.stringify({ text: ['table tennis tournament diagnostic'] }),
+            },
+          );
+
+          console.log(`CLOUDFLARE_ACCESS_DIAGNOSTIC ${JSON.stringify({
+            configuredAccountId: accountId,
+            token: summary(tokenCheck),
+            accounts: summary(accountsCheck),
+            accessibleAccountIds,
+            configuredAccountListed: accessibleAccountIds.includes(accountId),
+            configuredAccount: summary(accountCheck),
+            accountToken: summary(accountTokenCheck),
+            workersAiModel: summary(modelCheck),
+          })}`);
+          NODE
+
+          chmod 600 "$diagnostic"
+          systemd-run \
+            --quiet \
+            --wait \
+            --pipe \
+            --collect \
+            --unit=ttp-cloudflare-access-diagnostic \
+            --uid=ttp \
+            --gid=ttp \
+            --property=EnvironmentFile=/etc/ttp/worker.env \
+            /usr/bin/node "$diagnostic"
+          rm -f "$diagnostic"
+          REMOTE
+
       - name: Run live embedding match preview
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
