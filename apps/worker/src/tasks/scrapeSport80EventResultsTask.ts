@@ -1,6 +1,10 @@
 import type { Task } from 'graphile-worker';
 import { sql, type Kysely } from 'kysely';
 import { db, type Database } from '@tt-players/db';
+import {
+    chooseTournamentCandidateWithEmbeddings,
+    type TournamentEmbeddingMatchScore,
+} from '../event-embeddings.js';
 import { storeScrapePayload } from '../extractor.js';
 import { fetchSport80EventResults, sport80Urls } from '../sport80-client.js';
 import { loadTTLeaguesData } from '../loader.js';
@@ -11,7 +15,6 @@ import {
     upsertSport80SourceEvent,
     upsertSport80SourceEventResultRows,
 } from '../sport80-loader.js';
-import { chooseTournamentCandidate } from '../tournament-reconciliation.js';
 
 export interface ScrapeSport80EventResultsPayload {
     eventId: string;
@@ -23,7 +26,23 @@ export interface ScrapeSport80EventResultsPayload {
 
 interface CompetitionResolution {
     competitionId: string;
-    matchMethod: 'existing-source' | 'automatic' | 'review' | 'separate';
+    matchMethod:
+        | 'existing-source'
+        | 'embedding-automatic'
+        | 'automatic'
+        | 'review'
+        | 'separate';
+}
+
+interface TournamentMatchEvidence {
+    decision: string;
+    reason: string;
+    embeddingUsed: boolean;
+    embeddingProvider: 'cloudflare-workers-ai' | null;
+    embeddingModel: string | null;
+    embeddingDimensions: number | null;
+    embeddingError?: string;
+    scores?: TournamentEmbeddingMatchScore;
 }
 
 async function upsertSeason(
@@ -65,6 +84,7 @@ async function saveSport80SourceMapping(
     category: string | null,
     matchMethod: string,
     matchConfidence: number | null,
+    matchEvidence?: TournamentMatchEvidence,
 ): Promise<void> {
     const sourceUrl = sport80Urls.eventResultsTable(eventId);
     const rawPayload = {
@@ -72,6 +92,7 @@ async function saveSport80SourceMapping(
         name: eventName,
         date: eventDate,
         category,
+        ...(matchEvidence ? { match: matchEvidence } : {}),
     };
     const now = new Date();
     await database
@@ -115,7 +136,8 @@ async function recordReviewCandidate(
     eventDate: string | null,
     candidateId: string,
     candidateVenue: string | null,
-    score: NonNullable<ReturnType<typeof chooseTournamentCandidate>['score']>,
+    score: TournamentEmbeddingMatchScore,
+    evidence: TournamentMatchEvidence,
 ): Promise<void> {
     const existing = await database
         .selectFrom('tournament_match_candidates')
@@ -137,10 +159,12 @@ async function recordReviewCandidate(
             incoming_venue: candidateVenue,
             candidate_competition_id: candidateId,
             name_score: score.name,
+            embedding_score: score.semantic,
             date_score: score.date,
             venue_score: score.venue,
             category_score: score.category,
             total_score: score.total,
+            score_evidence: evidence,
             status: 'pending',
         })
         .execute();
@@ -260,32 +284,52 @@ async function resolveCompetition(
 
     const parsedName = parseSport80EventName(eventName);
     const normalizedDate = eventDate ?? parsedName.dateFromName;
+    const normalizedCategory = category ?? parsedName.category;
     const candidates = await findCalendarCandidates(database, normalizedDate);
-    const choice = chooseTournamentCandidate(
+    const choice = await chooseTournamentCandidateWithEmbeddings(
+        database,
         {
             name: parsedName.displayName,
             startDate: normalizedDate,
             endDate: normalizedDate,
-            category: category ?? parsedName.category,
+            category: normalizedCategory,
             venue: null,
         },
         candidates,
     );
+    if (choice.embeddingError) {
+        console.warn(
+            `Sport:80 event ${eventId} embedding reconciliation fallback: ${choice.embeddingError}`,
+        );
+    }
+
+    const evidence: TournamentMatchEvidence = {
+        decision: choice.decision,
+        reason: choice.reason,
+        embeddingUsed: choice.embeddingUsed,
+        embeddingProvider: choice.embeddingUsed ? 'cloudflare-workers-ai' : null,
+        embeddingModel: choice.embeddingModel,
+        embeddingDimensions: choice.embeddingDimensions,
+        ...(choice.embeddingError ? { embeddingError: choice.embeddingError } : {}),
+        ...(choice.score ? { scores: choice.score } : {}),
+    };
 
     if (choice.decision === 'automatic' && choice.candidate && choice.score) {
+        const matchMethod = choice.embeddingUsed ? 'embedding-automatic' : 'automatic';
         await saveSport80SourceMapping(
             database,
             choice.candidate.id,
             eventId,
             eventName,
             normalizedDate,
-            category ?? parsedName.category,
-            'automatic',
+            normalizedCategory,
+            matchMethod,
             choice.score.total,
+            evidence,
         );
         return {
             competitionId: choice.candidate.id,
-            matchMethod: 'automatic',
+            matchMethod,
         };
     }
 
@@ -307,6 +351,7 @@ async function resolveCompetition(
             choice.candidate.id,
             choice.candidate.venue ?? null,
             choice.score,
+            evidence,
         );
         await saveSport80SourceMapping(
             database,
@@ -314,9 +359,10 @@ async function resolveCompetition(
             eventId,
             eventName,
             normalizedDate,
-            category ?? parsedName.category,
-            'review-pending',
+            normalizedCategory,
+            choice.embeddingUsed ? 'embedding-review-pending' : 'review-pending',
             choice.score.total,
+            evidence,
         );
         return {
             competitionId: separateCompetitionId,
@@ -330,9 +376,10 @@ async function resolveCompetition(
         eventId,
         eventName,
         normalizedDate,
-        category ?? parsedName.category,
+        normalizedCategory,
         'separate',
         null,
+        evidence,
     );
     return {
         competitionId: separateCompetitionId,

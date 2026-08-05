@@ -78,6 +78,7 @@ describe('migration preflight', () => {
             '038_flatten_player_identity_chains',
             '039_restore_query_performance_indexes',
             '040_create_rating_audit_snapshots',
+            '041_create_competition_embeddings',
         ]);
     });
 });

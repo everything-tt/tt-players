@@ -110,6 +110,34 @@ jobs:
           rm -f "$temp_file"
           REMOTE
 
+      - name: Configure worker embedding credentials
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_AI_API_TOKEN: ${{ secrets.CLOUDFLARE_AI_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$CLOUDFLARE_AI_API_TOKEN"
+
+          token_b64=$(printf '%s' "$CLOUDFLARE_AI_API_TOKEN" | base64 -w 0)
+          account_b64=$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | base64 -w 0)
+
+          ssh "$VPS_USER@$VPS_HOST" \
+            "CLOUDFLARE_TOKEN_B64='$token_b64' CLOUDFLARE_ACCOUNT_B64='$account_b64' bash -s" <<'REMOTE'
+          set -euo pipefail
+          env_file=/etc/ttp/worker.env
+          temp_file=$(mktemp)
+          if [[ -f "$env_file" ]]; then
+            grep -v -E '^CLOUDFLARE_(API_TOKEN|ACCOUNT_ID)=' "$env_file" > "$temp_file" || true
+          fi
+          printf 'CLOUDFLARE_API_TOKEN=%s\n' "$(printf '%s' "$CLOUDFLARE_TOKEN_B64" | base64 -d)" >> "$temp_file"
+          printf 'CLOUDFLARE_ACCOUNT_ID=%s\n' "$(printf '%s' "$CLOUDFLARE_ACCOUNT_B64" | base64 -d)" >> "$temp_file"
+          install -m 600 "$temp_file" "$env_file"
+          rm -f "$temp_file"
+          REMOTE
+
       - name: Determine database compatibility boundary
         id: database
         env:
@@ -197,6 +225,7 @@ jobs:
             echo "- Commit: \`$GITHUB_SHA\`"
             echo "- Database changed: \`$DATABASE_CHANGED\`"
             echo "- Database fingerprint: \`$DB_FINGERPRINT\`"
+            echo "- Cloudflare worker credentials: configured from \`CLOUDFLARE_ACCOUNT_ID\` and \`CLOUDFLARE_AI_API_TOKEN\`"
             if [[ "$DATABASE_CHANGED" == true ]]; then
               echo "- Rollback: **disabled**; recovery is forward-only"
             else
