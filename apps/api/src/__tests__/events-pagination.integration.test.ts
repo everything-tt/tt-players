@@ -102,6 +102,25 @@ beforeAll(async () => {
             .execute();
     }
 
+    // This is newer than the result-bearing events, so the fast path must skip
+    // it and keep scanning candidates until the requested page is full.
+    await database
+        .insertInto('competitions')
+        .values({
+            season_id: season.id,
+            external_id: 'paged-event-without-results',
+            name: 'Page First Tournament Without Results',
+            display_name: 'Page First Tournament Without Results',
+            event_date: '2026-07-04',
+            start_date: '2026-07-04',
+            event_status: 'completed',
+            category: 'Junior',
+            type: 'individual',
+            source: 'test',
+            source_url: 'https://events.example.com/without-results',
+        })
+        .execute();
+
     const app = await buildApp(db);
     await app.ready();
     request = supertest(app.server);
