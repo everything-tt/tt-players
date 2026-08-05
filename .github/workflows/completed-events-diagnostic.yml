@@ -1,0 +1,125 @@
+name: Trace completed event query
+
+on:
+  push:
+    branches:
+      - fix/completed-events-avoid-exact-count
+    paths:
+      - '.github/workflows/completed-events-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Measure public API
+        run: |
+          set -euo pipefail
+          : > diagnostic.txt
+          for url in \
+            'https://ttp-api.tourneypilot.com/api/events?status=completed&limit=10&offset=0' \
+            'https://ttp-api.tourneypilot.com/api/events?status=completed&limit=10&offset=10' \
+            'https://ttp-api.tourneypilot.com/api/events?status=upcoming&limit=10&offset=0'; do
+            echo "URL $url" | tee -a diagnostic.txt
+            for attempt in 1 2 3; do
+              curl --fail --silent --show-error --output /dev/null \
+                --write-out "attempt=$attempt status=%{http_code} start=%{time_starttransfer}s total=%{time_total}s\n" \
+                "$url" | tee -a diagnostic.txt
+            done
+          done
+
+      - name: Configure SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_SSH_KEY"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Capture production query plans
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_USER"
+          ssh "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE' | tee -a diagnostic.txt
+          set -euo pipefail
+          sql_file=$(mktemp --suffix=.sql)
+          cat > "$sql_file" <<'SQL'
+          \echo '=== exact total page ==='
+          EXPLAIN (ANALYZE, BUFFERS, SETTINGS)
+          SELECT
+              c.id,
+              count(*) OVER () AS total
+          FROM competitions c
+          WHERE c.type = 'individual'
+            AND c.deleted_at IS NULL
+            AND c.event_status = 'completed'
+            AND EXISTS (
+                SELECT 1
+                FROM fixtures f
+                JOIN rubbers r ON r.fixture_id = f.id
+                WHERE f.competition_id = c.id
+                  AND f.deleted_at IS NULL
+                  AND r.deleted_at IS NULL
+                  AND r.is_doubles = false
+            )
+          ORDER BY
+              coalesce(c.start_date, c.event_date) DESC,
+              coalesce(c.display_name, c.name) ASC,
+              c.id ASC
+          LIMIT 10 OFFSET 0;
+
+          \echo '=== limit plus one without exact total ==='
+          EXPLAIN (ANALYZE, BUFFERS, SETTINGS)
+          SELECT c.id
+          FROM competitions c
+          WHERE c.type = 'individual'
+            AND c.deleted_at IS NULL
+            AND c.event_status = 'completed'
+            AND EXISTS (
+                SELECT 1
+                FROM fixtures f
+                JOIN rubbers r ON r.fixture_id = f.id
+                WHERE f.competition_id = c.id
+                  AND f.deleted_at IS NULL
+                  AND r.deleted_at IS NULL
+                  AND r.is_doubles = false
+            )
+          ORDER BY
+              coalesce(c.start_date, c.event_date) DESC,
+              coalesce(c.display_name, c.name) ASC,
+              c.id ASC
+          LIMIT 11 OFFSET 0;
+          SQL
+          chown ttp:ttp "$sql_file"
+          chmod 600 "$sql_file"
+          systemd-run \
+            --quiet \
+            --wait \
+            --pipe \
+            --collect \
+            --unit=ttp-completed-event-query-trace \
+            --uid=ttp \
+            --gid=ttp \
+            --property=EnvironmentFile=/etc/ttp/api.env \
+            /bin/bash -lc '/usr/bin/psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f "$1"' bash "$sql_file"
+          rm -f "$sql_file"
+          REMOTE
+
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: completed-events-diagnostic
+          path: diagnostic.txt
+          retention-days: 1
