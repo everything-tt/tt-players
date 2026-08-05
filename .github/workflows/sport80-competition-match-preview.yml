@@ -2,10 +2,11 @@ name: Preview Sport80 competition matching
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/sport80-competition-match-preview.yml'
+    inputs:
+      limit:
+        description: Number of recent separate or review-pending Sport80 events to evaluate
+        required: false
+        default: '20'
 
 concurrency:
   group: sport80-competition-match-preview
@@ -15,9 +16,9 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  preview:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Configure SSH
@@ -26,91 +27,74 @@ jobs:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
           set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_SSH_KEY"
           install -m 700 -d ~/.ssh
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
-      - name: Diagnose Cloudflare Workers AI access
+      - name: Run live embedding match preview
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
+          PREVIEW_LIMIT: ${{ inputs.limit || '20' }}
         run: |
           set -euo pipefail
-          ssh "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
+          test -n "$VPS_USER"
+          test -n "$PREVIEW_LIMIT"
+          ssh "$VPS_USER@$VPS_HOST" \
+            "PREVIEW_LIMIT='$PREVIEW_LIMIT' bash -s" <<'REMOTE' | tee preview.log
           set -euo pipefail
-          diagnostic=$(mktemp --suffix=.mjs)
-          cat > "$diagnostic" <<'NODE'
-          const base = 'https://api.cloudflare.com/client/v4';
-          const token = process.env.CLOUDFLARE_API_TOKEN;
-          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-
-          async function request(path, init = {}) {
-            const response = await fetch(`${base}${path}`, {
-              ...init,
-              headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json',
-                ...(init.headers ?? {}),
-              },
-            });
-            let body = null;
-            try {
-              body = await response.json();
-            } catch {
-              body = null;
-            }
-            return { response, body };
-          }
-
-          function summary(result) {
-            const errors = Array.isArray(result.body?.errors) ? result.body.errors : [];
-            return {
-              httpStatus: result.response.status,
-              success: result.body?.success ?? result.response.ok,
-              errorCodes: errors.map((error) => error.code),
-              errorMessages: errors.map((error) => error.message),
-            };
-          }
-
-          const tokenCheck = await request('/user/tokens/verify');
-          const accountsCheck = await request('/accounts?per_page=100');
-          const accessibleAccountIds = Array.isArray(accountsCheck.body?.result)
-            ? accountsCheck.body.result.map((account) => account.id)
-            : [];
-          const accountCheck = await request(`/accounts/${accountId}`);
-          const accountTokenCheck = await request(`/accounts/${accountId}/tokens/verify`);
-          const modelCheck = await request(
-            `/accounts/${accountId}/ai/run/@cf/baai/bge-small-en-v1.5`,
-            {
-              method: 'POST',
-              body: JSON.stringify({ text: ['table tennis tournament diagnostic'] }),
-            },
-          );
-
-          console.log(`CLOUDFLARE_ACCESS_DIAGNOSTIC ${JSON.stringify({
-            configuredAccountId: accountId,
-            token: summary(tokenCheck),
-            accounts: summary(accountsCheck),
-            accessibleAccountIds,
-            configuredAccountListed: accessibleAccountIds.includes(accountId),
-            configuredAccount: summary(accountCheck),
-            accountToken: summary(accountTokenCheck),
-            workersAiModel: summary(modelCheck),
-          })}`);
-          NODE
-
-          chown ttp:ttp "$diagnostic"
-          chmod 600 "$diagnostic"
           systemd-run \
             --quiet \
             --wait \
             --pipe \
             --collect \
-            --unit=ttp-cloudflare-access-diagnostic \
+            --unit=ttp-sport80-match-preview \
             --uid=ttp \
             --gid=ttp \
             --property=EnvironmentFile=/etc/ttp/worker.env \
-            /usr/bin/node "$diagnostic"
-          rm -f "$diagnostic"
+            --property=WorkingDirectory=/opt/tt-players/current/apps/worker \
+            /usr/bin/env SPORT80_MATCH_PREVIEW_LIMIT="$PREVIEW_LIMIT" \
+            /opt/tt-players/current/apps/worker/node_modules/.bin/tsx \
+            src/preview-sport80-competition-matches.ts
           REMOTE
+
+      - name: Publish preview summary
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const log = fs.readFileSync('preview.log', 'utf8');
+          const line = log.split(/\r?\n/)
+            .findLast((entry) => entry.startsWith('SPORT80_MATCH_PREVIEW_RESULT '));
+          if (!line) throw new Error('Preview result marker was not found');
+          const result = JSON.parse(line.slice('SPORT80_MATCH_PREVIEW_RESULT '.length));
+
+          const rows = result.results.map((item) => {
+            const score = item.score == null ? '' : Number(item.score).toFixed(4);
+            const semantic = item.semanticScore == null ? '' : Number(item.semanticScore).toFixed(4);
+            const incoming = String(item.incomingName).replaceAll('|', '\\|');
+            const candidate = String(item.candidateName ?? '').replaceAll('|', '\\|');
+            const error = String(item.embeddingError ?? '').replaceAll('|', '\\|');
+            return `| ${incoming} | ${item.decision} | ${candidate} | ${score} | ${semantic} | ${item.embeddingUsed ? 'yes' : 'no'} | ${error} |`;
+          });
+
+          const markdown = [
+            '### Sport:80 competition embedding preview',
+            '',
+            `- Evaluated: **${result.evaluated}**`,
+            `- Decisions: \`${JSON.stringify(result.decisions)}\``,
+            `- Cloudflare embeddings used: **${result.embeddingUsed}**`,
+            `- Embedding errors: **${result.embeddingErrors}**`,
+            '',
+            '| Sport:80 event | Decision | TTE candidate | Total | Semantic | Embedding | Error |',
+            '|---|---|---|---:|---:|---|---|',
+            ...rows,
+            '',
+            '> Preview only: no existing competition mappings or result rows were changed.',
+          ].join('\n');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${markdown}\n`);
+          console.log(markdown);
+          NODE
