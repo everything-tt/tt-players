@@ -1,0 +1,124 @@
+name: Preview Sport80 competition matching
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: Number of recent separate or review-pending Sport80 events to evaluate
+        required: false
+        default: '20'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/worker/src/preview-sport80-competition-matches.ts'
+      - '.github/workflows/sport80-competition-match-preview.yml'
+
+concurrency:
+  group: sport80-competition-match-preview
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Configure SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_SSH_KEY"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Wait for matching release to be deployed
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_USER"
+          for attempt in $(seq 1 90); do
+            deployed_sha=$(ssh "$VPS_USER@$VPS_HOST" \
+              "sed -n 's/^commit_sha=//p' /opt/tt-players/current/.release-metadata 2>/dev/null | head -n 1" || true)
+            if [[ "$deployed_sha" == "$GITHUB_SHA" ]]; then
+              echo "Release $GITHUB_SHA is active"
+              exit 0
+            fi
+            echo "Waiting for release $GITHUB_SHA; current=${deployed_sha:-none}"
+            sleep 5
+          done
+          echo "Timed out waiting for release $GITHUB_SHA" >&2
+          exit 1
+
+      - name: Run live embedding match preview
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          PREVIEW_LIMIT: ${{ inputs.limit || '20' }}
+        run: |
+          set -euo pipefail
+          test -n "$PREVIEW_LIMIT"
+          ssh "$VPS_USER@$VPS_HOST" \
+            "PREVIEW_LIMIT='$PREVIEW_LIMIT' bash -s" <<'REMOTE' | tee preview.log
+          set -euo pipefail
+          systemd-run \
+            --quiet \
+            --wait \
+            --pipe \
+            --collect \
+            --unit=ttp-sport80-match-preview \
+            --uid=ttp \
+            --gid=ttp \
+            --property=EnvironmentFile=/etc/ttp/worker.env \
+            --property=WorkingDirectory=/opt/tt-players/current/apps/worker \
+            /usr/bin/env SPORT80_MATCH_PREVIEW_LIMIT="$PREVIEW_LIMIT" \
+            /opt/tt-players/current/apps/worker/node_modules/.bin/tsx \
+            src/preview-sport80-competition-matches.ts
+          REMOTE
+
+      - name: Publish preview summary
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const log = fs.readFileSync('preview.log', 'utf8');
+          const line = log.split(/\r?\n/)
+            .findLast((entry) => entry.startsWith('SPORT80_MATCH_PREVIEW_RESULT '));
+          if (!line) throw new Error('Preview result marker was not found');
+          const result = JSON.parse(line.slice('SPORT80_MATCH_PREVIEW_RESULT '.length));
+
+          const rows = result.results.map((item) => {
+            const score = item.score == null ? '' : Number(item.score).toFixed(4);
+            const semantic = item.semanticScore == null ? '' : Number(item.semanticScore).toFixed(4);
+            const incoming = String(item.incomingName).replaceAll('|', '\\|');
+            const candidate = String(item.candidateName ?? '').replaceAll('|', '\\|');
+            const error = String(item.embeddingError ?? '').replaceAll('|', '\\|');
+            return `| ${incoming} | ${item.decision} | ${candidate} | ${score} | ${semantic} | ${item.embeddingUsed ? 'yes' : 'no'} | ${error} |`;
+          });
+
+          const markdown = [
+            '### Sport:80 competition embedding preview',
+            '',
+            `- Evaluated: **${result.evaluated}**`,
+            `- Decisions: \`${JSON.stringify(result.decisions)}\``,
+            `- Cloudflare embeddings used: **${result.embeddingUsed}**`,
+            `- Embedding errors: **${result.embeddingErrors}**`,
+            '',
+            '| Sport:80 event | Decision | TTE candidate | Total | Semantic | Embedding | Error |',
+            '|---|---|---|---:|---:|---|---|',
+            ...rows,
+            '',
+            '> Preview only: no existing competition mappings or result rows were changed.',
+          ].join('\n');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${markdown}\n`);
+          console.log(markdown);
+          NODE
