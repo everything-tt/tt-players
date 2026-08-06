@@ -154,8 +154,11 @@ function append(entry: Entry): void {
   writeFileSync(manifestPath, `${JSON.stringify(entries, null, 2)}\n`);
 }
 
-function addUnique(target: string[], values: string[]): void {
-  for (const value of values) if (value && !target.includes(value)) target.push(value);
+function addUnique(target: string[], values: string[], limit = 25): void {
+  for (const value of values) {
+    if (target.length >= limit) return;
+    if (value && !target.includes(value)) target.push(value);
+  }
 }
 
 function collectIds(value: unknown, keys: Set<string>, output: string[] = []): string[] {
@@ -401,10 +404,14 @@ async function stateShot(
 }
 
 async function searchInput(page: Page, label: RegExp, placeholder: RegExp): Promise<Locator | null> {
-  const labelled = page.getByLabel(label).first();
-  if (await labelled.isVisible().catch(() => false)) return labelled;
-  const placed = page.getByPlaceholder(placeholder).first();
-  if (await placed.isVisible().catch(() => false)) return placed;
+  const candidates = [
+    page.getByRole('searchbox', { name: label }).first(),
+    page.getByRole('textbox', { name: label }).first(),
+    page.getByPlaceholder(placeholder).first(),
+  ];
+  for (const candidate of candidates) {
+    if (await candidate.isVisible().catch(() => false)) return candidate;
+  }
   return null;
 }
 
