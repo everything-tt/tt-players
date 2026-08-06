@@ -13,6 +13,7 @@ import {
 let db: Kysely<Database>;
 let request: ReturnType<typeof supertest>;
 let eventIds: string[] = [];
+let emptyResultId: string;
 
 beforeAll(async () => {
     await createTestDatabase();
@@ -66,6 +67,7 @@ beforeAll(async () => {
                 event_date: `2026-07-0${index}`,
                 start_date: `2026-07-0${index}`,
                 event_status: 'completed',
+                record_kind: 'result',
                 category: 'Junior',
                 type: 'individual',
                 source: 'test',
@@ -102,9 +104,9 @@ beforeAll(async () => {
             .execute();
     }
 
-    // This is newer than the result-bearing events, so the fast path must skip
-    // it and keep scanning candidates until the requested page is full.
-    await database
+    // A result-scraped competition remains a completed result row even when
+    // the source currently contains no playable singles rubbers.
+    const emptyResult = await database
         .insertInto('competitions')
         .values({
             season_id: season.id,
@@ -114,12 +116,15 @@ beforeAll(async () => {
             event_date: '2026-07-04',
             start_date: '2026-07-04',
             event_status: 'completed',
+            record_kind: 'result',
             category: 'Junior',
             type: 'individual',
             source: 'test',
             source_url: 'https://events.example.com/without-results',
         })
-        .execute();
+        .returning('id')
+        .executeTakeFirstOrThrow();
+    emptyResultId = emptyResult.id;
 
     const app = await buildApp(db);
     await app.ready();
@@ -131,33 +136,33 @@ afterAll(async () => {
 }, 15_000);
 
 describe('Events API pagination', () => {
-    it('pages completed event IDs before enriching their match counts', async () => {
+    it('pages completed result rows before enriching their match counts', async () => {
         const firstPage = await request
             .get('/api/events?status=completed&q=Page%20First&limit=2&offset=0')
             .expect(200);
 
-        expect(firstPage.body.total).toBe(3);
+        expect(firstPage.body.total).toBe(4);
         expect(firstPage.body.has_more).toBe(true);
         expect(firstPage.body.data.map((event: { id: string }) => event.id)).toEqual([
+            emptyResultId,
             eventIds[2],
-            eventIds[1],
         ]);
-        expect(firstPage.body.data.map((event: { match_count: number }) => event.match_count)).toEqual([3, 2]);
+        expect(firstPage.body.data.map((event: { match_count: number }) => event.match_count)).toEqual([0, 3]);
 
         const secondPage = await request
             .get('/api/events?status=completed&q=Page%20First&limit=2&offset=2')
             .expect(200);
 
-        expect(secondPage.body.total).toBe(3);
+        expect(secondPage.body.total).toBe(4);
         expect(secondPage.body.has_more).toBe(false);
-        expect(secondPage.body.data).toHaveLength(1);
-        expect(secondPage.body.data[0]).toMatchObject({
-            id: eventIds[0],
-            match_count: 1,
-        });
+        expect(secondPage.body.data.map((event: { id: string }) => event.id)).toEqual([
+            eventIds[1],
+            eventIds[0],
+        ]);
+        expect(secondPage.body.data.map((event: { match_count: number }) => event.match_count)).toEqual([2, 1]);
     });
 
-    it('returns fast completed pages without scanning for an exact total', async () => {
+    it('returns fast completed pages without result-eligibility scans', async () => {
         const firstPage = await request
             .get('/api/events?status=completed&q=Page%20First&include_total=false&limit=2&offset=0')
             .expect(200);
@@ -169,10 +174,10 @@ describe('Events API pagination', () => {
             offset: 0,
         });
         expect(firstPage.body.data.map((event: { id: string }) => event.id)).toEqual([
+            emptyResultId,
             eventIds[2],
-            eventIds[1],
         ]);
-        expect(firstPage.body.data.map((event: { match_count: number }) => event.match_count)).toEqual([3, 2]);
+        expect(firstPage.body.data.map((event: { match_count: number }) => event.match_count)).toEqual([0, 3]);
 
         const finalPage = await request
             .get('/api/events?status=completed&q=Page%20First&include_total=false&limit=2&offset=2')
@@ -184,11 +189,11 @@ describe('Events API pagination', () => {
             limit: 2,
             offset: 2,
         });
-        expect(finalPage.body.data).toHaveLength(1);
-        expect(finalPage.body.data[0]).toMatchObject({
-            id: eventIds[0],
-            match_count: 1,
-        });
+        expect(finalPage.body.data.map((event: { id: string }) => event.id)).toEqual([
+            eventIds[1],
+            eventIds[0],
+        ]);
+        expect(finalPage.body.data.map((event: { match_count: number }) => event.match_count)).toEqual([2, 1]);
     });
 
     it('preserves the total for an out-of-range offset', async () => {
@@ -198,7 +203,7 @@ describe('Events API pagination', () => {
 
         expect(response.body).toMatchObject({
             data: [],
-            total: 3,
+            total: 4,
             limit: 2,
             offset: 10,
             has_more: false,

@@ -29,6 +29,7 @@ import { ratingSourceQualityRoutes } from './routes/rating-source-quality.js';
 import { ratingHistoryRoutes } from './routes/rating-history.js';
 import { ratingsRoutes } from './routes/ratings.js';
 import { sourceQualityRoutes } from './routes/source-quality.js';
+import { scrapingMonitorRoutes } from './routes/scraping-monitor.js';
 import { userSyncRoutes } from './routes/user-sync.js';
 
 function envInteger(name: string, fallback: number): number {
@@ -95,6 +96,7 @@ export async function buildApp(db: Kysely<Database>) {
         [/^\/api\/teams\/[\w-]+\/(summary|roster|form)(\/|$)/, CACHE_STATIC],
         [/^\/api\/fixtures\/[\w-]+\/rubbers(\/|$)/, CACHE_DYNAMIC],
         [/^\/api\/sources\/quality(\/|$)/, CACHE_STATIC],
+        [/^\/api\/scraping\/monitor(\/|$)/, 'private, no-store'],
         [/^\/api\/me(\/|$)/, 'private, no-store'],
         [/^\/api\/health(\/|$)/, 'no-cache'],
     ];
@@ -178,6 +180,7 @@ export async function buildApp(db: Kysely<Database>) {
     await app.register(ratingHistoryRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingsRoutes(db), { prefix: '/api/ratings' });
     await app.register(sourceQualityRoutes(db), { prefix: '/api/sources' });
+    await app.register(scrapingMonitorRoutes(db), { prefix: '/api/scraping' });
     await app.register(userSyncRoutes(db), { prefix: '/api/me' });
     await app.register(feedbackRoutes(), { prefix: '/api/feedback' });
 

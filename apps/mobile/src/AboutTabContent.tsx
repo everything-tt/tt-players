@@ -48,6 +48,15 @@ export function AboutTabContent() {
         </AppButton>
       </PageSection>
 
+      <PageSection surface="flat" density="compact" title="Scraping Monitor" note="Progress · Audit · Results">
+        <p className="tt-about-description">
+          Follow the live scraping queue, payload transform progress, recent source results, retry attempts, and active resource failures.
+        </p>
+        <AppButton tone="outline" full onClick={() => navigate('/scraping-monitor', { state: { from: '/about' } })}>
+          <i className="fa fa-wave-square me-2" aria-hidden="true" />Open Scraping Monitor
+        </AppButton>
+      </PageSection>
+
       <PageSection surface="flat" density="compact" title="Send Feedback" note="Bug · Feature · Data">
         <p className="tt-about-description">Have a feature request, found a bug, or just want to say hi? Send us a message below.</p>
         <FeedbackForm variant="full" />
