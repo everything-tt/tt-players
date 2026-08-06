@@ -24,6 +24,7 @@ const AUDIT_NAV = [
   { key: 'overview', label: 'Overview', path: '/rating-audit' },
   { key: 'player', label: 'Player', path: '/rating-audit/player' },
   { key: 'coverage', label: 'Coverage', path: '/rating-audit/coverage' },
+  { key: 'sources', label: 'Sources', path: '/rating-audit/sources' },
   { key: 'data', label: 'Data', path: '/rating-audit/data' },
   { key: 'identities', label: 'Identity', path: '/rating-audit/identities' },
   { key: 'network', label: 'Network', path: '/rating-audit/network' },
