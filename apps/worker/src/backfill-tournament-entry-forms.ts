@@ -4,7 +4,10 @@ import { resolve } from 'node:path';
 import { db } from '@tt-players/db';
 import { inspectPendingTournamentEntryForms } from './entry-form-inspection.js';
 import { parseTournamentEntryFormBackfillOptions } from './backfill-tournament-entry-form-options.js';
-import { collectTournamentEntryFormBackfillDiagnostics } from './entry-form-backfill-diagnostics.js';
+import {
+    collectTournamentEntryFormBackfillDiagnostics,
+    type TournamentEntryFormDiagnostic,
+} from './entry-form-backfill-diagnostics.js';
 
 function errorMessage(error: unknown): string {
     return error instanceof Error && error.message.trim()
@@ -17,7 +20,7 @@ export async function runTournamentEntryFormBackfill(): Promise<void> {
     const summary = await inspectPendingTournamentEntryForms(db, options);
 
     let diagnosticCollectionError: string | null = null;
-    let diagnostics = [];
+    let diagnostics: TournamentEntryFormDiagnostic[] = [];
     try {
         diagnostics = await collectTournamentEntryFormBackfillDiagnostics(db, options.limit);
     } catch (error) {
