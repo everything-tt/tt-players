@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react';
+import { useId, useRef, type ReactNode } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -30,13 +30,29 @@ export function AppDrawer({
   closeLabel = 'Close menu',
 }: AppDrawerProps) {
   const titleId = useId();
+  const returnFocusRef = useRef<HTMLElement | null>(null);
 
   return (
     <DialogPrimitive.Root open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogPrimitive.Portal>
         <div className="tt-drawer-layer" data-slot="drawer-layer">
           <DialogPrimitive.Overlay className="tt-drawer-backdrop" data-slot="dialog-overlay" />
-          <DialogPrimitive.Content asChild aria-labelledby={titleId}>
+          <DialogPrimitive.Content
+            asChild
+            aria-labelledby={titleId}
+            onOpenAutoFocus={() => {
+              const activeElement = document.activeElement;
+              returnFocusRef.current = activeElement instanceof HTMLElement ? activeElement : null;
+            }}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              const returnFocusElement = returnFocusRef.current;
+              returnFocusRef.current = null;
+              if (returnFocusElement?.isConnected) {
+                returnFocusElement.focus({ preventScroll: true });
+              }
+            }}
+          >
             <aside
               id={id}
               className={cn('tt-drawer', className)}
