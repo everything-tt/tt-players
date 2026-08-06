@@ -30,6 +30,7 @@ const AUDIT_NAV = [
   { key: 'overview', label: 'Overview', path: '/rating-audit' },
   { key: 'player', label: 'Player', path: '/rating-audit/player' },
   { key: 'coverage', label: 'Coverage', path: '/rating-audit/coverage' },
+  { key: 'sources', label: 'Sources', path: '/rating-audit/sources' },
   { key: 'data', label: 'Data', path: '/rating-audit/data' },
   { key: 'identities', label: 'Identity', path: '/rating-audit/identities' },
   { key: 'network', label: 'Network', path: '/rating-audit/network' },
@@ -56,7 +57,7 @@ function issueTone(value: number) {
   return value === 0 ? 'success' as const : 'warning' as const;
 }
 
-function RatingAuditNavigation({ active }: { active: RatingAuditSection | 'player' | 'coverage' }) {
+function RatingAuditNavigation({ active }: { active: RatingAuditSection | 'player' | 'coverage' | 'sources' }) {
   const navigate = useNavigate();
 
   return (
@@ -133,6 +134,13 @@ function Overview({ audit }: { audit: RatingAuditSummaryResponse }) {
             subtitle="Separate unused records, historical-only players, invalid evidence and rating mismatches."
             trailing={<i className="fa fa-angle-right" aria-hidden="true" />}
             onClick={() => navigate('/rating-audit/coverage')}
+          />
+          <ListItem
+            leading={<i className="fa fa-database" aria-hidden="true" />}
+            title="Source quality"
+            subtitle="Compare provider and competition defect rates, suspicious dates and duplicate candidates."
+            trailing={<i className="fa fa-angle-right" aria-hidden="true" />}
+            onClick={() => navigate('/rating-audit/sources')}
           />
           <ListItem
             leading={<i className="fa fa-filter" aria-hidden="true" />}

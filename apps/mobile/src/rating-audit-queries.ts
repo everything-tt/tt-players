@@ -34,14 +34,63 @@ export interface RatingPlayerCoverageResponse {
     category: RatingPlayerCoverageCategory;
     count: number;
   }>;
-  pagination: {
-    page: number;
-    page_size: number;
-    total: number;
-    total_pages: number;
-  };
+  pagination: Pagination;
   model: string;
   window_start_date: string | null;
+}
+
+export interface Pagination {
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+}
+
+export interface RatingQualityMetrics {
+  total_rubbers: number;
+  eligible_rubbers: number;
+  missing_identity_rubbers: number;
+  missing_date_rubbers: number;
+  invalid_single_rubbers: number;
+  suspicious_date_rubbers: number;
+  duplicate_candidate_groups: number;
+  conflicting_candidate_groups: number;
+  first_match_date: string | null;
+  last_match_date: string | null;
+}
+
+export interface RatingSourceQualityRow extends RatingQualityMetrics {
+  source_id: string;
+  source_name: string;
+  base_url: string;
+}
+
+export interface RatingSourceQualityResponse {
+  data: RatingSourceQualityRow[];
+  pagination: Pagination;
+  model: string;
+}
+
+export interface RatingDuplicateCandidateRow {
+  id: string;
+  candidate_type: 'exact_score_candidate' | 'conflicting_score_candidate';
+  competition_id: string | null;
+  competition_name: string | null;
+  match_date: string;
+  player_a_id: string;
+  player_a_name: string;
+  player_b_id: string;
+  player_b_name: string;
+  rubber_count: number;
+  rubber_ids: unknown;
+  source_ids: unknown;
+  score_signatures: unknown;
+}
+
+export interface RatingDuplicateCandidateResponse {
+  data: RatingDuplicateCandidateRow[];
+  pagination: Pagination;
+  model: string;
 }
 
 export function useRatingPlayerCoverageQuery(
@@ -59,6 +108,28 @@ export function useRatingPlayerCoverageQuery(
         signal,
       );
     },
+    enabled,
+  });
+}
+
+export function useRatingSourceQualityQuery(pageSize = 50, enabled = true) {
+  return useQuery({
+    queryKey: ['ratings', 'audit', 'sources', pageSize],
+    queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<RatingSourceQualityResponse>(
+      `/ratings/audit/sources?page_size=${pageSize}`,
+      signal,
+    ),
+    enabled,
+  });
+}
+
+export function useRatingDuplicateCandidatesQuery(pageSize = 25, enabled = true) {
+  return useQuery({
+    queryKey: ['ratings', 'audit', 'duplicate-candidates', pageSize],
+    queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<RatingDuplicateCandidateResponse>(
+      `/ratings/audit/duplicate-candidates?page_size=${pageSize}`,
+      signal,
+    ),
     enabled,
   });
 }
