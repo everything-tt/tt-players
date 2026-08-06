@@ -79,6 +79,7 @@ describe('migration preflight', () => {
             '039_restore_query_performance_indexes',
             '040_create_rating_audit_snapshots',
             '041_create_competition_embeddings',
+            '042_create_rating_audit_foundation',
         ]);
     });
 });

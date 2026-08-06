@@ -78,6 +78,13 @@ async function resetFromDate(modelKey: string, startDate: string): Promise<void>
         if (!model) throw new Error(`Unknown rating model: ${modelKey}`);
 
         await sql`
+            UPDATE rating_models
+            SET window_start_date = ${startDate}::date,
+                updated_at = now()
+            WHERE id = ${model.id}::uuid
+        `.execute(trx);
+
+        await sql`
             DELETE FROM rating_checkpoints
             WHERE model_id = ${model.id}::uuid
         `.execute(trx);

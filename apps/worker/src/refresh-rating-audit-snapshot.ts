@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { bumpDataVersion, db } from '@tt-players/db';
+import { refreshRatingAuditIssues } from './ratings/rating-audit-issues.js';
 import { refreshRatingAuditSnapshot } from './ratings/rating-audit-snapshot.js';
 
 dotenv.config();
@@ -9,13 +10,16 @@ const modelKey = modelArg?.split('=')[1];
 
 try {
     const generatedAt = await refreshRatingAuditSnapshot(db, modelKey);
+    const issueCount = await refreshRatingAuditIssues(db, generatedAt, modelKey);
     const version = await bumpDataVersion(db, 'rating-audit');
 
     console.log(`Rating audit snapshot refreshed at ${generatedAt.toISOString()}`);
+    console.log(`Rating audit active issues: ${issueCount}`);
     console.log(`Rating audit data version: ${version}`);
     console.log(`RATING_AUDIT_SNAPSHOT=${JSON.stringify({
         generatedAt: generatedAt.toISOString(),
         model: modelKey ?? 'global-singles-glicko2-v1',
+        issueCount,
         version,
     })}`);
 } finally {
