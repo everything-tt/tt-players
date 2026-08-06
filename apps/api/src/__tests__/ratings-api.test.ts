@@ -50,7 +50,6 @@ beforeAll(async () => {
     await m042.up(db);
     await m043.up(db);
     await m045.up(db);
-    await m049.up(db);
 
     const platform = await db
         .insertInto('platforms')
@@ -103,10 +102,14 @@ beforeAll(async () => {
                 rated_losses: 3,
                 first_rated_at: '2026-02-01',
                 last_rated_at: '2026-07-20',
-                provisional: false,
+                provisional: true,
             },
         ])
         .execute();
+
+    // Existing low-match players must be reclassified from the legacy match-count
+    // rule when the RD-only policy migration is applied.
+    await m049.up(db);
 
     await db.insertInto('rating_player_coverage').values([
         {
@@ -286,7 +289,7 @@ describe('calculated ratings API', () => {
         });
     });
 
-    it('returns the current rank and full Glicko state for a player', async () => {
+    it('returns the current rank and full Glicko state for a migrated low-match player', async () => {
         const response = await app.inject({
             method: 'GET',
             url: `/api/ratings/${lowerPlayerId}`,
@@ -301,6 +304,7 @@ describe('calculated ratings API', () => {
                 rating_deviation: 94,
                 volatility: 0.06,
                 conservative_rating: 1312,
+                provisional: false,
             },
         });
     });
