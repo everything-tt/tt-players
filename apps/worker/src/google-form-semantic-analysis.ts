@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { GoogleFormInspection } from './google-forms.js';
 
 export const ENTRY_FORM_SEMANTIC_ANALYSIS_VERSION = 1 as const;
-export const ENTRY_FORM_SEMANTIC_PROMPT_VERSION = '2026-08-06.3';
+export const ENTRY_FORM_SEMANTIC_PROMPT_VERSION = '2026-08-06.4';
 export const ENTRY_FORM_SEMANTIC_AUTO_APPLY_CONFIDENCE = 0.85;
 export const ENTRY_FORM_EVENT_ENRICHMENT_CONFIDENCE = 0.9;
 
@@ -40,6 +40,12 @@ export const EVENT_DETAIL_FIELDS = [
 ] as const;
 
 export type EventDetailField = typeof EVENT_DETAIL_FIELDS[number];
+
+const DATE_EVENT_DETAIL_FIELDS = new Set<EventDetailField>([
+    'start_date',
+    'end_date',
+    'entry_deadline',
+]);
 
 const ProfileFieldSchema = z.enum(ENTRY_PROFILE_FIELDS);
 const EventDetailFieldSchema = z.enum(EVENT_DETAIL_FIELDS);
@@ -178,6 +184,7 @@ function semanticSystemPrompt(): string {
         'Use the whole form context to distinguish entrant contact details from parent, guardian, coach, or manager contact details.',
         'Use confidence from 0 to 1. Do not use confidence above 0.84 when the meaning is ambiguous.',
         'Extract event details only when explicitly supported by the form title, public text, field labels, descriptions, or choices.',
+        'For non-date event details, return a value copied exactly from the supporting source text.',
         'Dates must use YYYY-MM-DD. Do not guess a year or infer a date from existing event metadata.',
         'Every event detail must include an exact short evidence excerpt. Supply field IDs only when the excerpt occurs in those fields; otherwise use an empty source_field_ids array for evidence from the title or public text.',
         'Do not invent field IDs. Include at most one mapping per form field and at most one value per event detail field.',
@@ -314,8 +321,12 @@ function hasVerifiableEvidence(
             .filter((field): field is GoogleFormInspection['fields'][number] => Boolean(field))
             .map(fieldEvidenceText)
             .join(' ');
+    const normalizedSource = normalizeEvidence(sourceText);
+    if (!normalizedSource.includes(evidence)) return false;
 
-    return normalizeEvidence(sourceText).includes(evidence);
+    if (DATE_EVENT_DETAIL_FIELDS.has(detail.field)) return true;
+    const normalizedValue = normalizeEvidence(detail.value);
+    return Boolean(normalizedValue) && normalizedSource.includes(normalizedValue);
 }
 
 function validateAndNormalizeOutput(
