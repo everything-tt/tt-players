@@ -15,10 +15,6 @@
   padding-top: var(--tt-space-3, 12px);
 }
 
-.tt-entry-profile-section .tt-section-header {
-  margin-bottom: var(--tt-space-3, 12px);
-}
-
 .tt-entry-profile-grid {
   display: grid;
   gap: var(--tt-space-3, 12px);
@@ -93,12 +89,6 @@
   line-height: 1.5;
 }
 
-.tt-entry-profile-private-inline .tt-icon-circle {
-  flex: 0 0 34px;
-  height: 34px;
-  width: 34px;
-}
-
 .tt-entry-profile-actions {
   align-items: center;
   background: color-mix(in oklch, var(--tt-surface) 94%, transparent);
@@ -137,9 +127,5 @@
 
   .tt-entry-profile-actions-spacer {
     display: none;
-  }
-
-  .tt-entry-profile-actions .tt-btn {
-    flex: 1 1 auto;
   }
 }
