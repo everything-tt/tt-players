@@ -1,5 +1,6 @@
 .tt-leagues-dashboard {
   min-width: 0;
+  padding-bottom: var(--tt-space-3);
 }
 
 .tt-leagues-dashboard-empty {
@@ -14,30 +15,56 @@
   max-width: 320px;
 }
 
-/* Configure shared primitives through their public variables. Internal
- * EntityHero and MetricGrid geometry remains package-owned. */
+/* Keep the aggregate scope useful on larger screens without letting it dominate
+ * the mobile dashboard. The root header already exposes selected-league count
+ * and league management on phones. */
 .tt-leagues-dashboard-hero {
+  --accent: var(--ink);
+  --accent-border-strong: color-mix(in oklch, var(--tt-border) 88%, var(--ink-muted));
+  --accent-subtle: var(--tt-surface-subtle);
   --tt-entity-hero-main-align: flex-start;
   --tt-entity-hero-highlights-border: 1px solid color-mix(in oklch, var(--tt-border) 78%, transparent);
-  --tt-entity-hero-highlights-padding-top: var(--tt-space-3);
+  --tt-entity-hero-highlights-padding-top: var(--tt-space-2);
+  --tt-metric-compact-padding: 7px var(--tt-space-1);
   --tt-metric-grid-gap: 0;
+  --tt-metric-label-size: 10px;
   --tt-metric-separator: 1px solid color-mix(in oklch, var(--tt-border) 76%, transparent);
+  --tt-metric-value-size: 18px;
 
-  margin-bottom: var(--tt-space-2);
+  margin-bottom: var(--tt-space-3);
+  padding: var(--tt-space-3) !important;
 }
 
+/* The mobile page reads as a dashboard of distinct, scannable cards instead of
+ * one continuous pale surface. */
 .tt-leagues-dashboard-section {
   --tt-btn-ghost-color: var(--accent);
   --tt-btn-s-padding-inline: var(--tt-space-1);
 
-  border-bottom: 1px solid var(--tt-border);
-  padding-bottom: var(--tt-space-4);
-  padding-top: var(--tt-space-4);
+  margin-inline: var(--tt-gutter-card);
+  padding: var(--tt-space-3);
+  border: 1px solid color-mix(in oklch, var(--tt-border) 92%, transparent);
+  border-radius: var(--tt-radius-lg);
+  background: var(--tt-surface-raised);
+  box-shadow: var(--tt-shadow-raised);
+}
+
+.tt-leagues-dashboard-section + .tt-leagues-dashboard-section {
+  margin-top: var(--tt-space-3);
 }
 
 .tt-leagues-dashboard-section:last-child {
-  border-bottom: 0;
-  padding-bottom: var(--tt-space-2);
+  margin-bottom: var(--tt-space-2);
+}
+
+.tt-leagues-season {
+  border-color: color-mix(in oklch, var(--state-success, var(--accent)) 18%, var(--tt-border));
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--state-success, var(--accent)) 5%, var(--tt-surface-raised)) 0,
+      var(--tt-surface-raised) 68%
+    );
 }
 
 .tt-leagues-season__profile {
@@ -45,7 +72,7 @@
   display: flex;
   gap: var(--tt-space-3);
   min-width: 0;
-  padding: 2px 2px var(--tt-space-2);
+  padding: 0 2px var(--tt-space-2);
 }
 
 .tt-leagues-season__identity {
@@ -58,7 +85,7 @@
 
 .tt-leagues-season__identity > strong {
   color: var(--ink);
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 760;
   letter-spacing: -.02em;
   line-height: 1.15;
@@ -83,15 +110,20 @@
 }
 
 .tt-leagues-season__summary {
+  --tt-metric-compact-padding: 8px var(--tt-space-1);
   --tt-metric-grid-gap: 0;
-  --tt-metric-separator: 1px solid color-mix(in oklch, var(--tt-border) 76%, transparent);
-  --tt-metric-compact-padding: 10px var(--tt-space-1);
+  --tt-metric-label-size: 10px;
+  --tt-metric-separator: 1px solid color-mix(in oklch, var(--tt-border) 72%, transparent);
+  --tt-metric-value-size: 18px;
 
   align-items: center;
   display: grid;
-  gap: var(--tt-space-4);
+  gap: var(--tt-space-3);
   grid-template-columns: minmax(0, 2fr) minmax(132px, 1fr);
-  padding: var(--tt-space-1) 0 var(--tt-space-3);
+  padding: var(--tt-space-1) var(--tt-space-2) var(--tt-space-2);
+  border: 1px solid color-mix(in oklch, var(--tt-border) 76%, transparent);
+  border-radius: var(--tt-radius-md);
+  background: color-mix(in oklch, var(--tt-surface-subtle) 76%, transparent);
 }
 
 .tt-leagues-season__form {
@@ -103,18 +135,19 @@
 
 .tt-leagues-season__form > span:first-child {
   color: var(--ink-muted);
-  font-size: 11px;
-  font-weight: 650;
+  font-size: 10px;
+  font-weight: 680;
+  letter-spacing: .01em;
 }
 
 .tt-leagues-form-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
 }
 
 .tt-leagues-form-strip .tt-outcome {
-  min-width: 28px;
+  min-width: 27px;
 }
 
 .tt-leagues-muted {
@@ -126,18 +159,19 @@
   --tt-list-item-title-eyebrow: 'Next match';
   --tt-list-item-title-eyebrow-color: var(--ink-muted);
 
-  border-top: 1px solid var(--tt-border);
+  margin-top: var(--tt-space-2);
   padding-top: var(--tt-space-2);
+  border-top: 1px solid var(--tt-border);
 }
 
 .tt-leagues-date {
   align-items: center;
   border-right: 1px solid color-mix(in oklch, var(--tt-border) 82%, transparent);
   display: flex;
-  flex: 0 0 50px;
+  flex: 0 0 48px;
   flex-direction: column;
   justify-content: center;
-  min-height: 48px;
+  min-height: 46px;
   padding-right: var(--tt-space-2);
   text-align: center;
 }
@@ -176,7 +210,24 @@
 }
 
 .tt-leagues-pulse {
-  --tt-filter-bar-justify: space-between;
+  --tt-filter-bar-justify: flex-start;
+
+  overflow: hidden;
+}
+
+/* FilterBar is the first content element after this section's header. Keep the
+ * two scopes on one calm, horizontally scrollable line on narrow phones. */
+.tt-leagues-pulse > :nth-child(2) {
+  justify-content: flex-start;
+  margin-block: 0 var(--tt-space-2);
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.tt-leagues-pulse > :nth-child(2)::-webkit-scrollbar {
+  display: none;
 }
 
 .tt-leagues-pulse-leading {
@@ -199,6 +250,14 @@
 
 .tt-leagues-you-title strong {
   font-weight: 780;
+}
+
+/* Win rate is a positive performance signal, so avoid the brand-red treatment
+ * that reads as an error or loss state. */
+.tt-leagues-pulse .tt-pill-accent {
+  border: 1px solid color-mix(in oklch, var(--state-success, var(--accent)) 24%, transparent);
+  background: color-mix(in oklch, var(--state-success, var(--accent)) 13%, var(--tt-surface-raised));
+  color: var(--state-success, var(--accent));
 }
 
 .tt-leagues-league-trailing {
@@ -225,16 +284,34 @@
 }
 
 @media (max-width: 520px) {
-  .tt-leagues-dashboard-hero,
-  .tt-leagues-season__summary {
-    --tt-metric-compact-padding: 8px 3px;
-    --tt-metric-value-size: 18px;
-    --tt-metric-label-size: 9px;
+  /* The root header already has the league-selector badge. Removing this
+   * duplicate hero puts the personal season and fixtures in the first viewport. */
+  .tt-leagues-dashboard-hero {
+    display: none;
+  }
+
+  .tt-leagues-dashboard-section {
+    padding: 12px;
+  }
+
+  .tt-leagues-season__profile {
+    gap: var(--tt-space-2);
   }
 
   .tt-leagues-season__summary {
-    gap: var(--tt-space-3);
+    --tt-metric-compact-padding: 6px 2px;
+    --tt-metric-label-size: 9px;
+    --tt-metric-value-size: 17px;
+
+    gap: var(--tt-space-2);
     grid-template-columns: 1fr;
+    padding: 6px 8px 8px;
+  }
+
+  /* MetricGrid is the first child of the season summary. Keep all four compact
+   * values in one row rather than a tall 2×2 block. */
+  .tt-leagues-season__summary > :first-child {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .tt-leagues-season__form {
@@ -245,26 +322,29 @@
     padding-top: var(--tt-space-2);
   }
 
-  .tt-leagues-pulse {
-    --tt-filter-bar-justify: flex-start;
+  .tt-leagues-form-strip {
+    flex-wrap: nowrap;
   }
 }
 
 @media (max-width: 380px) {
-  .tt-leagues-dashboard-hero {
-    --tt-entity-hero-mobile-actions-width: 100%;
-    --tt-entity-hero-mobile-button-width: 100%;
-  }
-
   .tt-leagues-season__identity > strong {
     font-size: 18px;
   }
 
   .tt-leagues-date {
-    flex-basis: 44px;
+    flex-basis: 43px;
   }
 
   .tt-leagues-league-trailing .tt-pill {
     display: none;
+  }
+
+  .tt-leagues-form-strip {
+    gap: 3px;
+  }
+
+  .tt-leagues-form-strip .tt-outcome {
+    min-width: 25px;
   }
 }
