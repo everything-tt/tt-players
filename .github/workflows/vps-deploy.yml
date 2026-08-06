@@ -65,6 +65,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Backend quality gate
+        id: quality
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
         run: pnpm run check:backend
@@ -196,6 +197,7 @@ jobs:
             ./ "$VPS_USER@$VPS_HOST:/opt/tt-players/releases/$RELEASE_SHA/"
 
       - name: Activate release
+        id: activate
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -211,24 +213,63 @@ jobs:
               '$DATABASE_CHANGED'"
 
       - name: Verify production health
+        id: health
         run: |
           curl --fail --retry 10 --retry-delay 3 https://ttp-api.tourneypilot.com/api/health
           curl --fail --retry 10 --retry-delay 3 https://ttp-api.tourneypilot.com/api/health/db
 
       - name: Deployment summary
+        if: always()
         env:
+          DATABASE_OUTCOME: ${{ steps.database.outcome }}
           DATABASE_CHANGED: ${{ steps.database.outputs.database_changed }}
           DB_FINGERPRINT: ${{ steps.database.outputs.db_fingerprint }}
+          QUALITY_OUTCOME: ${{ steps.quality.outcome }}
+          ACTIVATE_OUTCOME: ${{ steps.activate.outcome }}
+          HEALTH_OUTCOME: ${{ steps.health.outcome }}
+          JOB_STATUS: ${{ job.status }}
         run: |
-          {
-            echo "### VPS release"
-            echo "- Commit: \`$GITHUB_SHA\`"
-            echo "- Database changed: \`$DATABASE_CHANGED\`"
-            echo "- Database fingerprint: \`$DB_FINGERPRINT\`"
-            echo "- Cloudflare worker credentials: configured from \`CLOUDFLARE_ACCOUNT_ID\` and \`CLOUDFLARE_AI_API_TOKEN\`"
-            if [[ "$DATABASE_CHANGED" == true ]]; then
-              echo "- Rollback: **disabled**; recovery is forward-only"
-            else
-              echo "- Rollback: available through the manual VPS rollback workflow for compatible releases"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const repositoryUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`;
+          const runUrl = `${repositoryUrl}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          const commitUrl = `${repositoryUrl}/commit/${process.env.GITHUB_SHA}`;
+          const shortSha = (process.env.GITHUB_SHA || '').slice(0, 7);
+          const status = process.env.JOB_STATUS || 'unknown';
+          const icon = status === 'success' ? '✅' : status === 'cancelled' ? '⚪' : '❌';
+          const databaseChanged = process.env.DATABASE_CHANGED || 'unknown';
+          const fingerprint = process.env.DB_FINGERPRINT || 'unavailable';
+          const rollback = databaseChanged === 'true'
+            ? '**Disabled** — recovery is forward-only'
+            : databaseChanged === 'false'
+              ? 'Available for compatible deployed releases'
+              : 'Unknown — database boundary was not determined';
+
+          const lines = [
+            `## ${icon} VPS production deployment`,
+            '',
+            '| Phase | Result |',
+            '| --- | --- |',
+            `| Backend quality gate | **${process.env.QUALITY_OUTCOME || 'not run'}** |`,
+            `| Database compatibility boundary | **${process.env.DATABASE_OUTCOME || 'not run'}** |`,
+            `| Release activation | **${process.env.ACTIVATE_OUTCOME || 'not run'}** |`,
+            `| Production health checks | **${process.env.HEALTH_OUTCOME || 'not run'}** |`,
+            '',
+            `- Commit: [\`${shortSha}\`](${commitUrl})`,
+            `- Database changed: \`${databaseChanged}\``,
+            `- Database fingerprint: \`${fingerprint}\``,
+            `- Rollback: ${rollback}`,
+            '- Health endpoints: [API](https://ttp-api.tourneypilot.com/api/health) · [Database](https://ttp-api.tourneypilot.com/api/health/db)',
+            `- [Open workflow run](${runUrl})`,
+            '',
+          ];
+
+          if (databaseChanged === 'true') {
+            lines.push('> [!WARNING]');
+            lines.push('> This release crossed a database compatibility boundary. Do not use the rollback workflow for this deployment.');
+            lines.push('');
+          }
+
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
+          NODE
