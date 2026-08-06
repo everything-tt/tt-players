@@ -30,6 +30,19 @@ interface SyncEntryFormInspectionOptions {
     force?: boolean;
 }
 
+export interface InspectPendingEntryFormsOptions extends SyncEntryFormInspectionOptions {
+    limit?: number;
+    now?: Date;
+}
+
+export interface InspectPendingEntryFormsSummary {
+    candidates: number;
+    ready: number;
+    failed: number;
+    unsupported: number;
+    unchanged: number;
+}
+
 function inspectionFingerprint(inspection: GoogleFormInspection): string {
     return createHash('sha256')
         .update(JSON.stringify({
@@ -119,7 +132,7 @@ export async function syncTournamentEntryFormInspection(
     const sourceUrl = normalizeGoogleFormUrl(entryUrl!).toString();
     const existing = await db
         .selectFrom('tournament_sources')
-        .select(['source_url', 'raw_payload'])
+        .select('source_url')
         .where('provider', '=', 'google_forms')
         .where('source_type', '=', 'entry_form')
         .where('source_key', '=', competitionId)
@@ -161,4 +174,43 @@ export async function syncTournamentEntryFormInspection(
         await persistInspection(db, competitionId, sourceUrl, payload, now);
         return 'failed';
     }
+}
+
+export async function inspectPendingTournamentEntryForms(
+    db: Kysely<any>,
+    options: InspectPendingEntryFormsOptions = {},
+): Promise<InspectPendingEntryFormsSummary> {
+    const limit = Math.max(1, Math.min(options.limit ?? 500, 5_000));
+    const now = options.now ?? new Date();
+    const candidates = await db
+        .selectFrom('competitions')
+        .select(['id', 'entry_url'])
+        .where('type', '=', 'individual')
+        .where('deleted_at', 'is', null)
+        .where('entry_url', 'is not', null)
+        .where('event_status', 'in', ['upcoming', 'entries_open', 'entries_closed', 'in_progress'])
+        .orderBy('start_date', 'asc')
+        .limit(limit)
+        .execute();
+
+    const summary: InspectPendingEntryFormsSummary = {
+        candidates: candidates.length,
+        ready: 0,
+        failed: 0,
+        unsupported: 0,
+        unchanged: 0,
+    };
+
+    for (const candidate of candidates) {
+        const outcome = await syncTournamentEntryFormInspection(
+            db,
+            candidate.id,
+            candidate.entry_url,
+            now,
+            { inspector: options.inspector, force: options.force },
+        );
+        summary[outcome] += 1;
+    }
+
+    return summary;
 }
