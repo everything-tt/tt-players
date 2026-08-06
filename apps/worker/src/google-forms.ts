@@ -1,6 +1,7 @@
 const GOOGLE_DOCS_HOST = 'docs.google.com';
 const GOOGLE_SHORT_HOST = 'forms.gle';
 const MAX_FORM_HTML_BYTES = 2_000_000;
+const MAX_PUBLIC_TEXT_CHARS = 40_000;
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_REDIRECTS = 4;
 const MAX_FIELDS = 200;
@@ -31,6 +32,7 @@ export interface GoogleFormInspection {
     provider: 'google_forms';
     form_url: string;
     title: string;
+    public_text: string | null;
     fields: GoogleFormField[];
 }
 
@@ -228,7 +230,7 @@ function entryOptions(entry: unknown[], kind: GoogleFormFieldKind): string[] {
 }
 
 function collectResponseEmailField(html: string, output: Map<string, GoogleFormField>): void {
-    const responderEmailInput = /<input\b[^>]*\bname\s*=\s*(["'])emailAddress\1[^>]*>/i.test(html);
+    const responderEmailInput = /\bname\s*=\s*(["'])emailAddress\1/i.test(html);
     if (!responderEmailInput) return;
 
     output.set('emailAddress', {
@@ -277,6 +279,7 @@ function decodeHtmlText(value: string): string {
     return value
         .replace(/&quot;/gi, '"')
         .replace(/&#39;|&apos;/gi, "'")
+        .replace(/&nbsp;/gi, ' ')
         .replace(/&amp;/gi, '&')
         .replace(/&lt;/gi, '<')
         .replace(/&gt;/gi, '>')
@@ -289,6 +292,23 @@ function formTitle(html: string): string {
     const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
     const title = match ? decodeHtmlText(match[1].replace(/<[^>]+>/g, ' ')) : '';
     return title.replace(/\s*-\s*Google Forms\s*$/i, '').trim() || 'Google Form';
+}
+
+function formPublicText(html: string): string | null {
+    const bodyMatch = html.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i);
+    if (!bodyMatch) return null;
+
+    const text = decodeHtmlText(bodyMatch[1]
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, ' ')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/(?:p|div|section|article|header|footer|h[1-6]|li)>/gi, '\n')
+        .replace(/<[^>]+>/g, ' '))
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    return text ? text.slice(0, MAX_PUBLIC_TEXT_CHARS) : null;
 }
 
 export function parseGoogleFormHtml(html: string, formUrl: string): GoogleFormInspection {
@@ -305,6 +325,7 @@ export function parseGoogleFormHtml(html: string, formUrl: string): GoogleFormIn
         provider: 'google_forms',
         form_url: canonicalViewUrl(normalizeGoogleFormUrl(formUrl)).toString(),
         title: formTitle(html),
+        public_text: formPublicText(html),
         fields: Array.from(fields.values()),
     };
 }
