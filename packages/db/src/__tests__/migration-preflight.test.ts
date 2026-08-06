@@ -71,6 +71,7 @@ describe('migration preflight', () => {
             '045_create_current_rating_rankings',
             '046_create_scraping_pipeline_run_history',
             '047_separate_tournament_lifecycles',
+            '048_alter_competition_embeddings_embedding_to_float8',
         ]);
     });
 });
