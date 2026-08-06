@@ -14,7 +14,6 @@ import * as m040 from '@tt-players/db/src/migrations/040_create_rating_audit_sna
 import * as m042 from '@tt-players/db/src/migrations/042_create_rating_audit_foundation.js';
 import * as m043 from '@tt-players/db/src/migrations/043_create_rating_player_coverage.js';
 import * as m045 from '@tt-players/db/src/migrations/045_create_current_rating_rankings.js';
-import * as m049 from '@tt-players/db/src/migrations/049_remove_rating_match_threshold.js';
 import { refreshCurrentRankings } from '../ratings/current-rankings.js';
 
 const { Pool } = pg;
@@ -49,7 +48,6 @@ beforeAll(async () => {
     await m042.up(db);
     await m043.up(db);
     await m045.up(db);
-    await m049.up(db);
 }, 30_000);
 
 afterAll(async () => {
@@ -66,14 +64,13 @@ afterAll(async () => {
 }, 15_000);
 
 describe('current rating rankings', () => {
-    it('separates active rank from historical rating and uses RD instead of a match-count gate', async () => {
+    it('separates active rank from historical rating and inflates inactivity uncertainty', async () => {
         const platform = await db.insertInto('platforms').values({
             name: 'Ranking Platform',
             base_url: 'https://ranking.example',
         }).returning('id').executeTakeFirstOrThrow();
         const players = await db.insertInto('external_players').values([
             { platform_id: platform.id, external_id: 'active', canonical_player_id: null, name: 'Active Player', updated_at: new Date(), deleted_at: null },
-            { platform_id: platform.id, external_id: 'few-matches', canonical_player_id: null, name: 'Few Matches Player', updated_at: new Date(), deleted_at: null },
             { platform_id: platform.id, external_id: 'inactive', canonical_player_id: null, name: 'Inactive Player', updated_at: new Date(), deleted_at: null },
             { platform_id: platform.id, external_id: 'sparse', canonical_player_id: null, name: 'Sparse Player', updated_at: new Date(), deleted_at: null },
             { platform_id: platform.id, external_id: 'uncertain', canonical_player_id: null, name: 'Uncertain Player', updated_at: new Date(), deleted_at: null },
@@ -87,7 +84,6 @@ describe('current rating rankings', () => {
 
         const ratingRows = [
             { externalId: 'active', rating: 1800, rd: 70, matches: 40, last: '2026-07-20', opponents: 20 },
-            { externalId: 'few-matches', rating: 1750, rd: 70, matches: 5, last: '2026-07-20', opponents: 5 },
             { externalId: 'inactive', rating: 2100, rd: 65, matches: 80, last: '2024-07-20', opponents: 35 },
             { externalId: 'sparse', rating: 1750, rd: 75, matches: 25, last: '2026-07-20', opponents: 2 },
             { externalId: 'uncertain', rating: 1850, rd: 109, matches: 30, last: '2026-07-01', opponents: 15 },
@@ -134,8 +130,8 @@ describe('current rating rankings', () => {
             'global-singles-glicko2-v1',
             calculatedAt,
         );
-        expect(result.totalPlayers).toBe(5);
-        expect(result.rankedPlayers).toBe(2);
+        expect(result.totalPlayers).toBe(4);
+        expect(result.rankedPlayers).toBe(1);
 
         const rankings = await db.selectFrom('rating_current_rankings')
             .selectAll()
@@ -143,8 +139,6 @@ describe('current rating rankings', () => {
         const byPlayer = new Map(rankings.map((ranking: any) => [ranking.player_id, ranking]));
         expect(byPlayer.get(byExternalId.get('active')!)?.eligibility_reason).toBe('ranked');
         expect(byPlayer.get(byExternalId.get('active')!)?.current_rank).toBe(1);
-        expect(byPlayer.get(byExternalId.get('few-matches')!)?.eligibility_reason).toBe('ranked');
-        expect(byPlayer.get(byExternalId.get('few-matches')!)?.current_rank).toBe(2);
         expect(byPlayer.get(byExternalId.get('inactive')!)?.eligibility_reason).toBe('inactive');
         expect(byPlayer.get(byExternalId.get('inactive')!)!.effective_deviation).toBeGreaterThan(65);
         expect(byPlayer.get(byExternalId.get('sparse')!)?.eligibility_reason).toBe('insufficient_opponents');
