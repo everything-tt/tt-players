@@ -160,7 +160,7 @@ test('browse pages integrate the title and reveal a compact toolbar on scroll', 
     ['/tabs/players', 'Players'],
     ['/tabs/leagues', 'Leagues'],
     ['/tabs/h2h', 'H2H'],
-    ['/tabs/events', 'Events'],
+    ['/tabs/events', 'Tournaments'],
   ] as const) {
     await page.goto(`${previewUrl}${path}`, { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => window.scrollTo(0, 0));
