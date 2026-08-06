@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely';
 
-export type TournamentEntryFormDiagnosticStage = 'form_inspection' | 'semantic_analysis';
+export type TournamentEntryFormDiagnosticStage = 'inspection_pipeline' | 'semantic_analysis';
 
 export interface TournamentEntryFormDiagnostic {
     competition_id: string;
@@ -52,12 +52,12 @@ export function diagnosticsFromCachedEntryForm(
             competition_name: context.competitionName,
             source_url: sourceUrl,
             inspected_at: inspectedAt,
-            stage: 'form_inspection',
+            stage: 'inspection_pipeline',
             model: null,
             error_code: nonEmptyString(cached.error_code) ?? 'inspection_failed',
             error_message: diagnosticMessage(
                 cached.error_message,
-                'The Google Form could not be inspected.',
+                'The Google Form inspection pipeline failed.',
             ),
         });
     }
