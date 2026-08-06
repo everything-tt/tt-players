@@ -14,6 +14,7 @@ import * as m031 from '../../../../packages/db/src/migrations/031_create_weekly_
 import * as m042 from '../../../../packages/db/src/migrations/042_create_rating_audit_foundation.js';
 import * as m043 from '../../../../packages/db/src/migrations/043_create_rating_player_coverage.js';
 import * as m045 from '../../../../packages/db/src/migrations/045_create_current_rating_rankings.js';
+import * as m049 from '../../../../packages/db/src/migrations/049_remove_rating_match_threshold.js';
 import { buildApp } from '../app.js';
 
 const { Pool } = pg;
@@ -49,6 +50,7 @@ beforeAll(async () => {
     await m042.up(db);
     await m043.up(db);
     await m045.up(db);
+    await m049.up(db);
 
     const platform = await db
         .insertInto('platforms')
@@ -96,9 +98,9 @@ beforeAll(async () => {
                 rating_deviation: 90,
                 volatility: 0.06,
                 conservative_rating: 1320,
-                rated_matches: 12,
-                rated_wins: 5,
-                rated_losses: 7,
+                rated_matches: 5,
+                rated_wins: 2,
+                rated_losses: 3,
                 first_rated_at: '2026-02-01',
                 last_rated_at: '2026-07-20',
                 provisional: false,
@@ -128,16 +130,16 @@ beforeAll(async () => {
             model_id: model.id,
             player_id: lowerPlayerId,
             category: 'covered',
-            raw_matches: 12,
-            singles_matches: 12,
-            normal_singles_matches: 12,
-            eligible_matches_all_time: 12,
-            eligible_matches_in_window: 12,
-            unique_opponents_in_window: 8,
+            raw_matches: 5,
+            singles_matches: 5,
+            normal_singles_matches: 5,
+            eligible_matches_all_time: 5,
+            eligible_matches_in_window: 5,
+            unique_opponents_in_window: 5,
             first_match_date: '2026-02-01',
             last_match_date: '2026-07-20',
             rating_exists: true,
-            rated_matches: 12,
+            rated_matches: 5,
             rating_deviation: 90,
             updated_at: new Date('2026-08-06T05:17:00Z'),
         },
@@ -163,7 +165,7 @@ beforeAll(async () => {
             effective_deviation: 94,
             effective_conservative_rating: 1312,
             days_inactive: 17,
-            unique_opponents: 8,
+            unique_opponents: 5,
             eligible: true,
             eligibility_reason: 'ranked',
             current_rank: 2,
@@ -179,7 +181,7 @@ beforeAll(async () => {
             status: 'idle',
             last_processed_date: '2026-07-20',
             processed_periods: 10,
-            processed_matches: 32,
+            processed_matches: 25,
             updated_at: new Date('2026-07-20T12:00:00Z'),
         })
         .execute();
@@ -203,7 +205,7 @@ afterAll(async () => {
 }, 15_000);
 
 describe('calculated ratings API', () => {
-    it('lists active current rankings with pagination and processing state', async () => {
+    it('lists active current rankings with pagination, volatility and processing state', async () => {
         const response = await app.inject({
             method: 'GET',
             url: '/api/ratings?page=1&page_size=1',
@@ -218,6 +220,7 @@ describe('calculated ratings API', () => {
                     player_name: 'Higher Player',
                     rating: 1700,
                     rating_deviation: 64,
+                    volatility: 0.06,
                     conservative_rating: 1572,
                 },
             ],
@@ -231,7 +234,7 @@ describe('calculated ratings API', () => {
             processing: {
                 status: 'idle',
                 processed_periods: 10,
-                processed_matches: 32,
+                processed_matches: 25,
             },
         });
     });
@@ -249,6 +252,7 @@ describe('calculated ratings API', () => {
                 rank: 1,
                 player_id: higherPlayerId,
                 rating_deviation: 60,
+                volatility: 0.06,
                 conservative_rating: 1580,
             }],
         });
@@ -262,6 +266,8 @@ describe('calculated ratings API', () => {
 
         expect(response.statusCode).toBe(200);
         const payload = response.json();
+        expect(payload.player1.volatility).toBe(0.06);
+        expect(payload.player2.volatility).toBe(0.06);
         expect(payload.player1.win_probability).toBeGreaterThan(0.5);
         expect(payload.player1.win_probability + payload.player2.win_probability).toBeCloseTo(1, 4);
         expect(payload.confidence).toBe('medium');
@@ -280,7 +286,7 @@ describe('calculated ratings API', () => {
         });
     });
 
-    it('returns the current rank and effective uncertainty for a player', async () => {
+    it('returns the current rank and full Glicko state for a player', async () => {
         const response = await app.inject({
             method: 'GET',
             url: `/api/ratings/${lowerPlayerId}`,
@@ -293,12 +299,13 @@ describe('calculated ratings API', () => {
                 player_id: lowerPlayerId,
                 player_name: 'Lower Player',
                 rating_deviation: 94,
+                volatility: 0.06,
                 conservative_rating: 1312,
             },
         });
     });
 
-    it('returns ranking policy and player eligibility evidence', async () => {
+    it('returns the RD-only ranking policy and player eligibility evidence', async () => {
         const response = await app.inject({
             method: 'GET',
             url: '/api/ratings/audit/ranking-quality',
@@ -308,7 +315,7 @@ describe('calculated ratings API', () => {
         expect(response.json()).toMatchObject({
             policy: {
                 active_days: 365,
-                minimum_matches: 10,
+                minimum_matches: 0,
                 minimum_unique_opponents: 5,
                 maximum_deviation: 110,
             },
