@@ -25,6 +25,7 @@ const GoogleFormFieldSchema = z.object({
     ]),
     required: z.boolean(),
     options: z.array(z.string()),
+    prefill_parameter: z.literal('emailAddress').optional(),
 });
 
 const GoogleFormSchema = z.object({
@@ -35,7 +36,7 @@ const GoogleFormSchema = z.object({
 });
 
 const CachedEntryFormSchema = z.object({
-    version: z.literal(1),
+    version: z.union([z.literal(1), z.literal(2)]),
     provider: z.literal('google_forms'),
     status: z.enum(['ready', 'failed']),
     source_url: z.string().url(),
