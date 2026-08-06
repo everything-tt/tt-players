@@ -27,7 +27,6 @@ import {
   DesignList,
   EmptyState,
   IconCircle,
-  Inline,
   ListItem,
   PageSection,
   Pill,
