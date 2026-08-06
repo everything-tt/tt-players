@@ -69,7 +69,7 @@ test('main audit records diagnostics without turning the report into verificatio
   assert.match(auditTest, /requestfailed/);
   assert.match(auditTest, /eventCount/);
   assert.match(auditTest, /status:\s*'captured'/);
-  assert.match(auditTest, /status:\s*'skipped'/);
+  assert.match(auditTest, /type AuditStatus = 'captured' \| 'skipped' \| 'error'/);
   assert.doesNotMatch(auditTest, /assertNoAuditFailures/);
 });
 
