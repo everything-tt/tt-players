@@ -6,7 +6,14 @@
 @source "../**/*.{ts,tsx}";
 @source "../../../../apps/*/src/**/*.{ts,tsx}";
 
-:root {
+/*
+ * TT applies its active palette on the body (`theme-light` / `theme-dark`).
+ * Define shadcn's semantic aliases on the body as well as :root so the alias
+ * values are computed in the same cascade scope as the active TT palette.
+ * Keeping them on :root alone would freeze inherited aliases to light values.
+ */
+:root,
+body {
   --background: var(--canvas-parchment);
   --foreground: var(--ink);
   --card: var(--surface-strong);
