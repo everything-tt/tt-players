@@ -1,0 +1,153 @@
+name: Competition search diagnostic
+
+on:
+  push:
+    branches:
+      - perf/competition-search-diagnostic
+    paths:
+      - '.github/workflows/competition-search-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Configure SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_SSH_KEY"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Benchmark live competition searches
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh "$VPS_USER@$VPS_HOST" 'node -' <<'NODE'
+          const endpoints = [
+            '/api/events?status=upcoming&include_total=false&limit=10&offset=0',
+            '/api/events?status=upcoming&q=open&include_total=false&limit=10&offset=0',
+            '/api/events?status=upcoming&q=essex&include_total=false&limit=10&offset=0',
+            '/api/events?status=upcoming&q=zzzzzz&include_total=false&limit=10&offset=0',
+            '/api/events?status=completed&include_total=false&limit=10&offset=0',
+            '/api/events?status=completed&q=open&include_total=false&limit=10&offset=0',
+            '/api/events?status=completed&q=essex&include_total=false&limit=10&offset=0',
+            '/api/events?status=completed&q=zzzzzz&include_total=false&limit=10&offset=0',
+          ];
+
+          const origin = 'http://127.0.0.1:3005';
+          const percentile = (values, p) => values[Math.max(0, Math.ceil(values.length * p) - 1)];
+          for (const endpoint of endpoints) {
+            await fetch(origin + endpoint).then((response) => response.arrayBuffer());
+            const samples = [];
+            let status = 0;
+            let bytes = 0;
+            for (let index = 0; index < 7; index += 1) {
+              const started = performance.now();
+              const response = await fetch(origin + endpoint, {
+                headers: { accept: 'application/json' },
+              });
+              const body = await response.arrayBuffer();
+              samples.push(performance.now() - started);
+              status = response.status;
+              bytes = body.byteLength;
+            }
+            samples.sort((left, right) => left - right);
+            const average = samples.reduce((sum, value) => sum + value, 0) / samples.length;
+            console.log(JSON.stringify({
+              endpoint,
+              status,
+              bytes,
+              min_ms: Number(samples[0].toFixed(1)),
+              avg_ms: Number(average.toFixed(1)),
+              p50_ms: Number(percentile(samples, 0.5).toFixed(1)),
+              p95_ms: Number(percentile(samples, 0.95).toFixed(1)),
+              max_ms: Number(samples.at(-1).toFixed(1)),
+            }));
+          }
+          NODE
+
+      - name: Explain competition search plans
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          sql_file=$(mktemp --suffix=.sql)
+          cat > "$sql_file" <<'SQL'
+          SELECT
+            count(*) FILTER (WHERE event_status IN ('upcoming', 'entries_open', 'entries_closed')) AS upcoming_total,
+            count(*) FILTER (WHERE event_status = 'completed') AS completed_total,
+            count(*) FILTER (WHERE coalesce(display_name, name) ILIKE '%open%') AS open_matches,
+            count(*) FILTER (WHERE coalesce(display_name, name) ILIKE '%essex%') AS essex_matches
+          FROM competitions
+          WHERE type = 'individual'
+            AND deleted_at IS NULL;
+
+          EXPLAIN (ANALYZE, BUFFERS, SETTINGS)
+          SELECT c.id
+          FROM competitions c
+          WHERE c.type = 'individual'
+            AND c.deleted_at IS NULL
+            AND c.event_status IN ('upcoming', 'entries_open', 'entries_closed')
+            AND coalesce(c.display_name, c.name) ILIKE '%open%'
+          ORDER BY
+            coalesce(c.start_date, c.event_date) ASC,
+            coalesce(c.display_name, c.name) ASC,
+            c.id ASC
+          LIMIT 11 OFFSET 0;
+
+          EXPLAIN (ANALYZE, BUFFERS, SETTINGS)
+          SELECT c.id
+          FROM competitions c
+          WHERE c.type = 'individual'
+            AND c.deleted_at IS NULL
+            AND c.event_status = 'completed'
+            AND coalesce(c.display_name, c.name) ILIKE '%open%'
+          ORDER BY
+            coalesce(c.start_date, c.event_date) DESC,
+            coalesce(c.display_name, c.name) ASC,
+            c.id ASC
+          LIMIT 100 OFFSET 0;
+
+          EXPLAIN (ANALYZE, BUFFERS, SETTINGS)
+          SELECT c.id
+          FROM competitions c
+          WHERE c.type = 'individual'
+            AND c.deleted_at IS NULL
+            AND c.event_status = 'completed'
+            AND coalesce(c.display_name, c.name) ILIKE '%zzzzzz%'
+          ORDER BY
+            coalesce(c.start_date, c.event_date) DESC,
+            coalesce(c.display_name, c.name) ASC,
+            c.id ASC
+          LIMIT 100 OFFSET 0;
+          SQL
+          chown ttp:ttp "$sql_file"
+          chmod 600 "$sql_file"
+          systemd-run \
+            --quiet \
+            --wait \
+            --pipe \
+            --collect \
+            --unit=ttp-competition-search-diagnostic \
+            --uid=ttp \
+            --gid=ttp \
+            --property=EnvironmentFile=/etc/ttp/api.env \
+            /bin/bash -lc '/usr/bin/psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f "$1"' bash "$sql_file"
+          rm -f "$sql_file"
+          REMOTE
