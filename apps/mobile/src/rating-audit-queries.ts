@@ -93,6 +93,44 @@ export interface RatingDuplicateCandidateResponse {
   model: string;
 }
 
+export type RatingEligibilityReason =
+  | 'ranked'
+  | 'insufficient_matches'
+  | 'insufficient_opponents'
+  | 'inactive'
+  | 'high_uncertainty'
+  | 'critical_data_issue';
+
+export interface RatingRankingQualityResponse {
+  policy: {
+    active_days: number;
+    minimum_matches: number;
+    minimum_unique_opponents: number;
+    maximum_deviation: number;
+  };
+  summary: Array<{
+    eligibility_reason: RatingEligibilityReason;
+    count: number;
+  }>;
+  data: Array<{
+    player_id: string;
+    player_name: string;
+    eligibility_reason: RatingEligibilityReason;
+    current_rank: number | null;
+    historical_rank: number;
+    rating: number;
+    effective_deviation: number;
+    effective_conservative_rating: number;
+    rated_matches: number;
+    unique_opponents: number;
+    days_inactive: number;
+    last_rated_at: string | null;
+    calculated_at: string;
+  }>;
+  pagination: Pagination;
+  model: string;
+}
+
 export function useRatingPlayerCoverageQuery(
   category?: RatingPlayerCoverageCategory,
   pageSize = 50,
@@ -128,6 +166,17 @@ export function useRatingDuplicateCandidatesQuery(pageSize = 25, enabled = true)
     queryKey: ['ratings', 'audit', 'duplicate-candidates', pageSize],
     queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<RatingDuplicateCandidateResponse>(
       `/ratings/audit/duplicate-candidates?page_size=${pageSize}`,
+      signal,
+    ),
+    enabled,
+  });
+}
+
+export function useRatingRankingQualityQuery(pageSize = 50, enabled = true) {
+  return useQuery({
+    queryKey: ['ratings', 'audit', 'ranking-quality', pageSize],
+    queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<RatingRankingQualityResponse>(
+      `/ratings/audit/ranking-quality?page_size=${pageSize}`,
       signal,
     ),
     enabled,
