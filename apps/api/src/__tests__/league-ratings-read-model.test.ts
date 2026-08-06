@@ -187,6 +187,8 @@ describe('GET /api/ratings/league', () => {
             player_id: includedPlayerId,
             player_name: 'Included Player',
             rank: 1,
+            rating_deviation: 60,
+            volatility: 0.06,
         });
     });
 
