@@ -1,0 +1,153 @@
+name: Fix lifecycle upcoming review finding
+
+on:
+  push:
+    branches:
+      - perf/competition-search-cte
+    paths:
+      - '.github/workflows/fix-lifecycle-upcoming-review.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: perf/competition-search-cte
+          fetch-depth: 0
+
+      - name: Apply review fix
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          route = Path('apps/api/src/routes/events.ts')
+          source = route.read_text()
+          old = """                    'entries_closed',
+                    'in_progress',
+                    'awaiting_results',
+                ]);"""
+          new = """                    'entries_closed',
+                    'in_progress',
+                ]);"""
+          if source.count(old) != 1:
+              raise SystemExit(f'Expected one upcoming lifecycle filter block, found {source.count(old)}')
+          route.write_text(source.replace(old, new, 1))
+
+          test = Path('apps/api/src/__tests__/events-lifecycle.test.ts')
+          source = test.read_text()
+
+          old = """let upcomingCalendarId: string;
+let processedCalendarId: string;"""
+          new = """let upcomingCalendarId: string;
+let awaitingCalendarId: string;
+let processedCalendarId: string;"""
+          if source.count(old) != 1:
+              raise SystemExit('Could not add awaiting calendar test id')
+          source = source.replace(old, new, 1)
+
+          old = """    upcomingCalendarId = upcoming.id;
+
+    const processed = await database"""
+          new = """    upcomingCalendarId = upcoming.id;
+
+    const awaiting = await database
+        .insertInto('competitions')
+        .values({
+            season_id: season.id,
+            external_id: 'calendar-awaiting-results',
+            name: 'Past Calendar Tournament Awaiting Results',
+            display_name: 'Past Calendar Tournament Awaiting Results',
+            event_date: '2026-07-01',
+            start_date: '2026-07-01',
+            event_status: 'awaiting_results',
+            record_kind: 'calendar',
+            type: 'individual',
+            source: 'tte-calendar',
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+    awaitingCalendarId = awaiting.id;
+
+    const processed = await database"""
+          if source.count(old) != 1:
+              raise SystemExit('Could not add awaiting calendar fixture')
+          source = source.replace(old, new, 1)
+
+          old = """        expect(response.body.data.map((event: { id: string }) => event.id)).not.toContain(
+            processedCalendarId,
+        );
+    });
+
+    it('lists result rows as completed without inspecting fixtures or rubbers', async () => {"""
+          new = """        expect(response.body.data.map((event: { id: string }) => event.id)).not.toContain(
+            processedCalendarId,
+        );
+        expect(response.body.data.map((event: { id: string }) => event.id)).not.toContain(
+            awaitingCalendarId,
+        );
+    });
+
+    it('keeps awaiting-results calendar rows queryable outside the upcoming list', async () => {
+        const response = await request.get('/api/events?status=awaiting_results').expect(200);
+        expect(response.body.data.map((event: { id: string }) => event.id)).toEqual([
+            awaitingCalendarId,
+        ]);
+    });
+
+    it('lists result rows as completed without inspecting fixtures or rubbers', async () => {"""
+          if source.count(old) != 1:
+              raise SystemExit('Could not add awaiting lifecycle assertions')
+          test.write_text(source.replace(old, new, 1))
+          PY
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate backend
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+        run: |
+          pnpm --filter @tt-players/api test -- events-lifecycle.test.ts events-pagination-query-shape.test.ts
+          pnpm run check:backend
+
+      - name: Commit review fix
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-lifecycle-upcoming-review.yml
+          git add apps/api/src/routes/events.ts apps/api/src/__tests__/events-lifecycle.test.ts
+          git commit -m "fix(events): exclude awaiting results from upcoming list"
+          git push origin HEAD:perf/competition-search-cte
