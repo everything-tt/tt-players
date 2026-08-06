@@ -44,7 +44,12 @@ function fieldReason(
   mapping: ReturnType<typeof mapGoogleFormFields>[number],
 ): string {
   if (!mapping.profileField) return 'Complete this question on Google Forms';
-  if (!mapping.value) return `Add ${mapping.profileFieldLabel?.toLowerCase() ?? 'this detail'} to the entrant profile`;
+  if (!mapping.value) {
+    if (mapping.field.kind === 'multiple_choice' || mapping.field.kind === 'dropdown') {
+      return 'Choose the matching option on Google Forms';
+    }
+    return `Add ${mapping.profileFieldLabel?.toLowerCase() ?? 'this detail'} to the entrant profile`;
+  }
   return 'This question type needs to be completed on Google Forms';
 }
 
@@ -254,7 +259,7 @@ export function TournamentEntryPrefillPage() {
                 surface="flat"
                 density="compact"
                 title="Complete on the form"
-                description="TT Players leaves uncertain, missing, and choice questions untouched."
+                description="TT Players leaves uncertain, missing, and unmatched choice questions untouched."
                 className="tt-entry-prefill-section"
               >
                 <DesignList density="compact" divider="hairline" paginate={false}>

@@ -69,6 +69,8 @@ function profileCompletion(profile: TournamentEntryProfile): number {
     profile.phone || profile.guardianPhone,
     profile.tteMembershipNumber,
     profile.club,
+    profile.fullAddress,
+    profile.nationalAssociation,
   ].filter(Boolean).length;
 }
 
@@ -309,6 +311,25 @@ export function TournamentEntryProfilesPage() {
                     onChange={(event) => updateDraft('county', event.target.value)}
                   />
                 </Field>
+                <Field id="tt-entry-address" label="Full address, including postcode">
+                  <input
+                    id="tt-entry-address"
+                    type="text"
+                    autoComplete="street-address"
+                    maxLength={320}
+                    value={draft.fullAddress}
+                    onChange={(event) => updateDraft('fullAddress', event.target.value)}
+                  />
+                </Field>
+                <Field id="tt-entry-association" label="National association">
+                  <input
+                    id="tt-entry-association"
+                    type="text"
+                    maxLength={160}
+                    value={draft.nationalAssociation}
+                    onChange={(event) => updateDraft('nationalAssociation', event.target.value)}
+                  />
+                </Field>
               </div>
             </PageSection>
 
@@ -437,7 +458,7 @@ export function TournamentEntryProfilesPage() {
                       key={profile.id}
                       leading={<DesignAvatar text={initials(profile.entrantName)} size="standard" />}
                       title={profile.entrantName}
-                      subtitle={`${relationshipLabel(profile.relationship)} · ${profileCompletion(profile)} of 6 common details saved`}
+                      subtitle={`${relationshipLabel(profile.relationship)} · ${profileCompletion(profile)} of 8 common details saved`}
                       trailing={<Pill size="xs" tone="neutral">Private</Pill>}
                       onClick={() => beginEdit(profile)}
                     />

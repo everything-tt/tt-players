@@ -20,6 +20,8 @@ export interface TournamentEntryProfile {
   tteMembershipNumber: string;
   club: string;
   county: string;
+  fullAddress: string;
+  nationalAssociation: string;
   guardianName: string;
   guardianEmail: string;
   guardianPhone: string;
@@ -51,6 +53,18 @@ function isBoundedString(value: unknown, maxLength = MAX_VALUE_LENGTH): value is
   return typeof value === 'string' && value.length <= maxLength;
 }
 
+function migrateTournamentEntryProfile(value: unknown): unknown {
+  if (!value || typeof value !== 'object') return value;
+  const item = value as Record<string, unknown>;
+  if (item.version !== 1) return value;
+
+  return {
+    ...item,
+    fullAddress: isBoundedString(item.fullAddress) ? item.fullAddress : '',
+    nationalAssociation: isBoundedString(item.nationalAssociation) ? item.nationalAssociation : '',
+  };
+}
+
 export function isValidTournamentEntryProfile(value: unknown): value is TournamentEntryProfile {
   if (!value || typeof value !== 'object') return false;
   const item = value as Record<string, unknown>;
@@ -70,6 +84,8 @@ export function isValidTournamentEntryProfile(value: unknown): value is Tourname
     && isBoundedString(item.tteMembershipNumber)
     && isBoundedString(item.club)
     && isBoundedString(item.county)
+    && isBoundedString(item.fullAddress)
+    && isBoundedString(item.nationalAssociation)
     && isBoundedString(item.guardianName)
     && isBoundedString(item.guardianEmail)
     && isBoundedString(item.guardianPhone)
@@ -99,8 +115,9 @@ function readProfiles(ownerUserId: string | null): TournamentEntryProfile[] {
 
     const unique = new Map<string, TournamentEntryProfile>();
     for (const value of store.profiles) {
-      if (!isValidTournamentEntryProfile(value) || unique.has(value.id)) continue;
-      unique.set(value.id, value);
+      const migrated = migrateTournamentEntryProfile(value);
+      if (!isValidTournamentEntryProfile(migrated) || unique.has(migrated.id)) continue;
+      unique.set(migrated.id, migrated);
       if (unique.size >= MAX_PROFILES) break;
     }
     return Array.from(unique.values());
@@ -135,6 +152,8 @@ export function createEmptyTournamentEntryProfile(
     tteMembershipNumber: '',
     club: '',
     county: '',
+    fullAddress: '',
+    nationalAssociation: '',
     guardianName: '',
     guardianEmail: '',
     guardianPhone: '',
@@ -156,6 +175,8 @@ export function draftFromTournamentEntryProfile(
     tteMembershipNumber: profile.tteMembershipNumber,
     club: profile.club,
     county: profile.county,
+    fullAddress: profile.fullAddress,
+    nationalAssociation: profile.nationalAssociation,
     guardianName: profile.guardianName,
     guardianEmail: profile.guardianEmail,
     guardianPhone: profile.guardianPhone,
@@ -197,6 +218,8 @@ export function useTournamentEntryProfiles(ownerUserId?: string | null) {
       tteMembershipNumber: clean(draft.tteMembershipNumber),
       club: clean(draft.club),
       county: clean(draft.county),
+      fullAddress: clean(draft.fullAddress),
+      nationalAssociation: clean(draft.nationalAssociation),
       guardianName: clean(draft.guardianName),
       guardianEmail: clean(draft.guardianEmail),
       guardianPhone: clean(draft.guardianPhone),

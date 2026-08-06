@@ -52,6 +52,10 @@ export type TournamentEntryProfileField =
   | 'tteMembershipNumber'
   | 'club'
   | 'county'
+  | 'fullAddress'
+  | 'nationalAssociation'
+  | 'relationship'
+  | 'currentDate'
   | 'guardianName'
   | 'guardianEmail'
   | 'guardianPhone';
@@ -72,21 +76,56 @@ const PROFILE_FIELD_LABELS: Record<TournamentEntryProfileField, string> = {
   tteMembershipNumber: 'TTE membership number',
   club: 'Club',
   county: 'County',
+  fullAddress: 'Full address',
+  nationalAssociation: 'National association',
+  relationship: 'Relationship to player',
+  currentDate: 'Today’s date',
   guardianName: 'Parent or manager name',
   guardianEmail: 'Parent or manager email',
   guardianPhone: 'Parent or manager phone',
 };
 
-function normalizeQuestionText(field: GoogleFormInspectionField): string {
-  return `${field.label} ${field.description ?? ''}`
+function normalizeText(value: string): string {
+  return value
     .toLowerCase()
     .replace(/[’']/g, '')
+    .replace(/&/g, ' and ')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 }
 
+function normalizeQuestionText(field: GoogleFormInspectionField): string {
+  return normalizeText(`${field.label} ${field.description ?? ''}`);
+}
+
+function normalizeQuestionLabel(field: GoogleFormInspectionField): string {
+  return normalizeText(field.label).replace(/^\d+\s+/, '');
+}
+
 function includesAny(value: string, terms: string[]): boolean {
   return terms.some((term) => value.includes(term));
+}
+
+function isSensitiveQuestion(text: string): boolean {
+  return includesAny(text, [
+    'disability',
+    'disabled',
+    'medical',
+    'medication',
+    'allergy',
+    'allergies',
+    'health condition',
+    'access requirement',
+    'accessibility requirement',
+    'special requirement',
+    'special need',
+    'declaration',
+    'consent',
+    'signature',
+    'signed by',
+    'terms and conditions',
+    'agree to',
+  ]);
 }
 
 export function isGoogleFormsUrl(input: string): boolean {
@@ -121,11 +160,23 @@ export function profileFieldForGoogleQuestion(
   field: GoogleFormInspectionField,
 ): TournamentEntryProfileField | null {
   const text = normalizeQuestionText(field);
+  const label = normalizeQuestionLabel(field);
   if (!text) return null;
 
   if (includesAny(text, ['doubles partner', 'double partner', 'partner name', 'team mate', 'teammate'])) {
     return null;
   }
+
+  if (/(date of birth|birth date|\bdob\b)/.test(text)) return 'dateOfBirth';
+
+  if (field.kind === 'date' && (
+    label === 'date'
+    || includesAny(label, ['declaration date', 'date signed', 'signature date', 'todays date'])
+  )) {
+    return 'currentDate';
+  }
+
+  if (isSensitiveQuestion(text)) return null;
 
   const isGuardian = includesAny(text, [
     'guardian',
@@ -141,7 +192,36 @@ export function profileFieldForGoogleQuestion(
   }
   if (isGuardian && includesAny(text, ['name', 'contact person'])) return 'guardianName';
 
-  if (/(date of birth|birth date|\bdob\b)/.test(text)) return 'dateOfBirth';
+  if (includesAny(text, [
+    'full address',
+    'home address',
+    'postal address',
+    'residential address',
+    'address including postcode',
+    'address incl postcode',
+    'address and postcode',
+  ])) {
+    return 'fullAddress';
+  }
+
+  if (includesAny(text, [
+    'national association',
+    'national governing body',
+    'home association',
+    'table tennis association',
+  ])) {
+    return 'nationalAssociation';
+  }
+
+  if (includesAny(text, [
+    'relationship to player',
+    'relationship with player',
+    'relationship to entrant',
+    'relationship to competitor',
+    'your relationship to the player',
+  ])) {
+    return 'relationship';
+  }
 
   const hasMembershipTerm = includesAny(text, [
     'membership',
@@ -176,21 +256,60 @@ export function profileFieldForGoogleQuestion(
     return 'entrantName';
   }
 
-  if (text === 'name' || text === 'your name') return 'entrantName';
+  if (label === 'name' || label === 'your name') return 'entrantName';
   return null;
 }
 
 function supportsProfilePrefill(kind: GoogleFormFieldKind): boolean {
-  return kind === 'short_text' || kind === 'paragraph' || kind === 'date';
+  return kind === 'short_text'
+    || kind === 'paragraph'
+    || kind === 'date'
+    || kind === 'multiple_choice'
+    || kind === 'dropdown';
+}
+
+function formatLocalDate(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function relationshipCandidates(profile: TournamentEntryProfile): string[] {
+  switch (profile.relationship) {
+    case 'self': return ['Player', 'Self', 'Myself'];
+    case 'child': return ['Parent/guardian', 'Parent or guardian', 'Parent', 'Guardian'];
+    case 'coached': return ['Coach'];
+    case 'other': return ['Manager', 'Other'];
+  }
+}
+
+function valueCandidatesForField(
+  profileField: TournamentEntryProfileField,
+  profile: TournamentEntryProfile,
+  now: Date,
+): string[] {
+  if (profileField === 'currentDate') return [formatLocalDate(now)];
+  if (profileField === 'relationship') return relationshipCandidates(profile);
+  return [profile[profileField].trim()];
+}
+
+function exactChoiceMatch(options: string[], candidates: string[]): string {
+  const normalizedCandidates = new Set(candidates.map(normalizeText).filter(Boolean));
+  return options.find((option) => normalizedCandidates.has(normalizeText(option))) ?? '';
 }
 
 export function mapGoogleFormFields(
   inspection: GoogleFormInspectionResponse,
   profile: TournamentEntryProfile,
+  now = new Date(),
 ): GoogleFormFieldMapping[] {
   return inspection.fields.map((field) => {
     const profileField = profileFieldForGoogleQuestion(field);
-    const value = profileField ? profile[profileField].trim() : '';
+    const candidates = profileField ? valueCandidatesForField(profileField, profile, now) : [];
+    const value = field.kind === 'multiple_choice' || field.kind === 'dropdown'
+      ? exactChoiceMatch(field.options, candidates)
+      : candidates[0] ?? '';
     return {
       field,
       profileField,
