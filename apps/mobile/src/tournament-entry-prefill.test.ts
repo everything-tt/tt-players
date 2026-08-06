@@ -23,6 +23,8 @@ const profile: TournamentEntryProfile = {
   tteMembershipNumber: '123456',
   club: 'Example TTC',
   county: 'Essex',
+  fullAddress: '12 Example Road, Colchester, CO1 1AA',
+  nationalAssociation: 'Table Tennis England',
   guardianName: 'Parent Example',
   guardianEmail: 'parent@example.test',
   guardianPhone: '07987654321',
@@ -39,6 +41,12 @@ const inspection: GoogleFormInspectionResponse = {
     { id: '3', label: 'TTE membership number', description: null, kind: 'short_text', required: true, options: [] },
     { id: '4', label: 'Parent or guardian email', description: null, kind: 'short_text', required: true, options: [] },
     { id: '5', label: 'Event category', description: null, kind: 'multiple_choice', required: true, options: ['U13', 'U15'] },
+    { id: '6', label: '2. Full address (incl. Postcode)', description: null, kind: 'paragraph', required: true, options: [] },
+    { id: '7', label: '8. National Association', description: null, kind: 'short_text', required: true, options: [] },
+    { id: '8', label: '15. Relationship to player:', description: null, kind: 'multiple_choice', required: true, options: ['Player', 'Parent / Guardian', 'Coach'] },
+    { id: '9', label: '16. Date', description: null, kind: 'date', required: true, options: [] },
+    { id: '10', label: 'Please detail any relevant disability or medical information', description: null, kind: 'paragraph', required: true, options: [] },
+    { id: '11', label: 'Relationship to player', description: null, kind: 'dropdown', required: true, options: ['Coach', 'Manager'] },
   ],
 };
 
@@ -66,13 +74,18 @@ describe('Google Forms entrant prefilling', () => {
     expect(buildGoogleFormPreparationPath(source, '')).toBeNull();
   });
 
-  it('maps common tournament labels and keeps partner fields manual', () => {
+  it('maps reusable details and leaves sensitive questions manual', () => {
     expect(profileFieldForGoogleQuestion(inspection.fields[0])).toBe('entrantName');
     expect(profileFieldForGoogleQuestion(inspection.fields[1])).toBe('dateOfBirth');
     expect(profileFieldForGoogleQuestion(inspection.fields[2])).toBe('tteMembershipNumber');
     expect(profileFieldForGoogleQuestion(inspection.fields[3])).toBe('guardianEmail');
+    expect(profileFieldForGoogleQuestion(inspection.fields[5])).toBe('fullAddress');
+    expect(profileFieldForGoogleQuestion(inspection.fields[6])).toBe('nationalAssociation');
+    expect(profileFieldForGoogleQuestion(inspection.fields[7])).toBe('relationship');
+    expect(profileFieldForGoogleQuestion(inspection.fields[8])).toBe('currentDate');
+    expect(profileFieldForGoogleQuestion(inspection.fields[9])).toBeNull();
     expect(profileFieldForGoogleQuestion({
-      id: '6',
+      id: '12',
       label: 'Doubles partner name',
       description: null,
       kind: 'short_text',
@@ -81,19 +94,25 @@ describe('Google Forms entrant prefilling', () => {
     })).toBeNull();
   });
 
-  it('only marks profile-backed text and date questions for automatic filling', () => {
-    const mappings = mapGoogleFormFields(inspection, profile);
-    expect(mappings.map((mapping) => [mapping.field.id, mapping.profileField, mapping.canPrefill])).toEqual([
-      ['1', 'entrantName', true],
-      ['2', 'dateOfBirth', true],
-      ['3', 'tteMembershipNumber', true],
-      ['4', 'guardianEmail', true],
-      ['5', null, false],
+  it('prefills exact matching choices and today while leaving unmatched choices manual', () => {
+    const mappings = mapGoogleFormFields(inspection, profile, new Date(2026, 7, 6));
+    expect(mappings.map((mapping) => [mapping.field.id, mapping.profileField, mapping.value, mapping.canPrefill])).toEqual([
+      ['1', 'entrantName', 'Alex Example', true],
+      ['2', 'dateOfBirth', '2013-04-05', true],
+      ['3', 'tteMembershipNumber', '123456', true],
+      ['4', 'guardianEmail', 'parent@example.test', true],
+      ['5', null, '', false],
+      ['6', 'fullAddress', '12 Example Road, Colchester, CO1 1AA', true],
+      ['7', 'nationalAssociation', 'Table Tennis England', true],
+      ['8', 'relationship', 'Parent / Guardian', true],
+      ['9', 'currentDate', '2026-08-06', true],
+      ['10', null, '', false],
+      ['11', 'relationship', '', false],
     ]);
   });
 
   it('builds a reviewable pre-filled URL without submitting the form', () => {
-    const mappings = mapGoogleFormFields(inspection, profile);
+    const mappings = mapGoogleFormFields(inspection, profile, new Date(2026, 7, 6));
     const url = new URL(buildGoogleFormsPrefilledUrl(inspection, mappings));
 
     expect(url.pathname).toBe('/forms/d/e/form-id/viewform');
@@ -103,5 +122,11 @@ describe('Google Forms entrant prefilling', () => {
     expect(url.searchParams.get('entry.3')).toBe('123456');
     expect(url.searchParams.get('entry.4')).toBe('parent@example.test');
     expect(url.searchParams.has('entry.5')).toBe(false);
+    expect(url.searchParams.get('entry.6')).toBe('12 Example Road, Colchester, CO1 1AA');
+    expect(url.searchParams.get('entry.7')).toBe('Table Tennis England');
+    expect(url.searchParams.get('entry.8')).toBe('Parent / Guardian');
+    expect(url.searchParams.get('entry.9')).toBe('2026-08-06');
+    expect(url.searchParams.has('entry.10')).toBe(false);
+    expect(url.searchParams.has('entry.11')).toBe(false);
   });
 });
