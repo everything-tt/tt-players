@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { GoogleFormInspection } from './google-forms.js';
 
 export const ENTRY_FORM_SEMANTIC_ANALYSIS_VERSION = 1 as const;
-export const ENTRY_FORM_SEMANTIC_PROMPT_VERSION = '2026-08-06.2';
+export const ENTRY_FORM_SEMANTIC_PROMPT_VERSION = '2026-08-06.3';
 export const ENTRY_FORM_SEMANTIC_AUTO_APPLY_CONFIDENCE = 0.85;
 export const ENTRY_FORM_EVENT_ENRICHMENT_CONFIDENCE = 0.9;
 
@@ -174,6 +174,7 @@ function semanticSystemPrompt(): string {
         `Allowed profile_field values: ${ENTRY_PROFILE_FIELDS.join(', ')}, or null.`,
         `Allowed event detail field values: ${EVENT_DETAIL_FIELDS.join(', ')}.`,
         'Map only reusable entrant/profile facts. Medical, disability, allergy, medication, safeguarding, consent, declaration, signature, payment, card, bank, and free-form event-choice questions must map to null.',
+        'Never extract medical, safeguarding, consent, signature, payment, bank-account, sort-code, card, or BACS details into event_details.',
         'Use the whole form context to distinguish entrant contact details from parent, guardian, coach, or manager contact details.',
         'Use confidence from 0 to 1. Do not use confidence above 0.84 when the meaning is ambiguous.',
         'Extract event details only when explicitly supported by the form title, public text, field labels, descriptions, or choices.',
@@ -268,12 +269,19 @@ const SENSITIVE_TERMS = [
     'agree to',
     'payment',
     'card number',
+    'account number',
     'bank account',
+    'sort code',
+    'bacs',
 ];
 
-function isSensitiveField(label: string, description: string | null): boolean {
-    const text = `${label} ${description ?? ''}`.toLowerCase();
+function containsSensitiveText(value: string): boolean {
+    const text = value.toLowerCase();
     return SENSITIVE_TERMS.some((term) => text.includes(term));
+}
+
+function isSensitiveField(label: string, description: string | null): boolean {
+    return containsSensitiveText(`${label} ${description ?? ''}`);
 }
 
 function normalizeEvidence(value: string): string {
@@ -336,6 +344,7 @@ function validateAndNormalizeOutput(
     for (const detail of parsed.event_details) {
         if (eventFields.has(detail.field)) continue;
         if (detail.source_field_ids.some((id) => !fieldsById.has(id))) continue;
+        if (containsSensitiveText(`${detail.value} ${detail.evidence}`)) continue;
         if (!hasVerifiableEvidence(detail, form, fieldsById)) continue;
         eventFields.add(detail.field);
         eventDetails.push(detail);
