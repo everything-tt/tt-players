@@ -18,6 +18,7 @@ const form: GoogleFormInspection = {
     provider: 'google_forms',
     form_url: 'https://docs.google.com/forms/d/e/form-id/viewform',
     title: 'Junior Open Entry',
+    public_text: 'Junior Open Entry Closing date: 2 August 2026 at 5pm. Venue: Rowhedge Village Hall, CO5 7HL.',
     fields: [
         {
             id: 'emailAddress',
@@ -93,6 +94,13 @@ describe('Google Form semantic analysis', () => {
                     source_field_ids: ['3'],
                 },
                 {
+                    field: 'entry_deadline',
+                    value: '2026-08-02',
+                    confidence: 0.97,
+                    evidence: 'Closing date: 2 August 2026 at 5pm.',
+                    source_field_ids: [],
+                },
+                {
                     field: 'venue_town',
                     value: 'Rowhedge',
                     confidence: 0.95,
@@ -128,6 +136,7 @@ describe('Google Form semantic analysis', () => {
             ],
             event_details: [
                 expect.objectContaining({ field: 'venue_postcode', value: 'CO5 7HL' }),
+                expect.objectContaining({ field: 'entry_deadline', value: '2026-08-02' }),
             ],
             error_message: null,
         });
@@ -142,6 +151,7 @@ describe('Google Form semantic analysis', () => {
         const body = JSON.parse(String(request?.body));
         expect(body.model).toBe('google/gemma-4-E4B-it');
         expect(body.temperature).toBe(0);
+        expect(JSON.stringify(body)).toContain('Closing date: 2 August 2026 at 5pm.');
         expect(JSON.stringify(body)).not.toContain('parent@example.test');
     });
 
