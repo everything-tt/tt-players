@@ -149,6 +149,45 @@ export type RatingDuplicateCandidateGroup = Selectable<RatingDuplicateCandidateG
 export type NewRatingDuplicateCandidateGroup = Insertable<RatingDuplicateCandidateGroupsTable>;
 export type RatingDuplicateCandidateGroupUpdate = Updateable<RatingDuplicateCandidateGroupsTable>;
 
+export interface RatingRankingPoliciesTable {
+    model_id: string;
+    active_days: number;
+    minimum_matches: number;
+    minimum_unique_opponents: number;
+    maximum_deviation: number;
+    updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export type RatingRankingPolicy = Selectable<RatingRankingPoliciesTable>;
+export type NewRatingRankingPolicy = Insertable<RatingRankingPoliciesTable>;
+export type RatingRankingPolicyUpdate = Updateable<RatingRankingPoliciesTable>;
+
+export type RatingCurrentEligibilityReason =
+    | 'ranked'
+    | 'insufficient_matches'
+    | 'insufficient_opponents'
+    | 'inactive'
+    | 'high_uncertainty'
+    | 'critical_data_issue';
+
+export interface RatingCurrentRankingsTable {
+    model_id: string;
+    player_id: string;
+    effective_deviation: number;
+    effective_conservative_rating: number;
+    days_inactive: number;
+    unique_opponents: number;
+    eligible: boolean;
+    eligibility_reason: RatingCurrentEligibilityReason;
+    current_rank: number | null;
+    historical_rank: number;
+    calculated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
+export type RatingCurrentRanking = Selectable<RatingCurrentRankingsTable>;
+export type NewRatingCurrentRanking = Insertable<RatingCurrentRankingsTable>;
+export type RatingCurrentRankingUpdate = Updateable<RatingCurrentRankingsTable>;
+
 export interface PlayerActiveLeaguesTable {
     player_id: string;
     league_id: string;
@@ -168,5 +207,7 @@ export interface ReadModelDatabase {
     rating_source_quality: RatingSourceQualityTable;
     rating_competition_quality: RatingCompetitionQualityTable;
     rating_duplicate_candidate_groups: RatingDuplicateCandidateGroupsTable;
+    rating_ranking_policies: RatingRankingPoliciesTable;
+    rating_current_rankings: RatingCurrentRankingsTable;
     player_active_leagues: PlayerActiveLeaguesTable;
 }
