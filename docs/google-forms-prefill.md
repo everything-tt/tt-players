@@ -7,7 +7,7 @@ TT Players can prepare a public Google Form using one of the account's private t
 1. Event ingestion discovers the tournament's `entry_url`.
 2. The worker recognises a public `forms.gle` or `docs.google.com/forms` responder link.
 3. As a post-ingestion enrichment step, the worker downloads only the blank form page and extracts question IDs, labels, types, required flags, choice options, Google-managed responder fields such as `emailAddress`, and up to 40,000 characters of visible public form text.
-4. When semantic analysis is configured, the worker sends only that blank schema, visible public text, and existing public event context to a small language model. The model proposes profile-field mappings and evidence-backed event details.
+4. When semantic analysis is configured, the worker sends only that blank schema, visible public text, and existing public event context to DeepSeek V4 Flash. The model proposes profile-field mappings and evidence-backed event details.
 5. The structural schema, semantic analysis, status, fingerprint, and inspection time are cached in `tournament_sources` with `source_type = entry_form`.
 6. High-confidence event details fill only missing competition columns; source-scraped values are never overwritten.
 7. On the tournament page, the user selects a saved entrant and reviews which values will be inserted.
@@ -22,27 +22,33 @@ The browser never asks TT Players to inspect a form when the user clicks Enter. 
 - A ready cached schema enables the preparation flow.
 - A missing or failed cached schema shows that automatic preparation is unavailable and offers the original form.
 - A changed `entry_url` is inspected during the next ingestion run.
-- A changed inspection schema, semantic prompt, or model version causes a new one-time analysis.
-- Failed inspections and semantic analyses are stored and are not retried from the user flow.
-- Operators can run `pnpm --filter @tt-players/worker tte:backfill-entry-forms` for a one-off backfill of current tournament entry links.
+- A changed inspection schema, semantic prompt, or model identifier causes a new one-time analysis.
+- The scheduled event scrape may check active tournament rows on every run, but it returns `unchanged` before downloading the form or calling DeepSeek when the normalized URL, inspection version, and semantic-analysis key match.
+- Failed inspections and semantic analyses are cached as completed attempts and are not repeatedly retried by the user flow.
+- Operators can run `pnpm --filter @tt-players/worker tte:backfill-entry-forms` or the manual GitHub Actions backfill workflow. The backfill uses the same cache guard and skips completed matching analyses unless code explicitly opts into force mode.
 
-## Semantic analysis configuration
+Changing from another model to `deepseek-v4-flash` changes the semantic-analysis key, so each existing form is analysed once with the new model and then skipped on later scheduled scrapes and backfills.
 
-Semantic analysis is disabled unless `ENTRY_FORM_LLM_BASE_URL` is set. The worker calls an OpenAI-compatible chat-completions endpoint, so a small Gemma model can be hosted using a compatible inference server.
+## DeepSeek configuration
+
+The production worker uses DeepSeek's OpenAI-compatible Chat Completions API in non-thinking mode.
 
 ```dotenv
-ENTRY_FORM_LLM_BASE_URL=http://127.0.0.1:8000/v1
-ENTRY_FORM_LLM_MODEL=google/gemma-4-E4B-it
-ENTRY_FORM_LLM_API_KEY=
+DEEPSEEK_API_KEY=your-secret-key
+ENTRY_FORM_LLM_BASE_URL=https://api.deepseek.com
+ENTRY_FORM_LLM_MODEL=deepseek-v4-flash
 ENTRY_FORM_LLM_TIMEOUT_MS=30000
 ```
 
-- `ENTRY_FORM_LLM_BASE_URL` is required to enable semantic analysis.
-- `ENTRY_FORM_LLM_MODEL` defaults to `google/gemma-4-E4B-it`.
-- `ENTRY_FORM_LLM_API_KEY` is optional for a trusted local endpoint.
+- `DEEPSEEK_API_KEY` enables semantic analysis and is supplied from the GitHub Actions secret with the same name.
+- `ENTRY_FORM_LLM_BASE_URL` defaults to `https://api.deepseek.com` whenever `DEEPSEEK_API_KEY` is present.
+- `ENTRY_FORM_LLM_MODEL` defaults to `deepseek-v4-flash`.
 - `ENTRY_FORM_LLM_TIMEOUT_MS` is bounded between 5 and 120 seconds.
+- `ENTRY_FORM_LLM_API_KEY` remains available as a compatibility fallback for another OpenAI-compatible endpoint, but `DEEPSEEK_API_KEY` takes priority.
 
-The cache key includes the semantic prompt version and model identifier. Changing either causes unchanged forms to be analyzed once again during ingestion or backfill.
+The production deploy workflow and the manual tournament-entry-form backfill workflow securely write these values to `/etc/ttp/worker.env`. Scheduled worker jobs and backfill jobs both load that environment file.
+
+The cache key includes the semantic prompt version and model identifier. Changing either causes unchanged forms to be analysed once again during ingestion or backfill.
 
 ## Privacy and security
 
