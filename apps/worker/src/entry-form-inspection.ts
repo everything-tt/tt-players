@@ -8,10 +8,12 @@ import {
     type GoogleFormInspection,
 } from './google-forms.js';
 
+const ENTRY_FORM_INSPECTION_VERSION = 2 as const;
+
 export type EntryFormInspectionStatus = 'ready' | 'failed';
 
 export interface CachedEntryFormInspection {
-    version: 1;
+    version: typeof ENTRY_FORM_INSPECTION_VERSION;
     provider: 'google_forms';
     status: EntryFormInspectionStatus;
     source_url: string;
@@ -52,6 +54,12 @@ function inspectionFingerprint(inspection: GoogleFormInspection): string {
             fields: inspection.fields,
         }))
         .digest('hex');
+}
+
+function cachedInspectionVersion(value: unknown): number | null {
+    if (!value || typeof value !== 'object') return null;
+    const version = (value as Record<string, unknown>).version;
+    return typeof version === 'number' ? version : null;
 }
 
 function failureCode(error: unknown): string {
@@ -132,13 +140,17 @@ export async function syncTournamentEntryFormInspection(
     const sourceUrl = normalizeGoogleFormUrl(entryUrl!).toString();
     const existing = await db
         .selectFrom('tournament_sources')
-        .select('source_url')
+        .select(['source_url', 'raw_payload'])
         .where('provider', '=', 'google_forms')
         .where('source_type', '=', 'entry_form')
         .where('source_key', '=', competitionId)
         .executeTakeFirst();
 
-    if (!options.force && existing?.source_url === sourceUrl) {
+    if (
+        !options.force
+        && existing?.source_url === sourceUrl
+        && cachedInspectionVersion(existing.raw_payload) === ENTRY_FORM_INSPECTION_VERSION
+    ) {
         return 'unchanged';
     }
 
@@ -147,7 +159,7 @@ export async function syncTournamentEntryFormInspection(
         const form = await inspector(sourceUrl);
         const fingerprint = inspectionFingerprint(form);
         const payload: CachedEntryFormInspection = {
-            version: 1,
+            version: ENTRY_FORM_INSPECTION_VERSION,
             provider: 'google_forms',
             status: 'ready',
             source_url: sourceUrl,
@@ -161,7 +173,7 @@ export async function syncTournamentEntryFormInspection(
         return 'ready';
     } catch (error) {
         const payload: CachedEntryFormInspection = {
-            version: 1,
+            version: ENTRY_FORM_INSPECTION_VERSION,
             provider: 'google_forms',
             status: 'failed',
             source_url: sourceUrl,
