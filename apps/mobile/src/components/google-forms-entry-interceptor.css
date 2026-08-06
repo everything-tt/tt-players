@@ -1,0 +1,5 @@
+.tt-entry-assist-status-indicator {
+  display: inline-flex;
+  margin-inline-start: 8px;
+  vertical-align: middle;
+}
