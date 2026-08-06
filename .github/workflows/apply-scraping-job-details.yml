@@ -18,6 +18,19 @@ jobs:
         with:
           ref: feat/scraping-job-details
 
+      - name: Fix patch script
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          path = Path('scripts/apply-scraping-job-details.py')
+          text = path.read_text()
+          old = 'route_tail = """        });\n    };\n}\n"""'
+          new = 'route_tail = """        });\n    };\n}"""'
+          if old not in text:
+              raise RuntimeError('Expected route tail marker was not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
       - name: Apply changes
         run: python scripts/apply-scraping-job-details.py
 
