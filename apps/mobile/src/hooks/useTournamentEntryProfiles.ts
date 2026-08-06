@@ -61,11 +61,7 @@ function migrateTournamentEntryProfile(value: unknown): unknown {
   return {
     ...item,
     fullAddress: isBoundedString(item.fullAddress) ? item.fullAddress : '',
-    nationalAssociation: isBoundedString(item.nationalAssociation)
-      ? item.nationalAssociation
-      : isBoundedString(item.tteMembershipNumber) && item.tteMembershipNumber.trim()
-        ? 'Table Tennis England'
-        : '',
+    nationalAssociation: isBoundedString(item.nationalAssociation) ? item.nationalAssociation : '',
   };
 }
 
@@ -157,7 +153,7 @@ export function createEmptyTournamentEntryProfile(
     club: '',
     county: '',
     fullAddress: '',
-    nationalAssociation: 'Table Tennis England',
+    nationalAssociation: '',
     guardianName: '',
     guardianEmail: '',
     guardianPhone: '',
