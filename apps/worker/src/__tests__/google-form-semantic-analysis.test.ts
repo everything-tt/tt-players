@@ -122,7 +122,7 @@ describe('Google Form semantic analysis', () => {
                     field: 'organizer_name',
                     value: 'Made Up Organiser',
                     confidence: 0.99,
-                    evidence: 'Made Up Organiser',
+                    evidence: 'Rowhedge Village Hall, CO5 7HL',
                     source_field_ids: ['3'],
                 },
             ],
