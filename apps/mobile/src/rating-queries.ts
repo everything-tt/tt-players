@@ -10,6 +10,7 @@ export interface PlayerRating {
   player_name: string;
   rating: number;
   rating_deviation: number;
+  volatility: number;
   conservative_rating: number;
   rating_low: number;
   rating_high: number;
@@ -86,6 +87,7 @@ export interface RatingPredictionPlayer {
   player_name: string;
   rating: number;
   rating_deviation: number;
+  volatility: number;
   provisional: boolean;
   win_probability: number;
 }
