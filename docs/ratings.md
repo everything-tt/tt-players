@@ -13,8 +13,9 @@ The worker never loads the full match history or every player rating into memory
 - Writes are split into batches (250 by default).
 - `rating_processing_state.last_processed_date` is committed with the rating updates, so a
   stopped process resumes from the next date.
-- Inactivity uncertainty is calculated lazily when a player next appears. No daily rows are
-  written for inactive players.
+- Inactivity uncertainty is calculated lazily when a player next appears. Elapsed inactive days
+  are converted into fractional 28-day rating periods, and no daily rows are written for inactive
+  players.
 - The daily worker processes at most 31 match dates, limiting load on a small VPS.
 
 Memory usage is therefore bounded by the busiest single match date rather than by the complete
@@ -41,7 +42,9 @@ ratings, and multiple same-day matches do not receive an invented ordering.
 ## Rating state and leaderboard score
 
 The v1 model starts new players at rating 1500, rating deviation 350 and volatility 0.06. It uses
-`tau = 0.5` and a volatility convergence tolerance of `0.000001`.
+`tau = 0.5`, a volatility convergence tolerance of `0.000001`, and a 28-day inactivity period.
+Inactive time is represented as fractional periods, so 14 inactive days add half a period of
+uncertainty and 28 inactive days add one period.
 
 The API and player UI expose all three Glicko-2 state values:
 
@@ -159,8 +162,9 @@ The default v1 current-ranking policy requires:
 - no unresolved critical player data issue.
 
 Present-day deviation is calculated from `last_rated_at`, stored volatility and elapsed inactive
-days. This prevents a player who never returns from keeping an artificially low historical
-deviation indefinitely.
+days, using the same fractional 28-day periods as the historical calculator. This prevents a player
+who never returns from keeping an artificially low historical deviation indefinitely without
+penalising normal gaps between league matches as if every day were a complete Glicko period.
 
 The public endpoint defaults to the current active ranking:
 
@@ -220,13 +224,15 @@ writes the window comparison into the workflow summary.
 ## Issue #173 scope
 
 Exposing rating, RD and volatility is a prerequisite for the clearer ability/confidence separation
-proposed in issue #173, but it does not complete that issue. The following work remains separate:
+proposed in issue #173, but it does not complete that issue. This version adopts a 28-day inactivity
+period as the initial production calibration. The following work remains separate:
 
 - calculation-run, rating-period and per-match audit records;
 - attributed same-day match contributions and player-facing explanations;
-- configurable inactivity-period units;
+- configurable and side-by-side inactivity-period alternatives;
 - alternative public ranking-score coefficients;
 - deterministic newcomer and reproducibility scenarios; and
 - a side-by-side `global-singles-glicko2-v2` rollout backed by audit review and backtesting.
 
-Production v1 behaviour should not change until that evidence has been produced and reviewed.
+Further rating-policy changes should continue to be validated through chronological backtesting and
+reviewed before rollout.
