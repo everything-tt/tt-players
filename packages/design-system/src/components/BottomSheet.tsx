@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react';
-import { useEffect, useId, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { cx } from '../utils/cx';
+import { useId, useRef, type ReactNode } from 'react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { X } from 'lucide-react';
+import { cn } from '../lib/utils';
 
 export interface BottomSheetProps {
   isOpen: boolean;
@@ -24,35 +24,10 @@ export interface BottomSheetProps {
   className?: string;
 }
 
-let openModalLayers = 0;
-let previousBodyOverflow = '';
-
-function lockApplicationLayer(): () => void {
-  const root = document.getElementById('root');
-  if (openModalLayers === 0) {
-    previousBodyOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    root?.setAttribute('inert', '');
-    root?.setAttribute('aria-hidden', 'true');
-  }
-  openModalLayers += 1;
-
-  return () => {
-    openModalLayers = Math.max(0, openModalLayers - 1);
-    if (openModalLayers > 0) return;
-    document.body.style.overflow = previousBodyOverflow;
-    root?.removeAttribute('inert');
-    root?.removeAttribute('aria-hidden');
-  };
-}
-
 /**
- * Shared modal surface with a backdrop, modal semantics, focus trapping,
- * safe-area spacing, body scroll locking and focus restoration.
- *
- * The default presentation remains a mobile bottom sheet. Use `page` for
- * information-dense selection workflows that need a fixed header/footer and a
- * scrollable body while the mobile keyboard is visible.
+ * TT mobile sheet composed from shadcn's Radix Dialog foundation. Radix owns
+ * focus trapping, inert background behaviour, Escape handling, scroll locking
+ * and focus restoration; this wrapper owns TT geometry and safe-area layout.
  */
 export function BottomSheet({
   isOpen,
@@ -69,115 +44,65 @@ export function BottomSheet({
   children,
   className,
 }: BottomSheetProps) {
-  const sheetRef = useRef<HTMLDivElement | null>(null);
-  const previouslyFocused = useRef<HTMLElement | null>(null);
-  const onCloseRef = useRef(onClose);
-  const disableBackdropCloseRef = useRef(disableBackdropClose);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
   const descriptionId = useId();
 
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
-  useEffect(() => {
-    disableBackdropCloseRef.current = disableBackdropClose;
-  }, [disableBackdropClose]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    previouslyFocused.current = document.activeElement as HTMLElement | null;
-    const unlockApplicationLayer = lockApplicationLayer();
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !disableBackdropCloseRef.current) {
-        event.preventDefault();
-        onCloseRef.current();
-        return;
-      }
-      if (event.key === 'Tab' && sheetRef.current) {
-        const focusable = sheetRef.current.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        );
-        if (focusable.length === 0) {
-          event.preventDefault();
-          sheetRef.current.focus();
-          return;
-        }
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first.focus();
-        }
-      }
-    };
-
-    document.addEventListener('keydown', onKeyDown);
-    const timer = window.setTimeout(() => {
-      const target = autoFocus
-        ? sheetRef.current?.querySelector<HTMLElement>('input:not([type="hidden"]), textarea, select, button:not([disabled])')
-        : sheetRef.current;
-      target?.focus();
-    }, 0);
-
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      window.clearTimeout(timer);
-      unlockApplicationLayer();
-      previouslyFocused.current?.focus?.();
-    };
-  }, [autoFocus, isOpen]);
-
-  if (!isOpen || typeof document === 'undefined') return null;
-
-  return createPortal(
-    <div className="tt-modal-layer">
-      <div
-        className="tt-backdrop"
-        onClick={() => { if (!disableBackdropClose) onClose(); }}
-        aria-hidden="true"
-      />
-      <div
-        ref={sheetRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={description ? descriptionId : undefined}
-        tabIndex={-1}
-        className={cx(
-          'tt-sheet',
-          presentation === 'page' && 'tt-sheet--page',
-          presentation === 'sheet' && 'tt-sheet--standard',
-          className,
-        )}
-        style={presentation === 'sheet' ? { height } : undefined}
-      >
-        {presentation === 'sheet' ? <div className="tt-sheet__handle" aria-hidden="true" /> : null}
-        <div className="tt-sheet__top">
-          <div className="tt-sheet__heading">
-            {eyebrow ? <p className="tt-eyebrow">{eyebrow}</p> : null}
-            <h2 id={titleId} className="tt-sheet__title">{title}</h2>
-            {description ? <p id={descriptionId} className="tt-sheet__description">{description}</p> : null}
-          </div>
-          {!disableCloseButton ? (
-            <button
-              type="button"
-              className="tt-sheet__close"
-              onClick={onClose}
-              aria-label="Close"
-            >
-              <i className="fa fa-times" aria-hidden="true" />
-            </button>
-          ) : null}
+  return (
+    <DialogPrimitive.Root open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogPrimitive.Portal>
+        <div className="tt-modal-layer" data-slot="dialog-layer">
+          <DialogPrimitive.Overlay className="tt-backdrop" data-slot="dialog-overlay" />
+          <DialogPrimitive.Content
+            ref={contentRef}
+            aria-labelledby={titleId}
+            aria-describedby={description ? descriptionId : undefined}
+            className={cn(
+              'tt-sheet',
+              presentation === 'page' && 'tt-sheet--page',
+              presentation === 'sheet' && 'tt-sheet--standard',
+              className,
+            )}
+            style={presentation === 'sheet' ? { height } : undefined}
+            onEscapeKeyDown={(event) => {
+              if (disableBackdropClose) event.preventDefault();
+            }}
+            onPointerDownOutside={(event) => {
+              if (disableBackdropClose) event.preventDefault();
+            }}
+            onOpenAutoFocus={(event) => {
+              if (autoFocus) return;
+              event.preventDefault();
+              contentRef.current?.focus();
+            }}
+            data-slot="dialog-content"
+          >
+            {presentation === 'sheet' ? <div className="tt-sheet__handle" aria-hidden="true" /> : null}
+            <div className="tt-sheet__top">
+              <div className="tt-sheet__heading">
+                {eyebrow ? <p className="tt-eyebrow">{eyebrow}</p> : null}
+                <DialogPrimitive.Title asChild>
+                  <h2 id={titleId} className="tt-sheet__title">{title}</h2>
+                </DialogPrimitive.Title>
+                {description ? (
+                  <DialogPrimitive.Description asChild>
+                    <p id={descriptionId} className="tt-sheet__description">{description}</p>
+                  </DialogPrimitive.Description>
+                ) : null}
+              </div>
+              {!disableCloseButton ? (
+                <DialogPrimitive.Close asChild>
+                  <button type="button" className="tt-sheet__close" aria-label="Close">
+                    <X aria-hidden="true" />
+                  </button>
+                </DialogPrimitive.Close>
+              ) : null}
+            </div>
+            <div className="tt-sheet__body">{children}</div>
+            {footer ? <div className="tt-sheet__footer">{footer}</div> : null}
+          </DialogPrimitive.Content>
         </div>
-        <div className="tt-sheet__body">{children}</div>
-        {footer ? <div className="tt-sheet__footer">{footer}</div> : null}
-      </div>
-    </div>,
-    document.body,
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

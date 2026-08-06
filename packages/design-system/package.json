@@ -13,5 +13,24 @@
     "typescript": "^5.7.3",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./primitives": "./src/components/ui/index.ts",
+    "./styles.css": "./src/styles/index.css",
+    "./utils": "./src/lib/utils.ts"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-slot": "^1.2.3",
+    "@radix-ui/react-switch": "^1.2.6",
+    "@radix-ui/react-toggle-group": "^1.1.11",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
+    "tailwind-merge": "^3.3.1"
   }
 }

@@ -1,20 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { TAB_METADATA } from '../player-shared';
 import type { AppTabId } from '../navigation/tab-navigation';
-import { AppSwitch } from '../ui/appkit';
+import { AppDrawer, AppSwitch } from '../ui/appkit';
 import { useAuth } from '../lib/auth';
 import { usePWAInstallContext } from '../PWAInstallContext';
 
 const DRAWER_TABS: AppTabId[] = ['home', 'players', 'leagues', 'events', 'h2h'];
-const FOCUSABLE_SELECTOR = [
-  'button:not([disabled])',
-  'a[href]',
-  'input:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-].join(',');
-
 const RATING_AUDIT_LINKS = [
   { label: 'Overview', path: '/rating-audit' },
   { label: 'Player Audit', path: '/rating-audit/player' },
@@ -62,62 +54,10 @@ export function MainDrawer({
   const { canUpdate, updateApp } = usePWAInstallContext();
   const ratingAuditActive = location.pathname.startsWith('/rating-audit');
   const [isRatingAuditOpen, setIsRatingAuditOpen] = useState(ratingAuditActive);
-  const dialogRef = useRef<HTMLElement | null>(null);
-  const closeRef = useRef<HTMLButtonElement | null>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (ratingAuditActive) setIsRatingAuditOpen(true);
   }, [ratingAuditActive]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const page = document.getElementById('page');
-    const pageHadInert = page?.hasAttribute('inert') ?? false;
-    const previousOverflow = document.body.style.overflow;
-
-    page?.setAttribute('inert', '');
-    document.body.style.overflow = 'hidden';
-    const frame = window.requestAnimationFrame(() => closeRef.current?.focus());
-
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onClose();
-        return;
-      }
-
-      if (event.key !== 'Tab' || !dialogRef.current) return;
-      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
-      if (focusable.length === 0) {
-        event.preventDefault();
-        return;
-      }
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      document.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = previousOverflow;
-      if (!pageHadInert) page?.removeAttribute('inert');
-      previousFocusRef.current?.focus();
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
 
   const selectTab = (tab: AppTabId) => {
     onClose();
@@ -147,25 +87,20 @@ export function MainDrawer({
     return location.pathname.startsWith(path);
   };
 
-  return createPortal(
-    <div className="tt-drawer-layer">
-      <button type="button" className="tt-drawer-backdrop" onClick={onClose} aria-label="Close menu" />
-      <aside
-        ref={dialogRef}
-        className="tt-drawer"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="tt-drawer-title"
-      >
-        <div className="tt-drawer__hero">
-          <button ref={closeRef} type="button" className="tt-drawer__close" onClick={onClose} aria-label="Close menu">
-            <i className="fa fa-times" aria-hidden="true" />
-          </button>
-          <p className="tt-picker-eyebrow">Menu</p>
-          <h2 id="tt-drawer-title" className="tt-drawer__title">TT Players</h2>
+  return (
+    <AppDrawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title="TT Players"
+      subtitle="Menu"
+      footer={(
+        <div className="tt-drawer__build" aria-label={`Build ${buildTime}, commit ${commit}`}>
+          <span>Built {buildTime}</span>
+          <span>Commit {commit}</span>
         </div>
-
-        <div className="tt-drawer__content">
+      )}
+    >
+      <div className="tt-drawer__content">
           <h3 className="tt-drawer__section-title">Library</h3>
           <nav className="tt-drawer__list" aria-label="App sections">
             {DRAWER_TABS.map((tab) => {
@@ -226,7 +161,7 @@ export function MainDrawer({
                 id="tt-drawer-theme-switch"
                 containerClassName="tt-drawer-switch"
                 checked={isDarkMode}
-                onChange={(event) => onThemeChange(event.target.checked)}
+                onCheckedChange={onThemeChange}
                 aria-label="Dark mode"
               />
             </div>
@@ -300,14 +235,7 @@ export function MainDrawer({
               <i className="fa fa-angle-right" aria-hidden="true" />
             </a>
           </div>
-        </div>
-
-        <div className="tt-drawer__build" aria-label={`Build ${buildTime}, commit ${commit}`}>
-          <span>Built {buildTime}</span>
-          <span>Commit {commit}</span>
-        </div>
-      </aside>
-    </div>,
-    document.body,
+      </div>
+    </AppDrawer>
   );
 }

@@ -45,18 +45,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Create temporary source snapshot
-        if: github.event_name == 'pull_request'
-        run: tar --exclude=.git -czf /tmp/tt-players-source.tgz .
-
-      - name: Upload temporary source snapshot
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: source-snapshot-${{ github.event.pull_request.number }}-${{ github.sha }}
-          path: /tmp/tt-players-source.tgz
-          retention-days: 1
-
       - name: Install pnpm
         uses: pnpm/action-setup@v4
 
