@@ -29,22 +29,6 @@ export interface GoogleFormInspectionResponse {
   fields: GoogleFormInspectionField[];
 }
 
-export interface CachedEntryFormInspection {
-  version: 1 | 2;
-  provider: 'google_forms';
-  status: 'ready' | 'failed';
-  source_url: string;
-  inspected_at: string;
-  fingerprint: string | null;
-  form: GoogleFormInspectionResponse | null;
-  error_code: string | null;
-  error_message: string | null;
-}
-
-export interface CachedEntryFormInspectionResponse {
-  data: CachedEntryFormInspection | null;
-}
-
 export type TournamentEntryProfileField =
   | 'entrantName'
   | 'dateOfBirth'
@@ -61,13 +45,73 @@ export type TournamentEntryProfileField =
   | 'guardianEmail'
   | 'guardianPhone';
 
+export interface EntryFormSemanticMapping {
+  field_id: string;
+  profile_field: TournamentEntryProfileField | null;
+  confidence: number;
+  reason: string;
+}
+
+export interface EntryFormSemanticEventDetail {
+  field:
+    | 'display_name'
+    | 'description'
+    | 'start_date'
+    | 'end_date'
+    | 'entry_deadline'
+    | 'venue_name'
+    | 'venue_address'
+    | 'venue_town'
+    | 'venue_postcode'
+    | 'organizer_name'
+    | 'category';
+  value: string;
+  confidence: number;
+  evidence: string;
+  source_field_ids: string[];
+}
+
+export interface EntryFormSemanticAnalysis {
+  version: 1;
+  status: 'ready' | 'failed';
+  provider: 'openai_compatible';
+  model: string;
+  prompt_version: string;
+  analysis_key: string;
+  analyzed_at: string;
+  mappings: EntryFormSemanticMapping[];
+  event_details: EntryFormSemanticEventDetail[];
+  error_message: string | null;
+}
+
+export interface CachedEntryFormInspection {
+  version: 1 | 2 | 3;
+  provider: 'google_forms';
+  status: 'ready' | 'failed';
+  source_url: string;
+  inspected_at: string;
+  fingerprint: string | null;
+  form: GoogleFormInspectionResponse | null;
+  semantic_analysis?: EntryFormSemanticAnalysis | null;
+  error_code: string | null;
+  error_message: string | null;
+}
+
+export interface CachedEntryFormInspectionResponse {
+  data: CachedEntryFormInspection | null;
+}
+
 export interface GoogleFormFieldMapping {
   field: GoogleFormInspectionField;
   profileField: TournamentEntryProfileField | null;
   profileFieldLabel: string | null;
   value: string;
   canPrefill: boolean;
+  mappingSource: 'semantic' | 'deterministic' | null;
+  mappingConfidence: number | null;
 }
+
+const SEMANTIC_AUTO_APPLY_CONFIDENCE = 0.85;
 
 const PROFILE_FIELD_LABELS: Record<TournamentEntryProfileField, string> = {
   entrantName: 'Entrant name',
@@ -116,6 +160,7 @@ function isSensitiveQuestion(text: string): boolean {
     'allergy',
     'allergies',
     'health condition',
+    'safeguarding',
     'access requirement',
     'accessibility requirement',
     'special requirement',
@@ -126,6 +171,9 @@ function isSensitiveQuestion(text: string): boolean {
     'signed by',
     'terms and conditions',
     'agree to',
+    'payment',
+    'card number',
+    'bank account',
   ]);
 }
 
@@ -261,6 +309,23 @@ export function profileFieldForGoogleQuestion(
   return null;
 }
 
+function semanticMappingForGoogleQuestion(
+  field: GoogleFormInspectionField,
+  analysis: EntryFormSemanticAnalysis | null | undefined,
+): EntryFormSemanticMapping | null {
+  if (!analysis || analysis.status !== 'ready' || isSensitiveQuestion(normalizeQuestionText(field))) {
+    return null;
+  }
+  const candidates = analysis.mappings
+    .filter((mapping) => (
+      mapping.field_id === field.id
+      && mapping.profile_field
+      && mapping.confidence >= SEMANTIC_AUTO_APPLY_CONFIDENCE
+    ))
+    .sort((left, right) => right.confidence - left.confidence);
+  return candidates[0] ?? null;
+}
+
 function supportsProfilePrefill(kind: GoogleFormFieldKind): boolean {
   return kind === 'short_text'
     || kind === 'paragraph'
@@ -301,13 +366,31 @@ function exactChoiceMatch(options: string[], candidates: string[]): string {
   return options.find((option) => normalizedCandidates.has(normalizeText(option))) ?? '';
 }
 
+const SEMANTIC_OVERRIDEABLE_DETERMINISTIC_FIELDS = new Set<TournamentEntryProfileField>([
+  'entrantName',
+  'email',
+  'phone',
+]);
+
 export function mapGoogleFormFields(
   inspection: GoogleFormInspectionResponse,
   profile: TournamentEntryProfile,
   now = new Date(),
+  semanticAnalysis: EntryFormSemanticAnalysis | null = null,
 ): GoogleFormFieldMapping[] {
   return inspection.fields.map((field) => {
-    const profileField = profileFieldForGoogleQuestion(field);
+    const deterministicField = profileFieldForGoogleQuestion(field);
+    const semanticMapping = semanticMappingForGoogleQuestion(field, semanticAnalysis);
+    const useSemantic = Boolean(
+      semanticMapping?.profile_field
+      && (
+        deterministicField === null
+        || SEMANTIC_OVERRIDEABLE_DETERMINISTIC_FIELDS.has(deterministicField)
+      )
+    );
+    const profileField = useSemantic
+      ? semanticMapping!.profile_field
+      : deterministicField;
     const candidates = profileField ? valueCandidatesForField(profileField, profile, now) : [];
     const value = field.kind === 'multiple_choice' || field.kind === 'dropdown'
       ? exactChoiceMatch(field.options, candidates)
@@ -318,6 +401,10 @@ export function mapGoogleFormFields(
       profileFieldLabel: profileField ? PROFILE_FIELD_LABELS[profileField] : null,
       value,
       canPrefill: Boolean(profileField && value && supportsProfilePrefill(field.kind)),
+      mappingSource: profileField
+        ? (useSemantic ? 'semantic' : 'deterministic')
+        : null,
+      mappingConfidence: useSemantic ? semanticMapping!.confidence : null,
     };
   });
 }
