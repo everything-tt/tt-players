@@ -40,6 +40,8 @@ Temporary UI state such as the currently selected H2H picker players and PWA-ins
 - Clients cannot supply or choose the server-side user ID.
 - Responses use `Cache-Control: private, no-store`.
 - Snapshot version 1 accepts only the documented storage keys and is limited to 900 KB.
+- Tournament entry storage includes the owning Supabase user ID. It is omitted from uploads and removed from the active device when the signed-in account does not match, preventing one account's entrant details from being bootstrapped into another account.
+- Tournament entry profiles are excluded from the generic session backup used by the PWA install flow.
 - Account-private means the data is not exposed through public player or tournament APIs. The current sync format is not end-to-end encrypted, so especially sensitive medical information, declarations, and payment details must not be stored in tournament entry profiles.
 
 ## API environment
