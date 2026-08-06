@@ -85,6 +85,23 @@ export function isGoogleFormsUrl(input: string): boolean {
   }
 }
 
+export function sanitizeGoogleFormsUrl(input: string): string | null {
+  if (!isGoogleFormsUrl(input)) return null;
+  const url = new URL(input.trim());
+  url.username = '';
+  url.password = '';
+  url.search = '';
+  url.hash = '';
+  return url.toString();
+}
+
+export function buildGoogleFormPreparationPath(input: string): string | null {
+  const url = sanitizeGoogleFormsUrl(input);
+  if (!url) return null;
+  const params = new URLSearchParams({ url });
+  return `entry-prefill?${params.toString()}`;
+}
+
 export function profileFieldForGoogleQuestion(
   field: GoogleFormInspectionField,
 ): TournamentEntryProfileField | null {
