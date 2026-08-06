@@ -35,6 +35,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # The payload chunks are verified against their local Git blob hashes.
           cat .github/migration/shadcn.part.* | base64 --decode | gzip --decompress > /tmp/shadcn-migration.patch
           git apply --check /tmp/shadcn-migration.patch
           git apply /tmp/shadcn-migration.patch
