@@ -8,7 +8,7 @@ const context = {
 };
 
 describe('diagnosticsFromCachedEntryForm', () => {
-    it('reports a cached Google Form inspection failure', () => {
+    it('reports a cached Google Form inspection-pipeline failure', () => {
         expect(diagnosticsFromCachedEntryForm({
             status: 'failed',
             source_url: context.sourceUrl,
@@ -21,7 +21,7 @@ describe('diagnosticsFromCachedEntryForm', () => {
             competition_name: 'Example Open',
             source_url: context.sourceUrl,
             inspected_at: '2026-08-07T00:00:00.000Z',
-            stage: 'form_inspection',
+            stage: 'inspection_pipeline',
             model: null,
             error_code: 'form_not_publicly_inspectable',
             error_message: 'This Google Form requires access and cannot be inspected.',
