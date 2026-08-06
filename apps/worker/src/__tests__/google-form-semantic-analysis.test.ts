@@ -8,9 +8,9 @@ import {
 import type { GoogleFormInspection } from '../google-forms.js';
 
 const configuration: EntryFormSemanticAnalysisConfiguration = {
-    baseUrl: 'http://127.0.0.1:8000/v1',
+    baseUrl: 'https://api.deepseek.com',
     apiKey: 'test-key',
-    model: 'google/gemma-4-E4B-it',
+    model: 'deepseek-v4-flash',
     timeoutMs: 5_000,
 };
 
@@ -62,9 +62,20 @@ function completion(content: unknown): Response {
 }
 
 describe('Google Form semantic analysis', () => {
-    it('is disabled unless an endpoint is configured', () => {
+    it('is disabled unless an endpoint or DeepSeek key is configured', () => {
         expect(entryFormSemanticAnalysisConfiguration({})).toBeNull();
         expect(entryFormSemanticAnalysisKey(null)).toBeNull();
+    });
+
+    it('uses the official DeepSeek defaults when DEEPSEEK_API_KEY is configured', () => {
+        expect(entryFormSemanticAnalysisConfiguration({
+            DEEPSEEK_API_KEY: 'deepseek-secret',
+        })).toEqual({
+            baseUrl: 'https://api.deepseek.com',
+            apiKey: 'deepseek-secret',
+            model: 'deepseek-v4-flash',
+            timeoutMs: 30_000,
+        });
     });
 
     it('validates mappings, blocks sensitive fields and retains evidence-backed enrichment', async () => {
@@ -138,8 +149,8 @@ describe('Google Form semantic analysis', () => {
 
         expect(analysis).toMatchObject({
             status: 'ready',
-            model: 'google/gemma-4-E4B-it',
-            analysis_key: expect.stringContaining('google/gemma-4-E4B-it'),
+            model: 'deepseek-v4-flash',
+            analysis_key: expect.stringContaining('deepseek-v4-flash'),
             analyzed_at: '2026-08-06T20:00:00.000Z',
             mappings: [
                 expect.objectContaining({ field_id: 'emailAddress', profile_field: 'guardianEmail' }),
@@ -158,11 +169,13 @@ describe('Google Form semantic analysis', () => {
 
         expect(fetcher).toHaveBeenCalledOnce();
         const [url, request] = fetcher.mock.calls[0];
-        expect(String(url)).toBe('http://127.0.0.1:8000/v1/chat/completions');
+        expect(String(url)).toBe('https://api.deepseek.com/v1/chat/completions');
         expect((request?.headers as Record<string, string>).Authorization).toBe('Bearer test-key');
         const body = JSON.parse(String(request?.body));
-        expect(body.model).toBe('google/gemma-4-E4B-it');
+        expect(body.model).toBe('deepseek-v4-flash');
+        expect(body.thinking).toEqual({ type: 'disabled' });
         expect(body.temperature).toBe(0);
+        expect(body.stream).toBe(false);
         expect(JSON.stringify(body)).toContain('Closing date: 2 August 2026 at 5pm.');
         expect(JSON.stringify(body)).not.toContain('parent@example.test');
     });
