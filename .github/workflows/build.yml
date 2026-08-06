@@ -58,6 +58,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build frontend
+        id: frontend_build
         env:
           VITE_API_URL: /api
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -79,6 +80,48 @@ jobs:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
         timeout-minutes: 5
+
+      - name: Add frontend build summary
+        if: always()
+        env:
+          BUILD_OUTCOME: ${{ steps.frontend_build.outcome }}
+          DEPLOY_OUTCOME: ${{ steps.netlify.outcome }}
+          DEPLOY_URL: ${{ steps.netlify.outputs.deploy-url }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const repositoryUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`;
+          const runUrl = `${repositoryUrl}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          const commitUrl = `${repositoryUrl}/commit/${process.env.GITHUB_SHA}`;
+          const shortSha = (process.env.GITHUB_SHA || '').slice(0, 7);
+          const status = process.env.JOB_STATUS || 'unknown';
+          const icon = status === 'success' ? '✅' : status === 'cancelled' ? '⚪' : '❌';
+          const deployUrl = process.env.DEPLOY_URL?.trim();
+          const deploymentKind = process.env.GITHUB_EVENT_NAME === 'push'
+            ? 'Production deployment'
+            : 'Pull request preview';
+
+          const lines = [
+            `## ${icon} Frontend build and deployment`,
+            '',
+            '| Check | Result |',
+            '| --- | --- |',
+            `| Frontend production build | **${process.env.BUILD_OUTCOME || 'not run'}** |`,
+            `| Netlify deployment | **${process.env.DEPLOY_OUTCOME || 'not run'}** |`,
+            `| Deployment type | ${deploymentKind} |`,
+            '',
+            deployUrl
+              ? `- [Open deployed frontend](${deployUrl})`
+              : '- Deployment URL unavailable.',
+            `- Commit: [\`${shortSha}\`](${commitUrl})`,
+            `- [Open workflow run](${runUrl})`,
+            '',
+          ];
+
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
+          NODE
 
   ui-screenshots:
     if: >-
@@ -146,6 +189,7 @@ jobs:
           } > ui-review-report/diagnostics/host-before.txt
 
       - name: Capture UI screenshots
+        id: capture
         run: pnpm --filter @tt-players/mobile exec playwright test --config=../../playwright.ui-review.config.ts
 
       - name: Record host resources after
@@ -161,6 +205,7 @@ jobs:
 
       - name: Upload UI review artifact
         if: always()
+        id: artifact
         uses: actions/upload-artifact@v4
         with:
           name: ui-review-pr-${{ github.event.pull_request.number }}-${{ github.sha }}
@@ -252,3 +297,50 @@ jobs:
                 body,
               });
             }
+
+      - name: Add UI screenshot summary
+        if: always()
+        env:
+          CAPTURE_OUTCOME: ${{ steps.capture.outcome }}
+          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+          REPORT_URL: ${{ steps.report.outputs.deploy-url }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          let items = [];
+          try {
+            items = JSON.parse(fs.readFileSync('ui-review-report/manifest.json', 'utf8'));
+          } catch {}
+
+          const projects = new Set(items.map((item) => item.project).filter(Boolean));
+          const reportUrl = process.env.REPORT_URL?.trim();
+          const artifactUrl = process.env.ARTIFACT_URL?.trim();
+          const repositoryUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`;
+          const runUrl = `${repositoryUrl}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          const status = process.env.JOB_STATUS || 'unknown';
+          const icon = status === 'success' ? '✅' : status === 'cancelled' ? '⚪' : '❌';
+
+          const lines = [
+            `## ${icon} Pull request UI screenshots`,
+            '',
+            '| Item | Result |',
+            '| --- | --- |',
+            `| Screenshot collection | **${process.env.CAPTURE_OUTCOME || 'not run'}** |`,
+            `| Screens captured | **${items.length}** |`,
+            `| Viewport projects | ${projects.size} |`,
+            `| Preview | [Open preview](${process.env.PREVIEW_URL}) |`,
+            '',
+            reportUrl
+              ? `- [Open screenshot report](${reportUrl})`
+              : '- Screenshot report unavailable.',
+            artifactUrl
+              ? `- [Download screenshot artifact](${artifactUrl})`
+              : '- Screenshot artifact URL unavailable.',
+            `- [Open workflow run](${runUrl})`,
+            '',
+          ];
+
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
+          NODE
