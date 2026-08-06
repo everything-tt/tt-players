@@ -20,6 +20,8 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
   const metrics = rating ? [
     { label: 'Rating', value: Math.round(rating.rating) },
     ...(rating.rank != null ? [{ label: 'Global Rank', value: `#${rating.rank}` }] : []),
+    { label: 'RD', value: rating.rating_deviation.toFixed(1) },
+    { label: 'Volatility', value: rating.volatility.toFixed(4) },
     { label: 'Confidence', value: ratingConfidenceLabel(rating.confidence) },
   ] : [];
 
@@ -38,6 +40,8 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
           metrics={[
             { label: 'Rating', value: <SkeletonBlock className="tt-skeleton-stat" /> },
             { label: 'Rank', value: <SkeletonBlock className="tt-skeleton-stat" /> },
+            { label: 'RD', value: <SkeletonBlock className="tt-skeleton-stat" /> },
+            { label: 'Volatility', value: <SkeletonBlock className="tt-skeleton-stat" /> },
             { label: 'Confidence', value: <SkeletonBlock className="tt-skeleton-stat" /> },
           ]}
         />
@@ -75,7 +79,7 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
           </Surface>
 
           {rating.provisional ? (
-            <p className="tt-rating-note">Provisional rating: a global rank will appear once the rating confidence is high enough.</p>
+            <p className="tt-rating-note">Provisional rating: a global rank will appear once rating deviation is 110 or lower.</p>
           ) : null}
 
           <AppButtonLink
