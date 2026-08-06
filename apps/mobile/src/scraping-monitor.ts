@@ -4,6 +4,8 @@ import { apiFetch } from './player-shared';
 export type ScrapingMonitorState = 'attention' | 'running' | 'scheduled' | 'idle' | 'unobserved';
 export type QueueJobState = 'running' | 'ready' | 'scheduled' | 'failed';
 export type ScrapeStatus = 'pending' | 'processed' | 'failed';
+export type PipelineRunStatus = 'running' | 'completed' | 'failed';
+export type PipelineStageStatus = 'running' | 'waiting' | 'completed' | 'failed';
 
 export interface ScrapingQueueSummary {
   available: boolean;
@@ -73,12 +75,44 @@ export interface ScrapingResourceFailure {
   last_error: string;
 }
 
+export interface ScrapingPipelineStage {
+  stage: string;
+  status: PipelineStageStatus;
+  started_at: string;
+  finished_at: string | null;
+  duration_ms: number | null;
+  attempt_count: number;
+  summary: Record<string, unknown>;
+  error_message: string | null;
+}
+
+export interface ScrapingPipelineRun {
+  run_key: string;
+  status: PipelineRunStatus;
+  current_stage: string;
+  window_start: string;
+  started_at: string;
+  finished_at: string | null;
+  duration_ms: number | null;
+  attempt_count: number;
+  error_message: string | null;
+  stages: ScrapingPipelineStage[];
+}
+
+export interface ScrapingPipelineHistory {
+  available: boolean;
+  retention_days: number;
+  total: number;
+  runs: ScrapingPipelineRun[];
+}
+
 export interface ScrapingMonitorResponse {
   generated_at: string;
   window_hours: number;
   state: ScrapingMonitorState;
   queue: ScrapingQueueSummary;
   scrapes: ScrapeWindowSummary;
+  pipeline_history: ScrapingPipelineHistory;
   active_resource_failures: number;
   tasks: ScrapingQueueTask[];
   recent_jobs: ScrapingQueueJob[];
