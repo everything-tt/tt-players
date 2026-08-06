@@ -80,6 +80,7 @@ export function leagueRatingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                                 player.name AS player_name,
                                 rating.rating,
                                 rating.rating_deviation,
+                                rating.volatility,
                                 rating.conservative_rating,
                                 rating.rated_matches,
                                 rating.rated_wins,
