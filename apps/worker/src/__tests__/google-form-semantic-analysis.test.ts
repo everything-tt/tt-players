@@ -18,7 +18,11 @@ const form: GoogleFormInspection = {
     provider: 'google_forms',
     form_url: 'https://docs.google.com/forms/d/e/form-id/viewform',
     title: 'Junior Open Entry',
-    public_text: 'Junior Open Entry Closing date: 2 August 2026 at 5pm. Venue: Rowhedge Village Hall, CO5 7HL.',
+    public_text: [
+        'Junior Open Entry Closing date: 2 August 2026 at 5pm.',
+        'Venue: Rowhedge Village Hall, CO5 7HL.',
+        'Payment via BACS. Account number: 12345678. Sort code: 12-34-56.',
+    ].join(' '),
     fields: [
         {
             id: 'emailAddress',
@@ -101,6 +105,13 @@ describe('Google Form semantic analysis', () => {
                     source_field_ids: [],
                 },
                 {
+                    field: 'description',
+                    value: 'Payment via BACS using account number 12345678.',
+                    confidence: 0.99,
+                    evidence: 'Payment via BACS. Account number: 12345678.',
+                    source_field_ids: [],
+                },
+                {
                     field: 'venue_town',
                     value: 'Rowhedge',
                     confidence: 0.95,
@@ -141,6 +152,7 @@ describe('Google Form semantic analysis', () => {
             error_message: null,
         });
         expect(analysis?.mappings.some((mapping) => mapping.field_id === 'invented')).toBe(false);
+        expect(analysis?.event_details.some((detail) => detail.field === 'description')).toBe(false);
         expect(analysis?.event_details.some((detail) => detail.field === 'venue_town')).toBe(false);
         expect(analysis?.event_details.some((detail) => detail.field === 'organizer_name')).toBe(false);
 
