@@ -95,8 +95,8 @@ export function TopRatingsSection({ leagueIds, onOpenPlayer }: TopRatingsSection
           iconClassName="fa fa-ranking-star"
           title="No established ratings yet"
           message={isSelectedScope
-            ? 'Established players from the selected leagues will appear after their rating history has been calculated.'
-            : 'Established players will appear after their site-wide rating history has been calculated.'}
+            ? 'Established players from the selected leagues will appear once their rating deviation is 110 or lower.'
+            : 'Established players will appear once their rating deviation is 110 or lower.'}
         />
       ) : (
         <List divider="hairline">
@@ -105,7 +105,7 @@ export function TopRatingsSection({ leagueIds, onOpenPlayer }: TopRatingsSection
               key={player.player_id}
               leading={<RankBadge>{player.rank ?? index + 1}</RankBadge>}
               title={player.player_name}
-              subtitle={`${ratingConfidenceLabel(player.confidence)} confidence · ${player.rated_matches} rated matches`}
+              subtitle={`${ratingConfidenceLabel(player.confidence)} confidence · RD ${player.rating_deviation.toFixed(1)} · σ ${player.volatility.toFixed(4)}`}
               trailing={<Pill tone="accent">{Math.round(player.rating)}</Pill>}
               onClick={() => onOpenPlayer(player.player_id)}
             />
