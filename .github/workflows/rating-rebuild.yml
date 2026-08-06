@@ -95,6 +95,7 @@ jobs:
           echo "::warning::The selected model's ratings, current rankings, checkpoints, and weekly history will be replaced. Ranking responses may be incomplete until the rebuild and audit refresh finish."
 
       - name: Configure SSH
+        id: ssh
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
@@ -192,6 +193,17 @@ jobs:
 
           grep -q '^RATING_REBUILD=' rating-rebuild-output.txt
           grep -q '^RATING_AUDIT_SNAPSHOT=' rating-rebuild-output.txt
+
+      - name: Ensure worker is running
+        if: ${{ always() && steps.ssh.outcome == 'success' }}
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_USER"
+          ssh "$VPS_USER@$VPS_HOST" \
+            "systemctl start ttp-worker && systemctl is-active --quiet ttp-worker"
 
       - name: Verify production health
         env:
