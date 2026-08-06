@@ -1,0 +1,275 @@
+name: Rebuild calculated ratings
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Rating model key to rebuild
+        required: true
+        default: global-singles-glicko2-v1
+        type: string
+      scope:
+        description: Rebuild all eligible history, a rolling year window, or from a date
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - years
+          - start-date
+      years:
+        description: Rolling history years when scope is years
+        required: true
+        default: '10'
+        type: string
+      start_date:
+        description: Earliest date when scope is start-date (YYYY-MM-DD)
+        required: false
+        default: ''
+        type: string
+      confirm:
+        description: Type REBUILD_RATINGS to confirm destructive replacement of current ratings
+        required: true
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+# Share the production lock with deploys so a release cannot switch while the
+# long-running rebuild is using /opt/tt-players/current.
+concurrency:
+  group: vps-production-ttp
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      MODEL_KEY: ${{ inputs.model }}
+      REBUILD_SCOPE: ${{ inputs.scope }}
+      YEARS: ${{ inputs.years }}
+      START_DATE: ${{ inputs.start_date }}
+      CONFIRM_REBUILD: ${{ inputs.confirm }}
+
+    steps:
+      - name: Validate destructive inputs
+        run: |
+          set -euo pipefail
+
+          if [[ "$CONFIRM_REBUILD" != "REBUILD_RATINGS" ]]; then
+            echo "A full rebuild requires confirm=REBUILD_RATINGS" >&2
+            exit 64
+          fi
+          if [[ ! "$MODEL_KEY" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+            echo "Invalid rating model key: $MODEL_KEY" >&2
+            exit 64
+          fi
+
+          case "$REBUILD_SCOPE" in
+            all)
+              ;;
+            years)
+              if [[ ! "$YEARS" =~ ^[0-9]+$ ]] || (( YEARS < 1 || YEARS > 30 )); then
+                echo "years must be an integer from 1 to 30" >&2
+                exit 64
+              fi
+              ;;
+            start-date)
+              if [[ ! "$START_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+                echo "start_date must use YYYY-MM-DD when scope=start-date" >&2
+                exit 64
+              fi
+              if ! date -u -d "$START_DATE" '+%F' | grep -qx "$START_DATE"; then
+                echo "Invalid start_date: $START_DATE" >&2
+                exit 64
+              fi
+              ;;
+            *)
+              echo "scope must be all, years, or start-date" >&2
+              exit 64
+              ;;
+          esac
+
+          echo "::warning::The selected model's ratings, current rankings, checkpoints, and weekly history will be replaced. Ranking responses may be incomplete until the rebuild and audit refresh finish."
+
+      - name: Configure SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_SSH_KEY"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Verify rebuild command is deployed
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_USER"
+          ssh "$VPS_USER@$VPS_HOST" \
+            "test -f /opt/tt-players/current/apps/worker/src/rebuild-weekly-rating-history.ts && \
+             test -x /opt/tt-players/current/apps/worker/node_modules/.bin/tsx && \
+             grep -q \"hasFlag('all')\" /opt/tt-players/current/apps/worker/src/rebuild-weekly-rating-history.ts && \
+             grep -q 'RATING_REBUILD=' /opt/tt-players/current/apps/worker/src/rebuild-weekly-rating-history.ts"
+
+      - name: Rebuild ratings and refresh audit read models
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+
+          ssh "$VPS_USER@$VPS_HOST" \
+            "MODEL_KEY='$MODEL_KEY' REBUILD_SCOPE='$REBUILD_SCOPE' YEARS='$YEARS' START_DATE='$START_DATE' GITHUB_RUN_ID='$GITHUB_RUN_ID' bash -s" <<'REMOTE' \
+            | tee rating-rebuild-output.txt
+          set -euo pipefail
+
+          worker_stopped=false
+          restore_worker() {
+            if [[ "$worker_stopped" == true ]]; then
+              systemctl start ttp-worker || true
+            fi
+          }
+          trap restore_worker EXIT
+
+          systemctl stop ttp-worker
+          worker_stopped=true
+
+          rebuild_args=(
+            /opt/tt-players/current/apps/worker/node_modules/.bin/tsx
+            src/rebuild-weekly-rating-history.ts
+            "--model=$MODEL_KEY"
+          )
+          case "$REBUILD_SCOPE" in
+            all) rebuild_args+=(--all) ;;
+            years) rebuild_args+=("--years=$YEARS") ;;
+            start-date) rebuild_args+=("--start-date=$START_DATE") ;;
+          esac
+          printf -v rebuild_command ' %q' "${rebuild_args[@]}"
+
+          systemd-run \
+            --quiet \
+            --wait \
+            --pipe \
+            --collect \
+            --unit="ttp-rating-rebuild-$GITHUB_RUN_ID" \
+            --uid=ttp \
+            --gid=ttp \
+            --property=EnvironmentFile=/etc/ttp/worker.env \
+            --property=WorkingDirectory=/opt/tt-players/current/apps/worker \
+            $rebuild_command
+
+          audit_args=(
+            /opt/tt-players/current/apps/worker/node_modules/.bin/tsx
+            src/refresh-rating-audit-snapshot.ts
+            "--model=$MODEL_KEY"
+          )
+          printf -v audit_command ' %q' "${audit_args[@]}"
+
+          systemd-run \
+            --quiet \
+            --wait \
+            --pipe \
+            --collect \
+            --unit="ttp-rating-audit-$GITHUB_RUN_ID" \
+            --uid=ttp \
+            --gid=ttp \
+            --property=EnvironmentFile=/etc/ttp/worker.env \
+            --property=WorkingDirectory=/opt/tt-players/current/apps/worker \
+            $audit_command
+
+          systemctl start ttp-worker
+          systemctl is-active --quiet ttp-worker
+          worker_stopped=false
+          trap - EXIT
+          REMOTE
+
+          grep -q '^RATING_REBUILD=' rating-rebuild-output.txt
+          grep -q '^RATING_AUDIT_SNAPSHOT=' rating-rebuild-output.txt
+
+      - name: Verify production health
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh "$VPS_USER@$VPS_HOST" "systemctl is-active --quiet ttp-worker"
+          curl --fail --silent --show-error --retry 10 --retry-delay 3 \
+            https://ttp-api.tourneypilot.com/api/health
+          curl --fail --silent --show-error --retry 10 --retry-delay 3 \
+            https://ttp-api.tourneypilot.com/api/health/db
+
+      - name: Upload rebuild log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rating-rebuild-${{ github.run_id }}
+          path: rating-rebuild-output.txt
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Add workflow summary
+        if: always()
+        run: |
+          {
+            echo '## Calculated rating rebuild'
+            echo
+            echo "- Model: \`$MODEL_KEY\`"
+            echo "- Requested scope: \`$REBUILD_SCOPE\`"
+            if [[ "$REBUILD_SCOPE" == years ]]; then
+              echo "- Requested years: \`$YEARS\`"
+            elif [[ "$REBUILD_SCOPE" == start-date ]]; then
+              echo "- Requested start date: \`$START_DATE\`"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          rebuild_line=$(grep '^RATING_REBUILD=' rating-rebuild-output.txt 2>/dev/null | tail -n 1 || true)
+          audit_line=$(grep '^RATING_AUDIT_SNAPSHOT=' rating-rebuild-output.txt 2>/dev/null | tail -n 1 || true)
+
+          if [[ -n "$rebuild_line" ]]; then
+            export REBUILD_JSON="${rebuild_line#RATING_REBUILD=}"
+            node <<'NODE'
+          const fs = require('node:fs');
+          const result = JSON.parse(process.env.REBUILD_JSON);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            `- Effective start date: \`${result.startDate}\`\n` +
+            `- Last processed date: \`${result.lastProcessedDate ?? 'none'}\`\n` +
+            `- Rating periods: ${result.processedPeriods}\n` +
+            `- Eligible matches: ${result.processedMatches}\n` +
+            `- Complete: \`${result.complete}\`\n`
+          );
+          NODE
+          fi
+
+          if [[ -n "$audit_line" ]]; then
+            export AUDIT_JSON="${audit_line#RATING_AUDIT_SNAPSHOT=}"
+            node <<'NODE'
+          const fs = require('node:fs');
+          const result = JSON.parse(process.env.AUDIT_JSON);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            `- Current ranked players: ${result.rankedPlayers}\n` +
+            `- Active audit issues: ${result.issueCount}\n` +
+            `- Rating audit data version: ${result.version}\n`
+          );
+          NODE
+          fi
+
+          if [[ -f rating-rebuild-output.txt ]]; then
+            {
+              echo
+              echo '<details><summary>Command output</summary>'
+              echo
+              echo '```text'
+              sed -n '1,500p' rating-rebuild-output.txt
+              echo '```'
+              echo '</details>'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
