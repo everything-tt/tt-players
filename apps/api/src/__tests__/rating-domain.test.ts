@@ -14,6 +14,7 @@ function ratingRow(overrides: Partial<RatingRow> = {}): RatingRow {
         player_name: 'Player One',
         rating: '1600',
         rating_deviation: '60',
+        volatility: '0.059996',
         conservative_rating: '1480',
         rated_matches: '20',
         rated_wins: '14',
@@ -40,6 +41,7 @@ describe('shared rating domain', () => {
             player_name: 'Player One',
             rating: 1600,
             rating_deviation: 60,
+            volatility: 0.059996,
             conservative_rating: 1480,
             rating_low: 1480,
             rating_high: 1720,
@@ -68,6 +70,7 @@ describe('shared rating domain', () => {
         expect(prediction.confidence).toBe('low');
         expect(presentPredictionPlayer(player1, prediction.player1Probability)).toMatchObject({
             player_id: player1.player_id,
+            volatility: 0.059996,
             win_probability: 0.5,
         });
     });
