@@ -113,7 +113,7 @@ jobs:
           NETLIFY_ALIAS: main-ui-audit-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
-          pnpm dlx netlify-cli@27.0.1 deploy \
+          pnpm --package=netlify-cli@27.0.1 dlx netlify deploy \
             --dir=ui-review-report \
             --site="$NETLIFY_SITE_ID" \
             --auth="$NETLIFY_AUTH_TOKEN" \
