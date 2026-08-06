@@ -117,12 +117,11 @@ export async function up(db: Kysely<any>): Promise<void> {
         )
         .execute();
 
-    await db.schema
-        .createIndex('idx_rating_audit_issues_active_type')
-        .on('rating_audit_issues')
-        .columns(['model_id', 'issue_type', 'severity'])
-        .where('resolved_at', 'is', null)
-        .execute();
+    await sql`
+        CREATE INDEX idx_rating_audit_issues_active_type
+        ON rating_audit_issues (model_id, issue_type, severity)
+        WHERE resolved_at IS NULL
+    `.execute(db);
 
     await db.schema
         .createIndex('idx_rating_audit_issues_source')
