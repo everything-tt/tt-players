@@ -6,6 +6,8 @@ import type { Database } from '@tt-players/db';
 const MonitorStateSchema = z.enum(['attention', 'running', 'scheduled', 'idle', 'unobserved']);
 const QueueJobStateSchema = z.enum(['running', 'ready', 'scheduled', 'failed']);
 const ScrapeStatusSchema = z.enum(['pending', 'processed', 'failed']);
+const PipelineRunStatusSchema = z.enum(['running', 'completed', 'failed']);
+const PipelineStageStatusSchema = z.enum(['running', 'waiting', 'completed', 'failed']);
 
 const QueueSummarySchema = z.object({
     available: z.boolean(),
@@ -75,12 +77,44 @@ const ResourceFailureSchema = z.object({
     last_error: z.string(),
 });
 
+const PipelineStageSchema = z.object({
+    stage: z.string(),
+    status: PipelineStageStatusSchema,
+    started_at: z.string(),
+    finished_at: z.string().nullable(),
+    duration_ms: z.number().int().nonnegative().nullable(),
+    attempt_count: z.number().int().nonnegative(),
+    summary: z.record(z.unknown()),
+    error_message: z.string().nullable(),
+});
+
+const PipelineRunSchema = z.object({
+    run_key: z.string(),
+    status: PipelineRunStatusSchema,
+    current_stage: z.string(),
+    window_start: z.string(),
+    started_at: z.string(),
+    finished_at: z.string().nullable(),
+    duration_ms: z.number().int().nonnegative().nullable(),
+    attempt_count: z.number().int().nonnegative(),
+    error_message: z.string().nullable(),
+    stages: z.array(PipelineStageSchema),
+});
+
+const PipelineHistorySchema = z.object({
+    available: z.boolean(),
+    retention_days: z.number().int().positive(),
+    total: z.number().int().nonnegative(),
+    runs: z.array(PipelineRunSchema),
+});
+
 export const ScrapingMonitorResponseSchema = z.object({
     generated_at: z.string(),
     window_hours: z.number().int().positive(),
     state: MonitorStateSchema,
     queue: QueueSummarySchema,
     scrapes: ScrapeSummarySchema,
+    pipeline_history: PipelineHistorySchema,
     active_resource_failures: z.number().int().nonnegative(),
     tasks: z.array(QueueTaskSchema),
     recent_jobs: z.array(QueueJobSchema),
@@ -89,7 +123,7 @@ export const ScrapingMonitorResponseSchema = z.object({
 });
 
 const QuerySchema = z.object({
-    hours: z.coerce.number().int().min(1).max(24 * 30).default(24),
+    hours: z.coerce.number().int().min(1).max(24 * 14).default(24 * 7),
     limit: z.coerce.number().int().min(5).max(100).default(30),
 });
 
@@ -105,6 +139,8 @@ const MONITORED_TASK_IDENTIFIERS = [
     'scrapeSport80RankingTableTask',
     'completeDailyPipelineTask',
 ] as const;
+
+const PIPELINE_HISTORY_RETENTION_DAYS = 14;
 
 interface QueueSummaryRow {
     total: string | number;
@@ -164,6 +200,32 @@ interface ResourceFailureRow {
     last_succeeded_at: Date | string | null;
     updated_at: Date | string;
     last_error: string;
+    total_count: number | string;
+}
+
+interface PipelineRunRow {
+    run_key: string;
+    status: 'running' | 'completed' | 'failed';
+    current_stage: string;
+    window_start: Date | string;
+    started_at: Date | string;
+    finished_at: Date | string | null;
+    duration_ms: number | string | null;
+    attempt_count: number | string;
+    error_message: string | null;
+    total_count: number | string;
+}
+
+interface PipelineStageRow {
+    run_key: string;
+    stage: string;
+    status: 'running' | 'waiting' | 'completed' | 'failed';
+    started_at: Date | string;
+    finished_at: Date | string | null;
+    duration_ms: number | string | null;
+    attempt_count: number | string;
+    summary: unknown;
+    error_message: string | null;
 }
 
 function numberValue(value: string | number | null | undefined): number {
@@ -174,6 +236,13 @@ function isoValue(value: Date | string | null | undefined): string | null {
     if (!value) return null;
     const date = value instanceof Date ? value : new Date(value);
     return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+        return value as Record<string, unknown>;
+    }
+    return {};
 }
 
 function percentage(part: number, total: number): number {
@@ -321,6 +390,98 @@ async function loadQueueSnapshot(db: Kysely<Database>, limit: number) {
     }
 }
 
+async function loadPipelineHistory(db: Kysely<Database>, hours: number, limit: number) {
+    try {
+        const runsResult = await sql<PipelineRunRow>`
+            SELECT
+                run_key,
+                status,
+                current_stage,
+                window_start,
+                started_at,
+                finished_at,
+                duration_ms,
+                attempt_count,
+                error_message,
+                COUNT(*) OVER()::text AS total_count
+            FROM scraping_pipeline_runs
+            WHERE started_at >= now() - make_interval(hours => ${hours})
+            ORDER BY started_at DESC
+            LIMIT ${limit}
+        `.execute(db);
+
+        if (runsResult.rows.length === 0) {
+            return {
+                available: true,
+                retention_days: PIPELINE_HISTORY_RETENTION_DAYS,
+                total: 0,
+                runs: [],
+            };
+        }
+
+        const runKeys = runsResult.rows.map((row) => sql`${row.run_key}`);
+        const stagesResult = await sql<PipelineStageRow>`
+            SELECT
+                run_key,
+                stage,
+                status,
+                started_at,
+                finished_at,
+                duration_ms,
+                attempt_count,
+                summary,
+                error_message
+            FROM scraping_pipeline_run_stages
+            WHERE run_key IN (${sql.join(runKeys)})
+            ORDER BY started_at ASC
+        `.execute(db);
+
+        const stagesByRun = new Map<string, PipelineStageRow[]>();
+        for (const stage of stagesResult.rows) {
+            const stages = stagesByRun.get(stage.run_key) ?? [];
+            stages.push(stage);
+            stagesByRun.set(stage.run_key, stages);
+        }
+
+        return {
+            available: true,
+            retention_days: PIPELINE_HISTORY_RETENTION_DAYS,
+            total: numberValue(runsResult.rows[0]?.total_count),
+            runs: runsResult.rows.map((row) => ({
+                run_key: row.run_key,
+                status: row.status,
+                current_stage: row.current_stage,
+                window_start: isoValue(row.window_start)!,
+                started_at: isoValue(row.started_at)!,
+                finished_at: isoValue(row.finished_at),
+                duration_ms: row.duration_ms === null ? null : numberValue(row.duration_ms),
+                attempt_count: numberValue(row.attempt_count),
+                error_message: row.error_message,
+                stages: (stagesByRun.get(row.run_key) ?? []).map((stage) => ({
+                    stage: stage.stage,
+                    status: stage.status,
+                    started_at: isoValue(stage.started_at)!,
+                    finished_at: isoValue(stage.finished_at),
+                    duration_ms: stage.duration_ms === null ? null : numberValue(stage.duration_ms),
+                    attempt_count: numberValue(stage.attempt_count),
+                    summary: objectValue(stage.summary),
+                    error_message: stage.error_message,
+                })),
+            })),
+        };
+    } catch (error) {
+        const code = (error as { code?: string }).code;
+        if (code !== '42P01' && code !== '3F000') throw error;
+
+        return {
+            available: false,
+            retention_days: PIPELINE_HISTORY_RETENTION_DAYS,
+            total: 0,
+            runs: [],
+        };
+    }
+}
+
 export function scrapingMonitorRoutes(db: Kysely<Database>): FastifyPluginAsync {
     return async function (app) {
         app.get('/monitor', {
@@ -333,8 +494,15 @@ export function scrapingMonitorRoutes(db: Kysely<Database>): FastifyPluginAsync 
         }, async (request, reply) => {
             const { hours, limit } = QuerySchema.parse(request.query);
 
-            const [queue, scrapeSummaryResult, recentScrapesResult, resourceFailuresResult] = await Promise.all([
+            const [
+                queue,
+                pipelineHistory,
+                scrapeSummaryResult,
+                recentScrapesResult,
+                resourceFailuresResult,
+            ] = await Promise.all([
                 loadQueueSnapshot(db, limit),
+                loadPipelineHistory(db, hours, limit),
                 sql<ScrapeSummaryRow>`
                     SELECT
                         COUNT(*)::text AS total,
@@ -371,7 +539,8 @@ export function scrapingMonitorRoutes(db: Kysely<Database>): FastifyPluginAsync 
                         resource.last_fetched_at,
                         resource.last_succeeded_at,
                         resource.updated_at,
-                        LEFT(COALESCE(resource.last_error, 'Unknown scrape error'), 500) AS last_error
+                        LEFT(COALESCE(resource.last_error, 'Unknown scrape error'), 500) AS last_error,
+                        COUNT(*) OVER()::text AS total_count
                     FROM source_resources AS resource
                     JOIN source_instances AS instance ON instance.id = resource.source_instance_id
                     JOIN platforms AS platform ON platform.id = instance.platform_id
@@ -389,15 +558,21 @@ export function scrapingMonitorRoutes(db: Kysely<Database>): FastifyPluginAsync 
             const processed = numberValue(scrapeRow?.processed);
             const failed = numberValue(scrapeRow?.failed);
             const transformed = processed + failed;
-            const activeResourceFailures = resourceFailuresResult.rows.length;
+            const activeResourceFailures = numberValue(resourceFailuresResult.rows[0]?.total_count);
+            const latestPipelineRun = pipelineHistory.runs[0];
 
-            const state = queue.summary.failed > 0 || activeResourceFailures > 0
+            const state = queue.summary.failed > 0
+                || activeResourceFailures > 0
+                || latestPipelineRun?.status === 'failed'
                 ? 'attention' as const
-                : queue.summary.running > 0 || queue.summary.ready > 0 || pending > 0
+                : queue.summary.running > 0
+                    || queue.summary.ready > 0
+                    || pending > 0
+                    || latestPipelineRun?.status === 'running'
                     ? 'running' as const
                     : queue.summary.scheduled > 0
                         ? 'scheduled' as const
-                        : total > 0
+                        : total > 0 || pipelineHistory.total > 0
                             ? 'idle' as const
                             : 'unobserved' as const;
 
@@ -416,6 +591,7 @@ export function scrapingMonitorRoutes(db: Kysely<Database>): FastifyPluginAsync 
                     transform_success_pct: percentage(processed, transformed),
                     latest_scrape_at: isoValue(scrapeRow?.latest_scrape_at),
                 },
+                pipeline_history: pipelineHistory,
                 active_resource_failures: activeResourceFailures,
                 tasks: queue.tasks,
                 recent_jobs: queue.jobs,
