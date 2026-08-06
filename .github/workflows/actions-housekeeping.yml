@@ -2,6 +2,14 @@ name: Actions housekeeping
 
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Report retired workflow histories without deleting runs
+        required: true
+        default: true
+        type: boolean
+  schedule:
+    - cron: '23 3 * * 0'
 
 permissions:
   actions: write
@@ -17,60 +25,121 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Delete retired workflow histories
+      - name: Prune retired workflow histories
+        id: prune
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
         shell: bash
         run: |
           set -euo pipefail
 
-          default_branch=$(gh api "repos/$GH_REPO" --jq '.default_branch')
+          report_path=actions-housekeeping-report.json
+          details_path=actions-housekeeping-details.md
+          default_branch='unknown'
+          active_workflows=0
           retired_workflows=0
           completed_runs=0
           deleted_runs=0
           skipped_runs=0
-          details=$(mktemp)
+          delete_failures=0
+          status=success
+
+          dry_run=$(printf '%s' "${DRY_RUN:-false}" | tr '[:upper:]' '[:lower:]')
+          if [[ "$dry_run" != true && "$dry_run" != false ]]; then
+            echo "Unexpected dry_run value: $dry_run" >&2
+            exit 64
+          fi
+
+          : > "$details_path"
+
+          write_report() {
+            local exit_code=$?
+            if (( exit_code != 0 )) || (( delete_failures > 0 )); then
+              status=failure
+            fi
+
+            jq -n \
+              --arg status "$status" \
+              --arg default_branch "$default_branch" \
+              --argjson dry_run "$dry_run" \
+              --argjson active_workflows "$active_workflows" \
+              --argjson retired_workflows "$retired_workflows" \
+              --argjson completed_runs "$completed_runs" \
+              --argjson deleted_runs "$deleted_runs" \
+              --argjson skipped_runs "$skipped_runs" \
+              --argjson delete_failures "$delete_failures" \
+              '{
+                status: $status,
+                defaultBranch: $default_branch,
+                dryRun: $dry_run,
+                activeWorkflows: $active_workflows,
+                retiredWorkflows: $retired_workflows,
+                completedRuns: $completed_runs,
+                deletedRuns: $deleted_runs,
+                skippedRuns: $skipped_runs,
+                deleteFailures: $delete_failures
+              }' > "$report_path"
+          }
+          trap write_report EXIT
+
+          default_branch=$(gh api "repos/$GH_REPO" --jq '.default_branch')
 
           while IFS=$'\t' read -r workflow_id workflow_path workflow_name workflow_state; do
             [[ -n "$workflow_id" ]] || continue
 
-            # Keep every workflow whose YAML still exists on the default branch.
+            # A workflow is active only when its YAML still exists on the default branch.
             if gh api \
               "repos/$GH_REPO/contents/$workflow_path?ref=$default_branch" \
               >/dev/null 2>&1; then
+              active_workflows=$((active_workflows + 1))
               continue
             fi
 
             retired_workflows=$((retired_workflows + 1))
-            printf -- '- `%s` — `%s` (%s)\n' \
-              "$workflow_name" "$workflow_path" "$workflow_state" >> "$details"
+            printf -- '- **%s** — `%s` (%s)\n' \
+              "$workflow_name" "$workflow_path" "$workflow_state" >> "$details_path"
 
-            # Fetch the complete run list before deleting anything so pagination
-            # cannot shift and cause older runs to be skipped.
+            # Collect every run before deleting any, avoiding pagination shifts.
             mapfile -t workflow_runs < <(
               gh api --paginate \
                 "repos/$GH_REPO/actions/workflows/$workflow_id/runs?per_page=100" \
                 --jq '.workflow_runs[] | [.id, .status, .created_at] | @tsv'
             )
 
+            if (( ${#workflow_runs[@]} == 0 )); then
+              echo '  - no retained runs' >> "$details_path"
+              continue
+            fi
+
             for run in "${workflow_runs[@]}"; do
               IFS=$'\t' read -r run_id run_status run_created <<< "$run"
               [[ -n "$run_id" ]] || continue
 
-              if [[ "$run_status" != "completed" ]]; then
+              if [[ "$run_status" != completed ]]; then
                 skipped_runs=$((skipped_runs + 1))
                 printf '  - skipped non-completed run `%s` from %s\n' \
-                  "$run_id" "$run_created" >> "$details"
+                  "$run_id" "$run_created" >> "$details_path"
                 continue
               fi
 
               completed_runs=$((completed_runs + 1))
-              gh api --method DELETE \
-                "repos/$GH_REPO/actions/runs/$run_id"
-              deleted_runs=$((deleted_runs + 1))
-              printf '  - deleted run `%s` from %s\n' \
-                "$run_id" "$run_created" >> "$details"
+              if [[ "$dry_run" == true ]]; then
+                printf '  - would delete run `%s` from %s\n' \
+                  "$run_id" "$run_created" >> "$details_path"
+                continue
+              fi
+
+              if gh api --method DELETE "repos/$GH_REPO/actions/runs/$run_id"; then
+                deleted_runs=$((deleted_runs + 1))
+                printf '  - deleted run `%s` from %s\n' \
+                  "$run_id" "$run_created" >> "$details_path"
+              else
+                delete_failures=$((delete_failures + 1))
+                printf '  - **failed** to delete run `%s` from %s\n' \
+                  "$run_id" "$run_created" >> "$details_path"
+              fi
             done
           done < <(
             gh api --paginate \
@@ -78,21 +147,82 @@ jobs:
               --jq '.workflows[] | [.id, .path, .name, .state] | @tsv'
           )
 
-          {
-            echo '### Actions housekeeping'
-            echo
-            echo "- Default branch: \`$default_branch\`"
-            echo "- Retired workflow records: \`$retired_workflows\`"
-            echo "- Completed runs found: \`$completed_runs\`"
-            echo "- Runs deleted: \`$deleted_runs\`"
-            echo "- Non-completed runs skipped: \`$skipped_runs\`"
-            echo
-            if [[ "$retired_workflows" -eq 0 ]]; then
-              echo 'No retired workflow histories were found.'
-            else
-              echo '#### Details'
-              cat "$details"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          if (( delete_failures > 0 )); then
+            echo "Failed to delete $delete_failures retired workflow runs" >&2
+            exit 1
+          fi
 
-          rm -f "$details"
+      - name: Add housekeeping summary
+        if: always()
+        env:
+          PRUNE_OUTCOME: ${{ steps.prune.outcome }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          let report = {
+            status: process.env.PRUNE_OUTCOME || 'unknown',
+            defaultBranch: 'unknown',
+            dryRun: false,
+            activeWorkflows: 0,
+            retiredWorkflows: 0,
+            completedRuns: 0,
+            deletedRuns: 0,
+            skippedRuns: 0,
+            deleteFailures: 0,
+          };
+          try {
+            report = JSON.parse(
+              fs.readFileSync('actions-housekeeping-report.json', 'utf8'),
+            );
+          } catch {}
+
+          const outcome = process.env.PRUNE_OUTCOME || report.status;
+          const success = outcome === 'success' && report.deleteFailures === 0;
+          const icon = success ? '✅' : '❌';
+          const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          const actionLabel = report.dryRun ? 'Runs that would be deleted' : 'Runs deleted';
+          const actionValue = report.dryRun ? report.completedRuns : report.deletedRuns;
+          const lines = [
+            `## ${icon} Actions housekeeping`,
+            '',
+            '| Item | Result |',
+            '| --- | ---: |',
+            `| Mode | **${report.dryRun ? 'dry run' : 'delete'}** |`,
+            `| Default branch | \`${report.defaultBranch}\` |`,
+            `| Active workflow definitions | ${report.activeWorkflows} |`,
+            `| Retired workflow records | **${report.retiredWorkflows}** |`,
+            `| Completed retained runs | ${report.completedRuns} |`,
+            `| ${actionLabel} | **${actionValue}** |`,
+            `| Non-completed runs skipped | ${report.skippedRuns} |`,
+            `| Deletion failures | ${report.deleteFailures} |`,
+            '',
+          ];
+
+          if (report.dryRun) {
+            lines.push('> [!NOTE]');
+            lines.push('> Dry-run mode made no changes. Run manually with `dry_run=false` to apply the cleanup.');
+            lines.push('');
+          }
+          if (report.deleteFailures > 0) {
+            lines.push('> [!WARNING]');
+            lines.push(`> ${report.deleteFailures} retired workflow run deletion${report.deleteFailures === 1 ? '' : 's'} failed.`);
+            lines.push('');
+          }
+
+          if (fs.existsSync('actions-housekeeping-details.md')) {
+            const details = fs.readFileSync('actions-housekeeping-details.md', 'utf8').trim();
+            if (details) {
+              lines.push('<details><summary>Retired workflow details</summary>');
+              lines.push('');
+              lines.push(details);
+              lines.push('');
+              lines.push('</details>');
+              lines.push('');
+            }
+          }
+
+          lines.push(`[Open this workflow run](${runUrl})`);
+          lines.push('');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
+          NODE
