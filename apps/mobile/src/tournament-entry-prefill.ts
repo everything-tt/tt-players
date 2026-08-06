@@ -169,7 +169,10 @@ function isSensitiveQuestion(text: string): boolean {
     'agree to',
     'payment',
     'card number',
+    'account number',
     'bank account',
+    'sort code',
+    'bacs',
   ]);
 }
 
