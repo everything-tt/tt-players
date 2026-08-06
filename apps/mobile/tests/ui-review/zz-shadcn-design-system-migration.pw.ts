@@ -112,7 +112,7 @@ test('shadcn-backed TT primitives preserve mobile behaviour and visuals', async 
   await expect(page.locator('[data-slot="switch"]')).toHaveCount(1);
   await assertNoHorizontalOverflow(page, 'component catalogue at 390px');
 
-  const action = page.getByRole('button', { name: 'Action' });
+  const action = page.getByRole('button', { name: 'Action', exact: true });
   expect(await action.evaluate((element) => Math.round(element.getBoundingClientRect().height))).toBeGreaterThanOrEqual(44);
 
   const allOption = page.getByRole('radio', { name: 'All' });
