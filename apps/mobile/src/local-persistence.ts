@@ -92,7 +92,9 @@ export function applyUserDataSnapshot(
   let changed = false;
   for (const key of SYNCED_LOCAL_DATA_KEYS) {
     const current = local.getItem(key);
-    let next = snapshot.entries[key] ?? null;
+    let next: string | null = Object.prototype.hasOwnProperty.call(snapshot.entries, key)
+      ? snapshot.entries[key]
+      : null;
     if (key === TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY) {
       if (!userId || !next || !isOwnedTournamentEntryProfiles(next, userId)) next = null;
     }
