@@ -1,4 +1,4 @@
-import type { ColumnType, Insertable, Selectable, Updateable } from 'kysely';
+import type { ColumnType, Generated, Insertable, Selectable, Updateable } from 'kysely';
 
 export interface DataVersionsTable {
     key: string;
@@ -32,6 +32,27 @@ export type RatingAuditSnapshot = Selectable<RatingAuditSnapshotsTable>;
 export type NewRatingAuditSnapshot = Insertable<RatingAuditSnapshotsTable>;
 export type RatingAuditSnapshotUpdate = Updateable<RatingAuditSnapshotsTable>;
 
+export interface RatingAuditIssuesTable {
+    id: Generated<string>;
+    model_id: string;
+    issue_type: string;
+    severity: 'info' | 'warning' | 'critical';
+    entity_type: string;
+    entity_id: string;
+    source_id: string | null;
+    competition_id: string | null;
+    match_date: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
+    details: unknown;
+    snapshot_generated_at: ColumnType<Date, Date | string, Date | string>;
+    first_seen_at: ColumnType<Date, Date | string | undefined, Date | string>;
+    last_seen_at: ColumnType<Date, Date | string | undefined, Date | string>;
+    resolved_at: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
+}
+
+export type RatingAuditIssue = Selectable<RatingAuditIssuesTable>;
+export type NewRatingAuditIssue = Insertable<RatingAuditIssuesTable>;
+export type RatingAuditIssueUpdate = Updateable<RatingAuditIssuesTable>;
+
 export interface PlayerActiveLeaguesTable {
     player_id: string;
     league_id: string;
@@ -46,5 +67,6 @@ export interface ReadModelDatabase {
     data_versions: DataVersionsTable;
     source_quality_snapshots: SourceQualitySnapshotsTable;
     rating_audit_snapshots: RatingAuditSnapshotsTable;
+    rating_audit_issues: RatingAuditIssuesTable;
     player_active_leagues: PlayerActiveLeaguesTable;
 }
