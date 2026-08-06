@@ -1,0 +1,254 @@
+name: Run rating backtest
+
+on:
+  schedule:
+    - cron: '41 5 1 * *'
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Rating model key to backtest
+        required: true
+        default: global-singles-glicko2-v1
+        type: string
+      evaluation_days:
+        description: Number of recent days used for out-of-sample evaluation
+        required: true
+        default: '180'
+        type: string
+      windows:
+        description: Comma-separated history windows in years
+        required: true
+        default: '2,3,5,10'
+        type: string
+      end_date:
+        description: Optional final eligible match date (YYYY-MM-DD)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rating-backtest
+  cancel-in-progress: false
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      MODEL_KEY: ${{ inputs.model || 'global-singles-glicko2-v1' }}
+      EVALUATION_DAYS: ${{ inputs.evaluation_days || '180' }}
+      WINDOWS: ${{ inputs.windows || '2,3,5,10' }}
+      END_DATE: ${{ inputs.end_date || '' }}
+      REMOTE_OUTPUT_DIR: /tmp/ttp-rating-backtest-${{ github.run_id }}
+
+    steps:
+      - name: Validate inputs
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$MODEL_KEY" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+            echo "Invalid rating model key: $MODEL_KEY" >&2
+            exit 64
+          fi
+          if [[ ! "$EVALUATION_DAYS" =~ ^[0-9]+$ ]] \
+            || (( EVALUATION_DAYS < 30 || EVALUATION_DAYS > 730 )); then
+            echo "evaluation_days must be an integer from 30 to 730" >&2
+            exit 64
+          fi
+          if [[ ! "$WINDOWS" =~ ^[0-9]+(,[0-9]+)*$ ]]; then
+            echo "windows must be a comma-separated list of positive integers" >&2
+            exit 64
+          fi
+          IFS=',' read -ra window_values <<< "$WINDOWS"
+          for window in "${window_values[@]}"; do
+            if (( window < 1 || window > 20 )); then
+              echo "Each history window must be from 1 to 20 years" >&2
+              exit 64
+            fi
+          done
+          if [[ -n "$END_DATE" && ! "$END_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "end_date must use YYYY-MM-DD" >&2
+            exit 64
+          fi
+
+      - name: Configure SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_SSH_KEY"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Verify backtest command is deployed
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_USER"
+          ssh "$VPS_USER@$VPS_HOST" \
+            "test -f /opt/tt-players/current/apps/worker/src/refresh-rating-backtest.ts && \
+             test -x /opt/tt-players/current/apps/worker/node_modules/.bin/tsx"
+
+      - name: Run chronological backtest
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+
+          backtest_args=(
+            /opt/tt-players/current/apps/worker/node_modules/.bin/tsx
+            src/refresh-rating-backtest.ts
+            "--model=$MODEL_KEY"
+            "--evaluation-days=$EVALUATION_DAYS"
+            "--windows=$WINDOWS"
+            "--output-json=$REMOTE_OUTPUT_DIR/rating-backtest.json"
+            "--output-html=$REMOTE_OUTPUT_DIR/rating-backtest.html"
+          )
+          if [[ -n "$END_DATE" ]]; then
+            backtest_args+=("--end-date=$END_DATE")
+          fi
+          printf -v escaped_command ' %q' "${backtest_args[@]}"
+
+          ssh "$VPS_USER@$VPS_HOST" \
+            "systemd-run \
+              --quiet \
+              --wait \
+              --pipe \
+              --collect \
+              --unit=ttp-rating-backtest-$GITHUB_RUN_ID \
+              --uid=ttp \
+              --gid=ttp \
+              --property=EnvironmentFile=/etc/ttp/worker.env \
+              --property=WorkingDirectory=/opt/tt-players/current/apps/worker \
+              $escaped_command" \
+            | tee rating-backtest-output.txt
+
+          grep -q '^RATING_BACKTEST=' rating-backtest-output.txt
+
+      - name: Download reports
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          mkdir -p rating-backtest-report
+          scp "$VPS_USER@$VPS_HOST:$REMOTE_OUTPUT_DIR/rating-backtest.json" \
+            rating-backtest-report/rating-backtest.json
+          scp "$VPS_USER@$VPS_HOST:$REMOTE_OUTPUT_DIR/rating-backtest.html" \
+            rating-backtest-report/index.html
+
+      - name: Verify report contract
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(
+            fs.readFileSync('rating-backtest-report/rating-backtest.json', 'utf8'),
+          );
+          if (report.model !== process.env.MODEL_KEY) {
+            throw new Error(`Unexpected model: ${report.model}`);
+          }
+          if (!Number.isFinite(Date.parse(report.generated_at))) {
+            throw new Error(`Invalid generated_at: ${report.generated_at}`);
+          }
+          if (report.methodology?.chronological !== true
+              || report.methodology?.same_day_updates_are_simultaneous !== true) {
+            throw new Error('Backtest methodology contract is invalid');
+          }
+          if (!Array.isArray(report.metrics) || report.metrics.length === 0) {
+            throw new Error('Backtest report has no window metrics');
+          }
+          const expectedWindows = process.env.WINDOWS.split(',')
+            .map(Number)
+            .sort((left, right) => left - right);
+          const actualWindows = report.metrics
+            .map((metric) => metric.window_years)
+            .sort((left, right) => left - right);
+          if (JSON.stringify(actualWindows) !== JSON.stringify(expectedWindows)) {
+            throw new Error(
+              `Unexpected windows: ${actualWindows.join(',')} expected ${expectedWindows.join(',')}`,
+            );
+          }
+          for (const metric of report.metrics) {
+            for (const key of [
+              'evaluated_matches',
+              'cold_start_matches',
+              'brier_score',
+              'log_loss',
+              'favourite_accuracy',
+              'calibration_error',
+            ]) {
+              if (!Number.isFinite(metric[key]) || metric[key] < 0) {
+                throw new Error(`Invalid ${key} for ${metric.window_years}-year window`);
+              }
+            }
+          }
+          console.log(
+            `Verified ${report.metrics.length} windows through ${report.evaluation_end_date}`,
+          );
+          NODE
+          grep -q 'Chronological rating backtest' rating-backtest-report/index.html
+
+      - name: Upload backtest reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rating-backtest-${{ github.run_id }}
+          path: |
+            rating-backtest-report/
+            rating-backtest-output.txt
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Add workflow summary
+        if: always()
+        run: |
+          {
+            echo '## Chronological rating backtest'
+            echo
+            echo "- Model: \`$MODEL_KEY\`"
+            echo "- Evaluation days: \`$EVALUATION_DAYS\`"
+            echo "- Windows: \`$WINDOWS\` years"
+            echo '- Schedule: first day of each month at 05:41 UTC'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ -f rating-backtest-report/rating-backtest.json ]]; then
+            node <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(
+            fs.readFileSync('rating-backtest-report/rating-backtest.json', 'utf8'),
+          );
+          const lines = [
+            `- Evaluation: \`${report.evaluation_start_date}\` to \`${report.evaluation_end_date}\``,
+            `- Generated: \`${report.generated_at}\``,
+            '',
+            '| Window | Evaluated | Cold starts | Brier | Log loss | Favourite accuracy | Calibration error |',
+            '| ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+          ];
+          for (const metric of report.metrics) {
+            lines.push(
+              `| ${metric.window_years}y | ${metric.evaluated_matches} | ${metric.cold_start_matches} | ${metric.brier_score.toFixed(4)} | ${metric.log_loss.toFixed(4)} | ${(metric.favourite_accuracy * 100).toFixed(1)}% | ${metric.calibration_error.toFixed(4)} |`,
+            );
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
+          NODE
+          fi
+
+      - name: Remove remote reports
+        if: always()
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          if [[ -n "${VPS_HOST:-}" && -n "${VPS_USER:-}" ]]; then
+            ssh "$VPS_USER@$VPS_HOST" "rm -rf '$REMOTE_OUTPUT_DIR'" || true
+          fi

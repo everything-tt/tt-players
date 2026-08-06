@@ -153,3 +153,39 @@ audit explains the exact exclusion reason through:
 ```http
 GET /api/ratings/audit/ranking-quality
 ```
+
+## Chronological backtesting laboratory
+
+The backtesting command compares fixed history windows while keeping one out-of-sample evaluation
+period constant. The default comparison uses 2, 3, 5 and 10 years of retained results and the most
+recent 180 eligible match days.
+
+```bash
+pnpm --filter @tt-players/worker ratings:backtest
+```
+
+Optional controls:
+
+```bash
+pnpm --filter @tt-players/worker ratings:backtest -- --windows=2,5,10
+pnpm --filter @tt-players/worker ratings:backtest -- --evaluation-days=365
+pnpm --filter @tt-players/worker ratings:backtest -- --end-date=2026-07-31
+pnpm --filter @tt-players/worker ratings:backtest -- --output-json=reports/backtest.json --output-html=reports/backtest.html
+```
+
+The replay prevents future leakage:
+
+- every prediction uses rating state available before that match date;
+- all matches on one date are predicted from the same pre-date state;
+- same-day rating updates are applied simultaneously; and
+- all windows use the shared `rating_rubber_classification` eligibility rules.
+
+Each window reports Brier score, log loss, favourite accuracy, calibration error, cold-start count,
+calibration buckets and its final top 25. Lower Brier score, log loss and calibration error are
+better. Higher favourite accuracy is better.
+
+The latest JSON snapshot is also persisted under
+`source_quality_snapshots.key = rating-backtest:<model-key>`. The `Run rating backtest` GitHub
+Action runs on the first day of every month at 05:41 UTC and supports manual inputs. It executes the
+deployed worker on the VPS, uploads the JSON and standalone HTML reports as a 90-day artifact, and
+writes the window comparison into the workflow summary.
