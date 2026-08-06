@@ -11,6 +11,8 @@ export const MY_PLAYER_STORAGE_KEY = 'tt_players_my_player';
 export const MY_PLAYER_UPDATED_EVENT = 'tt-players:my-player-updated';
 export const MY_TT_PROFILE_STORAGE_KEY = 'tt_players_my_tt_profile';
 export const MY_TT_PROFILE_UPDATED_EVENT = 'tt-players:my-tt-profile-updated';
+export const TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY = 'tt_players_tournament_entry_profiles';
+export const TOURNAMENT_ENTRY_PROFILES_UPDATED_EVENT = 'tt-players:tournament-entry-profiles-updated';
 export const MATCH_JOURNAL_STORAGE_KEY = 'tt_players_match_journal';
 export const MATCH_JOURNAL_UPDATED_EVENT = 'tt-players:match-journal-updated';
 export const THEME_STORAGE_KEY = 'TTPlayers-Theme';
@@ -26,6 +28,7 @@ export const SYNCED_LOCAL_DATA_KEYS = [
   THEME_STORAGE_KEY,
   MY_PLAYER_STORAGE_KEY,
   MY_TT_PROFILE_STORAGE_KEY,
+  TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY,
   MATCH_JOURNAL_STORAGE_KEY,
 ] as const;
 
