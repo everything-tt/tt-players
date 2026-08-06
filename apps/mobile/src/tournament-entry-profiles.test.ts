@@ -23,6 +23,17 @@ describe('private tournament entry profiles', () => {
     expect(page).toContain('guardianPhone');
   });
 
+  it('stores reusable address and national-association details with legacy migration', () => {
+    const page = read('./TournamentEntryProfilesPage.tsx');
+    const hook = read('./hooks/useTournamentEntryProfiles.ts');
+
+    expect(page).toContain('Full address, including postcode');
+    expect(page).toContain('National association');
+    expect(hook).toContain('fullAddress');
+    expect(hook).toContain('nationalAssociation');
+    expect(hook).toContain('migrateTournamentEntryProfile');
+  });
+
   it('keeps private data account-scoped and separate from public player records', () => {
     const hook = read('./hooks/useTournamentEntryProfiles.ts');
     const persistence = read('./local-persistence.ts');
