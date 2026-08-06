@@ -8,6 +8,11 @@ on:
         required: true
         default: '500'
         type: string
+      force:
+        description: Re-inspect cached forms and rerun DeepSeek analysis
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -25,6 +30,7 @@ jobs:
       - name: Validate inputs
         env:
           BACKFILL_LIMIT: ${{ inputs.limit }}
+          BACKFILL_FORCE: ${{ inputs.force }}
         run: |
           set -euo pipefail
           if [[ ! "$BACKFILL_LIMIT" =~ ^[0-9]+$ ]]; then
@@ -33,6 +39,10 @@ jobs:
           fi
           if (( BACKFILL_LIMIT < 1 || BACKFILL_LIMIT > 500 )); then
             echo "limit must be between 1 and 500" >&2
+            exit 64
+          fi
+          if [[ "$BACKFILL_FORCE" != "true" && "$BACKFILL_FORCE" != "false" ]]; then
+            echo "force must be true or false" >&2
             exit 64
           fi
 
@@ -91,8 +101,14 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           BACKFILL_LIMIT: ${{ inputs.limit }}
+          BACKFILL_FORCE: ${{ inputs.force }}
         run: |
           set -euo pipefail
+          force_arg=''
+          if [[ "$BACKFILL_FORCE" == "true" ]]; then
+            force_arg=' --force'
+          fi
+
           ssh "$VPS_USER@$VPS_HOST" \
             "systemd-run \
               --quiet \
@@ -106,21 +122,27 @@ jobs:
               --property=WorkingDirectory=/opt/tt-players/current/apps/worker \
               /opt/tt-players/current/apps/worker/node_modules/.bin/tsx \
               src/backfill-tournament-entry-forms.ts \
-              --limit=$BACKFILL_LIMIT" \
+              --limit=$BACKFILL_LIMIT$force_arg" \
             | tee backfill-output.txt
 
       - name: Add workflow summary
         if: always()
         env:
           BACKFILL_LIMIT: ${{ inputs.limit }}
+          BACKFILL_FORCE: ${{ inputs.force }}
         run: |
           set -euo pipefail
           {
             echo "## Tournament entry form backfill"
             echo
             echo "- Requested limit: \`$BACKFILL_LIMIT\`"
+            echo "- Force re-inspection: \`$BACKFILL_FORCE\`"
             echo "- Model: \`deepseek-v4-flash\`"
-            echo "- Cache behavior: matching URL, inspection version, prompt version, and model analyses are skipped"
+            if [[ "$BACKFILL_FORCE" == "true" ]]; then
+              echo "- Cache behavior: bypassed; eligible forms are downloaded and analysed again"
+            else
+              echo "- Cache behavior: matching URL, inspection version, prompt version, and model analyses are skipped"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
           if [[ -f backfill-output.txt ]]; then
