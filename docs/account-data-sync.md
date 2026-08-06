@@ -24,9 +24,12 @@ After bootstrap, local changes are uploaded as a complete versioned snapshot. Si
 - light/dark theme
 - My TT claimed player identity
 - My TT editable profile information
+- private tournament entry profiles for the account owner's own, child, coached, or otherwise managed players
 - private match journal
 
 The claimed player identity and editable My TT profile use separate storage entries. The identity links an account to one indexed public player; the editable profile stores user-provided playing style, characteristics, equipment, and biography without modifying indexed player or match data.
+
+Tournament entry profiles are also separate from indexed public players. A profile may link to the account owner's claimed player or to a followed player, but its date of birth, contact details, membership number, club, county, and guardian/manager contact are account-private and are never written back to public player records. Following a player does not automatically create a private entry profile.
 
 Temporary UI state such as the currently selected H2H picker players and PWA-install dismissal remains device-local.
 
@@ -37,6 +40,7 @@ Temporary UI state such as the currently selected H2H picker players and PWA-ins
 - Clients cannot supply or choose the server-side user ID.
 - Responses use `Cache-Control: private, no-store`.
 - Snapshot version 1 accepts only the documented storage keys and is limited to 900 KB.
+- Account-private means the data is not exposed through public player or tournament APIs. The current sync format is not end-to-end encrypted, so especially sensitive medical information, declarations, and payment details must not be stored in tournament entry profiles.
 
 ## API environment
 
