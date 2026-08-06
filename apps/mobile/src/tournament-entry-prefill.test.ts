@@ -7,6 +7,7 @@ import {
   mapGoogleFormFields,
   profileFieldForGoogleQuestion,
   sanitizeGoogleFormsUrl,
+  type EntryFormSemanticAnalysis,
   type GoogleFormInspectionResponse,
 } from './tournament-entry-prefill';
 
@@ -59,6 +60,23 @@ const inspection: GoogleFormInspectionResponse = {
     { id: '12', label: '4. Email', description: null, kind: 'short_text', required: true, options: [] },
   ],
 };
+
+function semanticAnalysis(
+  mappings: EntryFormSemanticAnalysis['mappings'],
+): EntryFormSemanticAnalysis {
+  return {
+    version: 1,
+    status: 'ready',
+    provider: 'openai_compatible',
+    model: 'google/gemma-4-E4B-it',
+    prompt_version: '2026-08-06.1',
+    analysis_key: '2026-08-06.1:google/gemma-4-E4B-it',
+    analyzed_at: '2026-08-06T20:00:00.000Z',
+    mappings,
+    event_details: [],
+    error_message: null,
+  };
+}
 
 describe('Google Forms entrant prefilling', () => {
   it('recognises public Google Forms links only', () => {
@@ -131,6 +149,64 @@ describe('Google Forms entrant prefilling', () => {
       ['11', 'relationship', '', false],
       ['12', 'email', 'alex@example.test', true],
     ]);
+  });
+
+  it('uses high-confidence semantic context for ambiguous contact fields', () => {
+    const analysis = semanticAnalysis([
+      {
+        field_id: 'emailAddress',
+        profile_field: 'guardianEmail',
+        confidence: 0.96,
+        reason: 'The form is a junior entry and this is the response contact email.',
+      },
+      {
+        field_id: '12',
+        profile_field: 'guardianEmail',
+        confidence: 0.93,
+        reason: 'The surrounding questions ask for the person making the entry.',
+      },
+      {
+        field_id: '1',
+        profile_field: 'guardianName',
+        confidence: 0.7,
+        reason: 'Too uncertain to override the deterministic player-name mapping.',
+      },
+      {
+        field_id: '10',
+        profile_field: 'entrantName',
+        confidence: 0.99,
+        reason: 'Sensitive fields must never be prefilled even when the model suggests it.',
+      },
+    ]);
+
+    const mappings = mapGoogleFormFields(
+      inspection,
+      profile,
+      new Date(2026, 7, 6),
+      analysis,
+    );
+
+    expect(mappings.find((mapping) => mapping.field.id === 'emailAddress')).toMatchObject({
+      profileField: 'guardianEmail',
+      value: 'parent@example.test',
+      canPrefill: true,
+      mappingSource: 'semantic',
+      mappingConfidence: 0.96,
+    });
+    expect(mappings.find((mapping) => mapping.field.id === '12')).toMatchObject({
+      profileField: 'guardianEmail',
+      value: 'parent@example.test',
+      mappingSource: 'semantic',
+    });
+    expect(mappings.find((mapping) => mapping.field.id === '1')).toMatchObject({
+      profileField: 'entrantName',
+      mappingSource: 'deterministic',
+    });
+    expect(mappings.find((mapping) => mapping.field.id === '10')).toMatchObject({
+      profileField: null,
+      canPrefill: false,
+      mappingSource: null,
+    });
   });
 
   it('uses a parent or manager email when an entrant email is not saved', () => {
