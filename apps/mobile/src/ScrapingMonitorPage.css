@@ -1,7 +1,3 @@
-.tt-scraping-monitor-page .tt-page-content {
-  gap: 1rem;
-}
-
 .tt-monitor-window {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -54,28 +50,29 @@
 }
 
 .tt-monitor-progress__track {
+  display: block;
+  width: 100%;
   height: 0.5rem;
   overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: var(--tt-color-border, rgba(148, 163, 184, 0.25));
+  appearance: none;
+}
+
+.tt-monitor-progress__track::-webkit-progress-bar {
   border-radius: 999px;
   background: var(--tt-color-border, rgba(148, 163, 184, 0.25));
 }
 
-.tt-monitor-progress__track > span {
-  display: block;
-  min-width: 0;
-  max-width: 100%;
-  height: 100%;
-  border-radius: inherit;
+.tt-monitor-progress__track::-webkit-progress-value {
+  border-radius: 999px;
   background: var(--tt-color-accent, #2563eb);
-  transition: width 240ms ease;
 }
 
-.tt-scraping-monitor-page .tt-list-item__subtitle {
-  overflow-wrap: anywhere;
-}
-
-.tt-scraping-monitor-page .tt-list-item__trailing .tt-pill {
-  white-space: nowrap;
+.tt-monitor-progress__track::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--tt-color-accent, #2563eb);
 }
 
 .tt-monitor-generated {
