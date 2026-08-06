@@ -83,7 +83,7 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
           </Surface>
 
           {rating.provisional ? (
-            <p className="tt-rating-note">Provisional rating: a global rank will appear once rating deviation is 110 or lower.</p>
+            <p className="tt-rating-note">Provisional rating: a global rank appears after enough rated match history and confidence are established.</p>
           ) : null}
 
           <AppButtonLink
