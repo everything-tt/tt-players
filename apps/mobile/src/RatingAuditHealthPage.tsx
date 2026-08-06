@@ -29,6 +29,7 @@ interface RatingAuditHealthPageProps {
 const AUDIT_NAV = [
   { key: 'overview', label: 'Overview', path: '/rating-audit' },
   { key: 'player', label: 'Player', path: '/rating-audit/player' },
+  { key: 'coverage', label: 'Coverage', path: '/rating-audit/coverage' },
   { key: 'data', label: 'Data', path: '/rating-audit/data' },
   { key: 'identities', label: 'Identity', path: '/rating-audit/identities' },
   { key: 'network', label: 'Network', path: '/rating-audit/network' },
@@ -55,7 +56,7 @@ function issueTone(value: number) {
   return value === 0 ? 'success' as const : 'warning' as const;
 }
 
-function RatingAuditNavigation({ active }: { active: RatingAuditSection | 'player' }) {
+function RatingAuditNavigation({ active }: { active: RatingAuditSection | 'player' | 'coverage' }) {
   const navigate = useNavigate();
 
   return (
@@ -125,6 +126,13 @@ function Overview({ audit }: { audit: RatingAuditSummaryResponse }) {
             subtitle="Inspect one player’s rating, evidence and full history."
             trailing={<i className="fa fa-angle-right" aria-hidden="true" />}
             onClick={() => navigate('/rating-audit/player')}
+          />
+          <ListItem
+            leading={<i className="fa fa-users" aria-hidden="true" />}
+            title="Player coverage"
+            subtitle="Separate unused records, historical-only players, invalid evidence and rating mismatches."
+            trailing={<i className="fa fa-angle-right" aria-hidden="true" />}
+            onClick={() => navigate('/rating-audit/coverage')}
           />
           <ListItem
             leading={<i className="fa fa-filter" aria-hidden="true" />}
@@ -220,7 +228,7 @@ function IdentityHealth({ audit }: { audit: RatingAuditSummaryResponse }) {
         <ListItem title="Active source records" trailing={identities.active_records.toLocaleString('en-GB')} />
         <ListItem title="Active aliases" subtitle="Linked records still visible as active rows." trailing={<Pill tone={issueTone(identities.active_aliases)}>{identities.active_aliases}</Pill>} />
         <ListItem title="Soft-deleted aliases" subtitle="Preserved source identities linked to a canonical player." trailing={identities.soft_deleted_aliases.toLocaleString('en-GB')} />
-        <ListItem title="Unassigned records" subtitle="Canonical identity is null; rating code falls back to the record itself." trailing={<Pill tone={issueTone(identities.unassigned_records)}>{identities.unassigned_records}</Pill>} />
+        <ListItem title="Standalone canonical records" subtitle="Root identities that correctly resolve to themselves." trailing={<Pill tone="neutral">{identities.unassigned_records}</Pill>} />
         <ListItem title="Broken canonical targets" subtitle="The referenced canonical record does not exist." trailing={<Pill tone={issueTone(identities.broken_targets)}>{identities.broken_targets}</Pill>} />
         <ListItem title="Identity chains" subtitle="An alias points to another alias instead of a final canonical record." trailing={<Pill tone={issueTone(identities.chained_links)}>{identities.chained_links}</Pill>} />
         <ListItem title="Deleted canonical targets" subtitle="An identity resolves to a soft-deleted canonical player." trailing={<Pill tone={issueTone(identities.deleted_targets)}>{identities.deleted_targets}</Pill>} />

@@ -80,6 +80,7 @@ describe('migration preflight', () => {
             '040_create_rating_audit_snapshots',
             '041_create_competition_embeddings',
             '042_create_rating_audit_foundation',
+            '043_create_rating_player_coverage',
         ]);
     });
 });

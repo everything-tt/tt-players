@@ -16,6 +16,7 @@ import { PlayerTournamentsPage } from './PlayerTournamentsPage';
 import { PlayerPage } from './PlayerPage';
 import { RatingAuditHealthPage } from './RatingAuditHealthPage';
 import { RatingAuditPage } from './RatingAuditPage';
+import { RatingPlayerCoveragePage } from './RatingPlayerCoveragePage';
 import { TopRatingsPage } from './TopRatingsPage';
 import { TeamPage } from './TeamPage';
 import { EventDetailPage } from './EventDetailPage';
@@ -72,6 +73,7 @@ export function AppRouter() {
                 <Route path="/rating-audit" element={<RatingAuditHealthPage section="overview" />} />
                 <Route path="/rating-audit/player" element={<RatingAuditPage />} />
                 <Route path="/rating-audit/player/:playerId" element={<RatingAuditPage />} />
+                <Route path="/rating-audit/coverage" element={<RatingPlayerCoveragePage />} />
                 <Route path="/rating-audit/data" element={<RatingAuditHealthPage section="data" />} />
                 <Route path="/rating-audit/identities" element={<RatingAuditHealthPage section="identities" />} />
                 <Route path="/rating-audit/network" element={<RatingAuditHealthPage section="network" />} />
