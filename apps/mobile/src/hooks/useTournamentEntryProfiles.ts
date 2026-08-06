@@ -1,9 +1,8 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY,
   TOURNAMENT_ENTRY_PROFILES_UPDATED_EVENT,
 } from '../local-persistence';
-import { useLocalStorageList } from './useLocalStorageList';
 
 export type TournamentEntrantRelationship = 'self' | 'child' | 'coached' | 'other';
 
@@ -31,6 +30,12 @@ export type TournamentEntryProfileDraft = Omit<TournamentEntryProfile, 'version'
 export interface TournamentEntryPlayerReference {
   id: string;
   name: string;
+}
+
+interface TournamentEntryProfilesStore {
+  version: 1;
+  ownerUserId: string;
+  profiles: TournamentEntryProfile[];
 }
 
 const MAX_PROFILES = 30;
@@ -79,6 +84,40 @@ function cleanDate(value: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : '';
 }
 
+function readProfiles(ownerUserId: string | null): TournamentEntryProfile[] {
+  if (!ownerUserId) return [];
+  try {
+    const raw = localStorage.getItem(TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') return [];
+    const store = parsed as Record<string, unknown>;
+    if (store.version !== 1 || store.ownerUserId !== ownerUserId || !Array.isArray(store.profiles)) {
+      return [];
+    }
+
+    const unique = new Map<string, TournamentEntryProfile>();
+    for (const value of store.profiles) {
+      if (!isValidTournamentEntryProfile(value) || unique.has(value.id)) continue;
+      unique.set(value.id, value);
+      if (unique.size >= MAX_PROFILES) break;
+    }
+    return Array.from(unique.values());
+  } catch {
+    return [];
+  }
+}
+
+function persistProfiles(ownerUserId: string, profiles: TournamentEntryProfile[]): void {
+  const store: TournamentEntryProfilesStore = {
+    version: 1,
+    ownerUserId,
+    profiles: profiles.slice(0, MAX_PROFILES),
+  };
+  localStorage.setItem(TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY, JSON.stringify(store));
+  window.dispatchEvent(new Event(TOURNAMENT_ENTRY_PROFILES_UPDATED_EVENT));
+}
+
 export function createEmptyTournamentEntryProfile(
   player: TournamentEntryPlayerReference,
   relationship: TournamentEntrantRelationship,
@@ -104,18 +143,42 @@ export function createEmptyTournamentEntryProfile(
 export function draftFromTournamentEntryProfile(
   profile: TournamentEntryProfile,
 ): TournamentEntryProfileDraft {
-  const { version: _version, updatedAt: _updatedAt, ...draft } = profile;
-  return draft;
+  return {
+    id: profile.id,
+    playerId: profile.playerId,
+    playerName: profile.playerName,
+    entrantName: profile.entrantName,
+    relationship: profile.relationship,
+    dateOfBirth: profile.dateOfBirth,
+    email: profile.email,
+    phone: profile.phone,
+    tteMembershipNumber: profile.tteMembershipNumber,
+    club: profile.club,
+    county: profile.county,
+    guardianName: profile.guardianName,
+    guardianEmail: profile.guardianEmail,
+    guardianPhone: profile.guardianPhone,
+  };
 }
 
-export function useTournamentEntryProfiles() {
-  const [profiles, api] = useLocalStorageList<TournamentEntryProfile>(
-    TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY,
-    TOURNAMENT_ENTRY_PROFILES_UPDATED_EVENT,
-    isValidTournamentEntryProfile,
+export function useTournamentEntryProfiles(ownerUserId: string | null) {
+  const [profiles, setProfiles] = useState<TournamentEntryProfile[]>(
+    () => readProfiles(ownerUserId),
   );
 
+  useEffect(() => {
+    const sync = () => setProfiles(readProfiles(ownerUserId));
+    sync();
+    window.addEventListener('storage', sync);
+    window.addEventListener(TOURNAMENT_ENTRY_PROFILES_UPDATED_EVENT, sync);
+    return () => {
+      window.removeEventListener('storage', sync);
+      window.removeEventListener(TOURNAMENT_ENTRY_PROFILES_UPDATED_EVENT, sync);
+    };
+  }, [ownerUserId]);
+
   const save = useCallback((draft: TournamentEntryProfileDraft) => {
+    if (!ownerUserId) return null;
     const next: TournamentEntryProfile = {
       version: 1,
       id: clean(draft.id, MAX_NAME_LENGTH),
@@ -137,27 +200,42 @@ export function useTournamentEntryProfiles() {
 
     if (!isValidTournamentEntryProfile(next)) return null;
 
-    api.set([
-      next,
-      ...profiles.filter((profile) => profile.id !== next.id),
-    ].slice(0, MAX_PROFILES));
+    setProfiles((previous) => {
+      const updated = [
+        next,
+        ...previous.filter((profile) => profile.id !== next.id),
+      ].slice(0, MAX_PROFILES);
+      persistProfiles(ownerUserId, updated);
+      return updated;
+    });
     return next;
-  }, [api, profiles]);
+  }, [ownerUserId]);
 
   const remove = useCallback((profileId: string) => {
-    api.remove((profile) => profile.id === profileId);
-  }, [api]);
+    if (!ownerUserId) return;
+    setProfiles((previous) => {
+      const updated = previous.filter((profile) => profile.id !== profileId);
+      persistProfiles(ownerUserId, updated);
+      return updated;
+    });
+  }, [ownerUserId]);
 
   const getByPlayerId = useCallback(
     (playerId: string) => profiles.find((profile) => profile.playerId === playerId) ?? null,
     [profiles],
   );
 
+  const clear = useCallback(() => {
+    if (!ownerUserId) return;
+    persistProfiles(ownerUserId, []);
+    setProfiles([]);
+  }, [ownerUserId]);
+
   return {
     profiles,
     save,
     remove,
     getByPlayerId,
-    clear: api.clear,
+    clear,
   };
 }
