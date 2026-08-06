@@ -91,7 +91,6 @@ import {
 
 Mobile code currently re-exports this package via `apps/mobile/src/ui/appkit/index.ts`; direct package imports are preferred for new shared code.
 
-
 ## App setup
 
 Import the package stylesheet once at the application entry point:
@@ -104,4 +103,4 @@ The consuming Vite app enables Tailwind v4 through `@tailwindcss/vite`. Prefligh
 
 Advanced compositions may import low-level owned primitives from `@tt-players/design-system/primitives`, but reusable branded UI belongs in this package rather than in each app.
 
-The architecture and migration audit are documented in `docs/design-system/shadcn-migration.md`.
+The architecture and migration audit are documented in `docs/design-system/shadcn-migration.md`. Pull requests that change this package are validated through the design-system guard, mobile build and tests, and the focused responsive screenshot scenario.
