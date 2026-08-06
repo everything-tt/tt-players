@@ -41,7 +41,7 @@
   overflow: hidden;
   color: var(--tt-text-primary);
   font-size: clamp(28px, 8vw, 31px);
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.08;
   letter-spacing: -0.035em;
   text-overflow: ellipsis;
@@ -176,7 +176,8 @@
   line-height: 1;
 }
 
-.tt-browse-page .tt-root-content {
+.tt-browse-page .tt-root-content,
+.tt-browse-header ~ .tt-root-content {
   padding-top: var(--tt-space-2);
 }
 
