@@ -10,19 +10,43 @@ const DEFAULT_YEARS = 10;
 const DEFAULT_MAX_PERIODS = 100000;
 const LOCK_KEY = 'tt-players:calculated-ratings';
 
+interface DateRow {
+    first_date: string | Date | null;
+}
+
 function readArg(name: string): string | undefined {
     const prefix = `--${name}=`;
     return process.argv.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
 }
 
-function parsePositiveInteger(value: string | undefined, fallback: number): number {
-    if (!value) return fallback;
+function hasFlag(name: string): boolean {
+    return process.argv.includes(`--${name}`);
+}
+
+function parsePositiveInteger(
+    name: string,
+    value: string | undefined,
+    fallback: number,
+): number {
+    if (value === undefined) return fallback;
+    if (!/^\d+$/.test(value)) {
+        throw new Error(`--${name} must be a positive integer`);
+    }
+
     const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+        throw new Error(`--${name} must be a positive integer`);
+    }
+    return parsed;
 }
 
 function formatDate(date: Date): string {
     return date.toISOString().slice(0, 10);
+}
+
+function toDateString(value: string | Date | null): string | null {
+    if (!value) return null;
+    return value instanceof Date ? formatDate(value) : String(value).slice(0, 10);
 }
 
 function startOfIsoWeek(date: Date): Date {
@@ -44,19 +68,60 @@ function subtractCalendarYears(date: Date, years: number): Date {
     return result;
 }
 
-function parseStartDate(value: string | undefined, years: number): string {
-    if (value) {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-            throw new Error('--start-date must use YYYY-MM-DD');
-        }
-        const parsed = new Date(`${value}T00:00:00.000Z`);
-        if (Number.isNaN(parsed.getTime()) || formatDate(parsed) !== value) {
-            throw new Error(`Invalid --start-date: ${value}`);
-        }
-        return formatDate(startOfIsoWeek(parsed));
+function parseExplicitStartDate(value: string): string {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        throw new Error('--start-date must use YYYY-MM-DD');
+    }
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    if (Number.isNaN(parsed.getTime()) || formatDate(parsed) !== value) {
+        throw new Error(`Invalid --start-date: ${value}`);
+    }
+    return formatDate(startOfIsoWeek(parsed));
+}
+
+async function resolveStartDate(
+    allHistory: boolean,
+    explicitStartDate: string | undefined,
+    yearsArg: string | undefined,
+): Promise<{ startDate: string; scope: 'all' | 'start-date' | 'years'; years: number | null }> {
+    if (allHistory && (explicitStartDate !== undefined || yearsArg !== undefined)) {
+        throw new Error('--all cannot be combined with --start-date or --years');
+    }
+    if (explicitStartDate !== undefined && yearsArg !== undefined) {
+        throw new Error('--start-date cannot be combined with --years');
     }
 
-    return formatDate(startOfIsoWeek(subtractCalendarYears(new Date(), years)));
+    if (allHistory) {
+        const result = await sql<DateRow>`
+            SELECT MIN(effective_date) AS first_date
+            FROM rating_rubber_classification
+            WHERE eligibility_reason = 'eligible'
+        `.execute(db);
+        const firstDate = toDateString(result.rows[0]?.first_date ?? null);
+        if (!firstDate) {
+            throw new Error('No eligible rating matches are available to rebuild');
+        }
+        return {
+            startDate: formatDate(startOfIsoWeek(new Date(`${firstDate}T00:00:00.000Z`))),
+            scope: 'all',
+            years: null,
+        };
+    }
+
+    if (explicitStartDate !== undefined) {
+        return {
+            startDate: parseExplicitStartDate(explicitStartDate),
+            scope: 'start-date',
+            years: null,
+        };
+    }
+
+    const years = parsePositiveInteger('years', yearsArg, DEFAULT_YEARS);
+    return {
+        startDate: formatDate(startOfIsoWeek(subtractCalendarYears(new Date(), years))),
+        scope: 'years',
+        years,
+    };
 }
 
 async function resetFromDate(modelKey: string, startDate: string): Promise<void> {
@@ -84,6 +149,10 @@ async function resetFromDate(modelKey: string, startDate: string): Promise<void>
             WHERE id = ${model.id}::uuid
         `.execute(trx);
 
+        await sql`
+            DELETE FROM rating_current_rankings
+            WHERE model_id = ${model.id}::uuid
+        `.execute(trx);
         await sql`
             DELETE FROM rating_checkpoints
             WHERE model_id = ${model.id}::uuid
@@ -134,48 +203,83 @@ async function resetFromDate(modelKey: string, startDate: string): Promise<void>
     });
 }
 
+async function markFailed(modelKey: string, error: unknown): Promise<void> {
+    const message = error instanceof Error ? error.message : String(error);
+    await sql`
+        UPDATE rating_processing_state processing
+        SET status = 'failed',
+            last_error = ${message},
+            finished_at = now(),
+            updated_at = now()
+        FROM rating_models model
+        WHERE model.id = processing.model_id
+          AND model.key = ${modelKey}
+    `.execute(db);
+}
+
 async function rebuild(): Promise<void> {
     const modelKey = readArg('model') ?? DEFAULT_MODEL_KEY;
-    const years = parsePositiveInteger(readArg('years'), DEFAULT_YEARS);
-    const maxPeriods = parsePositiveInteger(readArg('max-periods'), DEFAULT_MAX_PERIODS);
-    const startDate = parseStartDate(readArg('start-date'), years);
+    if (!/^[a-zA-Z0-9._-]+$/.test(modelKey)) {
+        throw new Error('--model contains unsupported characters');
+    }
 
-    console.log(`ratings history: rebuilding ${modelKey} from ${startDate}`);
-    console.log('ratings history: existing ratings, checkpoints, and weekly history for this model will be replaced');
-    await resetFromDate(modelKey, startDate);
+    const maxPeriods = parsePositiveInteger(
+        'max-periods',
+        readArg('max-periods'),
+        DEFAULT_MAX_PERIODS,
+    );
+    const resolved = await resolveStartDate(
+        hasFlag('all'),
+        readArg('start-date'),
+        readArg('years'),
+    );
+
+    console.log(`ratings history: rebuilding ${modelKey} from ${resolved.startDate}`);
+    console.log(`ratings history: scope=${resolved.scope}`);
+    console.log('ratings history: current ratings, current rankings, checkpoints, and weekly history for this model will be replaced');
+    await resetFromDate(modelKey, resolved.startDate);
 
     let totalPeriods = 0;
     let totalMatches = 0;
     let lastProcessedDate: string | null = null;
 
-    while (true) {
-        const result = await calculateRatings(
-            db,
-            { modelKey, maxPeriods },
-            console.log,
-        );
+    try {
+        while (true) {
+            const result = await calculateRatings(
+                db,
+                { modelKey, maxPeriods },
+                console.log,
+            );
 
-        if (result.busy) {
-            console.log('ratings history: another worker owns the current period; retrying shortly');
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            continue;
+            if (result.busy) {
+                console.log('ratings history: another worker owns the current period; retrying shortly');
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+                continue;
+            }
+
+            totalPeriods += result.processedPeriods;
+            totalMatches += result.processedMatches;
+            lastProcessedDate = result.lastProcessedDate ?? lastProcessedDate;
+
+            if (result.complete) break;
         }
-
-        totalPeriods += result.processedPeriods;
-        totalMatches += result.processedMatches;
-        lastProcessedDate = result.lastProcessedDate ?? lastProcessedDate;
-
-        if (result.complete) break;
+    } catch (error) {
+        await markFailed(modelKey, error);
+        throw error;
     }
 
-    console.log(JSON.stringify({
+    const summary = {
         modelKey,
-        startDate,
+        scope: resolved.scope,
+        years: resolved.years,
+        startDate: resolved.startDate,
         processedPeriods: totalPeriods,
         processedMatches: totalMatches,
         lastProcessedDate,
         complete: true,
-    }, null, 2));
+    };
+    console.log(JSON.stringify(summary, null, 2));
+    console.log(`RATING_REBUILD=${JSON.stringify(summary)}`);
 }
 
 try {
