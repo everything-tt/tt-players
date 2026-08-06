@@ -50,18 +50,20 @@ describe('Google Forms entrant prefilling', () => {
     expect(isGoogleFormsUrl('https://example.com/forms/abc')).toBe(false);
   });
 
-  it('strips existing query values before routing a tournament entry through preparation', () => {
+  it('routes preparation by event id without carrying form data in app URLs', () => {
     const source = 'https://docs.google.com/forms/d/e/form-id/viewform?usp=pp_url&entry.1=Private#section';
     expect(sanitizeGoogleFormsUrl(source)).toBe(
       'https://docs.google.com/forms/d/e/form-id/viewform',
     );
 
-    const path = buildGoogleFormPreparationPath(source);
+    const path = buildGoogleFormPreparationPath(source, 'event-123');
     expect(path).not.toBeNull();
     const params = new URLSearchParams(path?.split('?')[1]);
     expect(path?.startsWith('entry-prefill?')).toBe(true);
-    expect(params.get('url')).toBe('https://docs.google.com/forms/d/e/form-id/viewform');
-    expect(buildGoogleFormPreparationPath('https://example.com/form')).toBeNull();
+    expect(params.get('event')).toBe('event-123');
+    expect(params.has('url')).toBe(false);
+    expect(buildGoogleFormPreparationPath('https://example.com/form', 'event-123')).toBeNull();
+    expect(buildGoogleFormPreparationPath(source, '')).toBeNull();
   });
 
   it('maps common tournament labels and keeps partner fields manual', () => {
