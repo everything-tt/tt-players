@@ -119,7 +119,6 @@ jobs:
             --auth="$NETLIFY_AUTH_TOKEN" \
             --alias="$NETLIFY_ALIAS" \
             --message="Main UI audit ${{ github.run_id }}.${{ github.run_attempt }} for ${{ inputs.target_url }} (${{ github.sha }})" \
-            --context=deploy-preview \
             --no-build \
             --json > netlify-deploy.json
 
