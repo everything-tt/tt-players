@@ -7,9 +7,12 @@ const workflowUrl = new URL(
   import.meta.url,
 );
 
-test('actions housekeeping is scheduled and manually supports dry runs', async () => {
+test('actions housekeeping runs after workflow changes and on a weekly schedule', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
 
+  assert.match(workflow, /^  push:\n/m);
+  assert.match(workflow, /branches:\s*\[main\]/);
+  assert.match(workflow, /'\.github\/workflows\/\*\*'/);
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /dry_run:/);
   assert.match(workflow, /default:\s*true/);
