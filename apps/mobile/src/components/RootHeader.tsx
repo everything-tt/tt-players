@@ -53,6 +53,7 @@ export function RootHeader({
   return (
     <BrowseHeader
       title={title}
+      className="tt-root-header"
       ariaLabel={`${title} page header`}
       leadingAction={{
         id: 'menu',
