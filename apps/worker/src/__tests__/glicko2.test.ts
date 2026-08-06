@@ -15,7 +15,7 @@ describe('Glicko-2', () => {
             volatility: 0.06,
         });
         expect(DEFAULT_GLICKO2_CONFIG.tau).toBe(0.5);
-        expect(DEFAULT_GLICKO2_CONFIG.provisionalMatches).toBe(0);
+        expect(DEFAULT_GLICKO2_CONFIG.provisionalMatches).toBe(10);
         expect(DEFAULT_GLICKO2_CONFIG.provisionalDeviation).toBe(110);
     });
 
