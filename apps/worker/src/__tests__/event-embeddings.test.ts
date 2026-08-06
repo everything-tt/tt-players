@@ -158,4 +158,63 @@ describe('event embeddings', () => {
 
         expect(choice.decision).not.toBe('automatic');
     });
+
+    it('auto-matches on high semantic + exact date even when the hybrid total is below the old 0.92 gate', () => {
+        // Mirrors the production case that was stuck in review: "Birmingham TTA Cadet 2*"
+        // vs "Birmingham TT Academy Cadet/Junior 2*" — semantic ~0.97, exact date,
+        // but the token-Dice name score (~0.6) dragged the hybrid total to ~0.91,
+        // below the old total >= 0.92 automatic gate.
+        const incoming = {
+            name: 'Birmingham TTA Cadet 2*',
+            startDate: '2026-07-04',
+            endDate: '2026-07-04',
+            venue: null,
+            category: 'Cadet 2 Star',
+        };
+        const choice = chooseTournamentCandidateWithSemanticScores(
+            incoming,
+            [candidate('academy', {
+                name: 'Birmingham TT Academy Cadet Junior 2 Star Open',
+                startDate: '2026-07-04',
+                endDate: '2026-07-04',
+                venue: 'Birmingham',
+                category: 'Junior 2 Star',
+            })],
+            new Map([['academy', 0.969]]),
+        );
+
+        expect(choice.decision).toBe('automatic');
+        expect(choice.candidate?.id).toBe('academy');
+        expect(choice.score?.semantic).toBe(0.969);
+        // The total stays below the old 0.92 gate, proving auto-match is driven by
+        // the semantic + date + name-guard rule, not the hybrid total.
+        expect(choice.score?.total).toBeLessThan(0.92);
+    });
+
+    it('does not auto-merge when name overlap is too low despite high semantic + exact date', () => {
+        // Mirrors the false positive the name guard exists for: "European Youth
+        // Championships Cadet" vs "Birmingham TT Academy Cadet/Junior 2*". Semantic
+        // similarity is high (~0.90) because TT event names share generic vocabulary,
+        // but the names share almost no tokens (name score ~0.17).
+        const incoming = {
+            name: 'European Youth Championships Cadet',
+            startDate: '2026-07-04',
+            endDate: '2026-07-04',
+            venue: null,
+            category: 'Cadet',
+        };
+        const choice = chooseTournamentCandidateWithSemanticScores(
+            incoming,
+            [candidate('academy', {
+                name: 'Birmingham TT Academy Cadet Junior 2 Star Open',
+                startDate: '2026-07-04',
+                endDate: '2026-07-04',
+                venue: 'Birmingham',
+                category: 'Junior 2 Star',
+            })],
+            new Map([['academy', 0.90]]),
+        );
+
+        expect(choice.decision).not.toBe('automatic');
+    });
 });

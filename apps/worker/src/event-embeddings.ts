@@ -17,8 +17,17 @@ const DEFAULT_CLOUDFLARE_EMBEDDING_MODEL = '@cf/baai/bge-small-en-v1.5';
 const DEFAULT_CLOUDFLARE_EMBEDDING_DIMENSIONS = 384;
 const DEFAULT_CLOUDFLARE_EMBEDDING_TIMEOUT_MS = 10_000;
 const EMBEDDING_PROVIDER = 'cloudflare-workers-ai';
-const AUTOMATIC_THRESHOLD = 0.92;
+// Auto-merge is decided by embedding semantic similarity, not the hybrid total.
+// The hybrid total is dominated by the token-Dice `name` score, which penalises
+// abbreviation/sub-event wording ("TTA" vs "TT Academy", "Cadet 2*" vs
+// "Cadet/Junior 2*") and starved auto-matching to ~1/46. Semantic >= 0.90 lifts
+// genuine matches above the false-positive band (0.85-0.90); the name >= 0.4
+// guardrail blocks merging two events that share a date but no name tokens.
+const SEMANTIC_AUTO_THRESHOLD = 0.9;
+const SEMANTIC_AUTO_DATE_MIN = 0.8;
+const SEMANTIC_AUTO_NAME_MIN = 0.4;
 const REVIEW_THRESHOLD = 0.75;
+const REVIEW_SEMANTIC_MIN = 0.65;
 const AMBIGUITY_MARGIN = 0.05;
 
 const CloudflareEmbeddingResponseSchema = z.object({
@@ -375,11 +384,11 @@ function hybridScore(
     }
 
     const total = roundScore(weightedScore / availableWeight);
-    const automatic = total >= AUTOMATIC_THRESHOLD
-        && semantic >= 0.82
-        && structured.date >= 0.8;
+    const automatic = semantic >= SEMANTIC_AUTO_THRESHOLD
+        && structured.date >= SEMANTIC_AUTO_DATE_MIN
+        && structured.name >= SEMANTIC_AUTO_NAME_MIN;
     const review = total >= REVIEW_THRESHOLD
-        && semantic >= 0.65
+        && semantic >= REVIEW_SEMANTIC_MIN
         && structured.date > 0;
     const decision: TournamentMatchDecision = automatic
         ? 'automatic'
