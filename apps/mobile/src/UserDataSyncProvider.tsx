@@ -43,7 +43,7 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
       if (!session || session.user.id !== userId) return;
 
       try {
-        const localSnapshot = createUserDataSnapshot();
+        const localSnapshot = createUserDataSnapshot(localStorage, userId);
         const response = await sendSyncRequest(
           '/me/sync-state/bootstrap',
           'POST',
@@ -52,7 +52,7 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
         );
         if (cancelled) return;
 
-        const changed = applyUserDataSnapshot(response.data);
+        const changed = applyUserDataSnapshot(response.data, localStorage, userId);
         lastSyncedSnapshot.current = serializeUserDataSnapshot(response.data);
         setHydratedUserId(userId);
 
@@ -86,7 +86,7 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
       const session = sessionRef.current;
       if (!session || session.user.id !== userId) return;
 
-      const snapshot = createUserDataSnapshot();
+      const snapshot = createUserDataSnapshot(localStorage, userId);
       const serialized = serializeUserDataSnapshot(snapshot);
       if (serialized === lastSyncedSnapshot.current) return;
 

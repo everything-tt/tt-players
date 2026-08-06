@@ -11,6 +11,8 @@ export const MY_PLAYER_STORAGE_KEY = 'tt_players_my_player';
 export const MY_PLAYER_UPDATED_EVENT = 'tt-players:my-player-updated';
 export const MY_TT_PROFILE_STORAGE_KEY = 'tt_players_my_tt_profile';
 export const MY_TT_PROFILE_UPDATED_EVENT = 'tt-players:my-tt-profile-updated';
+export const TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY = 'tt_players_tournament_entry_profiles';
+export const TOURNAMENT_ENTRY_PROFILES_UPDATED_EVENT = 'tt-players:tournament-entry-profiles-updated';
 export const MATCH_JOURNAL_STORAGE_KEY = 'tt_players_match_journal';
 export const MATCH_JOURNAL_UPDATED_EVENT = 'tt-players:match-journal-updated';
 export const THEME_STORAGE_KEY = 'TTPlayers-Theme';
@@ -26,11 +28,12 @@ export const SYNCED_LOCAL_DATA_KEYS = [
   THEME_STORAGE_KEY,
   MY_PLAYER_STORAGE_KEY,
   MY_TT_PROFILE_STORAGE_KEY,
+  TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY,
   MATCH_JOURNAL_STORAGE_KEY,
 ] as const;
 
 const LOCAL_DATA_KEYS = [
-  ...SYNCED_LOCAL_DATA_KEYS,
+  ...SYNCED_LOCAL_DATA_KEYS.filter((key) => key !== TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY),
   'tt_players_h2h_active_player_a',
   'tt_players_h2h_active_player_b',
 ] as const;
@@ -48,11 +51,31 @@ export interface LocalDataBackup {
   entries: Record<string, string>;
 }
 
-export function createUserDataSnapshot(local: StorageLike = localStorage): UserDataSnapshot {
+function isOwnedTournamentEntryProfiles(value: string, userId: string): boolean {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== 'object') return false;
+    const store = parsed as Record<string, unknown>;
+    return store.version === 1
+      && store.ownerUserId === userId
+      && Array.isArray(store.profiles);
+  } catch {
+    return false;
+  }
+}
+
+export function createUserDataSnapshot(
+  local: StorageLike = localStorage,
+  userId?: string,
+): UserDataSnapshot {
   const entries: Record<string, string> = {};
   for (const key of SYNCED_LOCAL_DATA_KEYS) {
     const value = local.getItem(key);
-    if (value !== null) entries[key] = value;
+    if (value === null) continue;
+    if (key === TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY) {
+      if (!userId || !isOwnedTournamentEntryProfiles(value, userId)) continue;
+    }
+    entries[key] = value;
   }
   return { version: 1, entries };
 }
@@ -60,6 +83,7 @@ export function createUserDataSnapshot(local: StorageLike = localStorage): UserD
 export function applyUserDataSnapshot(
   snapshot: UserDataSnapshot,
   local: StorageLike = localStorage,
+  userId?: string,
 ): boolean {
   if (snapshot.version !== 1 || !snapshot.entries || typeof snapshot.entries !== 'object') {
     return false;
@@ -68,7 +92,12 @@ export function applyUserDataSnapshot(
   let changed = false;
   for (const key of SYNCED_LOCAL_DATA_KEYS) {
     const current = local.getItem(key);
-    const next = snapshot.entries[key] ?? null;
+    let next: string | null = Object.prototype.hasOwnProperty.call(snapshot.entries, key)
+      ? snapshot.entries[key]
+      : null;
+    if (key === TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY) {
+      if (!userId || !next || !isOwnedTournamentEntryProfiles(next, userId)) next = null;
+    }
     if (current === next) continue;
 
     changed = true;
