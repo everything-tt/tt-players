@@ -13,6 +13,7 @@ import {
 let db: Kysely<Database>;
 let request: ReturnType<typeof supertest>;
 let upcomingCalendarId: string;
+let awaitingCalendarId: string;
 let processedCalendarId: string;
 let completedResultIds: string[];
 
@@ -55,6 +56,24 @@ beforeAll(async () => {
         .returning('id')
         .executeTakeFirstOrThrow();
     upcomingCalendarId = upcoming.id;
+
+    const awaiting = await database
+        .insertInto('competitions')
+        .values({
+            season_id: season.id,
+            external_id: 'calendar-awaiting-results',
+            name: 'Past Calendar Tournament Awaiting Results',
+            display_name: 'Past Calendar Tournament Awaiting Results',
+            event_date: '2026-07-01',
+            start_date: '2026-07-01',
+            event_status: 'awaiting_results',
+            record_kind: 'calendar',
+            type: 'individual',
+            source: 'tte-calendar',
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+    awaitingCalendarId = awaiting.id;
 
     const processed = await database
         .insertInto('competitions')
@@ -115,6 +134,16 @@ describe('separate tournament lifecycles', () => {
         expect(response.body.data.map((event: { id: string }) => event.id)).not.toContain(
             processedCalendarId,
         );
+        expect(response.body.data.map((event: { id: string }) => event.id)).not.toContain(
+            awaitingCalendarId,
+        );
+    });
+
+    it('keeps awaiting-results calendar rows queryable outside the upcoming list', async () => {
+        const response = await request.get('/api/events?status=awaiting_results').expect(200);
+        expect(response.body.data.map((event: { id: string }) => event.id)).toEqual([
+            awaitingCalendarId,
+        ]);
     });
 
     it('lists result rows as completed without inspecting fixtures or rubbers', async () => {

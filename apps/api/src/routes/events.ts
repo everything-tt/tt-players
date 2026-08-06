@@ -206,7 +206,6 @@ function applyEventFilters<T>(
                     'entries_open',
                     'entries_closed',
                     'in_progress',
-                    'awaiting_results',
                 ]);
         } else if (query.status === 'completed') {
             filtered = filtered.where('c.record_kind', '=', 'result');
