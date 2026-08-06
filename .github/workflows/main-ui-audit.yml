@@ -23,8 +23,7 @@ jobs:
     env:
       PREVIEW_URL: ${{ inputs.target_url }}
       UI_REVIEW_REPORT_DIR: ${{ github.workspace }}/ui-review-report
-      UI_AUDIT_MAX_DISCOVERED_ROUTES: 36
-      UI_AUDIT_MAX_INTERACTIONS_PER_ROUTE: 4
+      UI_AUDIT_MAX_INTERACTIONS_PER_PAGE: 6
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
       UI_AUDIT_EMAIL: ${{ secrets.UI_AUDIT_EMAIL }}
@@ -79,7 +78,7 @@ jobs:
             df -h
           } > ui-review-report/diagnostics/host-before.txt
 
-      - name: Collect main UI screenshots
+      - name: Collect comprehensive UI screenshots
         run: pnpm --filter @tt-players/mobile exec playwright test --config=../../playwright.main-audit.config.ts
 
       - name: Record host resources after
@@ -161,26 +160,43 @@ jobs:
           node <<'NODE'
           const fs = require('node:fs');
           let items = [];
+          let coverage = {};
           try {
             items = JSON.parse(fs.readFileSync('ui-review-report/manifest.json', 'utf8'));
           } catch {}
+          try {
+            coverage = JSON.parse(fs.readFileSync('ui-review-report/coverage.json', 'utf8'));
+          } catch {}
 
           const count = (status) => items.filter((item) => item.status === status).length;
+          const capturedKind = (kind) => items.filter(
+            (item) => item.kind === kind && item.status === 'captured',
+          ).length;
           const diagnosticEvents = items.reduce(
             (total, item) => total + (Number(item.eventCount) || 0),
             0,
           );
+          const catalog = coverage.catalog || {};
+          const entityCounts = [
+            ['players', catalog.playerIds],
+            ['tournaments', catalog.eventIds],
+            ['leagues', catalog.leagueIds],
+            ['teams', catalog.teamIds],
+            ['fixtures', catalog.fixtureIds],
+          ].map(([label, values]) => `${label}: ${Array.isArray(values) ? values.length : 0}`).join(', ');
           const reportUrl = process.env.REPORT_URL?.trim();
           const lines = [
             '## Main UI audit',
             '',
-            '- Mode: screenshot collection',
+            '- Mode: comprehensive screenshot collection (no visual verification)',
             `- Target: ${process.env.PREVIEW_URL}`,
             `- Commit: \`${(process.env.GITHUB_SHA || '').slice(0, 7)}\``,
-            `- Captured screens: ${count('captured')}`,
+            `- Page screenshots: ${capturedKind('page')}`,
+            `- Function-state screenshots: ${capturedKind('state')}`,
             `- Skipped screens: ${count('skipped')}`,
             `- Capture errors: ${count('error')}`,
             `- Diagnostic events: ${diagnosticEvents}`,
+            `- Discovered entities: ${entityCounts}`,
             reportUrl
               ? `- Netlify report: [Open the UI audit report](${reportUrl})`
               : '- Netlify report: unavailable; use the GitHub artifact below',
