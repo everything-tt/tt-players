@@ -20,7 +20,7 @@ The worker never loads the full match history or every player rating into memory
 Memory usage is therefore bounded by the busiest single match date rather than by the complete
 multi-million-row rubber table.
 
-## Included results
+## Included results and finalisation
 
 The first model includes only:
 
@@ -32,16 +32,31 @@ The first model includes only:
 
 Walkovers, retirements, void results and doubles are excluded.
 
-## Rating and leaderboard score
+Tournament ratings are not changed from calendar or in-progress records. Fixtures and rubbers are
+owned by the completed result record created by result ingestion, so they become eligible only
+after the result event has been finalised and ingested. Every eligible match on one rating date is
+calculated from the same pre-date state and the complete period is committed atomically. A failed
+period therefore changes no player ratings, and a retry cannot apply a partial period twice.
 
-The model starts new players at rating 1500, deviation 350 and volatility 0.06. The public
-leaderboard orders players using:
+## Rating state and leaderboard score
+
+The model starts new players at rating 1500, rating deviation 350 and volatility 0.06. It uses
+`tau = 0.5` and a volatility convergence tolerance of `0.000001`.
+
+The API and player UI expose all three Glicko-2 state values:
+
+- rating: the current ability estimate;
+- rating deviation (RD): uncertainty in that estimate; and
+- volatility (`σ`): how quickly the player's underlying strength is changing.
+
+The public leaderboard orders players using:
 
 ```text
 conservative_rating = rating - 2 * rating_deviation
 ```
 
-A player is provisional while they have fewer than 10 rated matches or a deviation above 110.
+A player is provisional while their rating deviation is above 110. There is no minimum rated-match
+threshold for leaving provisional status.
 
 ## Weekly rating history
 
@@ -126,10 +141,13 @@ rating run and during the weekly rating audit.
 The default current-ranking policy requires:
 
 - a match within the last 365 days;
-- at least 10 rated matches;
 - at least 5 unique opponents inside the model window;
 - present-day rating deviation no greater than 110; and
 - no unresolved critical player data issue.
+
+There is no minimum rated-match requirement. RD is the Glicko-2 confidence gate; the activity,
+opponent-network and data-quality checks remain separate safeguards for a meaningful current
+leaderboard.
 
 Present-day deviation is calculated from `last_rated_at`, stored volatility and elapsed inactive
 days. This prevents a player who never returns from keeping an artificially low historical
