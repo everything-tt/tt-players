@@ -38,6 +38,7 @@ function BrowseHeaderActionButton({ action, placement }: BrowseHeaderActionButto
         action.active && 'tt-browse-header__action--active',
         action.className,
       )}
+      data-slot="browse-header-action"
       data-placement={placement}
       aria-label={action.ariaLabel}
       aria-pressed={action.active === undefined ? undefined : action.active}
@@ -73,10 +74,12 @@ export function BrowseHeader({
   return (
     <div
       className={cx('tt-browse-header', className)}
+      data-slot="browse-header"
       data-state={isCompact ? 'compact' : 'expanded'}
     >
       <header
         className={cx('tt-browse-header__expanded', expandedClassName)}
+        data-slot="browse-header-expanded"
         data-state={isCompact ? 'hidden' : 'visible'}
         aria-label={ariaLabel}
         aria-hidden={isCompact}
@@ -97,6 +100,7 @@ export function BrowseHeader({
 
       <header
         className={cx('tt-browse-header__compact', compactClassName)}
+        data-slot="browse-header-compact"
         data-state={isCompact ? 'visible' : 'hidden'}
         aria-label={ariaLabel}
         aria-hidden={!isCompact}
