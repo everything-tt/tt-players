@@ -8,7 +8,7 @@ import { parseTournamentEntryFormBackfillOptions } from './backfill-tournament-e
 export async function runTournamentEntryFormBackfill(): Promise<void> {
     const options = parseTournamentEntryFormBackfillOptions();
     const summary = await inspectPendingTournamentEntryForms(db, options);
-    console.log(JSON.stringify({ ...summary, force: options.force }, null, 2));
+    console.log(JSON.stringify(summary, null, 2));
 }
 
 const currentModulePath = fileURLToPath(import.meta.url);
