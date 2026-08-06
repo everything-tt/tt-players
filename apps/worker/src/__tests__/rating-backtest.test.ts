@@ -21,6 +21,12 @@ function alphaWarmups(prefix: string): RatingBacktestMatch[] {
     );
 }
 
+function qualifiedWarmups(prefix: string): RatingBacktestMatch[] {
+    return Array.from({ length: DEFAULT_GLICKO2_CONFIG.provisionalMatches }, (_, index) =>
+        match(`${prefix}-${index + 1}`, 'a', 'b', true)
+    );
+}
+
 describe('rating backtest laboratory', () => {
     it('scores fixed evaluation dates without using future results', () => {
         const backtester = new RatingWindowBacktester(
@@ -76,7 +82,7 @@ describe('rating backtest laboratory', () => {
             '2026-06-30',
             [2],
         );
-        backtester.processDay('2025-01-01', [match('warmup', 'a', 'b', true)]);
+        backtester.processDay('2025-01-01', qualifiedWarmups('report-warmup'));
         backtester.processDay('2026-02-01', [match('evaluation', 'a', 'b', true)]);
         const metrics = backtester.finish(new Map([
             ['a', 'Alpha <One>'],
