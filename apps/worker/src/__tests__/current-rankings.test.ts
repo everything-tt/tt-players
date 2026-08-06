@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
-import type { Database } from '@tt-players/db';
 import * as m001 from '@tt-players/db/src/migrations/001_create_enums.js';
 import * as m002 from '@tt-players/db/src/migrations/002_create_core_tables.js';
 import * as m003 from '@tt-players/db/src/migrations/003_create_match_tables.js';
@@ -22,7 +21,7 @@ const TEST_DB_NAME = `tt_players_current_rankings_test_${process.pid}`;
 const ADMIN_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/postgres';
 const TEST_DATABASE_URL = `postgres://postgres:postgres@localhost:5432/${TEST_DB_NAME}`;
 
-let db: Kysely<Database>;
+let db: Kysely<any>;
 
 beforeAll(async () => {
     const admin = new Pool({ connectionString: ADMIN_DATABASE_URL });
@@ -30,7 +29,7 @@ beforeAll(async () => {
     await admin.query(`CREATE DATABASE ${TEST_DB_NAME}`);
     await admin.end();
 
-    db = new Kysely<Database>({
+    db = new Kysely<any>({
         dialect: new PostgresDialect({
             pool: new Pool({ connectionString: TEST_DATABASE_URL }),
         }),
@@ -137,7 +136,7 @@ describe('current rating rankings', () => {
         const rankings = await db.selectFrom('rating_current_rankings')
             .selectAll()
             .execute();
-        const byPlayer = new Map(rankings.map((ranking) => [ranking.player_id, ranking]));
+        const byPlayer = new Map(rankings.map((ranking: any) => [ranking.player_id, ranking]));
         expect(byPlayer.get(byExternalId.get('active')!)?.eligibility_reason).toBe('ranked');
         expect(byPlayer.get(byExternalId.get('active')!)?.current_rank).toBe(1);
         expect(byPlayer.get(byExternalId.get('inactive')!)?.eligibility_reason).toBe('inactive');
