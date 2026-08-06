@@ -92,6 +92,14 @@ describe('Google Forms entrant prefilling', () => {
       required: false,
       options: [],
     })).toBeNull();
+    expect(profileFieldForGoogleQuestion({
+      id: '13',
+      label: 'Full name of person making this declaration',
+      description: null,
+      kind: 'short_text',
+      required: true,
+      options: [],
+    })).toBeNull();
   });
 
   it('prefills exact matching choices and today while leaving unmatched choices manual', () => {
