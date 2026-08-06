@@ -164,9 +164,12 @@ describe('rating source quality API', () => {
             player_b_id: playerB.id,
             candidate_type: 'conflicting_score_candidate',
             rubber_count: 2,
-            rubber_ids: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],
-            source_ids: [platform.id],
-            score_signatures: ['3:1', '1:3'],
+            rubber_ids: JSON.stringify([
+                '11111111-1111-4111-8111-111111111111',
+                '22222222-2222-4222-8222-222222222222',
+            ]),
+            source_ids: JSON.stringify([platform.id]),
+            score_signatures: JSON.stringify(['3:1', '1:3']),
             updated_at: new Date(),
         }).returning('id').executeTakeFirstOrThrow();
 
