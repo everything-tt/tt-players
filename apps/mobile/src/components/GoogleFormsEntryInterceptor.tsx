@@ -3,9 +3,15 @@ import { useLocation } from 'react-router-dom';
 import { useTabNavigation } from '../navigation/tab-navigation';
 import { buildGoogleFormPreparationPath } from '../tournament-entry-prefill';
 
+export function eventIdFromTournamentDetailPath(pathname: string): string | null {
+  const tabMatch = pathname.match(/^\/tabs\/[^/]+\/event\/([^/]+)\/?$/);
+  if (tabMatch) return decodeURIComponent(tabMatch[1]);
+  const publicMatch = pathname.match(/^\/tournaments\/([^/]+)\/?$/);
+  return publicMatch ? decodeURIComponent(publicMatch[1]) : null;
+}
+
 export function isTournamentDetailPath(pathname: string): boolean {
-  return /^\/tabs\/[^/]+\/event\/[^/]+\/?$/.test(pathname)
-    || /^\/tournaments\/[^/]+\/?$/.test(pathname);
+  return eventIdFromTournamentDetailPath(pathname) !== null;
 }
 
 export function GoogleFormsEntryInterceptor() {
@@ -13,7 +19,8 @@ export function GoogleFormsEntryInterceptor() {
   const { navigateInActiveTab } = useTabNavigation();
 
   useEffect(() => {
-    if (!isTournamentDetailPath(location.pathname)) return;
+    const eventId = eventIdFromTournamentDetailPath(location.pathname);
+    if (!eventId) return;
 
     const interceptGoogleFormEntry = (event: MouseEvent) => {
       if (
@@ -32,7 +39,7 @@ export function GoogleFormsEntryInterceptor() {
       const anchor = target.closest<HTMLAnchorElement>('a[href]');
       if (!anchor || anchor.hasAttribute('download')) return;
 
-      const preparationPath = buildGoogleFormPreparationPath(anchor.href);
+      const preparationPath = buildGoogleFormPreparationPath(anchor.href, eventId);
       if (!preparationPath) return;
 
       event.preventDefault();
