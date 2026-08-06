@@ -163,9 +163,13 @@ export function ScrapingMonitorPage() {
                   <span>Payload transform progress</span>
                   <strong>{data.scrapes.transform_progress_pct}%</strong>
                 </div>
-                <div className="tt-monitor-progress__track">
-                  <span style={{ width: `${data.scrapes.transform_progress_pct}%` }} />
-                </div>
+                <progress
+                  className="tt-monitor-progress__track"
+                  value={data.scrapes.transform_progress_pct}
+                  max={100}
+                >
+                  {data.scrapes.transform_progress_pct}%
+                </progress>
                 <p>
                   {formatNumber(data.scrapes.processed)} processed · {formatNumber(data.scrapes.pending)} pending · {formatNumber(data.scrapes.failed)} failed
                 </p>
