@@ -128,8 +128,8 @@ jobs:
           set -euo pipefail
 
           ssh "$VPS_USER@$VPS_HOST" \
-            "MODEL_KEY='$MODEL_KEY' REBUILD_SCOPE='$REBUILD_SCOPE' YEARS='$YEARS' START_DATE='$START_DATE' GITHUB_RUN_ID='$GITHUB_RUN_ID' bash -s" <<'REMOTE' \
-            | tee rating-rebuild-output.txt
+            "MODEL_KEY='$MODEL_KEY' REBUILD_SCOPE='$REBUILD_SCOPE' YEARS='$YEARS' START_DATE='$START_DATE' GITHUB_RUN_ID='$GITHUB_RUN_ID' bash -s" \
+            <<'REMOTE' | tee rating-rebuild-output.txt
           set -euo pipefail
 
           worker_stopped=false
@@ -153,7 +153,6 @@ jobs:
             years) rebuild_args+=("--years=$YEARS") ;;
             start-date) rebuild_args+=("--start-date=$START_DATE") ;;
           esac
-          printf -v rebuild_command ' %q' "${rebuild_args[@]}"
 
           systemd-run \
             --quiet \
@@ -165,14 +164,13 @@ jobs:
             --gid=ttp \
             --property=EnvironmentFile=/etc/ttp/worker.env \
             --property=WorkingDirectory=/opt/tt-players/current/apps/worker \
-            $rebuild_command
+            "${rebuild_args[@]}"
 
           audit_args=(
             /opt/tt-players/current/apps/worker/node_modules/.bin/tsx
             src/refresh-rating-audit-snapshot.ts
             "--model=$MODEL_KEY"
           )
-          printf -v audit_command ' %q' "${audit_args[@]}"
 
           systemd-run \
             --quiet \
@@ -184,7 +182,7 @@ jobs:
             --gid=ttp \
             --property=EnvironmentFile=/etc/ttp/worker.env \
             --property=WorkingDirectory=/opt/tt-players/current/apps/worker \
-            $audit_command
+            "${audit_args[@]}"
 
           systemctl start ttp-worker
           systemctl is-active --quiet ttp-worker
