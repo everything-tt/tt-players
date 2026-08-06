@@ -10,6 +10,10 @@ interface PlayerRatingPanelProps {
   playerId: string;
 }
 
+function formatVolatility(value: number): string {
+  return Number.isFinite(value) ? value.toFixed(4) : '—';
+}
+
 export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
   const navigate = useNavigate();
   const { navigateInActiveTab } = useTabNavigation();
@@ -21,7 +25,7 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
     { label: 'Rating', value: Math.round(rating.rating) },
     ...(rating.rank != null ? [{ label: 'Global Rank', value: `#${rating.rank}` }] : []),
     { label: 'RD', value: rating.rating_deviation.toFixed(1) },
-    { label: 'Volatility', value: rating.volatility.toFixed(4) },
+    { label: 'Volatility', value: formatVolatility(rating.volatility) },
     { label: 'Confidence', value: ratingConfidenceLabel(rating.confidence) },
   ] : [];
 
