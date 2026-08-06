@@ -29,7 +29,7 @@ async function prepareAppState(page: Page, theme: 'light-mode' | 'dark-mode') {
     localStorage.setItem('tt_players_league_onboarding_complete', 'true');
     localStorage.setItem('tt_players_selected_league_ids', JSON.stringify([]));
     localStorage.setItem('tt_players_favourite_tournaments', JSON.stringify([]));
-    localStorage.setItem('TTPlayers-Theme', value);
+    if (!localStorage.getItem('TTPlayers-Theme')) localStorage.setItem('TTPlayers-Theme', value);
     localStorage.setItem('pwa-install-dismissed', Date.now().toString());
   }, theme);
 }
@@ -154,8 +154,15 @@ test('shadcn-backed TT primitives preserve mobile behaviour and visuals', async 
   await page.evaluate(() => localStorage.setItem('TTPlayers-Theme', 'dark-mode'));
   await page.goto(`${previewUrl}/design-system`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'TT Players UI', level: 1 })).toBeVisible();
-  const darkBackground = await page.evaluate(() => getComputedStyle(document.body).getPropertyValue('--background').trim());
-  expect(darkBackground).toContain('canvas-parchment');
+  await expect(page.locator('body')).toHaveClass(/theme-dark/);
+  const darkTokens = await page.evaluate(() => {
+    const styles = getComputedStyle(document.body);
+    return {
+      background: styles.getPropertyValue('--background').trim(),
+      canvas: styles.getPropertyValue('--canvas-parchment').trim(),
+    };
+  });
+  expect(darkTokens.background).toBe(darkTokens.canvas);
   await assertNoHorizontalOverflow(page, 'dark component catalogue');
   await capture(page, testInfo, 'catalogue-dark');
 
