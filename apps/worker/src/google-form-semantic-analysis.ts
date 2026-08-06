@@ -121,7 +121,7 @@ interface AnalyzeEntryFormOptions {
 export type EntryFormSemanticAnalyzer = (
     form: GoogleFormInspection,
     context: EntryFormSemanticContext,
-) => Promise<EntryFormSemanticAnalysis>;
+) => Promise<EntryFormSemanticAnalysis | null>;
 
 function boundedInteger(value: string | undefined, fallback: number, minimum: number, maximum: number): number {
     const parsed = Number(value ?? fallback);
@@ -178,7 +178,7 @@ function semanticSystemPrompt(): string {
         'Use confidence from 0 to 1. Do not use confidence above 0.84 when the meaning is ambiguous.',
         'Extract event details only when explicitly supported by the form title, field labels, descriptions, or choices.',
         'Dates must use YYYY-MM-DD. Do not guess a year or infer a date from existing event metadata.',
-        'Every event detail must include a short evidence excerpt and the IDs of fields that support it. Use an empty source_field_ids array only when the form title itself is the evidence.',
+        'Every event detail must include an exact short evidence excerpt and the IDs of fields that contain it. Use an empty source_field_ids array only when the exact excerpt appears in the form title.',
         'Do not invent field IDs. Include at most one mapping per form field and at most one value per event detail field.',
     ].join('\n');
 }
@@ -210,7 +210,7 @@ function semanticInput(form: GoogleFormInspection, context: EntryFormSemanticCon
                 field: 'allowed event detail field',
                 value: 'explicitly supported value',
                 confidence: 'number from 0 to 1',
-                evidence: 'short supporting excerpt',
+                evidence: 'exact short supporting excerpt',
                 source_field_ids: ['supporting form field IDs'],
             }],
         },
@@ -275,6 +275,40 @@ function isSensitiveField(label: string, description: string | null): boolean {
     return SENSITIVE_TERMS.some((term) => text.includes(term));
 }
 
+function normalizeEvidence(value: string): string {
+    return value
+        .normalize('NFKC')
+        .toLowerCase()
+        .replace(/[’']/g, "'")
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function fieldEvidenceText(field: GoogleFormInspection['fields'][number]): string {
+    return [field.label, field.description, ...field.options]
+        .filter((value): value is string => Boolean(value?.trim()))
+        .join(' ');
+}
+
+function hasVerifiableEvidence(
+    detail: z.infer<typeof EventDetailValueSchema>,
+    form: GoogleFormInspection,
+    fieldsById: Map<string, GoogleFormInspection['fields'][number]>,
+): boolean {
+    const evidence = normalizeEvidence(detail.evidence);
+    if (!evidence) return false;
+
+    const sourceText = detail.source_field_ids.length === 0
+        ? form.title
+        : detail.source_field_ids
+            .map((id) => fieldsById.get(id))
+            .filter((field): field is GoogleFormInspection['fields'][number] => Boolean(field))
+            .map(fieldEvidenceText)
+            .join(' ');
+
+    return normalizeEvidence(sourceText).includes(evidence);
+}
+
 function validateAndNormalizeOutput(
     rawOutput: unknown,
     form: GoogleFormInspection,
@@ -301,6 +335,7 @@ function validateAndNormalizeOutput(
     for (const detail of parsed.event_details) {
         if (eventFields.has(detail.field)) continue;
         if (detail.source_field_ids.some((id) => !fieldsById.has(id))) continue;
+        if (!hasVerifiableEvidence(detail, form, fieldsById)) continue;
         eventFields.add(detail.field);
         eventDetails.push(detail);
     }
