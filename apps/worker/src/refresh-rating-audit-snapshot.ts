@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import { bumpDataVersion, db } from '@tt-players/db';
 import { refreshRatingAuditIssues } from './ratings/rating-audit-issues.js';
 import { refreshRatingAuditSnapshot } from './ratings/rating-audit-snapshot.js';
+import { refreshRatingPlayerCoverage } from './ratings/rating-player-coverage.js';
 
 dotenv.config();
 
@@ -10,7 +11,8 @@ const modelKey = modelArg?.split('=')[1];
 
 try {
     const generatedAt = await refreshRatingAuditSnapshot(db, modelKey);
-    const issueCount = await refreshRatingAuditIssues(db, generatedAt, modelKey);
+    await refreshRatingAuditIssues(db, generatedAt, modelKey);
+    const issueCount = await refreshRatingPlayerCoverage(db, generatedAt, modelKey);
     const version = await bumpDataVersion(db, 'rating-audit');
 
     console.log(`Rating audit snapshot refreshed at ${generatedAt.toISOString()}`);
