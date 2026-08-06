@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Kysely, PostgresDialect } from 'kysely';
+import { Kysely, PostgresDialect, sql } from 'kysely';
 import pg from 'pg';
 import type { Database } from '@tt-players/db';
 import * as m001 from '../../../../packages/db/src/migrations/001_create_enums.js';
@@ -12,6 +12,7 @@ import * as m015 from '../../../../packages/db/src/migrations/015_add_rubber_pla
 import * as m028 from '../../../../packages/db/src/migrations/028_create_calculated_ratings.js';
 import * as m035 from '../../../../packages/db/src/migrations/035_create_api_read_models.js';
 import * as m040 from '../../../../packages/db/src/migrations/040_create_rating_audit_snapshots.js';
+import * as m042 from '../../../../packages/db/src/migrations/042_create_rating_audit_foundation.js';
 import { buildApp } from '../app.js';
 
 const { Pool } = pg;
@@ -44,6 +45,7 @@ beforeAll(async () => {
     await m028.up(db);
     await m035.up(db);
     await m040.up(db);
+    await m042.up(db);
 
     app = await buildApp(db);
     await app.ready();
@@ -83,6 +85,12 @@ describe('rating audit snapshot API', () => {
             .where('key', '=', 'global-singles-glicko2-v1')
             .executeTakeFirstOrThrow();
         const generatedAt = new Date('2026-08-03T05:17:00.000Z');
+
+        await sql`
+            UPDATE rating_models
+            SET window_start_date = '2016-07-25'::date
+            WHERE id = ${model.id}::uuid
+        `.execute(db);
 
         await db
             .insertInto('rating_audit_snapshots')
@@ -169,6 +177,7 @@ describe('rating audit snapshot API', () => {
             model: {
                 key: 'global-singles-glicko2-v1',
                 rated_players: 500,
+                window_start_date: '2016-07-25',
             },
             data: {
                 eligible_singles: 1200,
@@ -186,6 +195,58 @@ describe('rating audit snapshot API', () => {
                     unique_opponents: 3,
                 },
             ],
+        });
+    });
+
+    it('returns paginated, filterable audit issues', async () => {
+        const model = await db
+            .selectFrom('rating_models')
+            .select('id')
+            .where('key', '=', 'global-singles-glicko2-v1')
+            .executeTakeFirstOrThrow();
+        const observedAt = new Date('2026-08-03T05:17:00.000Z');
+
+        await db.insertInto('rating_audit_issues').values({
+            model_id: model.id,
+            issue_type: 'missing_home_player_id',
+            severity: 'warning',
+            entity_type: 'rubber',
+            entity_id: '22222222-2222-4222-8222-222222222222',
+            source_id: null,
+            competition_id: null,
+            match_date: '2026-07-20',
+            details: { fixture_id: '33333333-3333-4333-8333-333333333333' },
+            snapshot_generated_at: observedAt,
+            first_seen_at: observedAt,
+            last_seen_at: observedAt,
+            resolved_at: null,
+        }).execute();
+
+        const response = await app.inject({
+            method: 'GET',
+            url: '/api/ratings/audit/issues?issue_type=missing_home_player_id&severity=warning',
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toMatchObject({
+            data: [{
+                issue_type: 'missing_home_player_id',
+                severity: 'warning',
+                entity_type: 'rubber',
+                entity_id: '22222222-2222-4222-8222-222222222222',
+                match_date: '2026-07-20',
+            }],
+            summary: [{
+                issue_type: 'missing_home_player_id',
+                severity: 'warning',
+                count: 1,
+            }],
+            pagination: {
+                page: 1,
+                page_size: 50,
+                total: 1,
+                total_pages: 1,
+            },
         });
     });
 });
