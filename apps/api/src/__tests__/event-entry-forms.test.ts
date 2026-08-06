@@ -79,6 +79,7 @@ describe('cached tournament entry forms', () => {
                 provider: 'google_forms',
                 form_url: 'https://docs.google.com/forms/d/e/form-id/viewform',
                 title: 'Tournament Entry',
+                public_text: 'Venue: Rowhedge Village Hall, CO5 7HL',
                 fields: [
                     {
                         id: '123',
@@ -94,9 +95,9 @@ describe('cached tournament entry forms', () => {
                 version: 1,
                 status: 'ready',
                 provider: 'openai_compatible',
-                model: 'google/gemma-4-E4B-it',
-                prompt_version: '2026-08-06.1',
-                analysis_key: '2026-08-06.1:google/gemma-4-E4B-it',
+                model: 'deepseek-v4-flash',
+                prompt_version: '2026-08-06.5',
+                analysis_key: '2026-08-06.5:deepseek-v4-flash',
                 analyzed_at: inspectedAt,
                 mappings: [
                     {
@@ -112,7 +113,7 @@ describe('cached tournament entry forms', () => {
                         value: 'CO5 7HL',
                         confidence: 0.95,
                         evidence: 'Venue: Rowhedge Village Hall, CO5 7HL',
-                        source_field_ids: ['123'],
+                        source_field_ids: [],
                     },
                 ],
                 error_message: null,
