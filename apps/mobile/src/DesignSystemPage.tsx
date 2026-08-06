@@ -177,7 +177,7 @@ export function DesignSystemPage() {
         onClose={() => setSheetOpen(false)}
         title="Mobile overlay"
         eyebrow="Shadcn foundation"
-        description="Radix owns focus, Escape, outside interaction and focus restoration."
+        description="Radix owns focus trapping, Escape and outside interaction; the TT wrapper restores the invoking control."
         footer={<AppButton full onClick={() => setSheetOpen(false)}>Done</AppButton>}
       >
         <Stack gap="sm">
