@@ -103,4 +103,35 @@ The consuming Vite app enables Tailwind v4 through `@tailwindcss/vite`. Prefligh
 
 Advanced compositions may import low-level owned primitives from `@tt-players/design-system/primitives`, but reusable branded UI belongs in this package rather than in each app.
 
+## Package distribution
+
+Inside this monorepo the source package remains `@tt-players/design-system`, and applications should keep a workspace dependency:
+
+```json
+{
+  "dependencies": {
+    "@tt-players/design-system": "workspace:*"
+  }
+}
+```
+
+The compiled package is published to GitHub Packages as `@wudong/tt-players-design-system`. External TT applications configure the GitHub npm registry and install the released package:
+
+```ini
+@wudong:registry=https://npm.pkg.github.com
+```
+
+```sh
+pnpm add @wudong/tt-players-design-system
+```
+
+External imports use the published package name:
+
+```tsx
+import { AppButton } from '@wudong/tt-players-design-system';
+import '@wudong/tt-players-design-system/styles.css';
+```
+
+`Design System Package` runs only when `packages/design-system/**` changes. Pull requests build and inspect the package tarball; pushes to `main` publish the version from `packages/design-system/package.json`. Published versions are immutable, so every releasable package change must bump that version.
+
 The architecture and migration audit are documented in `docs/design-system/shadcn-migration.md`. Pull requests that change this package are validated through the design-system guard, mobile build and tests, and the focused responsive screenshot scenario.
