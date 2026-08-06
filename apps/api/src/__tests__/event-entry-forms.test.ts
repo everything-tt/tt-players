@@ -66,10 +66,10 @@ describe('cached tournament entry forms', () => {
         expect(response.body).toEqual({ data: null });
     });
 
-    it('returns the blank form schema stored by ingestion', async () => {
+    it('returns the blank form schema and semantic analysis stored by ingestion', async () => {
         const inspectedAt = '2026-08-06T10:00:00.000Z';
         const payload = {
-            version: 1,
+            version: 3,
             provider: 'google_forms',
             status: 'ready',
             source_url: 'https://docs.google.com/forms/d/e/form-id/viewform',
@@ -89,6 +89,33 @@ describe('cached tournament entry forms', () => {
                         options: [],
                     },
                 ],
+            },
+            semantic_analysis: {
+                version: 1,
+                status: 'ready',
+                provider: 'openai_compatible',
+                model: 'google/gemma-4-E4B-it',
+                prompt_version: '2026-08-06.1',
+                analysis_key: '2026-08-06.1:google/gemma-4-E4B-it',
+                analyzed_at: inspectedAt,
+                mappings: [
+                    {
+                        field_id: '123',
+                        profile_field: 'entrantName',
+                        confidence: 0.98,
+                        reason: 'The question explicitly asks for the player name.',
+                    },
+                ],
+                event_details: [
+                    {
+                        field: 'venue_postcode',
+                        value: 'CO5 7HL',
+                        confidence: 0.95,
+                        evidence: 'Venue: Rowhedge Village Hall, CO5 7HL',
+                        source_field_ids: ['123'],
+                    },
+                ],
+                error_message: null,
             },
             error_code: null,
             error_message: null,
