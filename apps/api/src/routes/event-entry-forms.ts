@@ -32,6 +32,7 @@ const GoogleFormSchema = z.object({
     provider: z.literal('google_forms'),
     form_url: z.string().url(),
     title: z.string(),
+    public_text: z.string().optional(),
     fields: z.array(GoogleFormFieldSchema),
 });
 
