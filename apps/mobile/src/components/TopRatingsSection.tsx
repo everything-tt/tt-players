@@ -99,8 +99,8 @@ export function TopRatingsSection({ leagueIds, onOpenPlayer }: TopRatingsSection
           iconClassName="fa fa-ranking-star"
           title="No established ratings yet"
           message={isSelectedScope
-            ? 'Established players from the selected leagues will appear once their rating deviation is 110 or lower.'
-            : 'Established players will appear once their rating deviation is 110 or lower.'}
+            ? 'Established players from the selected leagues will appear after they meet the current match-history, activity, opponent, and confidence requirements.'
+            : 'Established players will appear after they meet the current match-history, activity, opponent, and confidence requirements.'}
         />
       ) : (
         <List divider="hairline">
