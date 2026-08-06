@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { execSync } from 'node:child_process';
 
@@ -20,6 +21,7 @@ export default defineConfig({
     'import.meta.env.VITE_APP_COMMIT': JSON.stringify(appCommit),
   },
   plugins: [
+    tailwindcss(),
     react(),
     VitePWA({
       registerType: 'prompt',

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 const source = readFileSync(new URL('./BottomSheet.tsx', import.meta.url), 'utf8');
 
 describe('BottomSheet page presentation contract', () => {
-  it('provides a reusable full-page presentation without replacing sheet defaults', () => {
+  it('provides reusable sheet and full-page presentations', () => {
     expect(source).toContain("presentation?: 'sheet' | 'page';");
     expect(source).toContain('description?: ReactNode;');
     expect(source).toContain('footer?: ReactNode;');
@@ -13,7 +13,7 @@ describe('BottomSheet page presentation contract', () => {
     expect(source).toContain("presentation === 'sheet' && 'tt-sheet--standard'");
   });
 
-  it('renders dedicated description, body and footer regions for sticky page layout', () => {
+  it('renders dedicated description, body and footer regions', () => {
     expect(source).toContain('tt-sheet__description');
     expect(source).toContain('tt-sheet__body');
     expect(source).toContain('tt-sheet__footer');
@@ -21,17 +21,20 @@ describe('BottomSheet page presentation contract', () => {
   });
 
   it('removes the drag affordance and explicit height from page presentation', () => {
-    expect(source).toContain("{presentation === 'sheet' ? <div className=\"tt-sheet__handle\" aria-hidden=\"true\" /> : null}");
+    expect(source).toContain("presentation === 'sheet' ? <div className=\"tt-sheet__handle\" aria-hidden=\"true\" /> : null");
     expect(source).toContain("style={presentation === 'sheet' ? { height } : undefined}");
   });
 
-  it('does not restart modal focus management when callback identities change', () => {
-    expect(source).toContain('const onCloseRef = useRef(onClose);');
-    expect(source).toContain('const disableBackdropCloseRef = useRef(disableBackdropClose);');
-    expect(source).toContain('onCloseRef.current = onClose;');
-    expect(source).toContain('disableBackdropCloseRef.current = disableBackdropClose;');
-    expect(source).toContain('onCloseRef.current();');
-    expect(source).toContain('}, [autoFocus, isOpen]);');
-    expect(source).not.toContain('[autoFocus, disableBackdropClose, isOpen, onClose]');
+  it('delegates modal behaviour to the shadcn Radix Dialog foundation', () => {
+    expect(source).toContain("from '@radix-ui/react-dialog'");
+    expect(source).toContain('<DialogPrimitive.Root');
+    expect(source).toContain('<DialogPrimitive.Overlay');
+    expect(source).toContain('<DialogPrimitive.Content');
+    expect(source).toContain('onOpenAutoFocus');
+    expect(source).toContain('onPointerDownOutside');
+    expect(source).toContain('onEscapeKeyDown');
+    expect(source).not.toContain("document.addEventListener('keydown'");
+    expect(source).not.toContain('querySelectorAll<HTMLElement>');
+    expect(source).not.toContain('document.body.style.overflow');
   });
 });

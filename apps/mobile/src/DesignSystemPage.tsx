@@ -4,6 +4,9 @@ import {
   AppHeaderSpacer,
   AppPageContent,
   AppShellPage,
+  AppSearchInput,
+  AppSwitch,
+  BottomSheet,
   DesignAvatar,
   DesignList,
   EmptyState,
@@ -28,6 +31,8 @@ import { useNavigate } from 'react-router-dom';
 export function DesignSystemPage() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState<'all' | 'recent'>('all');
+  const [switchEnabled, setSwitchEnabled] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
     <AppShellPage>
@@ -80,6 +85,30 @@ export function DesignSystemPage() {
             />
             <AppButton size="sm" tone="outline">Action</AppButton>
           </FilterBar>
+        </PageSection>
+
+        <PageSection
+          surface="flat"
+          density="compact"
+          title="Interactive primitives"
+          description="Shadcn behaviour with TT branding, touch targets and mobile-safe overlays."
+        >
+          <Stack gap="sm">
+            <Inline gap="sm" align="center" wrap>
+              <AppButton onClick={() => setSheetOpen(true)}>Open bottom sheet</AppButton>
+              <AppButton tone="outline" loading>Loading action</AppButton>
+            </Inline>
+            <AppSearchInput aria-label="Search catalogue" placeholder="Search components…" />
+            <Inline gap="sm" align="center" justify="between">
+              <label htmlFor="catalogue-switch">Notifications</label>
+              <AppSwitch
+                id="catalogue-switch"
+                checked={switchEnabled}
+                onCheckedChange={setSwitchEnabled}
+                aria-label="Catalogue notifications"
+              />
+            </Inline>
+          </Stack>
         </PageSection>
 
         <PageSection
@@ -143,6 +172,19 @@ export function DesignSystemPage() {
           <ErrorState message="Error states preserve context and offer a retry." onRetry={() => undefined} />
         </PageSection>
       </AppPageContent>
+      <BottomSheet
+        isOpen={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        title="Mobile overlay"
+        eyebrow="Shadcn foundation"
+        description="Radix owns focus trapping, Escape and outside interaction; the TT wrapper restores the invoking control."
+        footer={<AppButton full onClick={() => setSheetOpen(false)}>Done</AppButton>}
+      >
+        <Stack gap="sm">
+          <Surface variant="subtle" padding="compact">The existing TT sheet geometry and safe-area contract is preserved.</Surface>
+          <AppButton tone="outline">Secondary action</AppButton>
+        </Stack>
+      </BottomSheet>
     </AppShellPage>
   );
 }

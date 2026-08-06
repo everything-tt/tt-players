@@ -1,0 +1,72 @@
+/* TT brand foundation. Import this once in every TT-branded app. */
+:root {
+  --accent: oklch(53% 0.18 30);
+  --accent-focus: oklch(59% 0.2 31);
+  --accent-pressed: oklch(46% 0.17 30);
+  --accent-subtle: oklch(53% 0.18 30 / 0.09);
+  --accent-soft: oklch(53% 0.18 30 / 0.16);
+  --accent-ring: oklch(53% 0.18 30 / 0.34);
+  --accent-border: oklch(53% 0.18 30 / 0.13);
+  --accent-border-strong: oklch(53% 0.18 30 / 0.34);
+  --panel-border: var(--accent-border);
+  --panel-border-strong: var(--accent-border-strong);
+  --state-success: oklch(52% 0.13 148);
+  --state-success-soft: oklch(52% 0.13 148 / 0.16);
+  --state-danger: oklch(53% 0.16 30);
+  --state-danger-soft: oklch(53% 0.16 30 / 0.16);
+  --state-danger-text: oklch(48% 0.16 30);
+  --state-warning: oklch(68% 0.16 75);
+  --state-warning-soft: oklch(68% 0.16 75 / 0.16);
+  --state-warning-text: oklch(60% 0.16 75);
+  --on-state: oklch(98% 0.006 151);
+  --ink: oklch(21% 0.034 158);
+  --ink-muted: oklch(21% 0.034 158 / 0.6);
+  --canvas-parchment: oklch(96% 0.018 151);
+  --surface-strong: oklch(98% 0.011 151);
+  --surface-subtle: oklch(21% 0.034 158 / 0.03);
+  --surface-subtle-strong: oklch(21% 0.034 158 / 0.06);
+  --border-hairline: oklch(21% 0.034 158 / 0.1);
+  --on-accent: oklch(98% 0.006 151);
+  --tt-home-surface: oklch(98% 0.011 151 / 0.88);
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 18px;
+  --radius-pill: 999px;
+  --space-section: 16px;
+  --space-card-pad: 16px;
+  --tap-min: 44px;
+  --btn-h-sm: 44px;
+  --btn-h-md: 44px;
+  --btn-h-lg: 48px;
+}
+
+body.theme-dark {
+  --accent: oklch(68% 0.18 31);
+  --accent-focus: oklch(74% 0.18 31);
+  --accent-pressed: oklch(60% 0.18 31);
+  --accent-subtle: oklch(68% 0.18 31 / 0.13);
+  --accent-soft: oklch(68% 0.18 31 / 0.22);
+  --accent-ring: oklch(68% 0.18 31 / 0.42);
+  --accent-border: oklch(68% 0.18 31 / 0.22);
+  --accent-border-strong: oklch(68% 0.18 31 / 0.44);
+  --panel-border: oklch(94% 0.006 265 / 0.24);
+  --panel-border-strong: oklch(94% 0.006 265 / 0.36);
+  --state-success: oklch(77% 0.13 148);
+  --state-success-soft: oklch(77% 0.13 148 / 0.2);
+  --state-danger: oklch(72% 0.16 30);
+  --state-danger-soft: oklch(72% 0.16 30 / 0.22);
+  --state-danger-text: oklch(75% 0.16 30);
+  --state-warning: oklch(78% 0.15 75);
+  --state-warning-soft: oklch(78% 0.15 75 / 0.2);
+  --state-warning-text: oklch(81% 0.15 75);
+  --ink: oklch(94% 0.006 265);
+  --ink-muted: oklch(94% 0.006 265 / 0.62);
+  --canvas-parchment: oklch(20% 0.012 265);
+  --surface-strong: oklch(25% 0.014 265);
+  --surface-subtle: oklch(94% 0.006 265 / 0.06);
+  --surface-subtle-strong: oklch(94% 0.006 265 / 0.1);
+  --border-hairline: oklch(94% 0.006 265 / 0.13);
+  --tt-home-surface: oklch(25% 0.014 265 / 0.9);
+}

@@ -100,6 +100,7 @@ export {
 } from './components/States';
 
 export { BottomSheet, type BottomSheetProps } from './components/BottomSheet';
+export { AppDrawer, type AppDrawerProps } from './components/AppDrawer';
 export {
   ActionMenu,
   type ActionMenuItem,
@@ -117,4 +118,5 @@ export { AppSwitch, type AppSwitchProps } from './components/AppSwitch';
 export { AppBackdrop, type AppBackdropProps } from './components/AppBackdrop';
 
 // Utilities
+export { cn } from './lib/utils';
 export { cx } from './utils/cx';

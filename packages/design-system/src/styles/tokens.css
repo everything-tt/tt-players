@@ -9,8 +9,10 @@
   --tt-space-8: 32px;
   --tt-gutter-flat: 12px;
   --tt-gutter-card: 16px;
-  --tt-section-gap-flat: 10px;
-  --tt-section-gap-standard: 14px;
+  --tt-section-gap-flat: 18px;
+  --tt-section-gap-compact: 18px;
+  --tt-section-gap-standard: 24px;
+  --tt-section-gap-editorial: 32px;
   --tt-row-height-compact: 56px;
   --tt-row-height-comfortable: 68px;
   --tt-avatar-compact: 40px;
@@ -59,6 +61,9 @@ body.theme-dark {
     --tt-gutter-flat: 10px;
     --tt-row-height-compact: 54px;
     --tt-avatar-compact: 38px;
-    --tt-section-gap-flat: 8px;
+    --tt-section-gap-flat: 16px;
+    --tt-section-gap-compact: 16px;
+    --tt-section-gap-standard: 20px;
+    --tt-section-gap-editorial: 28px;
   }
 }

@@ -1,0 +1,5 @@
+/* Explicitly neutralise legacy/global label backgrounds inside the mobile drawer. */
+.tt-drawer__row--switch > label {
+  background: transparent !important;
+  color: inherit;
+}

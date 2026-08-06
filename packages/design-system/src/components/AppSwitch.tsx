@@ -1,30 +1,29 @@
-import type { InputHTMLAttributes } from 'react';
-import { cx } from '../utils/cx';
+import type { ComponentPropsWithoutRef } from 'react';
+import { cn } from '../lib/utils';
+import { Switch } from './ui/switch';
 
-export interface AppSwitchProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
+export interface AppSwitchProps extends Omit<ComponentPropsWithoutRef<typeof Switch>, 'onCheckedChange'> {
   id: string;
   containerClassName?: string;
+  onCheckedChange?: (checked: boolean) => void;
 }
 
+/** Radix-backed shadcn switch with the stable TT visual contract. */
 export function AppSwitch({
   id,
   containerClassName,
   className,
   checked,
-  onChange,
+  onCheckedChange,
   ...props
 }: AppSwitchProps) {
   return (
-    <div className={cx('custom-control small-switch ios-switch', containerClassName)}>
-      <input
-        type="checkbox"
-        className={cx('ios-input', className)}
-        id={id}
-        checked={checked}
-        onChange={onChange}
-        {...props}
-      />
-      <label className="custom-control-label" htmlFor={id} />
-    </div>
+    <Switch
+      id={id}
+      className={cn('tt-switch', containerClassName, className)}
+      checked={checked}
+      onCheckedChange={onCheckedChange}
+      {...props}
+    />
   );
 }

@@ -1,8 +1,10 @@
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from 'react';
-import { cx } from '../utils/cx';
+import { LoaderCircle } from 'lucide-react';
+import { cn } from '../lib/utils';
+import { Button } from './ui/button';
 
-// Extended tone set. `primary`/`outline`/`ghost`/`danger` are the canonical
-// names; `highlight`/`outline-highlight` remain aliases for compatibility.
+// Extended tone set. `primary`/`outline`/`ghost`/`danger` are canonical;
+// `highlight`/`outline-highlight` remain aliases for compatibility.
 export type AppButtonTone =
   | 'highlight' | 'outline-highlight'
   | 'primary' | 'outline' | 'ghost' | 'danger';
@@ -18,6 +20,35 @@ const toneClassName: Record<AppButtonTone, string> = {
   ghost: 'tt-btn--ghost',
   danger: 'tt-btn--danger',
 };
+
+function appButtonClassName({
+  tone,
+  size,
+  rounded,
+  fontWeight,
+  full,
+  iconOnly,
+  className,
+}: {
+  tone: AppButtonTone;
+  size: AppButtonSize;
+  rounded: AppButtonRounded;
+  fontWeight: AppButtonFontWeight;
+  full: boolean;
+  iconOnly: boolean;
+  className?: string;
+}) {
+  return cn(
+    'tt-btn',
+    `tt-btn--${size}`,
+    `tt-btn-rounded--${rounded}`,
+    `tt-btn-weight--${fontWeight}`,
+    toneClassName[tone],
+    full && 'tt-btn--full',
+    iconOnly && 'tt-btn--icon-only',
+    className,
+  );
+}
 
 export interface AppButtonLinkProps extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'children'> {
   children: ReactNode;
@@ -42,22 +73,15 @@ export function AppButtonLink({
   ...props
 }: AppButtonLinkProps) {
   return (
-    <a
-      href={href}
-      className={cx(
-        'tt-btn',
-        `tt-btn--${size}`,
-        `tt-btn-rounded--${rounded}`,
-        `tt-btn-weight--${fontWeight}`,
-        toneClassName[tone],
-        full && 'tt-btn--full',
-        iconOnly && 'tt-btn--icon-only',
-        className,
-      )}
-      {...props}
-    >
-      {children}
-    </a>
+    <Button asChild variant="unstyled" size="unstyled">
+      <a
+        href={href}
+        className={appButtonClassName({ tone, size, rounded, fontWeight, full, iconOnly, className })}
+        {...props}
+      >
+        {children}
+      </a>
+    </Button>
   );
 }
 
@@ -87,30 +111,17 @@ export function AppButton({
   ...props
 }: AppButtonProps) {
   return (
-    <button
+    <Button
       type={type}
-      className={cx(
-        'tt-btn',
-        `tt-btn--${size}`,
-        `tt-btn-rounded--${rounded}`,
-        `tt-btn-weight--${fontWeight}`,
-        toneClassName[tone],
-        full && 'tt-btn--full',
-        iconOnly && 'tt-btn--icon-only',
-        className,
-      )}
+      variant="unstyled"
+      size="unstyled"
+      className={appButtonClassName({ tone, size, rounded, fontWeight, full, iconOnly, className })}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       {...props}
     >
-      {loading ? (
-        <>
-          <i className="fa fa-spinner fa-spin me-2" aria-hidden="true" />
-          {children}
-        </>
-      ) : (
-        children
-      )}
-    </button>
+      {loading ? <LoaderCircle className="tt-btn__spinner" aria-hidden="true" /> : null}
+      {children}
+    </Button>
   );
 }
