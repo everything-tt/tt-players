@@ -93,7 +93,7 @@ export function deriveCalendarEventStatus(
     const start = utcDay(event.startDate);
     const end = utcDay(event.endDate ?? event.startDate);
 
-    if (today > end) return 'completed';
+    if (today > end) return 'awaiting_results';
     if (today >= start && today <= end) return 'in_progress';
 
     if (event.entryDeadline) {
@@ -290,12 +290,16 @@ async function upsertCalendarEvent(
 ): Promise<'created' | 'updated' | 'unchanged'> {
     const hash = payloadHash(event);
     const existingSource = await db
-        .selectFrom('tournament_sources')
-        .select(['competition_id', 'payload_hash'])
-        .where('provider', '=', 'tte')
-        .where('source_type', '=', 'calendar')
-        .where('source_key', '=', event.sourceKey)
+        .selectFrom('tournament_sources as ts')
+        .innerJoin('competitions as c', 'c.id', 'ts.competition_id')
+        .select(['ts.competition_id', 'ts.payload_hash', 'c.processed_at'])
+        .where('ts.provider', '=', 'tte')
+        .where('ts.source_type', '=', 'calendar')
+        .where('ts.source_key', '=', event.sourceKey)
         .executeTakeFirst();
+    const status = existingSource?.processed_at
+        ? 'processed'
+        : deriveCalendarEventStatus(event, now);
 
     if (existingSource?.payload_hash === hash) {
         await db
@@ -308,7 +312,8 @@ async function upsertCalendarEvent(
         await db
             .updateTable('competitions')
             .set({
-                event_status: deriveCalendarEventStatus(event, now),
+                event_status: status,
+                record_kind: 'calendar',
                 calendar_last_seen_at: now,
             })
             .where('id', '=', existingSource.competition_id)
@@ -317,7 +322,6 @@ async function upsertCalendarEvent(
     }
 
     const seasonId = await ensureHierarchy(db, event);
-    const status = deriveCalendarEventStatus(event, now);
     const category = event.categories.length > 0 ? event.categories.join(', ') : null;
     const entryDeadline = event.entryDeadline
         ? new Date(`${event.entryDeadline}T23:59:59Z`)
@@ -341,6 +345,7 @@ async function upsertCalendarEvent(
                 entry_url: event.entryUrl,
                 information_url: event.sourceUrl,
                 event_status: status,
+                record_kind: 'calendar',
                 normalized_name: normalizeTournamentName(event.name),
                 normalized_venue: normalizeVenue(
                     [event.venueName, event.venueTown, event.venuePostcode].filter(Boolean).join(' '),
@@ -389,6 +394,7 @@ async function upsertCalendarEvent(
             entry_url: event.entryUrl,
             information_url: event.sourceUrl,
             event_status: status,
+            record_kind: 'calendar',
             normalized_name: normalizeTournamentName(event.name),
             normalized_venue: normalizeVenue(
                 [event.venueName, event.venueTown, event.venuePostcode].filter(Boolean).join(' '),

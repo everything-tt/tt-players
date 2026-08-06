@@ -26,6 +26,7 @@ export interface ScrapeSport80EventResultsPayload {
 
 interface CompetitionResolution {
     competitionId: string;
+    calendarCompetitionId: string | null;
     matchMethod:
         | 'existing-source'
         | 'embedding-automatic'
@@ -192,7 +193,7 @@ async function findCalendarCandidates(
             'category',
         ])
         .where('type', '=', 'individual')
-        .where('source', '=', 'tte-calendar')
+        .where('record_kind', '=', 'calendar')
         .where('deleted_at', 'is', null);
 
     if (eventDate) {
@@ -204,13 +205,14 @@ async function findCalendarCandidates(
     return query.limit(50).execute();
 }
 
-async function upsertSeparateSport80Competition(
+async function upsertResultCompetition(
     database: Kysely<any>,
     seasonId: string,
     eventId: string,
     eventName: string,
     eventDate: string | null,
     category: string | null,
+    matchedCalendarCompetitionId: string | null,
 ): Promise<string> {
     const externalId = `sport80:event:${eventId}`;
     const parsedName = parseSport80EventName(eventName);
@@ -234,6 +236,9 @@ async function upsertSeparateSport80Competition(
                 category: normalizedCategory,
                 source: 'sport80',
                 source_url: sourceUrl,
+                record_kind: 'result',
+                event_status: 'completed',
+                matched_calendar_competition_id: matchedCalendarCompetitionId,
             })
             .where('id', '=', existing.id)
             .execute();
@@ -253,7 +258,9 @@ async function upsertSeparateSport80Competition(
             type: 'individual',
             source: 'sport80',
             source_url: sourceUrl,
+            record_kind: 'result',
             event_status: 'completed',
+            matched_calendar_competition_id: matchedCalendarCompetitionId,
         })
         .returning('id')
         .executeTakeFirstOrThrow();
@@ -269,15 +276,22 @@ async function resolveCompetition(
     category: string | null,
 ): Promise<CompetitionResolution> {
     const existingSource = await database
-        .selectFrom('tournament_sources')
-        .select(['competition_id', 'match_method'])
-        .where('provider', '=', 'sport80')
-        .where('source_type', '=', 'results')
-        .where('source_key', '=', eventId)
+        .selectFrom('tournament_sources as ts')
+        .innerJoin('competitions as c', 'c.id', 'ts.competition_id')
+        .select([
+            'ts.competition_id',
+            'ts.match_method',
+            'c.record_kind',
+            'c.matched_calendar_competition_id',
+        ])
+        .where('ts.provider', '=', 'sport80')
+        .where('ts.source_type', '=', 'results')
+        .where('ts.source_key', '=', eventId)
         .executeTakeFirst();
-    if (existingSource) {
+    if (existingSource?.record_kind === 'result') {
         return {
             competitionId: existingSource.competition_id,
+            calendarCompetitionId: existingSource.matched_calendar_competition_id ?? null,
             matchMethod: 'existing-source',
         };
     }
@@ -314,35 +328,17 @@ async function resolveCompetition(
         ...(choice.score ? { scores: choice.score } : {}),
     };
 
+    let calendarCompetitionId: string | null = null;
+    let matchMethod: CompetitionResolution['matchMethod'] = 'separate';
+    let matchConfidence: number | null = null;
+
     if (choice.decision === 'automatic' && choice.candidate && choice.score) {
-        const matchMethod = choice.embeddingUsed ? 'embedding-automatic' : 'automatic';
-        await saveSport80SourceMapping(
-            database,
-            choice.candidate.id,
-            eventId,
-            eventName,
-            normalizedDate,
-            normalizedCategory,
-            matchMethod,
-            choice.score.total,
-            evidence,
-        );
-        return {
-            competitionId: choice.candidate.id,
-            matchMethod,
-        };
-    }
-
-    const separateCompetitionId = await upsertSeparateSport80Competition(
-        database,
-        seasonId,
-        eventId,
-        eventName,
-        normalizedDate,
-        category,
-    );
-
-    if (choice.decision === 'review' && choice.candidate && choice.score) {
+        calendarCompetitionId = choice.candidate.id;
+        matchMethod = choice.embeddingUsed ? 'embedding-automatic' : 'automatic';
+        matchConfidence = choice.score.total;
+    } else if (choice.decision === 'review' && choice.candidate && choice.score) {
+        matchMethod = 'review';
+        matchConfidence = choice.score.total;
         await recordReviewCandidate(
             database,
             eventId,
@@ -353,37 +349,48 @@ async function resolveCompetition(
             choice.score,
             evidence,
         );
-        await saveSport80SourceMapping(
-            database,
-            separateCompetitionId,
-            eventId,
-            eventName,
-            normalizedDate,
-            normalizedCategory,
-            choice.embeddingUsed ? 'embedding-review-pending' : 'review-pending',
-            choice.score.total,
-            evidence,
-        );
-        return {
-            competitionId: separateCompetitionId,
-            matchMethod: 'review',
-        };
     }
 
-    await saveSport80SourceMapping(
+    const resultCompetitionId = await upsertResultCompetition(
         database,
-        separateCompetitionId,
+        seasonId,
         eventId,
         eventName,
         normalizedDate,
         normalizedCategory,
-        'separate',
-        null,
+        calendarCompetitionId,
+    );
+
+    if (calendarCompetitionId) {
+        await database
+            .updateTable('competitions')
+            .set({
+                processed_at: new Date(),
+                event_status: 'processed',
+                record_kind: 'calendar',
+            })
+            .where('id', '=', calendarCompetitionId)
+            .execute();
+    }
+
+    await saveSport80SourceMapping(
+        database,
+        resultCompetitionId,
+        eventId,
+        eventName,
+        normalizedDate,
+        normalizedCategory,
+        matchMethod === 'review'
+            ? choice.embeddingUsed ? 'embedding-review-pending' : 'review-pending'
+            : matchMethod,
+        matchConfidence,
         evidence,
     );
+
     return {
-        competitionId: separateCompetitionId,
-        matchMethod: 'separate',
+        competitionId: resultCompetitionId,
+        calendarCompetitionId,
+        matchMethod,
     };
 }
 
@@ -488,7 +495,8 @@ export const scrapeSport80EventResultsTask: Task = async (payload, helpers) => {
             .updateTable('competitions')
             .set({
                 last_scraped_at: now,
-                ...(result.data.length > 0 ? { event_status: 'completed' } : {}),
+                record_kind: 'result',
+                event_status: 'completed',
             })
             .where('id', '=', competitionId)
             .execute();
