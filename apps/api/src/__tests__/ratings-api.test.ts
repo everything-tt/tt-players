@@ -14,7 +14,6 @@ import * as m031 from '../../../../packages/db/src/migrations/031_create_weekly_
 import * as m042 from '../../../../packages/db/src/migrations/042_create_rating_audit_foundation.js';
 import * as m043 from '../../../../packages/db/src/migrations/043_create_rating_player_coverage.js';
 import * as m045 from '../../../../packages/db/src/migrations/045_create_current_rating_rankings.js';
-import * as m049 from '../../../../packages/db/src/migrations/049_remove_rating_match_threshold.js';
 import { buildApp } from '../app.js';
 
 const { Pool } = pg;
@@ -97,19 +96,15 @@ beforeAll(async () => {
                 rating_deviation: 90,
                 volatility: 0.06,
                 conservative_rating: 1320,
-                rated_matches: 5,
-                rated_wins: 2,
-                rated_losses: 3,
+                rated_matches: 12,
+                rated_wins: 5,
+                rated_losses: 7,
                 first_rated_at: '2026-02-01',
                 last_rated_at: '2026-07-20',
-                provisional: true,
+                provisional: false,
             },
         ])
         .execute();
-
-    // Existing low-match players must be reclassified from the legacy match-count
-    // rule when the RD-only policy migration is applied.
-    await m049.up(db);
 
     await db.insertInto('rating_player_coverage').values([
         {
@@ -133,16 +128,16 @@ beforeAll(async () => {
             model_id: model.id,
             player_id: lowerPlayerId,
             category: 'covered',
-            raw_matches: 5,
-            singles_matches: 5,
-            normal_singles_matches: 5,
-            eligible_matches_all_time: 5,
-            eligible_matches_in_window: 5,
-            unique_opponents_in_window: 5,
+            raw_matches: 12,
+            singles_matches: 12,
+            normal_singles_matches: 12,
+            eligible_matches_all_time: 12,
+            eligible_matches_in_window: 12,
+            unique_opponents_in_window: 8,
             first_match_date: '2026-02-01',
             last_match_date: '2026-07-20',
             rating_exists: true,
-            rated_matches: 5,
+            rated_matches: 12,
             rating_deviation: 90,
             updated_at: new Date('2026-08-06T05:17:00Z'),
         },
@@ -168,7 +163,7 @@ beforeAll(async () => {
             effective_deviation: 94,
             effective_conservative_rating: 1312,
             days_inactive: 17,
-            unique_opponents: 5,
+            unique_opponents: 8,
             eligible: true,
             eligibility_reason: 'ranked',
             current_rank: 2,
@@ -184,7 +179,7 @@ beforeAll(async () => {
             status: 'idle',
             last_processed_date: '2026-07-20',
             processed_periods: 10,
-            processed_matches: 25,
+            processed_matches: 32,
             updated_at: new Date('2026-07-20T12:00:00Z'),
         })
         .execute();
@@ -237,7 +232,7 @@ describe('calculated ratings API', () => {
             processing: {
                 status: 'idle',
                 processed_periods: 10,
-                processed_matches: 25,
+                processed_matches: 32,
             },
         });
     });
@@ -289,7 +284,7 @@ describe('calculated ratings API', () => {
         });
     });
 
-    it('returns the current rank and full Glicko state for a migrated low-match player', async () => {
+    it('returns the current rank, effective uncertainty and volatility for a player', async () => {
         const response = await app.inject({
             method: 'GET',
             url: `/api/ratings/${lowerPlayerId}`,
@@ -304,12 +299,11 @@ describe('calculated ratings API', () => {
                 rating_deviation: 94,
                 volatility: 0.06,
                 conservative_rating: 1312,
-                provisional: false,
             },
         });
     });
 
-    it('returns the RD-only ranking policy and player eligibility evidence', async () => {
+    it('returns ranking policy and player eligibility evidence', async () => {
         const response = await app.inject({
             method: 'GET',
             url: '/api/ratings/audit/ranking-quality',
@@ -319,7 +313,7 @@ describe('calculated ratings API', () => {
         expect(response.json()).toMatchObject({
             policy: {
                 active_days: 365,
-                minimum_matches: 0,
+                minimum_matches: 10,
                 minimum_unique_opponents: 5,
                 maximum_deviation: 110,
             },
