@@ -42,6 +42,7 @@ jobs:
             "test -f /opt/tt-players/current/apps/worker/src/scrape-tte-events-once.ts"
 
       - name: Run full TTE calendar sync
+        id: sync
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -64,6 +65,7 @@ jobs:
           REMOTE
 
       - name: Verify live tournament endpoints
+        id: verify
         env:
           API_BASE_URL: https://ttp-api.tourneypilot.com/api
         run: |
@@ -98,11 +100,61 @@ jobs:
 
           const upcoming = validate('upcoming.json', 'upcoming');
           const completed = validate('completed.json', 'completed');
-          console.log(JSON.stringify({ upcoming, completed }, null, 2));
+          const summary = { upcoming, completed };
+          console.log(JSON.stringify(summary, null, 2));
+          fs.writeFileSync('calendar-sync-summary.json', JSON.stringify(summary));
+          NODE
 
-          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
-            `### TTE calendar sync\n` +
-            `- Upcoming tournaments: ${upcoming.total} total (${upcoming.returned} checked)\n` +
-            `- Completed tournaments: ${completed.total} total (${completed.returned} checked)\n`
+      - name: Add calendar sync summary
+        if: always()
+        env:
+          SYNC_OUTCOME: ${{ steps.sync.outcome }}
+          VERIFY_OUTCOME: ${{ steps.verify.outcome }}
+          JOB_STATUS: ${{ job.status }}
+          API_BASE_URL: https://ttp-api.tourneypilot.com/api
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          let counts;
+          try {
+            counts = JSON.parse(fs.readFileSync('calendar-sync-summary.json', 'utf8'));
+          } catch {}
+
+          const repositoryUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`;
+          const runUrl = `${repositoryUrl}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          const status = process.env.JOB_STATUS || 'unknown';
+          const icon = status === 'success' ? '✅' : status === 'cancelled' ? '⚪' : '❌';
+
+          const lines = [
+            `## ${icon} TTE tournament calendar sync`,
+            '',
+            '| Phase | Result |',
+            '| --- | --- |',
+            `| Full scraper sync | **${process.env.SYNC_OUTCOME || 'not run'}** |`,
+            `| Public endpoint verification | **${process.env.VERIFY_OUTCOME || 'not run'}** |`,
+          ];
+
+          if (counts) {
+            lines.push(
+              `| Upcoming tournaments | ${counts.upcoming.total} total (${counts.upcoming.returned} checked) |`,
+              `| Completed tournaments | ${counts.completed.total} total (${counts.completed.returned} checked) |`,
+            );
+          }
+
+          lines.push(
+            '',
+            `- [Upcoming tournament API](${process.env.API_BASE_URL}/events?status=upcoming&limit=20&offset=0)`,
+            `- [Completed tournament API](${process.env.API_BASE_URL}/events?status=completed&limit=20&offset=0)`,
+            `- [Open workflow run](${runUrl})`,
+            '',
           );
+
+          if (status !== 'success') {
+            lines.push('> [!WARNING]');
+            lines.push('> The production calendar sync or its public verification failed. Review the failed phase before relying on refreshed tournament data.');
+            lines.push('');
+          }
+
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
           NODE
