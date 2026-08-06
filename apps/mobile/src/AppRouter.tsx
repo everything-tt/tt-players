@@ -19,6 +19,7 @@ import { RatingAuditPage } from './RatingAuditPage';
 import { RatingPlayerCoveragePage } from './RatingPlayerCoveragePage';
 import { RatingRankingQualityPage } from './RatingRankingQualityPage';
 import { RatingSourceQualityPage } from './RatingSourceQualityPage';
+import { ScrapingMonitorPage } from './ScrapingMonitorPage';
 import { TopRatingsPage } from './TopRatingsPage';
 import { TeamPage } from './TeamPage';
 import { EventDetailPage } from './EventDetailPage';
@@ -77,6 +78,7 @@ export function AppRouter() {
 
                 <Route path="/about" element={<AboutPage />} />
                 <Route path="/data-coverage" element={<DataCoveragePage />} />
+                <Route path="/scraping-monitor" element={<ScrapingMonitorPage />} />
                 <Route path="/design-system" element={<DesignSystemPage />} />
                 <Route path="/rating-audit" element={<RatingAuditHealthPage section="overview" />} />
                 <Route path="/rating-audit/player" element={<RatingAuditPage />} />
