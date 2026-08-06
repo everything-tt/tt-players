@@ -115,11 +115,13 @@ export function TournamentEntryPrefillPage() {
 
     setLoading(true);
     try {
-      const params = new URLSearchParams({ url: safeUrl });
-      const response = await fetch(`${API_BASE_URL}/me/form-inspection?${params.toString()}`, {
+      const response = await fetch(`${API_BASE_URL}/me/form-inspection`, {
+        method: 'POST',
         headers: {
           Authorization: `Bearer ${auth.session.access_token}`,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ url: safeUrl }),
       });
       if (!response.ok) throw new Error(await readErrorMessage(response));
       const result = await response.json() as GoogleFormInspectionResponse;
@@ -227,7 +229,7 @@ export function TournamentEntryPrefillPage() {
 
                 <Inline gap="xs" wrap>
                   <AppButton type="submit" tone="primary" disabled={loading}>
-                    <i className="fa fa-wand-magic-sparkles" aria-hidden="true" />
+                    <i className="fa fa-magic" aria-hidden="true" />
                     {loading ? 'Inspecting form…' : 'Prepare entry'}
                   </AppButton>
                   <AppButton type="button" tone="ghost" onClick={() => navigateInTab('home', 'entry-profiles')}>
