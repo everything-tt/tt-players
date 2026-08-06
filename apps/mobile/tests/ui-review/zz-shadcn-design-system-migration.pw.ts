@@ -104,7 +104,7 @@ test('shadcn-backed TT primitives preserve mobile behaviour and visuals', async 
   const previewUrl = requirePreviewUrl();
   await prepareAppState(page, 'light-mode');
   await page.goto(`${previewUrl}/design-system`, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'Design System', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'TT Players UI', level: 1 })).toBeVisible();
 
   expect(await page.locator('[data-slot="button"]').count()).toBeGreaterThan(0);
   await expect(page.locator('[data-slot="input"]')).toHaveCount(1);
@@ -153,7 +153,7 @@ test('shadcn-backed TT primitives preserve mobile behaviour and visuals', async 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => localStorage.setItem('TTPlayers-Theme', 'dark-mode'));
   await page.goto(`${previewUrl}/design-system`, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'Design System', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'TT Players UI', level: 1 })).toBeVisible();
   const darkBackground = await page.evaluate(() => getComputedStyle(document.body).getPropertyValue('--background').trim());
   expect(darkBackground).toContain('canvas-parchment');
   await assertNoHorizontalOverflow(page, 'dark component catalogue');
