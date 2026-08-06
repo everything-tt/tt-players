@@ -54,24 +54,72 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Check main audit workflow contract
+        id: audit-contract
         run: node --test scripts/__tests__/main-ui-audit-workflow.test.mjs
 
       - name: Check design-system usage
+        id: design-system
         run: pnpm check:design-system
 
       - name: Build mobile app
+        id: mobile-build
         run: pnpm mobile:build
 
       - name: Run mobile tests
+        id: mobile-tests
         run: pnpm --filter @tt-players/mobile test -- --passWithNoTests
 
       - name: Validate main audit collection
+        id: audit-collection
         run: pnpm --filter @tt-players/mobile exec playwright test --config=../../playwright.main-audit.config.ts --list
 
       - name: Reject fake action links
+        id: action-links
         shell: bash
         run: |
           if grep -R --line-number --include='*.tsx' --include='*.ts' 'href="#"' apps/mobile/src; then
             echo 'Use buttons for actions and real links for navigation.'
             exit 1
           fi
+
+      - name: Add mobile CI summary
+        if: always()
+        env:
+          AUDIT_CONTRACT_OUTCOME: ${{ steps.audit-contract.outcome }}
+          DESIGN_SYSTEM_OUTCOME: ${{ steps.design-system.outcome }}
+          BUILD_OUTCOME: ${{ steps.mobile-build.outcome }}
+          TEST_OUTCOME: ${{ steps.mobile-tests.outcome }}
+          AUDIT_COLLECTION_OUTCOME: ${{ steps.audit-collection.outcome }}
+          ACTION_LINK_OUTCOME: ${{ steps.action-links.outcome }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const repositoryUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`;
+          const runUrl = `${repositoryUrl}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          const commitUrl = `${repositoryUrl}/commit/${process.env.GITHUB_SHA}`;
+          const shortSha = (process.env.GITHUB_SHA || '').slice(0, 7);
+          const status = process.env.JOB_STATUS || 'unknown';
+          const icon = status === 'success' ? '✅' : status === 'cancelled' ? '⚪' : '❌';
+
+          const lines = [
+            `## ${icon} Mobile CI`,
+            '',
+            '| Check | Result |',
+            '| --- | --- |',
+            `| Main audit workflow contract | **${process.env.AUDIT_CONTRACT_OUTCOME || 'not run'}** |`,
+            `| Design-system usage | **${process.env.DESIGN_SYSTEM_OUTCOME || 'not run'}** |`,
+            `| Production build | **${process.env.BUILD_OUTCOME || 'not run'}** |`,
+            `| Mobile tests | **${process.env.TEST_OUTCOME || 'not run'}** |`,
+            `| Main audit test discovery | **${process.env.AUDIT_COLLECTION_OUTCOME || 'not run'}** |`,
+            `| Fake action-link guard | **${process.env.ACTION_LINK_OUTCOME || 'not run'}** |`,
+            '',
+            `- Commit: [\`${shortSha}\`](${commitUrl})`,
+            `- Event: \`${process.env.GITHUB_EVENT_NAME}\``,
+            `- [Open workflow run](${runUrl})`,
+            '',
+          ];
+
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
+          NODE

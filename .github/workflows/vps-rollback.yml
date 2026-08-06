@@ -49,6 +49,7 @@ jobs:
           '
 
       - name: Roll back compatible release
+        id: rollback_release
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -64,17 +65,46 @@ jobs:
             "bash /opt/tt-players/current/scripts/rollback-vps-release.sh $target_q"
 
       - name: Verify production health
+        id: health
         run: |
           curl --fail --retry 10 --retry-delay 3 https://ttp-api.tourneypilot.com/api/health
           curl --fail --retry 10 --retry-delay 3 https://ttp-api.tourneypilot.com/api/health/db
 
       - name: Rollback summary
+        if: always()
         env:
           TARGET_RELEASE: ${{ inputs.target_release }}
+          ROLLBACK_OUTCOME: ${{ steps.rollback_release.outcome }}
+          HEALTH_OUTCOME: ${{ steps.health.outcome }}
+          JOB_STATUS: ${{ job.status }}
         run: |
-          {
-            echo "### VPS rollback"
-            echo "- Requested target: \`$TARGET_RELEASE\`"
-            echo "- Database compatibility checks: passed"
-            echo "- Production health checks: passed"
-          } >> "$GITHUB_STEP_SUMMARY"
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const repositoryUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`;
+          const runUrl = `${repositoryUrl}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          const status = process.env.JOB_STATUS || 'unknown';
+          const icon = status === 'success' ? '✅' : status === 'cancelled' ? '⚪' : '❌';
+
+          const lines = [
+            `## ${icon} VPS production rollback`,
+            '',
+            '| Phase | Result |',
+            '| --- | --- |',
+            `| Compatibility check and release switch | **${process.env.ROLLBACK_OUTCOME || 'not run'}** |`,
+            `| Production health checks | **${process.env.HEALTH_OUTCOME || 'not run'}** |`,
+            '',
+            `- Requested target: \`${process.env.TARGET_RELEASE}\``,
+            '- Health endpoints: [API](https://ttp-api.tourneypilot.com/api/health) · [Database](https://ttp-api.tourneypilot.com/api/health/db)',
+            `- [Open workflow run](${runUrl})`,
+            '',
+          ];
+
+          if (status !== 'success') {
+            lines.push('> [!WARNING]');
+            lines.push('> The rollback did not complete successfully. Check the failed phase and verify the active production release before retrying.');
+            lines.push('');
+          }
+
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
+          NODE

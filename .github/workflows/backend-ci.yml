@@ -19,6 +19,7 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
+      - '.github/workflows/actions-housekeeping.yml'
       - '.github/workflows/backend-ci.yml'
       - '.github/workflows/rating-backtest.yml'
       - '.github/workflows/vps-deploy.yml'
@@ -41,6 +42,7 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
+      - '.github/workflows/actions-housekeeping.yml'
       - '.github/workflows/backend-ci.yml'
       - '.github/workflows/rating-backtest.yml'
       - '.github/workflows/vps-deploy.yml'
@@ -87,12 +89,48 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Backend quality gate
+        id: quality
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
         run: pnpm run check:backend
 
       - name: Validate VPS scripts
+        id: scripts
         run: |
           bash -n scripts/lib/service-recovery.sh
           bash -n scripts/deploy-vps-release.sh
           bash -n scripts/rollback-vps-release.sh
+
+      - name: Add backend CI summary
+        if: always()
+        env:
+          QUALITY_OUTCOME: ${{ steps.quality.outcome }}
+          SCRIPT_OUTCOME: ${{ steps.scripts.outcome }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const repositoryUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`;
+          const runUrl = `${repositoryUrl}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          const commitUrl = `${repositoryUrl}/commit/${process.env.GITHUB_SHA}`;
+          const shortSha = (process.env.GITHUB_SHA || '').slice(0, 7);
+          const status = process.env.JOB_STATUS || 'unknown';
+          const icon = status === 'success' ? '✅' : status === 'cancelled' ? '⚪' : '❌';
+
+          const lines = [
+            `## ${icon} Backend CI`,
+            '',
+            '| Check | Result |',
+            '| --- | --- |',
+            `| Backend quality gate | **${process.env.QUALITY_OUTCOME || 'not run'}** |`,
+            `| VPS script validation | **${process.env.SCRIPT_OUTCOME || 'not run'}** |`,
+            '',
+            `- Commit: [\`${shortSha}\`](${commitUrl})`,
+            `- Event: \`${process.env.GITHUB_EVENT_NAME}\``,
+            `- [Open workflow run](${runUrl})`,
+            '',
+          ];
+
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
+          NODE
