@@ -28,6 +28,22 @@ export interface GoogleFormInspectionResponse {
   fields: GoogleFormInspectionField[];
 }
 
+export interface CachedEntryFormInspection {
+  version: 1;
+  provider: 'google_forms';
+  status: 'ready' | 'failed';
+  source_url: string;
+  inspected_at: string;
+  fingerprint: string | null;
+  form: GoogleFormInspectionResponse | null;
+  error_code: string | null;
+  error_message: string | null;
+}
+
+export interface CachedEntryFormInspectionResponse {
+  data: CachedEntryFormInspection | null;
+}
+
 export type TournamentEntryProfileField =
   | 'entrantName'
   | 'dateOfBirth'
@@ -95,10 +111,9 @@ export function sanitizeGoogleFormsUrl(input: string): string | null {
   return url.toString();
 }
 
-export function buildGoogleFormPreparationPath(input: string): string | null {
-  const url = sanitizeGoogleFormsUrl(input);
-  if (!url) return null;
-  const params = new URLSearchParams({ url });
+export function buildGoogleFormPreparationPath(input: string, eventId: string): string | null {
+  if (!sanitizeGoogleFormsUrl(input) || !eventId.trim()) return null;
+  const params = new URLSearchParams({ event: eventId.trim() });
   return `entry-prefill?${params.toString()}`;
 }
 
