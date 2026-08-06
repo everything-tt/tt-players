@@ -10,6 +10,7 @@ import {
   MY_PLAYER_STORAGE_KEY,
   restoreLocalDataBackup,
   THEME_STORAGE_KEY,
+  TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY,
 } from './local-persistence';
 import { FAVOURITES_STORAGE_KEY } from './player-shared';
 
@@ -62,6 +63,20 @@ describe('local data persistence backup', () => {
 
     expect(session.getItem(LOCAL_DATA_BACKUP_KEY)).toBeNull();
   });
+
+  it('does not copy account-scoped tournament entry details into a generic backup', () => {
+    const local = createStorage();
+    const session = createStorage();
+    local.setItem(TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      ownerUserId: 'user-a',
+      profiles: [],
+    }));
+
+    const backup = backupLocalData(local, session);
+
+    expect(backup.entries[TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY]).toBeUndefined();
+  });
 });
 
 describe('account data snapshots', () => {
@@ -98,5 +113,30 @@ describe('account data snapshots', () => {
     expect(local.getItem(LEAGUES_STORAGE_KEY)).toBe(JSON.stringify(['server-league']));
     expect(local.getItem(THEME_STORAGE_KEY)).toBe('dark-mode');
     expect(local.getItem(FAVOURITES_STORAGE_KEY)).toBeNull();
+  });
+
+  it('syncs tournament entry profiles only for the active account owner', () => {
+    const local = createStorage();
+    const userAStore = JSON.stringify({
+      version: 1,
+      ownerUserId: 'user-a',
+      profiles: [],
+    });
+    local.setItem(TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY, userAStore);
+
+    expect(createUserDataSnapshot(local, 'user-a').entries[TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY])
+      .toBe(userAStore);
+    expect(createUserDataSnapshot(local, 'user-b').entries[TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY])
+      .toBeUndefined();
+
+    const changed = applyUserDataSnapshot({
+      version: 1,
+      entries: {
+        [TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY]: userAStore,
+      },
+    }, local, 'user-b');
+
+    expect(changed).toBe(true);
+    expect(local.getItem(TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY)).toBeNull();
   });
 });
