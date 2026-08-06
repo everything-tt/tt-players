@@ -37,7 +37,7 @@ export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
       ? 'Sign in to unlock your profile'
       : myPlayer
         ? 'Your personal dashboard'
-        : 'Claim your indexed player';
+        : 'Claim yourself or manage entrants';
 
   return (
     <section className="tt-home-section">
@@ -56,7 +56,7 @@ export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
           <EmptyState
             iconClassName="fa fa-user-lock"
             title="Sign in to use My TT"
-            message="Sign in, claim your player as “Me”, then add your playing style, equipment and table tennis story."
+            message="Sign in, claim your player as “Me”, or save private tournament entry details for players you manage."
           />
           <div className="mt-3">
             <AppButton full tone="primary" onClick={() => { void auth.signInWithGoogle(); }}>
@@ -69,13 +69,17 @@ export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
         <>
           <EmptyState
             iconClassName="fa fa-id-badge"
-            title="Claim your player first"
-            message="Find your player record, follow it, then choose “This is me” to unlock My TT."
+            title="Claim your player or manage entrants"
+            message="You do not need to be a player yourself to prepare entries for children or players you coach."
           />
-          <div className="mt-3">
+          <div className="mt-3 d-flex flex-column gap-2">
             <AppButton full tone="primary" onClick={() => navigateInTab('players')}>
               <i className="fa fa-search" aria-hidden="true" />
               Find my player
+            </AppButton>
+            <AppButton full tone="outline" onClick={() => navigateInTab('home', 'entry-profiles')}>
+              <i className="fa fa-address-card" aria-hidden="true" />
+              Manage tournament entrants
             </AppButton>
           </div>
         </>
@@ -98,6 +102,10 @@ export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
             <AppButton full tone="primary" onClick={() => navigateInTab('home', 'my-tt')}>
               <i className="fa fa-user" aria-hidden="true" />
               Open My TT
+            </AppButton>
+            <AppButton full tone="outline" onClick={() => navigateInTab('home', 'entry-profiles')}>
+              <i className="fa fa-address-card" aria-hidden="true" />
+              Manage tournament entrants
             </AppButton>
             <AppButton full tone="outline" onClick={() => navigateInTab('players', `player/${myPlayer.id}/journal`)}>
               <i className="fa fa-book-open" aria-hidden="true" />
