@@ -19,6 +19,7 @@ export interface GoogleFormInspectionField {
   kind: GoogleFormFieldKind;
   required: boolean;
   options: string[];
+  prefill_parameter?: 'emailAddress';
 }
 
 export interface GoogleFormInspectionResponse {
@@ -29,7 +30,7 @@ export interface GoogleFormInspectionResponse {
 }
 
 export interface CachedEntryFormInspection {
-  version: 1;
+  version: 1 | 2;
   provider: 'google_forms';
   status: 'ready' | 'failed';
   source_url: string;
@@ -291,6 +292,7 @@ function valueCandidatesForField(
 ): string[] {
   if (profileField === 'currentDate') return [formatLocalDate(now)];
   if (profileField === 'relationship') return relationshipCandidates(profile);
+  if (profileField === 'email') return [profile.email.trim() || profile.guardianEmail.trim()];
   return [profile[profileField].trim()];
 }
 
@@ -328,7 +330,8 @@ export function buildGoogleFormsPrefilledUrl(
   url.searchParams.set('usp', 'pp_url');
   for (const mapping of mappings) {
     if (!mapping.canPrefill) continue;
-    url.searchParams.set(`entry.${mapping.field.id}`, mapping.value);
+    const parameter = mapping.field.prefill_parameter ?? `entry.${mapping.field.id}`;
+    url.searchParams.set(parameter, mapping.value);
   }
   return url.toString();
 }
