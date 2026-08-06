@@ -5,6 +5,7 @@ import {
   AppMessageCard,
   AppPageContent,
   AppTabBar,
+  BrowseHeader,
   EmptyState,
 } from './ui/appkit';
 
@@ -16,6 +17,32 @@ describe('mobile UI primitive contracts', () => {
     expect(content).toContain('tt-page-content');
     expect(header).toContain('tt-app-header');
     expect(header).toContain('tt-app-header__title');
+  });
+
+  it('renders browse pages with one h1 and coordinated header states', () => {
+    const markup = renderToStaticMarkup(
+      <BrowseHeader
+        title="Players"
+        leadingAction={{
+          id: 'menu',
+          ariaLabel: 'Open menu',
+          icon: <i className="fas fa-bars" />,
+          onClick: () => undefined,
+        }}
+        actions={[{
+          id: 'feedback',
+          ariaLabel: 'Send feedback',
+          icon: <i className="fas fa-comment-dots" />,
+          onClick: () => undefined,
+        }]}
+      />,
+    );
+
+    expect(markup.match(/<h1/g)).toHaveLength(1);
+    expect(markup).toContain('tt-browse-header__expanded');
+    expect(markup).toContain('tt-browse-header__compact');
+    expect(markup).toContain('data-state="expanded"');
+    expect(markup).toContain('aria-hidden="true"');
   });
 
   it('announces the selected tab and labels primary navigation', () => {
