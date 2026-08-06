@@ -2,9 +2,11 @@ import { z } from 'zod';
 import type { GoogleFormInspection } from './google-forms.js';
 
 export const ENTRY_FORM_SEMANTIC_ANALYSIS_VERSION = 1 as const;
-export const ENTRY_FORM_SEMANTIC_PROMPT_VERSION = '2026-08-06.4';
+export const ENTRY_FORM_SEMANTIC_PROMPT_VERSION = '2026-08-06.5';
 export const ENTRY_FORM_SEMANTIC_AUTO_APPLY_CONFIDENCE = 0.85;
 export const ENTRY_FORM_EVENT_ENRICHMENT_CONFIDENCE = 0.9;
+export const DEFAULT_ENTRY_FORM_LLM_BASE_URL = 'https://api.deepseek.com';
+export const DEFAULT_ENTRY_FORM_LLM_MODEL = 'deepseek-v4-flash';
 
 export const ENTRY_PROFILE_FIELDS = [
     'entrantName',
@@ -138,7 +140,11 @@ function boundedInteger(value: string | undefined, fallback: number, minimum: nu
 export function entryFormSemanticAnalysisConfiguration(
     environment: NodeJS.ProcessEnv = process.env,
 ): EntryFormSemanticAnalysisConfiguration | null {
-    const rawBaseUrl = environment.ENTRY_FORM_LLM_BASE_URL?.trim();
+    const apiKey = environment.DEEPSEEK_API_KEY?.trim()
+        || environment.ENTRY_FORM_LLM_API_KEY?.trim()
+        || null;
+    const rawBaseUrl = environment.ENTRY_FORM_LLM_BASE_URL?.trim()
+        || (apiKey ? DEFAULT_ENTRY_FORM_LLM_BASE_URL : '');
     if (!rawBaseUrl) return null;
 
     let baseUrl: URL;
@@ -153,8 +159,8 @@ export function entryFormSemanticAnalysisConfiguration(
 
     return {
         baseUrl: baseUrl.toString().replace(/\/$/, ''),
-        apiKey: environment.ENTRY_FORM_LLM_API_KEY?.trim() || null,
-        model: environment.ENTRY_FORM_LLM_MODEL?.trim() || 'google/gemma-4-E4B-it',
+        apiKey,
+        model: environment.ENTRY_FORM_LLM_MODEL?.trim() || DEFAULT_ENTRY_FORM_LLM_MODEL,
         timeoutMs: boundedInteger(environment.ENTRY_FORM_LLM_TIMEOUT_MS, 30_000, 5_000, 120_000),
     };
 }
@@ -399,9 +405,11 @@ export async function analyzeGoogleFormSemantics(
     const now = options.now ?? new Date();
     const requestBody = {
         model: configuration.model,
+        thinking: { type: 'disabled' },
         temperature: 0,
         max_tokens: 4_096,
         response_format: { type: 'json_object' },
+        stream: false,
         messages: [
             { role: 'system', content: semanticSystemPrompt() },
             { role: 'user', content: JSON.stringify(semanticInput(form, context)) },
