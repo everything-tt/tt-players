@@ -1,16 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { isTournamentDetailPath } from './GoogleFormsEntryInterceptor';
+import {
+  eventIdFromTournamentDetailPath,
+  isTournamentDetailPath,
+} from './GoogleFormsEntryInterceptor';
 
 describe('Google Forms tournament entry interception', () => {
-  it('matches tournament detail routes in tab and public URL forms', () => {
+  it('matches tournament detail routes and extracts the event id', () => {
+    expect(eventIdFromTournamentDetailPath('/tabs/events/event/123')).toBe('123');
+    expect(eventIdFromTournamentDetailPath('/tabs/home/event/event%20id/')).toBe('event id');
+    expect(eventIdFromTournamentDetailPath('/tournaments/456')).toBe('456');
     expect(isTournamentDetailPath('/tabs/events/event/123')).toBe(true);
-    expect(isTournamentDetailPath('/tabs/home/event/123/')).toBe(true);
-    expect(isTournamentDetailPath('/tournaments/123')).toBe(true);
   });
 
   it('does not intercept Google Form links away from tournament detail pages', () => {
+    expect(eventIdFromTournamentDetailPath('/tabs/home')).toBeNull();
+    expect(eventIdFromTournamentDetailPath('/tabs/home/entry-prefill')).toBeNull();
+    expect(eventIdFromTournamentDetailPath('/tabs/players/player/123')).toBeNull();
     expect(isTournamentDetailPath('/tabs/home')).toBe(false);
-    expect(isTournamentDetailPath('/tabs/home/entry-prefill')).toBe(false);
-    expect(isTournamentDetailPath('/tabs/players/player/123')).toBe(false);
   });
 });

@@ -81,10 +81,6 @@ export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
               <i className="fa fa-address-card" aria-hidden="true" />
               Manage tournament entrants
             </AppButton>
-            <AppButton full tone="outline" onClick={() => navigateInTab('home', 'entry-prefill')}>
-              <i className="fa fa-magic" aria-hidden="true" />
-              Prepare a Google Form
-            </AppButton>
           </div>
         </>
       ) : statsQuery.isLoading ? (
@@ -110,10 +106,6 @@ export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
             <AppButton full tone="outline" onClick={() => navigateInTab('home', 'entry-profiles')}>
               <i className="fa fa-address-card" aria-hidden="true" />
               Manage tournament entrants
-            </AppButton>
-            <AppButton full tone="outline" onClick={() => navigateInTab('home', 'entry-prefill')}>
-              <i className="fa fa-magic" aria-hidden="true" />
-              Prepare a Google Form
             </AppButton>
             <AppButton full tone="outline" onClick={() => navigateInTab('players', `player/${myPlayer.id}/journal`)}>
               <i className="fa fa-book-open" aria-hidden="true" />

@@ -1,5 +1,6 @@
 import type { Task } from 'graphile-worker';
 import { db } from '@tt-players/db';
+import { inspectPendingTournamentEntryForms } from '../entry-form-inspection.js';
 import {
     defaultTteCalendarWindow,
     syncTteCalendarEvents,
@@ -28,4 +29,7 @@ export const scrapeTteCalendarEventsTask: Task = async (payload, helpers) => {
         concurrency,
     });
     helpers.logger.info(`scrapeTteCalendarEventsTask: ${JSON.stringify(summary)}`);
+
+    const entryForms = await inspectPendingTournamentEntryForms(db);
+    helpers.logger.info(`scrapeTteCalendarEventsTask entry forms: ${JSON.stringify(entryForms)}`);
 };
