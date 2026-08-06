@@ -6,10 +6,10 @@ import { apiFetch } from '../player-shared';
 import { useTabNavigation } from '../navigation/tab-navigation';
 import {
   buildGoogleFormPreparationPath,
-  isGoogleFormsUrl,
   type CachedEntryFormInspectionResponse,
 } from '../tournament-entry-prefill';
 import { Pill } from '../ui/appkit';
+import './google-forms-entry-interceptor.css';
 
 export function eventIdFromTournamentDetailPath(pathname: string): string | null {
   const tabMatch = pathname.match(/^\/tabs\/[^/]+\/event\/([^/]+)\/?$/);
@@ -28,12 +28,14 @@ export function hasReadyEntryAssist(
   return response?.data?.status === 'ready' && response.data.form !== null;
 }
 
-function findPrimaryEntryActionTarget(): HTMLElement | null {
-  const anchors = document.querySelectorAll<HTMLAnchorElement>(
-    '.tt-tournament-detail-page a[href]',
+function findEventStatusTarget(): HTMLElement | null {
+  const headers = document.querySelectorAll<HTMLElement>(
+    '.tt-tournament-detail-page .tt-section-header',
   );
-  const entryAnchor = Array.from(anchors).find((anchor) => isGoogleFormsUrl(anchor.href));
-  return entryAnchor?.parentElement ?? null;
+  const eventInformationHeader = Array.from(headers).find((header) => (
+    header.querySelector('.tt-section-header__title')?.textContent?.trim() === 'Event information'
+  ));
+  return eventInformationHeader?.querySelector<HTMLElement>('.tt-section-header__description') ?? null;
 }
 
 export function GoogleFormsEntryInterceptor() {
@@ -92,7 +94,7 @@ export function GoogleFormsEntryInterceptor() {
     }
 
     const refreshTarget = () => {
-      const nextTarget = findPrimaryEntryActionTarget();
+      const nextTarget = findEventStatusTarget();
       setIndicatorTarget((current) => current === nextTarget ? current : nextTarget);
     };
 
@@ -105,10 +107,12 @@ export function GoogleFormsEntryInterceptor() {
   if (!entryAssistReady || !indicatorTarget) return null;
 
   return createPortal(
-    <Pill size="xs" tone="accent">
-      <i className="fa fa-magic" aria-hidden="true" />
-      Entry assist ready
-    </Pill>,
+    <span className="tt-entry-assist-status-indicator">
+      <Pill tone="accent">
+        <i className="fa fa-magic" aria-hidden="true" />
+        Entry assist ready
+      </Pill>
+    </span>,
     indicatorTarget,
   );
 }
