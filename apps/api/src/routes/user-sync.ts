@@ -4,6 +4,10 @@ import { z } from 'zod';
 import type { Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
 import { requireSupabaseUser } from '../auth.js';
+import {
+    GoogleFormInspectionError,
+    inspectGoogleForm,
+} from '../forms/google-forms.js';
 
 const MAX_SYNC_BYTES = 900_000;
 const ALLOWED_SYNC_KEYS = new Set([
@@ -53,6 +57,37 @@ const ErrorSchema = z.object({
     statusCode: z.number().int(),
 });
 
+const FormInspectionQuerySchema = z.object({
+    url: z.string().url().max(2_048),
+});
+
+const GoogleFormFieldSchema = z.object({
+    id: z.string(),
+    label: z.string(),
+    description: z.string().nullable(),
+    kind: z.enum([
+        'short_text',
+        'paragraph',
+        'multiple_choice',
+        'dropdown',
+        'checkboxes',
+        'linear_scale',
+        'grid',
+        'date',
+        'time',
+        'unknown',
+    ]),
+    required: z.boolean(),
+    options: z.array(z.string()),
+});
+
+const GoogleFormInspectionSchema = z.object({
+    provider: z.literal('google_forms'),
+    form_url: z.string().url(),
+    title: z.string(),
+    fields: z.array(GoogleFormFieldSchema),
+});
+
 type SyncSnapshot = z.infer<typeof SyncSnapshotSchema>;
 
 interface SyncStateRow {
@@ -63,6 +98,40 @@ interface SyncStateRow {
 export function userSyncRoutes(db: Kysely<Database>): FastifyPluginAsync {
     return async function (fastify) {
         const app = fastify.withTypeProvider<ZodTypeProvider>();
+
+        app.get(
+            '/form-inspection',
+            {
+                schema: {
+                    querystring: FormInspectionQuerySchema,
+                    response: {
+                        200: GoogleFormInspectionSchema,
+                        400: ErrorSchema,
+                        401: ErrorSchema,
+                        422: ErrorSchema,
+                        502: ErrorSchema,
+                        503: ErrorSchema,
+                    },
+                },
+            },
+            async (request, reply) => {
+                const user = await requireSupabaseUser(request, reply);
+                if (!user) return;
+
+                reply.header('Cache-Control', 'private, no-store');
+                try {
+                    return await inspectGoogleForm(request.query.url);
+                } catch (error) {
+                    if (error instanceof GoogleFormInspectionError) {
+                        return reply.status(error.statusCode).send({
+                            error: error.message,
+                            statusCode: error.statusCode,
+                        });
+                    }
+                    throw error;
+                }
+            },
+        );
 
         app.post(
             '/sync-state/bootstrap',
