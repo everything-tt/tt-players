@@ -19,29 +19,15 @@ export interface GoogleFormInspectionField {
   kind: GoogleFormFieldKind;
   required: boolean;
   options: string[];
+  prefill_parameter?: 'emailAddress';
 }
 
 export interface GoogleFormInspectionResponse {
   provider: 'google_forms';
   form_url: string;
   title: string;
+  public_text?: string | null;
   fields: GoogleFormInspectionField[];
-}
-
-export interface CachedEntryFormInspection {
-  version: 1;
-  provider: 'google_forms';
-  status: 'ready' | 'failed';
-  source_url: string;
-  inspected_at: string;
-  fingerprint: string | null;
-  form: GoogleFormInspectionResponse | null;
-  error_code: string | null;
-  error_message: string | null;
-}
-
-export interface CachedEntryFormInspectionResponse {
-  data: CachedEntryFormInspection | null;
 }
 
 export type TournamentEntryProfileField =
@@ -60,13 +46,73 @@ export type TournamentEntryProfileField =
   | 'guardianEmail'
   | 'guardianPhone';
 
+export interface EntryFormSemanticMapping {
+  field_id: string;
+  profile_field: TournamentEntryProfileField | null;
+  confidence: number;
+  reason: string;
+}
+
+export interface EntryFormSemanticEventDetail {
+  field:
+    | 'display_name'
+    | 'description'
+    | 'start_date'
+    | 'end_date'
+    | 'entry_deadline'
+    | 'venue_name'
+    | 'venue_address'
+    | 'venue_town'
+    | 'venue_postcode'
+    | 'organizer_name'
+    | 'category';
+  value: string;
+  confidence: number;
+  evidence: string;
+  source_field_ids: string[];
+}
+
+export interface EntryFormSemanticAnalysis {
+  version: 1;
+  status: 'ready' | 'failed';
+  provider: 'openai_compatible';
+  model: string;
+  prompt_version: string;
+  analysis_key: string;
+  analyzed_at: string;
+  mappings: EntryFormSemanticMapping[];
+  event_details: EntryFormSemanticEventDetail[];
+  error_message: string | null;
+}
+
+export interface CachedEntryFormInspection {
+  version: 1 | 2 | 3;
+  provider: 'google_forms';
+  status: 'ready' | 'failed';
+  source_url: string;
+  inspected_at: string;
+  fingerprint: string | null;
+  form: GoogleFormInspectionResponse | null;
+  semantic_analysis?: EntryFormSemanticAnalysis | null;
+  error_code: string | null;
+  error_message: string | null;
+}
+
+export interface CachedEntryFormInspectionResponse {
+  data: CachedEntryFormInspection | null;
+}
+
 export interface GoogleFormFieldMapping {
   field: GoogleFormInspectionField;
   profileField: TournamentEntryProfileField | null;
   profileFieldLabel: string | null;
   value: string;
   canPrefill: boolean;
+  mappingSource: 'semantic' | 'deterministic' | null;
+  mappingConfidence: number | null;
 }
+
+const SEMANTIC_AUTO_APPLY_CONFIDENCE = 0.85;
 
 const PROFILE_FIELD_LABELS: Record<TournamentEntryProfileField, string> = {
   entrantName: 'Entrant name',
@@ -78,19 +124,18 @@ const PROFILE_FIELD_LABELS: Record<TournamentEntryProfileField, string> = {
   county: 'County',
   fullAddress: 'Full address',
   nationalAssociation: 'National association',
-  relationship: 'Relationship to player',
+  relationship: 'Relationship to entrant',
   currentDate: 'Today’s date',
-  guardianName: 'Parent or manager name',
-  guardianEmail: 'Parent or manager email',
-  guardianPhone: 'Parent or manager phone',
+  guardianName: 'Parent / manager name',
+  guardianEmail: 'Parent / manager email',
+  guardianPhone: 'Parent / manager phone',
 };
 
 function normalizeText(value: string): string {
   return value
     .toLowerCase()
-    .replace(/[’']/g, '')
-    .replace(/&/g, ' and ')
     .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
@@ -98,12 +143,8 @@ function normalizeQuestionText(field: GoogleFormInspectionField): string {
   return normalizeText(`${field.label} ${field.description ?? ''}`);
 }
 
-function normalizeQuestionLabel(field: GoogleFormInspectionField): string {
-  return normalizeText(field.label).replace(/^\d+\s+/, '');
-}
-
-function includesAny(value: string, terms: string[]): boolean {
-  return terms.some((term) => value.includes(term));
+function includesAny(text: string, terms: string[]): boolean {
+  return terms.some((term) => text.includes(term));
 }
 
 function isSensitiveQuestion(text: string): boolean {
@@ -115,6 +156,7 @@ function isSensitiveQuestion(text: string): boolean {
     'allergy',
     'allergies',
     'health condition',
+    'safeguarding',
     'access requirement',
     'accessibility requirement',
     'special requirement',
@@ -125,162 +167,180 @@ function isSensitiveQuestion(text: string): boolean {
     'signed by',
     'terms and conditions',
     'agree to',
+    'payment',
+    'card number',
+    'account number',
+    'bank account',
+    'sort code',
+    'bacs',
   ]);
 }
 
-export function isGoogleFormsUrl(input: string): boolean {
+function isPartnerOrTeamQuestion(text: string): boolean {
+  return includesAny(text, [
+    'doubles partner',
+    'partner name',
+    'team member',
+    'team mate',
+    'teammate',
+  ]);
+}
+
+function isDeclarantQuestion(text: string): boolean {
+  return includesAny(text, [
+    'person making this declaration',
+    'name of declarant',
+    'declarant name',
+    'signed by',
+  ]);
+}
+
+function isGuardianContext(text: string): boolean {
+  return includesAny(text, [
+    'parent',
+    'guardian',
+    'manager',
+    'coach',
+    'responsible adult',
+    'person completing',
+    'person making entry',
+    'person entering',
+    'emergency contact',
+  ]);
+}
+
+function isEntrantContext(text: string): boolean {
+  return includesAny(text, [
+    'player',
+    'entrant',
+    'competitor',
+    'participant',
+    'athlete',
+  ]);
+}
+
+export function isGoogleFormsUrl(value: string): boolean {
   try {
-    const url = new URL(input.trim());
+    const url = new URL(value);
     if (url.protocol !== 'https:') return false;
     if (url.hostname === 'forms.gle') return url.pathname.length > 1;
-    return url.hostname === 'docs.google.com'
-      && /^\/forms\/d\/(?:e\/)?[^/]+(?:\/viewform)?\/?$/.test(url.pathname);
+    if (url.hostname !== 'docs.google.com') return false;
+    return /^\/forms\/d\/(?:e\/)?[^/]+(?:\/viewform)?\/?$/.test(url.pathname);
   } catch {
     return false;
   }
 }
 
-export function sanitizeGoogleFormsUrl(input: string): string | null {
-  if (!isGoogleFormsUrl(input)) return null;
-  const url = new URL(input.trim());
+export function sanitizeGoogleFormsUrl(value: string): string | null {
+  if (!isGoogleFormsUrl(value)) return null;
+  const url = new URL(value);
   url.username = '';
   url.password = '';
   url.search = '';
   url.hash = '';
+  if (url.hostname === 'docs.google.com' && !url.pathname.endsWith('/viewform')) {
+    url.pathname = `${url.pathname.replace(/\/$/, '')}/viewform`;
+  }
   return url.toString();
 }
 
-export function buildGoogleFormPreparationPath(input: string, eventId: string): string | null {
-  if (!sanitizeGoogleFormsUrl(input) || !eventId.trim()) return null;
-  const params = new URLSearchParams({ event: eventId.trim() });
-  return `entry-prefill?${params.toString()}`;
+export function buildGoogleFormPreparationPath(
+  value: string,
+  eventId: string,
+): string | null {
+  const sanitized = sanitizeGoogleFormsUrl(value);
+  if (!sanitized || !eventId.trim()) return null;
+  return `entry-prefill?${new URLSearchParams({ event: eventId }).toString()}`;
 }
 
 export function profileFieldForGoogleQuestion(
   field: GoogleFormInspectionField,
 ): TournamentEntryProfileField | null {
-  const text = normalizeQuestionText(field);
-  const label = normalizeQuestionLabel(field);
-  if (!text) return null;
+  if (field.prefill_parameter === 'emailAddress') return 'email';
 
-  if (includesAny(text, ['doubles partner', 'double partner', 'partner name', 'team mate', 'teammate'])) {
+  const text = normalizeQuestionText(field);
+  if (!text || isSensitiveQuestion(text) || isPartnerOrTeamQuestion(text) || isDeclarantQuestion(text)) {
     return null;
   }
 
-  if (/(date of birth|birth date|\bdob\b)/.test(text)) return 'dateOfBirth';
-
-  if (field.kind === 'date' && (
-    label === 'date'
-    || includesAny(label, ['declaration date', 'date signed', 'signature date', 'todays date'])
-  )) {
+  if (includesAny(text, ['date of birth', 'birth date', 'dob'])) return 'dateOfBirth';
+  if (includesAny(text, ['tte membership', 'table tennis england membership', 'membership number', 'licence number', 'license number'])) {
+    return 'tteMembershipNumber';
+  }
+  if (includesAny(text, ['national association', 'national governing body'])) return 'nationalAssociation';
+  if (includesAny(text, ['full address', 'home address', 'postal address', 'address including postcode', 'address incl postcode'])) {
+    return 'fullAddress';
+  }
+  if (includesAny(text, ['relationship to player', 'relationship to entrant', 'relationship to competitor'])) {
+    return 'relationship';
+  }
+  if (
+    field.kind === 'date'
+    && includesAny(text, ['date', 'today', 'dated'])
+    && !includesAny(text, ['birth', 'event', 'tournament', 'competition'])
+  ) {
     return 'currentDate';
   }
 
-  if (isSensitiveQuestion(text)) return null;
-
-  const isGuardian = includesAny(text, [
-    'guardian',
-    'parent',
-    'carer',
-    'coach contact',
-    'manager contact',
-    'emergency contact',
-  ]);
-  if (isGuardian && includesAny(text, ['email', 'e mail'])) return 'guardianEmail';
-  if (isGuardian && includesAny(text, ['phone', 'mobile', 'telephone', 'tel number', 'contact number'])) {
-    return 'guardianPhone';
+  if (text.includes('email')) {
+    return isGuardianContext(text) ? 'guardianEmail' : 'email';
   }
-  if (isGuardian && includesAny(text, ['name', 'contact person'])) return 'guardianName';
+  if (includesAny(text, ['phone', 'telephone', 'mobile', 'contact number'])) {
+    return isGuardianContext(text) ? 'guardianPhone' : 'phone';
+  }
+  if (text.includes('county')) return 'county';
+  if (includesAny(text, ['club', 'table tennis club'])) return 'club';
 
-  if (includesAny(text, [
-    'full address',
-    'home address',
-    'postal address',
-    'residential address',
-    'address including postcode',
-    'address incl postcode',
-    'address and postcode',
-  ])) {
-    return 'fullAddress';
+  if (includesAny(text, ['name', 'full name'])) {
+    if (isGuardianContext(text)) return 'guardianName';
+    if (isEntrantContext(text)) return 'entrantName';
   }
 
-  if (includesAny(text, [
-    'national association',
-    'national governing body',
-    'home association',
-    'table tennis association',
-  ])) {
-    return 'nationalAssociation';
-  }
-
-  if (includesAny(text, [
-    'relationship to player',
-    'relationship with player',
-    'relationship to entrant',
-    'relationship to competitor',
-    'your relationship to the player',
-  ])) {
-    return 'relationship';
-  }
-
-  const hasMembershipTerm = includesAny(text, [
-    'membership',
-    'member number',
-    'membership number',
-    'licence',
-    'license',
-    'registration number',
-    'player number',
-    'player id',
-  ]);
-  if ((includesAny(text, ['tte', 'table tennis england']) && hasMembershipTerm)
-    || includesAny(text, ['tte number', 'tte id'])) {
-    return 'tteMembershipNumber';
-  }
-
-  if (/\bclub\b/.test(text) && !includesAny(text, ['club organiser', 'club secretary'])) return 'club';
-  if (/\bcounty\b/.test(text)) return 'county';
-  if (includesAny(text, ['email', 'e mail'])) return 'email';
-  if (includesAny(text, ['phone', 'mobile', 'telephone', 'tel number', 'contact number'])) return 'phone';
-
-  if (includesAny(text, [
-    'player name',
-    'players name',
-    'entrant name',
-    'entrants name',
-    'competitor name',
-    'competitors name',
-    'full name',
-    'registered name',
-  ])) {
-    return 'entrantName';
-  }
-
-  if (label === 'name' || label === 'your name') return 'entrantName';
   return null;
+}
+
+function semanticMappingForGoogleQuestion(
+  field: GoogleFormInspectionField,
+  analysis: EntryFormSemanticAnalysis | null | undefined,
+): EntryFormSemanticMapping | null {
+  if (!analysis || analysis.status !== 'ready' || isSensitiveQuestion(normalizeQuestionText(field))) {
+    return null;
+  }
+  const candidates = analysis.mappings
+    .filter((mapping) => (
+      mapping.field_id === field.id
+      && mapping.profile_field
+      && mapping.confidence >= SEMANTIC_AUTO_APPLY_CONFIDENCE
+    ))
+    .sort((left, right) => right.confidence - left.confidence);
+  return candidates[0] ?? null;
 }
 
 function supportsProfilePrefill(kind: GoogleFormFieldKind): boolean {
   return kind === 'short_text'
     || kind === 'paragraph'
-    || kind === 'date'
     || kind === 'multiple_choice'
-    || kind === 'dropdown';
+    || kind === 'dropdown'
+    || kind === 'date';
 }
 
-function formatLocalDate(value: Date): string {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, '0');
-  const day = String(value.getDate()).padStart(2, '0');
+function formatLocalDate(now: Date): string {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
 function relationshipCandidates(profile: TournamentEntryProfile): string[] {
   switch (profile.relationship) {
-    case 'self': return ['Player', 'Self', 'Myself'];
-    case 'child': return ['Parent/guardian', 'Parent or guardian', 'Parent', 'Guardian'];
-    case 'coached': return ['Coach'];
-    case 'other': return ['Manager', 'Other'];
+    case 'self':
+      return ['Self', 'Player', 'Entrant', 'Competitor'];
+    case 'child':
+      return ['Parent / Guardian', 'Parent', 'Guardian'];
+    case 'coached_player':
+      return ['Coach', 'Manager'];
+    default:
+      return [];
   }
 }
 
@@ -291,31 +351,55 @@ function valueCandidatesForField(
 ): string[] {
   if (profileField === 'currentDate') return [formatLocalDate(now)];
   if (profileField === 'relationship') return relationshipCandidates(profile);
+  if (profileField === 'email') return [profile.email.trim() || profile.guardianEmail.trim()];
   return [profile[profileField].trim()];
 }
 
 function exactChoiceMatch(options: string[], candidates: string[]): string {
-  const normalizedCandidates = new Set(candidates.map(normalizeText).filter(Boolean));
+  const normalizedCandidates = new Set(candidates.filter(Boolean).map(normalizeText));
   return options.find((option) => normalizedCandidates.has(normalizeText(option))) ?? '';
 }
+
+const SEMANTIC_OVERRIDEABLE_DETERMINISTIC_FIELDS = new Set<TournamentEntryProfileField>([
+  'entrantName',
+  'email',
+  'phone',
+]);
 
 export function mapGoogleFormFields(
   inspection: GoogleFormInspectionResponse,
   profile: TournamentEntryProfile,
   now = new Date(),
+  semanticAnalysis: EntryFormSemanticAnalysis | null = null,
 ): GoogleFormFieldMapping[] {
   return inspection.fields.map((field) => {
-    const profileField = profileFieldForGoogleQuestion(field);
+    const deterministicField = profileFieldForGoogleQuestion(field);
+    const semanticMapping = semanticMappingForGoogleQuestion(field, semanticAnalysis);
+    const useSemantic = Boolean(
+      semanticMapping?.profile_field
+      && (
+        deterministicField === null
+        || SEMANTIC_OVERRIDEABLE_DETERMINISTIC_FIELDS.has(deterministicField)
+      )
+    );
+    const profileField = useSemantic
+      ? semanticMapping!.profile_field
+      : deterministicField;
     const candidates = profileField ? valueCandidatesForField(profileField, profile, now) : [];
     const value = field.kind === 'multiple_choice' || field.kind === 'dropdown'
       ? exactChoiceMatch(field.options, candidates)
-      : candidates[0] ?? '';
+      : (candidates[0] ?? '');
+
     return {
       field,
       profileField,
       profileFieldLabel: profileField ? PROFILE_FIELD_LABELS[profileField] : null,
       value,
       canPrefill: Boolean(profileField && value && supportsProfilePrefill(field.kind)),
+      mappingSource: profileField
+        ? (useSemantic ? 'semantic' : 'deterministic')
+        : null,
+      mappingConfidence: useSemantic ? semanticMapping!.confidence : null,
     };
   });
 }
@@ -325,19 +409,22 @@ export function buildGoogleFormsPrefilledUrl(
   mappings: GoogleFormFieldMapping[],
 ): string {
   const url = new URL(inspection.form_url);
+  url.search = '';
+  url.hash = '';
   url.searchParams.set('usp', 'pp_url');
   for (const mapping of mappings) {
     if (!mapping.canPrefill) continue;
-    url.searchParams.set(`entry.${mapping.field.id}`, mapping.value);
+    const parameter = mapping.field.prefill_parameter ?? `entry.${mapping.field.id}`;
+    url.searchParams.set(parameter, mapping.value);
   }
   return url.toString();
 }
 
 export function relationshipLabel(profile: TournamentEntryProfile): string {
   switch (profile.relationship) {
-    case 'self': return 'Myself';
-    case 'child': return 'My child';
-    case 'coached': return 'Player I coach';
-    case 'other': return 'Player I manage';
+    case 'self': return 'Self';
+    case 'child': return 'Child';
+    case 'coached_player': return 'Coached player';
+    default: return 'Entrant';
   }
 }

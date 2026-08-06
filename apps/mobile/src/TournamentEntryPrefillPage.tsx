@@ -91,9 +91,12 @@ export function TournamentEntryPrefillPage() {
   const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId) ?? null;
   const cachedInspection = inspectionQuery.data?.data ?? null;
   const inspection = cachedInspection?.status === 'ready' ? cachedInspection.form : null;
+  const semanticAnalysis = cachedInspection?.semantic_analysis ?? null;
   const mappings = useMemo(
-    () => inspection && selectedProfile ? mapGoogleFormFields(inspection, selectedProfile) : [],
-    [inspection, selectedProfile],
+    () => inspection && selectedProfile
+      ? mapGoogleFormFields(inspection, selectedProfile, new Date(), semanticAnalysis)
+      : [],
+    [inspection, selectedProfile, semanticAnalysis],
   );
   const filledMappings = mappings.filter((mapping) => mapping.canPrefill);
   const manualMappings = mappings.filter((mapping) => !mapping.canPrefill);
@@ -193,7 +196,7 @@ export function TournamentEntryPrefillPage() {
               surface="flat"
               density="compact"
               title={event.name}
-              description="The blank form was inspected during event ingestion. Choose who you are entering."
+              description="The blank form was inspected and mapped during event ingestion. Choose who you are entering."
               className="tt-entry-prefill-section"
             >
               <label className="tt-entry-prefill-field" htmlFor="tt-entry-prefill-profile">
@@ -245,7 +248,7 @@ export function TournamentEntryPrefillPage() {
                       key={mapping.field.id}
                       leading={<IconCircle iconClassName="fa fa-check" tone="accent" />}
                       title={mapping.field.label}
-                      subtitle={`${mapping.profileFieldLabel}: ${mapping.value}`}
+                      subtitle={`${mapping.profileFieldLabel}: ${mapping.value}${mapping.mappingSource === 'semantic' ? ' · Smart match' : ''}`}
                       trailing={mapping.field.required ? <Pill size="xs" tone="neutral">Required</Pill> : null}
                       hideChevron
                     />
@@ -283,7 +286,7 @@ export function TournamentEntryPrefillPage() {
                   <IconCircle iconClassName="fa fa-lock" tone="neutral" />
                   <div>
                     <strong>Private by design</strong>
-                    <span>The cached inspection contains only blank form structure. Entrant values are added in your browser and sent to Google only when you open the prepared link.</span>
+                    <span>Only blank form wording may be analyzed during ingestion. Saved entrant values stay in your browser and are sent only to Google when you open the prepared link.</span>
                   </div>
                 </div>
                 <div className="tt-entry-prefill-actions">

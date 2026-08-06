@@ -9,11 +9,16 @@ import {
 
 const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLTestForm/viewform?usp=sf_link';
 
-function formHtml(payload: unknown, title = 'Junior Entry - Google Forms'): string {
+function formHtml(
+    payload: unknown,
+    title = 'Junior Entry - Google Forms',
+    body = '',
+): string {
     return `<!doctype html>
 <html>
 <head><title>${title}</title></head>
 <body>
+${body}
 <script>var FB_PUBLIC_LOAD_DATA_ = ${JSON.stringify(payload)};</script>
 </body>
 </html>`;
@@ -60,6 +65,7 @@ describe('Google Forms ingestion inspection', () => {
             provider: 'google_forms',
             form_url: 'https://docs.google.com/forms/d/e/1FAIpQLTestForm/viewform',
             title: 'Junior Entry',
+            public_text: null,
             fields: [
                 {
                     id: '501',
@@ -87,6 +93,53 @@ describe('Google Forms ingestion inspection', () => {
                 },
             ],
         });
+    });
+
+    it('captures visible blank-form text while excluding scripts and markup', () => {
+        const payload = [null, [null, [[101, 'Player name', null, 0, [[501, null, 1]]]]]];
+        const html = formHtml(
+            payload,
+            'Junior Open - Google Forms',
+            '<h1>Junior Open</h1><p>Closing date: 2 August 2026 at 5pm.</p><div>Venue: Rowhedge &amp; District Hall</div>',
+        );
+
+        const inspection = parseGoogleFormHtml(html, FORM_URL);
+
+        expect(inspection.public_text).toBe(
+            'Junior Open Closing date: 2 August 2026 at 5pm. Venue: Rowhedge & District Hall',
+        );
+        expect(inspection.public_text).not.toContain('FB_PUBLIC_LOAD_DATA_');
+    });
+
+    it('extracts Google Forms responder email as a prefillable field', () => {
+        const payload = [null, [null, [[101, '4. Email', null, 0, [[501, null, 1]]]]]];
+        const html = formHtml(
+            payload,
+            'Junior Entry - Google Forms',
+            '<input type="email" name="emailAddress" required>',
+        );
+
+        const inspection = parseGoogleFormHtml(html, FORM_URL);
+
+        expect(inspection.fields).toEqual([
+            {
+                id: 'emailAddress',
+                label: 'Email',
+                description: 'Email address used by Google Forms for this response',
+                kind: 'short_text',
+                required: true,
+                options: [],
+                prefill_parameter: 'emailAddress',
+            },
+            {
+                id: '501',
+                label: '4. Email',
+                description: null,
+                kind: 'short_text',
+                required: true,
+                options: [],
+            },
+        ]);
     });
 
     it('fails closed when no supported question entries are present', () => {
