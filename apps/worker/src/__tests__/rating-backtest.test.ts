@@ -15,6 +15,12 @@ function match(
     return { rubberId, homePlayerId, awayPlayerId, homeWon };
 }
 
+function alphaWarmups(prefix: string): RatingBacktestMatch[] {
+    return Array.from({ length: 4 }, (_, index) =>
+        match(`${prefix}-${index + 1}`, 'a', 'b', true)
+    );
+}
+
 describe('rating backtest laboratory', () => {
     it('scores fixed evaluation dates without using future results', () => {
         const backtester = new RatingWindowBacktester(
@@ -25,8 +31,8 @@ describe('rating backtest laboratory', () => {
         );
 
         backtester.processDay('2023-07-01', [match('old-c', 'c', 'b', true)]);
-        backtester.processDay('2024-07-01', [match('warmup-1', 'a', 'b', true)]);
-        backtester.processDay('2025-07-01', [match('warmup-2', 'a', 'b', true)]);
+        backtester.processDay('2024-07-01', alphaWarmups('warmup-2024'));
+        backtester.processDay('2025-07-01', alphaWarmups('warmup-2025'));
         backtester.processDay('2026-02-01', [
             match('evaluation-1', 'a', 'b', true),
             match('evaluation-2', 'a', 'c', true),
@@ -57,6 +63,9 @@ describe('rating backtest laboratory', () => {
             expect(metric.calibration_error).toBeGreaterThanOrEqual(0);
             expect(metric.calibration.reduce((total, bucket) => total + bucket.count, 0)).toBe(3);
             expect(metric.top_players[0]?.player_name).toBe('Alpha');
+            expect(metric.top_players[0]?.rated_matches).toBeGreaterThanOrEqual(
+                DEFAULT_GLICKO2_CONFIG.provisionalMatches,
+            );
         }
     });
 
