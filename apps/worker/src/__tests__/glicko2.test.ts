@@ -2,11 +2,23 @@ import { describe, expect, it } from 'vitest';
 import {
     DEFAULT_GLICKO2_CONFIG,
     conservativeRating,
+    defaultRatingState,
     inflateDeviationForInactivity,
     updateRating,
 } from '../ratings/glicko2.js';
 
 describe('Glicko-2', () => {
+    it('uses the required initial state and convergence configuration', () => {
+        expect(defaultRatingState()).toEqual({
+            rating: 1500,
+            deviation: 350,
+            volatility: 0.06,
+        });
+        expect(DEFAULT_GLICKO2_CONFIG.tau).toBe(0.5);
+        expect(DEFAULT_GLICKO2_CONFIG.provisionalMatches).toBe(0);
+        expect(DEFAULT_GLICKO2_CONFIG.provisionalDeviation).toBe(110);
+    });
+
     it('matches the worked example from the Glicko-2 paper', () => {
         const updated = updateRating(
             { rating: 1500, deviation: 200, volatility: 0.06 },
