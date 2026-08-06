@@ -337,7 +337,7 @@ function relationshipCandidates(profile: TournamentEntryProfile): string[] {
       return ['Self', 'Player', 'Entrant', 'Competitor'];
     case 'child':
       return ['Parent / Guardian', 'Parent', 'Guardian'];
-    case 'coached_player':
+    case 'coached':
       return ['Coach', 'Manager'];
     default:
       return [];
@@ -424,7 +424,7 @@ export function relationshipLabel(profile: TournamentEntryProfile): string {
   switch (profile.relationship) {
     case 'self': return 'Self';
     case 'child': return 'Child';
-    case 'coached_player': return 'Coached player';
+    case 'coached': return 'Coached player';
     default: return 'Entrant';
   }
 }
