@@ -95,6 +95,7 @@ jobs:
 
       - name: Upload main UI audit artifact
         if: always()
+        id: artifact
         uses: actions/upload-artifact@v4
         with:
           name: main-ui-audit-${{ github.run_id }}-${{ github.run_attempt }}
@@ -156,36 +157,67 @@ jobs:
         if: always()
         env:
           ARTIFACT_NAME: main-ui-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
           REPORT_URL: ${{ steps.report.outputs.deploy-url }}
+          JOB_STATUS: ${{ job.status }}
         run: |
           node <<'NODE'
           const fs = require('node:fs');
+
           let items = [];
           try {
             items = JSON.parse(fs.readFileSync('ui-review-report/manifest.json', 'utf8'));
           } catch {}
 
           const count = (status) => items.filter((item) => item.status === status).length;
+          const captured = count('captured');
+          const skipped = count('skipped');
+          const errors = count('error');
           const diagnosticEvents = items.reduce(
             (total, item) => total + (Number(item.eventCount) || 0),
             0,
           );
+
           const reportUrl = process.env.REPORT_URL?.trim();
+          const artifactUrl = process.env.ARTIFACT_URL?.trim();
+          const repositoryUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`;
+          const runUrl = `${repositoryUrl}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          const commitUrl = `${repositoryUrl}/commit/${process.env.GITHUB_SHA}`;
+          const shortSha = (process.env.GITHUB_SHA || '').slice(0, 7);
+          const result = process.env.JOB_STATUS || 'unknown';
+          const resultIcon = result === 'success' ? '✅' : result === 'cancelled' ? '⚪' : '❌';
+
           const lines = [
-            '## Main UI audit',
+            `## ${resultIcon} Main UI audit`,
             '',
-            '- Mode: screenshot collection',
-            `- Target: ${process.env.PREVIEW_URL}`,
-            `- Commit: \`${(process.env.GITHUB_SHA || '').slice(0, 7)}\``,
-            `- Captured screens: ${count('captured')}`,
-            `- Skipped screens: ${count('skipped')}`,
-            `- Capture errors: ${count('error')}`,
-            `- Diagnostic events: ${diagnosticEvents}`,
+            '| Item | Result |',
+            '| --- | --- |',
+            `| Job status | **${result}** |`,
+            '| Mode | Screenshot collection |',
+            `| Target | [${process.env.PREVIEW_URL}](${process.env.PREVIEW_URL}) |`,
+            `| Commit | [\`${shortSha}\`](${commitUrl}) |`,
+            `| Captured screens | **${captured}** |`,
+            `| Skipped screens | ${skipped} |`,
+            `| Capture errors | **${errors}** |`,
+            `| Diagnostic events | ${diagnosticEvents} |`,
+            '',
+            '### Reports',
+            '',
             reportUrl
-              ? `- Netlify report: [Open the UI audit report](${reportUrl})`
-              : '- Netlify report: unavailable; use the GitHub artifact below',
-            `- Artifact fallback: \`${process.env.ARTIFACT_NAME}\``,
+              ? `- [Open the interactive Netlify UI audit report](${reportUrl})`
+              : '- Interactive Netlify report unavailable.',
+            artifactUrl
+              ? `- [Download the complete GitHub artifact](${artifactUrl})`
+              : `- GitHub artifact: \`${process.env.ARTIFACT_NAME}\``,
+            `- [Open this workflow run](${runUrl})`,
             '',
           ];
+
+          if (errors > 0) {
+            lines.push('> [!WARNING]');
+            lines.push(`> The audit recorded ${errors} screenshot capture error${errors === 1 ? '' : 's'}.`);
+            lines.push('');
+          }
+
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
           NODE
