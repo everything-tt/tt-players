@@ -52,6 +52,10 @@ export interface ScrapingQueueJob {
   last_error: string | null;
 }
 
+export interface ScrapingQueueJobDetails extends ScrapingQueueJob {
+    payload: Record<string, unknown>;
+}
+
 export interface RecentScrape {
   id: string;
   platform_name: string;
@@ -128,5 +132,16 @@ export function useScrapingMonitorQuery(hours: number) {
     staleTime: 5_000,
     refetchInterval: 15_000,
     refetchIntervalInBackground: false,
+  });
+}
+
+
+export function useScrapingQueueJobQuery(jobId: string | null) {
+  return useQuery({
+    queryKey: ['scraping', 'job', jobId],
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      apiFetch<ScrapingQueueJobDetails>(`/scraping/jobs/${encodeURIComponent(jobId ?? '')}`, signal),
+    enabled: jobId !== null,
+    staleTime: 30_000,
   });
 }

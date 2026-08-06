@@ -9,6 +9,7 @@ import {
   type ScrapingMonitorState,
   type ScrapingPipelineStage,
   useScrapingMonitorQuery,
+  useScrapingQueueJobQuery,
 } from './scraping-monitor';
 import {
   AppButton,
@@ -161,6 +162,30 @@ function pipelineStageSummary(stage: ScrapingPipelineStage): string | null {
   return parts.length > 0 ? parts.join(' · ') : null;
 }
 
+function payloadLabel(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/^./, (character) => character.toUpperCase());
+}
+
+function payloadValue(value: unknown): string {
+  if (value === null) return 'null';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return JSON.stringify(value);
+}
+
+function isPayloadUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export function ScrapingMonitorPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -168,7 +193,9 @@ export function ScrapingMonitorPage() {
   const returnPath = state?.from === '/data-coverage' || state?.from === '/about' ? state.from : '/about';
   const [hours, setHours] = useState(24 * 7);
   const [expandedRunKey, setExpandedRunKey] = useState<string | null>(null);
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const monitorQuery = useScrapingMonitorQuery(hours);
+  const jobDetailsQuery = useScrapingQueueJobQuery(expandedJobId);
   const data = monitorQuery.data;
   const meta = data ? stateMeta(data.state) : null;
 
@@ -371,14 +398,83 @@ export function ScrapingMonitorPage() {
                 <DesignList density="compact" divider="hairline" pageSize={12}>
                   {data.recent_jobs.map((job) => {
                     const jobMeta = queueStateMeta(job.state);
+                    const expanded = expandedJobId === job.id;
+                    const details = expanded && jobDetailsQuery.data?.id === job.id
+                      ? jobDetailsQuery.data
+                      : null;
                     return (
-                      <ListItem
-                        key={job.id}
-                        leading={<IconCircle iconClassName={jobMeta.icon} tone={jobMeta.tone} />}
-                        title={taskLabel(job.task_identifier)}
-                        subtitle={`${jobMeta.label} · attempt ${job.attempts}/${job.max_attempts} · updated ${formatDate(job.updated_at, { includeTime: true })}${job.last_error ? ` · ${job.last_error}` : ''}`}
-                        trailing={<Pill tone={jobMeta.tone}>{jobMeta.label}</Pill>}
-                      />
+                      <div className="tt-monitor-job" key={job.id}>
+                        <ListItem
+                          leading={<IconCircle iconClassName={jobMeta.icon} tone={jobMeta.tone} />}
+                          title={taskLabel(job.task_identifier)}
+                          subtitle={`${jobMeta.label} · attempt ${job.attempts}/${job.max_attempts} · updated ${formatDate(job.updated_at, { includeTime: true })}${job.last_error ? ` · ${job.last_error}` : ''}`}
+                          trailing={<Pill tone={jobMeta.tone}>{jobMeta.label}</Pill>}
+                          onClick={() => setExpandedJobId(expanded ? null : job.id)}
+                        />
+                        {expanded && (
+                          <div className="tt-monitor-job__details">
+                            {jobDetailsQuery.isLoading ? (
+                              <p className="tt-monitor-job__message">Loading job input…</p>
+                            ) : jobDetailsQuery.isError ? (
+                              <p className="tt-monitor-run__error">
+                                {jobDetailsQuery.error instanceof Error ? jobDetailsQuery.error.message : 'Job details could not be loaded.'}
+                              </p>
+                            ) : details ? (
+                              <>
+                                <dl className="tt-monitor-run__facts">
+                                  <div>
+                                    <dt>Job ID</dt>
+                                    <dd>{details.id}</dd>
+                                  </div>
+                                  <div>
+                                    <dt>Created</dt>
+                                    <dd>{formatDate(details.created_at, { includeTime: true })}</dd>
+                                  </div>
+                                  <div>
+                                    <dt>Run at</dt>
+                                    <dd>{formatDate(details.run_at, { includeTime: true })}</dd>
+                                  </div>
+                                  <div>
+                                    <dt>Locked</dt>
+                                    <dd>{timeLabel(details.locked_at, 'Not locked')}</dd>
+                                  </div>
+                                  <div>
+                                    <dt>Updated</dt>
+                                    <dd>{formatDate(details.updated_at, { includeTime: true })}</dd>
+                                  </div>
+                                  <div>
+                                    <dt>Attempts</dt>
+                                    <dd>{details.attempts}/{details.max_attempts}</dd>
+                                  </div>
+                                </dl>
+                                {details.last_error && <p className="tt-monitor-run__error">{details.last_error}</p>}
+                                <h3 className="tt-monitor-job__heading">Job input</h3>
+                                {Object.keys(details.payload).length === 0 ? (
+                                  <p className="tt-monitor-job__message">This job has no input fields.</p>
+                                ) : (
+                                  <dl className="tt-monitor-job__payload">
+                                    {Object.entries(details.payload).map(([key, value]) => (
+                                      <div key={key}>
+                                        <dt>{payloadLabel(key)}</dt>
+                                        <dd>
+                                          {isPayloadUrl(value) ? (
+                                            <a href={value} target="_blank" rel="noreferrer">{value}</a>
+                                          ) : payloadValue(value)}
+                                        </dd>
+                                      </div>
+                                    ))}
+                                  </dl>
+                                )}
+                                <details className="tt-monitor-job__raw">
+                                  <summary>Raw job input JSON</summary>
+                                  <pre>{JSON.stringify(details.payload, null, 2)}</pre>
+                                </details>
+                                <p className="tt-monitor-job__note">Sensitive fields are redacted by the API.</p>
+                              </>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </DesignList>
@@ -428,7 +524,7 @@ export function ScrapingMonitorPage() {
             </PageSection>
 
             <p className="tt-section-meta tt-monitor-generated">
-              Generated {formatDate(data.generated_at, { includeTime: true })}. Pipeline summaries are retained for 14 days; scraped payload content is not duplicated in run history.
+              Generated {formatDate(data.generated_at, { includeTime: true })}. Pipeline summaries are retained for 14 days; queue job input is loaded on demand and sensitive fields are redacted.
             </p>
           </>
         )}
