@@ -53,6 +53,38 @@ export type RatingAuditIssue = Selectable<RatingAuditIssuesTable>;
 export type NewRatingAuditIssue = Insertable<RatingAuditIssuesTable>;
 export type RatingAuditIssueUpdate = Updateable<RatingAuditIssuesTable>;
 
+export type RatingPlayerCoverageCategory =
+    | 'covered'
+    | 'no_raw_matches'
+    | 'only_doubles'
+    | 'only_non_normal'
+    | 'only_invalid_singles'
+    | 'only_before_model_window'
+    | 'eligible_in_window_without_rating'
+    | 'rating_without_eligible_evidence';
+
+export interface RatingPlayerCoverageTable {
+    model_id: string;
+    player_id: string;
+    category: RatingPlayerCoverageCategory;
+    raw_matches: number;
+    singles_matches: number;
+    normal_singles_matches: number;
+    eligible_matches_all_time: number;
+    eligible_matches_in_window: number;
+    unique_opponents_in_window: number;
+    first_match_date: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
+    last_match_date: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
+    rating_exists: boolean;
+    rated_matches: number | null;
+    rating_deviation: number | null;
+    updated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export type RatingPlayerCoverage = Selectable<RatingPlayerCoverageTable>;
+export type NewRatingPlayerCoverage = Insertable<RatingPlayerCoverageTable>;
+export type RatingPlayerCoverageUpdate = Updateable<RatingPlayerCoverageTable>;
+
 export interface PlayerActiveLeaguesTable {
     player_id: string;
     league_id: string;
@@ -68,5 +100,6 @@ export interface ReadModelDatabase {
     source_quality_snapshots: SourceQualitySnapshotsTable;
     rating_audit_snapshots: RatingAuditSnapshotsTable;
     rating_audit_issues: RatingAuditIssuesTable;
+    rating_player_coverage: RatingPlayerCoverageTable;
     player_active_leagues: PlayerActiveLeaguesTable;
 }
