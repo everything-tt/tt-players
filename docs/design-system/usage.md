@@ -107,10 +107,14 @@ Trailing icon actions must retain at least a `44x44px` target even when the visi
 
 ## Tokens
 
-Canonical tokens live in:
+Canonical theme and tokens live in:
 
+- `packages/design-system/src/styles/theme.css`
 - `packages/design-system/src/styles/tokens.css`
+- `packages/design-system/src/styles/controls.css`
 - `packages/design-system/src/styles/primitives.css`
+
+Applications import the public `@tt-players/design-system/styles.css` entry point instead of reaching into individual source stylesheets.
 
 Do not redefine canonical gutter, row-height, avatar, control, header or tab tokens in app-level CSS.
 
@@ -147,3 +151,10 @@ The component catalogue is available at `/design-system`. It displays canonical 
 ## Migration rule
 
 Existing compatibility classes may remain in allowlisted legacy screens during migration. Any newly touched screen should remove itself from the allowlist by adopting explicit design-system variants.
+
+
+## Shadcn foundation
+
+Accessible low-level behaviour is implemented with owned shadcn-style source and Radix primitives. Product screens should continue importing TT components from `@tt-players/design-system`; direct Radix imports and app-local `components/ui` copies are not allowed for canonical controls.
+
+Use `onCheckedChange={(checked) => ...}` with `AppSwitch`. Use `BottomSheet` and `AppDrawer` rather than implementing app-level portals, focus traps, body locks or Escape listeners.

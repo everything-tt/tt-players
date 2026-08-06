@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // Dark-mode semantic-token fix, page h1, and segmented touch-target review (issue #97 audit fixes).
-  testMatch: 'zz-ui-audit-fixes.pw.ts',
+  // Shadcn/Radix design-system migration and mobile overlay regression review.
+  testMatch: 'zz-shadcn-design-system-migration.pw.ts',
 
   timeout: 120_000,
   expect: {

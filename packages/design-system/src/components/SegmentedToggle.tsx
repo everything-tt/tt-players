@@ -1,4 +1,6 @@
 import { useRef, type KeyboardEvent } from 'react';
+import { cn } from '../lib/utils';
+import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 
 export interface SegmentedToggleOption<T extends string> {
   value: T;
@@ -17,9 +19,7 @@ export interface SegmentedToggleProps<T extends string> {
   className?: string;
 }
 
-/**
- * Shared segmented control with radio semantics and arrow-key navigation.
- */
+/** Radix roving-focus toggle group presented with radio semantics. */
 export function SegmentedToggle<T extends string>({
   options,
   value,
@@ -38,43 +38,51 @@ export function SegmentedToggle<T extends string>({
     let nextIndex = currentIndex;
     if (event.key === 'Home') nextIndex = 0;
     if (event.key === 'End') nextIndex = options.length - 1;
-    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-      nextIndex = (currentIndex - 1 + options.length) % options.length;
-    }
-    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-      nextIndex = (currentIndex + 1) % options.length;
-    }
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = (currentIndex - 1 + options.length) % options.length;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = (currentIndex + 1) % options.length;
     const nextOption = options[nextIndex];
     if (!nextOption) return;
     onChange(nextOption.value);
-    const buttons = groupRef.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]');
-    buttons?.[nextIndex]?.focus();
+    groupRef.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[nextIndex]?.focus();
   };
 
   return (
-    <div
+    <ToggleGroup
       ref={groupRef}
-      className={`tt-segmented tt-segmented--${variant}${full ? ' tt-segmented--full' : ''}${className ? ` ${className}` : ''}`}
+      type="single"
+      value={value}
+      onValueChange={(nextValue) => {
+        if (nextValue) onChange(nextValue as T);
+      }}
+      variant="unstyled"
+      size="unstyled"
+      className={cn(
+        'tt-segmented',
+        `tt-segmented--${variant}`,
+        full && 'tt-segmented--full',
+        className,
+      )}
       role="radiogroup"
       aria-label={ariaLabel}
       onKeyDown={moveSelection}
+      loop
     >
       {options.map((option) => {
         const selected = value === option.value;
         return (
-          <button
+          <ToggleGroupItem
             key={option.value}
-            type="button"
+            value={option.value}
+            variant="unstyled"
+            size="unstyled"
             role="radio"
             aria-checked={selected}
-            tabIndex={selected ? 0 : -1}
-            className={`tt-segmented__btn${selected ? ' tt-segmented__btn--active' : ''}`}
-            onClick={() => onChange(option.value)}
+            className={cn('tt-segmented__btn', selected && 'tt-segmented__btn--active')}
           >
             {option.label}
-          </button>
+          </ToggleGroupItem>
         );
       })}
-    </div>
+    </ToggleGroup>
   );
 }

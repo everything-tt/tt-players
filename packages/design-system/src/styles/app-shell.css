@@ -485,3 +485,139 @@ body.theme-dark #footer-bar.tt-tab-bar {
     transform: none !important;
   }
 }
+
+/* Radix-backed navigation drawer. Kept in the package so every TT PWA shares
+ * the same safe-area, focus-overlay and mobile navigation geometry. */
+.tt-drawer-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+}
+
+.tt-drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: oklch(5% .02 160 / .58);
+  backdrop-filter: blur(2px);
+}
+
+.tt-drawer {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: flex;
+  flex-direction: column;
+  width: min(88vw, 330px);
+  min-height: 100dvh;
+  overflow: hidden;
+  background: var(--surface-strong);
+  color: var(--ink);
+  box-shadow: 18px 0 44px oklch(0% 0 0 / .24);
+  animation: tt-drawer-enter var(--tt-motion-standard) var(--tt-ease-native) both;
+}
+
+@keyframes tt-drawer-enter {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+.tt-drawer__hero {
+  position: relative;
+  padding: calc(28px + env(safe-area-inset-top)) 22px 22px;
+  background: linear-gradient(145deg, color-mix(in oklch, var(--accent) 78%, oklch(17% .027 158)), oklch(17% .027 158));
+  color: var(--on-accent);
+}
+
+.tt-drawer__close {
+  position: absolute;
+  top: calc(8px + env(safe-area-inset-top));
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: var(--tt-control-height);
+  height: var(--tt-control-height);
+  padding: 0;
+  border: 0;
+  border-radius: var(--tt-radius-pill);
+  background: oklch(100% 0 0 / .12);
+  color: white;
+}
+
+.tt-drawer__title {
+  margin: 4px 0 0;
+  color: inherit;
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.tt-drawer__content {
+  flex: 1;
+  padding: 12px 14px 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.tt-drawer__section-title {
+  margin: 20px 10px 7px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.tt-drawer__list {
+  overflow: hidden;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--tt-radius-lg);
+  background: var(--tt-home-surface, var(--surface-strong));
+}
+
+.tt-drawer__row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  width: 100%;
+  min-height: 52px;
+  padding: 4px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--border-hairline);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.tt-drawer__row:last-child { border-bottom: 0; }
+.tt-drawer__row > i:first-child { color: var(--accent); }
+.tt-drawer__row > i:last-child { color: var(--ink-muted); font-size: 12px; }
+.tt-drawer__row--active { background: var(--accent-subtle); color: var(--accent); }
+.tt-drawer__row--switch { cursor: default; }
+.tt-drawer__row--switch label { margin: 0; cursor: pointer; }
+
+.tt-drawer__row:focus-visible,
+.tt-drawer__close:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 3px solid var(--accent-ring);
+  outline-offset: -3px;
+}
+
+.tt-drawer__build {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border-hairline);
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tt-drawer { animation: none; }
+}
