@@ -8,31 +8,37 @@ const routeSource = readFileSync(
 );
 
 describe('events list query shape', () => {
-    it('pages lightweight tournament candidates before enrichment', () => {
-        const pageQuery = routeSource.indexOf("const pageRows = await pageBuilder");
-        const enrichment = routeSource.indexOf("const enrichedRows = await db", pageQuery);
+    it('pages lightweight tournament IDs before enrichment', () => {
+        const pageQuery = routeSource.indexOf('const pageRows = await pageBuilder');
+        const enrichment = routeSource.indexOf('const enrichedRows = await db', pageQuery);
 
-        expect(routeSource).toContain("sql<number>`count(*) over()`");
-        expect(routeSource).toContain("const pageIds = pageRows.map");
+        expect(routeSource).toContain('const pageIds = pageRows.map');
         expect(routeSource).toContain(".where('c.id', 'in', pageIds)");
         expect(pageQuery).toBeGreaterThan(-1);
         expect(enrichment).toBeGreaterThan(pageQuery);
     });
 
-    it('uses bounded candidate batches for fast completed pagination', () => {
-        expect(routeSource).toContain('fetchFastEventPage');
-        expect(routeSource).toContain('includeCompletedResults: false');
-        expect(routeSource).toContain(".where('f.competition_id', 'in', candidateIds)");
-        expect(routeSource).toContain('.limit(batchSize)');
+    it('separates upcoming and completed rows by lifecycle kind', () => {
+        const filterStart = routeSource.indexOf('function applyEventFilters');
+        const filterEnd = routeSource.indexOf('function applyEventOrdering', filterStart);
+        const filters = routeSource.slice(filterStart, filterEnd);
+
+        expect(filters).toContain(".where('c.record_kind', '=', 'calendar')");
+        expect(filters).toContain(".where('c.processed_at', 'is', null)");
+        expect(filters).toContain(".where('c.record_kind', '=', 'result')");
+        expect(filters).not.toContain('from fixtures');
+        expect(filters).not.toContain('join rubbers');
     });
 
-    it('does not run the expensive metadata selection in the candidate query', () => {
-        const pageStart = routeSource.indexOf("let pageBuilder = db");
-        const pageEnd = routeSource.indexOf("const pageRows = await pageBuilder", pageStart);
-        const candidateQuery = routeSource.slice(pageStart, pageEnd);
+    it('uses one simple fast-pagination path for every lifecycle', () => {
+        const fastStart = routeSource.indexOf('async function fetchFastEventPage');
+        const fastEnd = routeSource.indexOf('function calendarPayloadField', fastStart);
+        const fastPath = routeSource.slice(fastStart, fastEnd);
 
-        expect(candidateQuery).not.toContain('eventSelection()');
-        expect(candidateQuery).not.toContain('match_count');
-        expect(candidateQuery).not.toContain('source_count');
+        expect(fastPath).toContain('.limit(query.limit + 1)');
+        expect(fastPath).toContain('.offset(query.offset)');
+        expect(fastPath).not.toContain('while (');
+        expect(fastPath).not.toContain('fixtures');
+        expect(fastPath).not.toContain('rubbers');
     });
 });
