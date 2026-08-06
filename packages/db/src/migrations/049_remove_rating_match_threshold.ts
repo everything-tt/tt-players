@@ -15,6 +15,7 @@ export async function up(db: Kysely<any>): Promise<void> {
         FROM rating_models model
         WHERE model.id = policy.model_id
           AND model.key = ${MODEL_KEY}
+          AND policy.minimum_matches <> 0
     `.execute(db);
 
     await sql`
@@ -22,6 +23,7 @@ export async function up(db: Kysely<any>): Promise<void> {
         SET config = jsonb_set(config, '{provisionalMatches}', '0'::jsonb, true),
             updated_at = now()
         WHERE key = ${MODEL_KEY}
+          AND COALESCE((config ->> 'provisionalMatches')::integer, 0) <> 0
     `.execute(db);
 
     await sql`
@@ -34,6 +36,12 @@ export async function up(db: Kysely<any>): Promise<void> {
         FROM rating_models model
         WHERE model.id = rating.model_id
           AND model.key = ${MODEL_KEY}
+          AND rating.provisional IS DISTINCT FROM (
+              rating.rating_deviation > COALESCE(
+                  (model.config ->> 'provisionalDeviation')::double precision,
+                  110
+              )
+          )
     `.execute(db);
 }
 
@@ -50,6 +58,7 @@ export async function down(db: Kysely<any>): Promise<void> {
         FROM rating_models model
         WHERE model.id = policy.model_id
           AND model.key = ${MODEL_KEY}
+          AND policy.minimum_matches <> 10
     `.execute(db);
 
     await sql`
@@ -57,6 +66,7 @@ export async function down(db: Kysely<any>): Promise<void> {
         SET config = jsonb_set(config, '{provisionalMatches}', '10'::jsonb, true),
             updated_at = now()
         WHERE key = ${MODEL_KEY}
+          AND COALESCE((config ->> 'provisionalMatches')::integer, 0) <> 10
     `.execute(db);
 
     await sql`
@@ -70,5 +80,12 @@ export async function down(db: Kysely<any>): Promise<void> {
         FROM rating_models model
         WHERE model.id = rating.model_id
           AND model.key = ${MODEL_KEY}
+          AND rating.provisional IS DISTINCT FROM (
+              rating.rated_matches < 10
+              OR rating.rating_deviation > COALESCE(
+                  (model.config ->> 'provisionalDeviation')::double precision,
+                  110
+              )
+          )
     `.execute(db);
 }
