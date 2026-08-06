@@ -33,10 +33,13 @@ export interface GoogleFormInspection {
     fields: GoogleFormField[];
 }
 
-export class GoogleFormInspectionError extends Error {
-    readonly statusCode: number;
+type GoogleFormInspectionStatusCode = 400 | 422 | 502;
+type GoogleFormQuestionTuple = [number | string, string, unknown, number, unknown[]];
 
-    constructor(message: string, statusCode: number) {
+export class GoogleFormInspectionError extends Error {
+    readonly statusCode: GoogleFormInspectionStatusCode;
+
+    constructor(message: string, statusCode: GoogleFormInspectionStatusCode) {
         super(message);
         this.name = 'GoogleFormInspectionError';
         this.statusCode = statusCode;
@@ -183,7 +186,7 @@ function fieldKind(type: number): GoogleFormFieldKind {
     }
 }
 
-function isQuestionTuple(value: unknown): value is unknown[] {
+function isQuestionTuple(value: unknown): value is GoogleFormQuestionTuple {
     return Array.isArray(value)
         && (typeof value[0] === 'number' || typeof value[0] === 'string')
         && typeof value[1] === 'string'
@@ -222,7 +225,7 @@ function collectFields(value: unknown, output: Map<string, GoogleFormField>): vo
             ? value[2].trim()
             : null;
         const kind = fieldKind(value[3]);
-        const entries = value[4] as unknown[];
+        const entries = value[4];
 
         for (const rawEntry of entries) {
             if (!Array.isArray(rawEntry) || typeof rawEntry[0] !== 'number') continue;
