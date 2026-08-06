@@ -96,12 +96,7 @@ describe('rating source quality API', () => {
             season_id: season.id,
             external_id: 'competition-1',
             name: 'Quality Competition',
-            display_name: null,
-            event_date: null,
-            category: null,
             type: 'league',
-            source: null,
-            source_url: null,
             last_scraped_at: null,
             deleted_at: null,
         }).returning('id').executeTakeFirstOrThrow();
