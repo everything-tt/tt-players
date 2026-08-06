@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A practical architecture guide to Graphile Worker, including trade-offs, use cases, TT Players integration, and an interactive quiz.">
+  <title>Graphile Worker Architecture Guide · TT Players</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg:#f6f8fa;
+      --panel:#ffffff;
+      --panel-soft:#f6f8fa;
+      --text:#1f2328;
+      --muted:#59636e;
+      --border:#d0d7de;
+      --accent:#0969da;
+      --accent-soft:#ddf4ff;
+      --good:#1a7f37;
+      --good-soft:#dafbe1;
+      --warn:#9a6700;
+      --warn-soft:#fff8c5;
+      --bad:#cf222e;
+      --bad-soft:#ffebe9;
+      --code:#f6f8fa;
+      --shadow:0 1px 2px rgba(31,35,40,.06),0 8px 24px rgba(140,149,159,.15);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#0d1117;
+        --panel:#151b23;
+        --panel-soft:#161b22;
+        --text:#f0f6fc;
+        --muted:#9198a1;
+        --border:#3d444d;
+        --accent:#4493f8;
+        --accent-soft:#121d2f;
+        --good:#3fb950;
+        --good-soft:#12261b;
+        --warn:#d29922;
+        --warn-soft:#2d2408;
+        --bad:#f85149;
+        --bad-soft:#301414;
+        --code:#161b22;
+        --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 34px rgba(0,0,0,.28);
+      }
+    }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+    a { color:var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    code,pre { font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace; }
+    code { padding:.15em .38em; border-radius:5px; background:var(--code); font-size:.9em; }
+    pre { margin:1rem 0; padding:16px; overflow:auto; border:1px solid var(--border); border-radius:10px; background:var(--code); font-size:14px; line-height:1.5; }
+    pre code { padding:0; background:transparent; }
+    .topbar { position:sticky; top:0; z-index:30; border-bottom:1px solid var(--border); background:color-mix(in srgb,var(--panel) 90%,transparent); backdrop-filter:blur(14px); }
+    .topbar-inner { max-width:1180px; margin:auto; padding:11px 24px; display:flex; justify-content:space-between; align-items:center; gap:18px; }
+    .brand { display:flex; align-items:center; gap:10px; font-weight:750; color:var(--text); }
+    .brand-mark { width:30px; height:30px; display:grid; place-items:center; border-radius:8px; background:var(--accent); color:#fff; font-size:15px; }
+    .actions { display:flex; align-items:center; gap:16px; flex-wrap:wrap; font-size:14px; }
+    .layout { max-width:1180px; margin:auto; padding:28px 24px 84px; display:grid; grid-template-columns:minmax(0,1fr) 250px; gap:28px; }
+    main { min-width:0; }
+    .toc { position:sticky; top:78px; align-self:start; max-height:calc(100vh - 100px); overflow:auto; padding:16px; border:1px solid var(--border); border-radius:14px; background:var(--panel); font-size:13px; }
+    .toc strong { display:block; margin-bottom:8px; font-size:14px; }
+    .toc a { display:block; padding:4px 8px; border-radius:6px; color:var(--muted); }
+    .toc a:hover { color:var(--accent); background:var(--panel-soft); text-decoration:none; }
+    .hero { position:relative; overflow:hidden; border:1px solid var(--border); border-radius:20px; padding:clamp(26px,5vw,54px); background:linear-gradient(145deg,var(--panel),color-mix(in srgb,var(--accent-soft) 44%,var(--panel))); box-shadow:var(--shadow); }
+    .hero::after { content:""; position:absolute; width:320px; height:320px; right:-130px; top:-160px; border-radius:50%; background:color-mix(in srgb,var(--accent) 12%,transparent); }
+    .eyebrow { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+    .pill { display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; border:1px solid var(--border); background:var(--panel); color:var(--muted); font-size:13px; font-weight:650; }
+    .pill.good { color:var(--good); border-color:color-mix(in srgb,var(--good) 35%,var(--border)); background:var(--good-soft); }
+    .hero h1 { position:relative; z-index:1; max-width:760px; margin:0; font-size:clamp(34px,6vw,60px); line-height:1.05; letter-spacing:-.045em; }
+    .hero .lead { position:relative; z-index:1; max-width:800px; margin:18px 0 0; color:var(--muted); font-size:clamp(17px,2.4vw,21px); }
+    .verdict { position:relative; z-index:1; margin-top:24px; max-width:830px; padding:16px 18px; border-left:4px solid var(--good); border-radius:10px; background:var(--good-soft); }
+    .section { margin-top:24px; padding:clamp(22px,4vw,38px); border:1px solid var(--border); border-radius:18px; background:var(--panel); box-shadow:0 1px 2px rgba(31,35,40,.04); }
+    .section h2 { margin:0 0 8px; padding-bottom:10px; border-bottom:1px solid var(--border); font-size:clamp(24px,4vw,32px); line-height:1.2; letter-spacing:-.02em; scroll-margin-top:76px; }
+    .section h3 { margin:30px 0 8px; font-size:21px; scroll-margin-top:76px; }
+    .section h4 { margin:22px 0 6px; font-size:17px; }
+    .section > p:first-of-type { color:var(--muted); }
+    .grid { display:grid; gap:14px; }
+    .grid.two { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .grid.three { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .card { padding:18px; border:1px solid var(--border); border-radius:13px; background:var(--panel-soft); }
+    .card h3,.card h4 { margin-top:0; }
+    .card p:last-child { margin-bottom:0; }
+    .card.good { border-top:3px solid var(--good); }
+    .card.warn { border-top:3px solid var(--warn); }
+    .card.bad { border-top:3px solid var(--bad); }
+    .summary-list { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:22px; }
+    .summary-item { padding:16px; border:1px solid var(--border); border-radius:12px; background:var(--panel); }
+    .summary-item strong { display:block; font-size:20px; margin-bottom:3px; }
+    .summary-item span { color:var(--muted); font-size:14px; }
+    .architecture { margin:20px 0 8px; padding:18px; border:1px solid var(--border); border-radius:14px; background:var(--panel-soft); overflow:auto; }
+    .flow { min-width:760px; display:grid; grid-template-columns:1fr 44px 1.25fr 44px 1fr; align-items:center; gap:8px; }
+    .flow-box { min-height:122px; padding:16px; display:flex; flex-direction:column; justify-content:center; border:1px solid var(--border); border-radius:12px; background:var(--panel); text-align:center; }
+    .flow-box strong { font-size:17px; }
+    .flow-box small { color:var(--muted); }
+    .flow-box.db { border-color:color-mix(in srgb,var(--accent) 45%,var(--border)); box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--accent) 9%,transparent); }
+    .arrow { color:var(--muted); font-size:27px; text-align:center; }
+    .worker-row { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin-top:9px; }
+    .worker { padding:7px 5px; border:1px solid var(--border); border-radius:7px; font-size:12px; background:var(--panel-soft); }
+    .steps { counter-reset:step; display:grid; gap:12px; margin:18px 0; }
+    .step { position:relative; padding:15px 16px 15px 58px; border:1px solid var(--border); border-radius:12px; background:var(--panel-soft); }
+    .step::before { counter-increment:step; content:counter(step); position:absolute; left:16px; top:15px; width:28px; height:28px; display:grid; place-items:center; border-radius:50%; background:var(--accent); color:#fff; font-weight:800; }
+    .step strong { display:block; margin-bottom:2px; }
+    table { width:100%; border-collapse:collapse; margin:16px 0; font-size:14px; }
+    th,td { padding:10px 12px; border:1px solid var(--border); text-align:left; vertical-align:top; }
+    th { background:var(--panel-soft); }
+    .callout { margin:18px 0; padding:15px 17px; border-radius:11px; border:1px solid var(--border); background:var(--panel-soft); }
+    .callout.good { border-left:4px solid var(--good); background:var(--good-soft); }
+    .callout.warn { border-left:4px solid var(--warn); background:var(--warn-soft); }
+    .callout.bad { border-left:4px solid var(--bad); background:var(--bad-soft); }
+    .checklist { padding-left:0; list-style:none; }
+    .checklist li { position:relative; padding:7px 0 7px 30px; border-bottom:1px solid color-mix(in srgb,var(--border) 60%,transparent); }
+    .checklist li::before { content:"✓"; position:absolute; left:2px; color:var(--good); font-weight:900; }
+    .checklist.avoid li::before { content:"×"; color:var(--bad); }
+    details { margin:10px 0; border:1px solid var(--border); border-radius:11px; background:var(--panel-soft); }
+    summary { cursor:pointer; padding:13px 15px; font-weight:700; }
+    details > div { padding:0 15px 15px; color:var(--muted); }
+    .quiz-question { margin:16px 0; padding:18px; border:1px solid var(--border); border-radius:13px; background:var(--panel-soft); }
+    .quiz-question.correct { border-color:var(--good); background:var(--good-soft); }
+    .quiz-question.incorrect { border-color:var(--bad); background:var(--bad-soft); }
+    .quiz-question fieldset { border:0; padding:0; margin:0; }
+    .quiz-question legend { margin-bottom:10px; font-weight:750; }
+    .quiz-question label { display:block; margin:7px 0; padding:8px 10px; border:1px solid transparent; border-radius:8px; cursor:pointer; }
+    .quiz-question label:hover { background:var(--panel); border-color:var(--border); }
+    .quiz-question input { margin-right:8px; }
+    .explanation { display:none; margin:12px 0 0; padding-top:12px; border-top:1px solid var(--border); }
+    .quiz-question.revealed .explanation { display:block; }
+    .quiz-controls { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-top:18px; }
+    button { appearance:none; border:1px solid color-mix(in srgb,var(--accent) 65%,var(--border)); border-radius:8px; padding:10px 16px; background:var(--accent); color:#fff; font:inherit; font-weight:700; cursor:pointer; }
+    button.secondary { background:var(--panel); color:var(--text); border-color:var(--border); }
+    button:hover { filter:brightness(1.05); }
+    #quiz-result { font-weight:750; }
+    .sources li { margin:7px 0; }
+    .footer { max-width:1180px; margin:0 auto; padding:0 24px 48px; color:var(--muted); font-size:13px; text-align:center; }
+    @media (max-width:930px) {
+      .layout { grid-template-columns:1fr; }
+      .toc { display:none; }
+      .grid.three,.summary-list { grid-template-columns:1fr 1fr; }
+    }
+    @media (max-width:650px) {
+      .topbar-inner { align-items:flex-start; flex-direction:column; }
+      .layout { padding:18px 13px 60px; }
+      .hero,.section { border-radius:14px; }
+      .grid.two,.grid.three,.summary-list { grid-template-columns:1fr; }
+      .actions { gap:11px; }
+      table { display:block; overflow:auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="../"><span class="brand-mark">GW</span><span>TT Players Engineering Notes</span></a>
+      <nav class="actions" aria-label="Page actions">
+        <a href="#quiz">Take the quiz</a>
+        <a href="https://github.com/wudong/tt-players/tree/main/apps/worker">Worker source</a>
+        <a href="https://github.com/wudong/tt-players">Repository</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="layout">
+    <main>
+      <section class="hero">
+        <div class="eyebrow">
+          <span class="pill">Architecture guide</span>
+          <span class="pill">PostgreSQL job queue</span>
+          <span class="pill good">Strong fit for TT Players</span>
+        </div>
+        <h1>Graphile Worker, from job insertion to production operation</h1>
+        <p class="lead">A practical explanation of how Graphile Worker works, what guarantees it gives, where it excels, where it becomes the wrong tool, and how it maps onto the TT Players scraping and ETL pipeline.</p>
+        <div class="verdict"><strong>TT Players verdict:</strong> keep Graphile Worker. It matches the PostgreSQL-first, asynchronous ETL workload well. The important discipline is to design every task for at-least-once delivery, keep business workflow state in application-owned tables, and avoid depending on Graphile Worker’s private schema.</div>
+        <div class="summary-list">
+          <div class="summary-item"><strong>Durable</strong><span>Jobs live in PostgreSQL and can be inserted transactionally.</span></div>
+          <div class="summary-item"><strong>Low infrastructure</strong><span>No Redis, RabbitMQ, or separate cron service required.</span></div>
+          <div class="summary-item"><strong>At least once</strong><span>Tasks must be idempotent because retries can repeat effects.</span></div>
+        </div>
+      </section>
+
+      <section class="section" id="what-it-is">
+        <h2>1. What Graphile Worker is</h2>
+        <p>Graphile Worker is a background job queue for Node.js applications that stores queue state in PostgreSQL. Application code or SQL inserts jobs; one or more worker processes claim runnable jobs and execute matching task functions.</p>
+        <div class="grid three">
+          <div class="card"><h3>Task</h3><p>A named type of work, such as <code>scrapeUrlTask</code>, implemented by a JavaScript or TypeScript function.</p></div>
+          <div class="card"><h3>Job</h3><p>A durable invocation record containing a task identifier, JSON payload, schedule, attempts, priority, queue and optional job key.</p></div>
+          <div class="card"><h3>Runner</h3><p>The long-running process that maintains workers, claims jobs, invokes task executors and handles success or failure.</p></div>
+        </div>
+        <div class="callout"><strong>Useful mental model:</strong> a task is code; a job is data asking Graphile Worker to execute that code.</div>
+      </section>
+
+      <section class="section" id="architecture">
+        <h2>2. Architecture</h2>
+        <p>The queue is not a separate server. It is a PostgreSQL schema plus Node.js worker processes. PostgreSQL provides durable storage, locking and transactions; the Node runner provides task execution and orchestration.</p>
+        <div class="architecture" role="img" aria-label="Graphile Worker architecture flow">
+          <div class="flow">
+            <div class="flow-box"><strong>Job producers</strong><small>API, cron, another task, SQL function or database trigger</small></div>
+            <div class="arrow">→</div>
+            <div class="flow-box db"><strong>PostgreSQL</strong><small>Jobs, attempts, run time, priority, locks and notifications</small></div>
+            <div class="arrow">↔</div>
+            <div class="flow-box"><strong>Worker pool</strong><small>Claims jobs and dispatches task functions</small><div class="worker-row"><span class="worker">Worker 1</span><span class="worker">Worker 2</span><span class="worker">Worker N</span></div></div>
+          </div>
+        </div>
+        <h3>Key mechanisms</h3>
+        <div class="grid two">
+          <div class="card"><h4><code>LISTEN/NOTIFY</code></h4><p>When a producer inserts a job, PostgreSQL can notify listening workers so they wake quickly rather than waiting for the next poll.</p></div>
+          <div class="card"><h4>Polling fallback</h4><p>Workers still poll periodically. This protects against missed notifications and discovers delayed jobs when their <code>run_at</code> time arrives.</p></div>
+          <div class="card"><h4><code>FOR UPDATE SKIP LOCKED</code></h4><p>Concurrent workers can safely claim different rows without waiting behind one another. A locked job is skipped by other claimers.</p></div>
+          <div class="card"><h4>PostgreSQL transactions</h4><p>A business write and its follow-up job can be committed atomically, avoiding the classic “data committed but message publication failed” gap.</p></div>
+        </div>
+        <h3>Main internal responsibilities</h3>
+        <table>
+          <thead><tr><th>Layer</th><th>Responsibility</th></tr></thead>
+          <tbody>
+            <tr><td>Producer API / SQL</td><td>Validate job options and insert one or more job records.</td></tr>
+            <tr><td>Queue schema</td><td>Store payloads, task identifiers, priorities, schedules, locks, attempt counts and errors.</td></tr>
+            <tr><td>Worker pool</td><td>Maintain the configured concurrency and coordinate job discovery.</td></tr>
+            <tr><td>Individual worker</td><td>Claim one runnable job, execute it and report the outcome.</td></tr>
+            <tr><td>Task executor</td><td>Perform application work and throw on failure.</td></tr>
+            <tr><td>Cron scheduler</td><td>Translate recurring schedules into ordinary queue jobs, optionally backfilling missed schedules.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="section" id="lifecycle">
+        <h2>3. The lifecycle of a job</h2>
+        <div class="steps">
+          <div class="step"><strong>Enqueue</strong>A producer calls <code>addJob</code>, <code>addJobs</code>, or the PostgreSQL <code>graphile_worker.add_job</code> function. The job is persisted with its payload and execution options.</div>
+          <div class="step"><strong>Become runnable</strong>The job is eligible when its scheduled time has arrived, attempts remain, dependencies encoded by the application are satisfied, and its named queue is available.</div>
+          <div class="step"><strong>Claim</strong>A worker claims the row under PostgreSQL locking. Other workers skip the locked row and look for other work.</div>
+          <div class="step"><strong>Execute</strong>The registered task function receives the JSON payload and helpers such as logging, SQL access and job insertion.</div>
+          <div class="step"><strong>Succeed or fail</strong>Returning or resolving means success. Throwing or rejecting means failure.</div>
+          <div class="step"><strong>Complete or retry</strong>Successful jobs are normally removed. Failed jobs record the error and are rescheduled with backoff until <code>maxAttempts</code> is exhausted.</div>
+        </div>
+        <pre><code>await addJob('refreshPlayerStats', {
+  playerId
+}, {
+  jobKey: `refresh-player:${playerId}`,
+  maxAttempts: 5,
+  priority: 50
+});</code></pre>
+      </section>
+
+      <section class="section" id="guarantees">
+        <h2>4. Delivery guarantees and idempotency</h2>
+        <p>Graphile Worker guarantees at-least-once execution, not exactly-once business effects. Most jobs run once, but a retry can occur after a task error, process crash, connection loss or uncertainty around completion.</p>
+        <div class="callout warn"><strong>Critical rule:</strong> assume any job may run more than once, even when duplicates are rare.</div>
+        <h3>Why duplicates can happen</h3>
+        <p>A task may complete an external side effect and then crash before the queue records success. From the queue’s perspective, retrying is the safe choice; from the external system’s perspective, the action may already have happened.</p>
+        <h3>Good idempotency patterns</h3>
+        <div class="grid two">
+          <div class="card good"><h4>Database upsert</h4><p>Use stable unique keys and <code>INSERT ... ON CONFLICT DO UPDATE</code> so repeating the same write converges on the same state.</p></div>
+          <div class="card good"><h4>Processing ledger</h4><p>Record a domain event or source payload ID as processed under a unique constraint before applying dependent state changes.</p></div>
+          <div class="card good"><h4>External idempotency key</h4><p>When an API supports it, send a stable request key so retries do not create duplicate payments, messages or resources.</p></div>
+          <div class="card good"><h4>Transactional state transition</h4><p>Lock the domain row, verify its expected current state, perform the transition and record completion in one database transaction.</p></div>
+        </div>
+        <h3>What job keys do—and do not—solve</h3>
+        <p>A <code>jobKey</code> can replace, update or deduplicate queued work. It reduces redundant jobs, but it does not make the task body exactly once. A worker can still retry the same keyed job after partial execution.</p>
+      </section>
+
+      <section class="section" id="features">
+        <h2>5. Core features</h2>
+        <table>
+          <thead><tr><th>Feature</th><th>How it helps</th><th>Important caveat</th></tr></thead>
+          <tbody>
+            <tr><td>Retries and backoff</td><td>Temporary HTTP, database and dependency failures can recover automatically.</td><td>Permanent failures need monitoring and an operational response.</td></tr>
+            <tr><td>Delayed jobs</td><td>Set a future run time for reminders, cooldowns or deferred processing.</td><td>This is scheduling, not a general workflow state machine.</td></tr>
+            <tr><td>Priorities</td><td>Prefer urgent work when multiple jobs are runnable.</td><td>Do not rely on strict global ordering under concurrency.</td></tr>
+            <tr><td>Named queues</td><td>Jobs sharing a queue name run serially, useful for per-resource exclusion or rate control.</td><td>Overusing queues can unnecessarily reduce throughput.</td></tr>
+            <tr><td>Job keys</td><td>Replace, debounce or deduplicate equivalent queued work.</td><td>Key design must be stable and sufficiently unique.</td></tr>
+            <tr><td>Cron and backfill</td><td>Recurring tasks become normal retryable jobs; missed schedules may be backfilled.</td><td>Task code should decide whether an old backfilled execution is still useful.</td></tr>
+            <tr><td>Batch insertion</td><td>Add many jobs efficiently.</td><td>Large fan-outs still produce database write load and should be bounded.</td></tr>
+            <tr><td>Graceful shutdown</td><td>Workers can stop claiming new jobs and finish or release current work safely.</td><td>Container termination grace periods must be long enough for the policy chosen.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="section" id="tt-players">
+        <h2>6. How TT Players uses it</h2>
+        <p>TT Players uses Graphile Worker in library mode as the scheduler and dispatcher for a PostgreSQL-centred ETL system.</p>
+        <div class="grid two">
+          <div class="card"><h3>Producers</h3><p>Cron entries and task functions enqueue scraping, parsing, reconciliation, rating, cache and read-model work.</p></div>
+          <div class="card"><h3>Runner</h3><p><code>apps/worker/src/worker.ts</code> creates a dedicated PostgreSQL pool, runs Graphile migrations, performs startup recovery and starts the worker.</p></div>
+          <div class="card"><h3>Task registry</h3><p><code>apps/worker/src/task-list.ts</code> maps stable task identifiers to executor functions and schedules follow-up jobs.</p></div>
+          <div class="card"><h3>Domain durability</h3><p>Raw scrape data and application processing state live in TT Players tables, allowing parser fixes and reprocessing without relying only on queue history.</p></div>
+        </div>
+        <h3>Representative pipeline</h3>
+        <div class="architecture">
+          <div class="flow">
+            <div class="flow-box"><strong>Scheduled discovery</strong><small>Find active league or tournament targets</small></div>
+            <div class="arrow">→</div>
+            <div class="flow-box db"><strong>Scrape & preserve</strong><small>Fetch source data, hash it and store recoverable raw input</small></div>
+            <div class="arrow">→</div>
+            <div class="flow-box"><strong>Parse & publish</strong><small>Upsert domain tables, reconcile players, refresh ratings and read models</small></div>
+          </div>
+        </div>
+        <h3>What the repository is doing well</h3>
+        <ul class="checklist">
+          <li>Stable job keys reduce duplicate scrape and refresh work.</li>
+          <li>Retry policies are centralised rather than invented independently by each task.</li>
+          <li>Cron backfill is enabled for daily jobs.</li>
+          <li>Worker concurrency and PostgreSQL pool size are explicitly bounded.</li>
+          <li>Raw source payloads and domain state provide recoverability beyond the queue itself.</li>
+          <li>Graceful signal handling closes the runner and database pools.</li>
+        </ul>
+        <h3>Specific risks to address</h3>
+        <div class="grid two">
+          <div class="card warn"><h4>Private schema dependency</h4><p><code>startup-recovery.ts</code> reads or updates <code>graphile_worker._private_jobs</code> and <code>_private_tasks</code>. These are implementation details and may change across releases. Prefer stable views/functions or application-owned recovery records.</p></div>
+          <div class="card warn"><h4>Runtime upgrade gate</h4><p>The repository currently allows Node 18 and declares Graphile Worker <code>^0.16.6</code>. Current Graphile Worker documentation requires Node 22.18+ and PostgreSQL 12+, so runtime alignment and upgrade testing should happen together.</p></div>
+          <div class="card warn"><h4>Manual retry policy</h4><p>Resetting exhausted jobs based on parsed error text can accidentally re-run a permanently failing task. Recovery rules should be explicit, bounded and observable.</p></div>
+          <div class="card warn"><h4>Single workload pool</h4><p>Long scrapes, lightweight cleanup and rating calculations compete for the same concurrency. Named queues or separate worker processes may become useful as load grows.</p></div>
+        </div>
+      </section>
+
+      <section class="section" id="pros-cons">
+        <h2>7. Advantages and disadvantages</h2>
+        <div class="grid two">
+          <div class="card good">
+            <h3>Advantages</h3>
+            <ul class="checklist">
+              <li>One fewer infrastructure system to deploy, secure, back up and monitor.</li>
+              <li>Transactional enqueue with application database writes.</li>
+              <li>Strong durability from PostgreSQL.</li>
+              <li>Simple Node.js task model and TypeScript-friendly library API.</li>
+              <li>Retries, delayed work, cron, priorities and serial queues are built in.</li>
+              <li>Multiple worker processes can scale horizontally.</li>
+              <li>Operational inspection is possible with familiar SQL tooling.</li>
+            </ul>
+          </div>
+          <div class="card bad">
+            <h3>Disadvantages</h3>
+            <ul class="checklist avoid">
+              <li>Queue writes, vacuum work and contention share resources with the main database.</li>
+              <li>At-least-once execution pushes idempotency responsibility into application design.</li>
+              <li>Not a full workflow engine with durable multi-step histories and signals.</li>
+              <li>PostgreSQL connection limits constrain worker and application pool sizing.</li>
+              <li>Large payloads bloat tables and WAL; jobs should carry references, not documents.</li>
+              <li>Cross-region active-active queueing is not its natural deployment model.</li>
+              <li>Private schema access is tempting but creates upgrade fragility.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="best-fit">
+        <h2>8. Best applications</h2>
+        <p>Graphile Worker is strongest when PostgreSQL is already central, the team wants low operational overhead, and work can be represented as bounded asynchronous tasks.</p>
+        <div class="grid three">
+          <div class="card"><h3>ETL and ingestion</h3><p>Scraping, importing files, normalising records, deduplicating entities and refreshing read models.</p></div>
+          <div class="card"><h3>Application background work</h3><p>Email delivery, notifications, webhooks, document generation, image processing and cache refreshes.</p></div>
+          <div class="card"><h3>Scheduled maintenance</h3><p>Cleanup, snapshots, reports, data expiry, reconciliation and periodic health checks.</p></div>
+          <div class="card"><h3>Transactional follow-ups</h3><p>Commit domain changes and enqueue subsequent work in the same PostgreSQL transaction.</p></div>
+          <div class="card"><h3>Moderate fan-out</h3><p>Split a parent operation into many bounded child jobs while retaining retry and visibility.</p></div>
+          <div class="card"><h3>Small-to-medium teams</h3><p>Gain a reliable queue without dedicating engineering effort to another distributed system.</p></div>
+        </div>
+      </section>
+
+      <section class="section" id="avoid">
+        <h2>9. When to avoid it</h2>
+        <div class="grid two">
+          <div class="card bad"><h3>Extreme sustained throughput</h3><p>If queue traffic itself is massive and would dominate the primary database, a specialised broker or managed queue may isolate load better.</p></div>
+          <div class="card bad"><h3>CPU-heavy workloads</h3><p>Video encoding, large ML inference or heavy simulations need dedicated compute scheduling. Graphile Worker can dispatch them, but should not make the Node process do the work.</p></div>
+          <div class="card bad"><h3>Complex long-running workflows</h3><p>Human approvals, durable timers over months, external signals, workflow versioning and compensation logic fit systems such as Temporal more naturally.</p></div>
+          <div class="card bad"><h3>Event streaming and replay</h3><p>If the primary requirement is ordered streams, consumer groups, long retention and broad replay, Kafka-compatible systems are a better abstraction.</p></div>
+          <div class="card bad"><h3>No PostgreSQL dependency</h3><p>Introducing PostgreSQL only for the queue usually removes the simplicity advantage.</p></div>
+          <div class="card bad"><h3>Independent failure domain required</h3><p>If the queue must remain fully available while the application database is unhealthy or under maintenance, separating them may be worth the extra operations.</p></div>
+        </div>
+      </section>
+
+      <section class="section" id="alternatives">
+        <h2>10. Choosing between alternatives</h2>
+        <table>
+          <thead><tr><th>Need</th><th>Likely choice</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td>PostgreSQL app, background jobs, minimal infrastructure</td><td><strong>Graphile Worker</strong></td><td>Transactional enqueue and operational simplicity.</td></tr>
+            <tr><td>Redis already operated, very low latency, rich queue UI/ecosystem</td><td>BullMQ</td><td>Redis-native queue features and mature tooling.</td></tr>
+            <tr><td>Managed delivery with cloud IAM and elastic scale</td><td>SQS / Cloud Tasks / Pub/Sub</td><td>Provider-managed availability and capacity.</td></tr>
+            <tr><td>Long-lived stateful business workflows</td><td>Temporal</td><td>Durable workflow history, signals, timers and versioning.</td></tr>
+            <tr><td>High-volume event log, replay and multiple consumer groups</td><td>Kafka / Redpanda</td><td>Streaming log semantics rather than task-queue semantics.</td></tr>
+            <tr><td>Simple scheduled serverless invocation</td><td>Cloud scheduler + function</td><td>Useful when there is little need for a general-purpose job queue.</td></tr>
+          </tbody>
+        </table>
+        <div class="callout"><strong>Do not choose by benchmark alone.</strong> Include transactional requirements, recovery model, observability, team expertise, deployment complexity and failure-domain needs.</div>
+      </section>
+
+      <section class="section" id="operations">
+        <h2>11. Production checklist</h2>
+        <div class="grid two">
+          <div class="card"><h3>Task design</h3><ul class="checklist"><li>Make every task idempotent.</li><li>Keep payloads small and reference application rows.</li><li>Validate payloads at the executor boundary.</li><li>Use explicit timeouts for external calls.</li><li>Separate retryable and permanent failures where possible.</li></ul></div>
+          <div class="card"><h3>Capacity</h3><ul class="checklist"><li>Budget all PostgreSQL pools together.</li><li>Measure queue depth and oldest runnable-job age.</li><li>Control concurrency per external dependency.</li><li>Watch WAL, vacuum, table growth and database I/O.</li><li>Scale workers only after measuring the downstream bottleneck.</li></ul></div>
+          <div class="card"><h3>Observability</h3><ul class="checklist"><li>Use structured logs with task, job and domain identifiers.</li><li>Alert on exhausted jobs and increasing queue age.</li><li>Track execution duration, retry count and success rate per task.</li><li>Expose a safe operational view rather than querying private tables.</li><li>Document replay and manual recovery procedures.</li></ul></div>
+          <div class="card"><h3>Deployment</h3><ul class="checklist"><li>Run migrations before workers accept jobs.</li><li>Use graceful shutdown with adequate termination time.</li><li>Test rolling deployments with old and new task code overlapping.</li><li>Preserve backwards-compatible payload handling during rollout.</li><li>Pin and test upgrades that alter the queue schema.</li></ul></div>
+        </div>
+      </section>
+
+      <section class="section" id="quiz">
+        <h2>12. Check your understanding</h2>
+        <p>Choose one answer for each question, then check your score. Explanations appear after scoring.</p>
+        <form id="quiz-form">
+          <div class="quiz-question" data-answer="b">
+            <fieldset><legend>1. What is the most accurate description of a Graphile Worker job?</legend>
+              <label><input type="radio" name="q1" value="a"> A JavaScript function stored in PostgreSQL</label>
+              <label><input type="radio" name="q1" value="b"> A durable database record requesting execution of a named task</label>
+              <label><input type="radio" name="q1" value="c"> A dedicated PostgreSQL server process</label>
+            </fieldset><p class="explanation"><strong>Answer: B.</strong> The task is code; the job is persisted data describing one invocation.</p>
+          </div>
+          <div class="quiz-question" data-answer="c">
+            <fieldset><legend>2. Why does Graphile Worker combine notifications with polling?</legend>
+              <label><input type="radio" name="q2" value="a"> Notifications guarantee exactly-once execution</label>
+              <label><input type="radio" name="q2" value="b"> Polling makes PostgreSQL transactions unnecessary</label>
+              <label><input type="radio" name="q2" value="c"> Notifications reduce latency; polling recovers missed signals and finds delayed jobs</label>
+            </fieldset><p class="explanation"><strong>Answer: C.</strong> <code>LISTEN/NOTIFY</code> wakes workers quickly, while polling is the reliability fallback.</p>
+          </div>
+          <div class="quiz-question" data-answer="a">
+            <fieldset><legend>3. What delivery model must task code assume?</legend>
+              <label><input type="radio" name="q3" value="a"> At least once</label>
+              <label><input type="radio" name="q3" value="b"> At most once</label>
+              <label><input type="radio" name="q3" value="c"> Exactly once for all external effects</label>
+            </fieldset><p class="explanation"><strong>Answer: A.</strong> Retries are necessary for durability, so task effects must be idempotent.</p>
+          </div>
+          <div class="quiz-question" data-answer="b">
+            <fieldset><legend>4. A job sends an email and the process crashes before recording success. What can happen?</legend>
+              <label><input type="radio" name="q4" value="a"> Graphile Worker can prove the email was sent and never retries</label>
+              <label><input type="radio" name="q4" value="b"> The job may retry and send a duplicate unless the email operation is deduplicated</label>
+              <label><input type="radio" name="q4" value="c"> PostgreSQL automatically removes the original email</label>
+            </fieldset><p class="explanation"><strong>Answer: B.</strong> This is the classic uncertain-completion case behind at-least-once delivery.</p>
+          </div>
+          <div class="quiz-question" data-answer="c">
+            <fieldset><legend>5. What is a named queue mainly used for?</legend>
+              <label><input type="radio" name="q5" value="a"> Encrypting job payloads</label>
+              <label><input type="radio" name="q5" value="b"> Making a task run on a different programming language</label>
+              <label><input type="radio" name="q5" value="c"> Serialising related jobs so only one from that queue runs at a time</label>
+            </fieldset><p class="explanation"><strong>Answer: C.</strong> Named queues are useful for per-resource exclusion and controlled access to a dependency.</p>
+          </div>
+          <div class="quiz-question" data-answer="b">
+            <fieldset><legend>6. Does a <code>jobKey</code> make the task body exactly once?</legend>
+              <label><input type="radio" name="q6" value="a"> Yes, always</label>
+              <label><input type="radio" name="q6" value="b"> No; it manages queued-job identity but retries can still repeat task effects</label>
+              <label><input type="radio" name="q6" value="c"> Only when the payload is empty</label>
+            </fieldset><p class="explanation"><strong>Answer: B.</strong> Job keys reduce redundant queued work; they do not remove the need for idempotency.</p>
+          </div>
+          <div class="quiz-question" data-answer="a">
+            <fieldset><legend>7. Why is Graphile Worker especially suitable for TT Players?</legend>
+              <label><input type="radio" name="q7" value="a"> PostgreSQL is already central and the workload is asynchronous, retryable ETL</label>
+              <label><input type="radio" name="q7" value="b"> TT Players requires a globally replayable event stream</label>
+              <label><input type="radio" name="q7" value="c"> All tasks are CPU-heavy video encodes</label>
+            </fieldset><p class="explanation"><strong>Answer: A.</strong> The existing database and workload make PostgreSQL-native queueing a natural fit.</p>
+          </div>
+          <div class="quiz-question" data-answer="c">
+            <fieldset><legend>8. Which TT Players behaviour most strongly supports safe retries?</legend>
+              <label><input type="radio" name="q8" value="a"> Storing very large documents inside every job payload</label>
+              <label><input type="radio" name="q8" value="b"> Depending on task execution order without database constraints</label>
+              <label><input type="radio" name="q8" value="c"> Stable unique keys, upserts and preserved raw source data</label>
+            </fieldset><p class="explanation"><strong>Answer: C.</strong> These make repeated processing converge and allow recovery after parser failures.</p>
+          </div>
+          <div class="quiz-question" data-answer="b">
+            <fieldset><legend>9. What is the main upgrade risk currently called out for TT Players?</legend>
+              <label><input type="radio" name="q9" value="a"> It uses no PostgreSQL database</label>
+              <label><input type="radio" name="q9" value="b"> Startup recovery accesses Graphile Worker private tables directly</label>
+              <label><input type="radio" name="q9" value="c"> It has too many independent queue products</label>
+            </fieldset><p class="explanation"><strong>Answer: B.</strong> Private tables are not a stable public contract and can change between releases.</p>
+          </div>
+          <div class="quiz-question" data-answer="c">
+            <fieldset><legend>10. Which requirement points away from Graphile Worker?</legend>
+              <label><input type="radio" name="q10" value="a"> Nightly cleanup with retries</label>
+              <label><input type="radio" name="q10" value="b"> Transactional follow-up jobs after a database update</label>
+              <label><input type="radio" name="q10" value="c"> A multi-month workflow with human approvals, signals and versioned state</label>
+            </fieldset><p class="explanation"><strong>Answer: C.</strong> A durable workflow engine is a more natural abstraction for long-lived stateful workflows.</p>
+          </div>
+          <div class="quiz-controls">
+            <button type="button" id="check-quiz">Check answers</button>
+            <button type="reset" class="secondary" id="reset-quiz">Reset</button>
+            <span id="quiz-result" aria-live="polite"></span>
+          </div>
+        </form>
+      </section>
+
+      <section class="section" id="sources">
+        <h2>Sources and further reading</h2>
+        <ul class="sources">
+          <li><a href="https://worker.graphile.org/docs">Graphile Worker introduction and guarantees</a></li>
+          <li><a href="https://worker.graphile.org/docs/requirements">Current runtime requirements</a></li>
+          <li><a href="https://worker.graphile.org/docs/library">Library API</a></li>
+          <li><a href="https://worker.graphile.org/docs/library/add-job">Adding jobs and job options</a></li>
+          <li><a href="https://worker.graphile.org/docs/job-key">Job keys and replacement semantics</a></li>
+          <li><a href="https://worker.graphile.org/docs/cron">Recurring tasks and backfill</a></li>
+          <li><a href="https://github.com/wudong/tt-players/tree/main/apps/worker/src">TT Players worker implementation</a></li>
+        </ul>
+        <p><small>Prepared 6 August 2026. The architectural recommendations are specific to the repository state reviewed on that date.</small></p>
+      </section>
+    </main>
+
+    <aside class="toc" aria-label="Table of contents">
+      <strong>On this page</strong>
+      <a href="#what-it-is">1. What it is</a>
+      <a href="#architecture">2. Architecture</a>
+      <a href="#lifecycle">3. Job lifecycle</a>
+      <a href="#guarantees">4. Guarantees</a>
+      <a href="#features">5. Core features</a>
+      <a href="#tt-players">6. TT Players</a>
+      <a href="#pros-cons">7. Pros and cons</a>
+      <a href="#best-fit">8. Best applications</a>
+      <a href="#avoid">9. When to avoid</a>
+      <a href="#alternatives">10. Alternatives</a>
+      <a href="#operations">11. Production checklist</a>
+      <a href="#quiz">12. Quiz</a>
+      <a href="#sources">Sources</a>
+    </aside>
+  </div>
+
+  <footer class="footer">TT Players · Graphile Worker architecture and decision guide</footer>
+
+  <script>
+    const form = document.getElementById('quiz-form');
+    const questions = Array.from(document.querySelectorAll('.quiz-question'));
+    const result = document.getElementById('quiz-result');
+
+    document.getElementById('check-quiz').addEventListener('click', () => {
+      let score = 0;
+      let answered = 0;
+      questions.forEach((question, index) => {
+        const selected = form.querySelector(`input[name="q${index + 1}"]:checked`);
+        question.classList.remove('correct', 'incorrect');
+        question.classList.add('revealed');
+        if (selected) {
+          answered += 1;
+          if (selected.value === question.dataset.answer) {
+            score += 1;
+            question.classList.add('correct');
+          } else {
+            question.classList.add('incorrect');
+          }
+        } else {
+          question.classList.add('incorrect');
+        }
+      });
+      const message = score === questions.length
+        ? 'Excellent — you have a strong working understanding.'
+        : score >= 8
+          ? 'Strong result — review the highlighted explanations.'
+          : score >= 6
+            ? 'Good foundation — revisit delivery guarantees and fit.'
+            : 'Review the architecture and idempotency sections, then try again.';
+      result.textContent = `${score}/${questions.length} correct (${answered}/${questions.length} answered). ${message}`;
+      result.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    });
+
+    document.getElementById('reset-quiz').addEventListener('click', () => {
+      questions.forEach(question => question.classList.remove('correct', 'incorrect', 'revealed'));
+      result.textContent = '';
+    });
+  </script>
+</body>
+</html>
