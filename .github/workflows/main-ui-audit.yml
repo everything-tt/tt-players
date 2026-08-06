@@ -113,8 +113,13 @@ jobs:
           NETLIFY_ALIAS: main-ui-audit-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
+          DEPLOY_DIR="$(mktemp -d)"
+          trap 'rm -rf "$DEPLOY_DIR"' EXIT
+          cp -a ui-review-report/. "$DEPLOY_DIR/"
+          cd "$DEPLOY_DIR"
+
           pnpm --package=netlify-cli@27.0.1 dlx netlify deploy \
-            --dir=ui-review-report \
+            --dir=. \
             --site="$NETLIFY_SITE_ID" \
             --auth="$NETLIFY_AUTH_TOKEN" \
             --alias="$NETLIFY_ALIAS" \
