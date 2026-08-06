@@ -167,7 +167,7 @@ export function ratingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     : sql<CountRow>`
                         SELECT COUNT(*)::int AS total
                         FROM player_ratings rating
-                        JOIN rating_models rating_model ON rating_model.id = model_id
+                        JOIN rating_models rating_model ON rating_model.id = rating.model_id
                         JOIN external_players player ON player.id = rating.player_id
                         WHERE rating_model.key = ${model}
                           AND player.deleted_at IS NULL
