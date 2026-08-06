@@ -23,6 +23,7 @@ import { TopRatingsPage } from './TopRatingsPage';
 import { TeamPage } from './TeamPage';
 import { EventDetailPage } from './EventDetailPage';
 import { TournamentEntryProfilesPage } from './TournamentEntryProfilesPage';
+import { TournamentEntryPrefillPage } from './TournamentEntryPrefillPage';
 import { H2HPage } from './H2HPage';
 import { LeagueDetailPage } from './LeagueDetailPage';
 import PWAReloadPrompt from './PWAReloadPrompt';
@@ -58,6 +59,7 @@ export function AppRouter() {
                 <Route path="/tabs/:tabId/my-tt" element={<EnsureValidTab><MyTTPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/my-tt/edit" element={<EnsureValidTab><EditMyTTPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/entry-profiles" element={<EnsureValidTab><TournamentEntryProfilesPage /></EnsureValidTab>} />
+                <Route path="/tabs/:tabId/entry-prefill" element={<EnsureValidTab><TournamentEntryPrefillPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/ratings" element={<EnsureValidTab><TopRatingsPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/event/:eventId" element={<EnsureValidTab><EventDetailPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/player/:playerId" element={<EnsureValidTab><PlayerPage /></EnsureValidTab>} />
