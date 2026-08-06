@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { TournamentEntryProfile } from './hooks/useTournamentEntryProfiles';
 import {
+  buildGoogleFormPreparationPath,
   buildGoogleFormsPrefilledUrl,
   isGoogleFormsUrl,
   mapGoogleFormFields,
   profileFieldForGoogleQuestion,
+  sanitizeGoogleFormsUrl,
   type GoogleFormInspectionResponse,
 } from './tournament-entry-prefill';
 
@@ -46,6 +48,20 @@ describe('Google Forms entrant prefilling', () => {
     expect(isGoogleFormsUrl('https://docs.google.com/forms/d/e/form-id/viewform?usp=sf_link')).toBe(true);
     expect(isGoogleFormsUrl('https://docs.google.com/forms/d/form-id/edit')).toBe(false);
     expect(isGoogleFormsUrl('https://example.com/forms/abc')).toBe(false);
+  });
+
+  it('strips existing query values before routing a tournament entry through preparation', () => {
+    const source = 'https://docs.google.com/forms/d/e/form-id/viewform?usp=pp_url&entry.1=Private#section';
+    expect(sanitizeGoogleFormsUrl(source)).toBe(
+      'https://docs.google.com/forms/d/e/form-id/viewform',
+    );
+
+    const path = buildGoogleFormPreparationPath(source);
+    expect(path).not.toBeNull();
+    const params = new URLSearchParams(path?.split('?')[1]);
+    expect(path?.startsWith('entry-prefill?')).toBe(true);
+    expect(params.get('url')).toBe('https://docs.google.com/forms/d/e/form-id/viewform');
+    expect(buildGoogleFormPreparationPath('https://example.com/form')).toBeNull();
   });
 
   it('maps common tournament labels and keeps partner fields manual', () => {

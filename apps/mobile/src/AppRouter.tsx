@@ -30,6 +30,7 @@ import PWAReloadPrompt from './PWAReloadPrompt';
 import PWAInstallSheet from './PWAInstallSheet';
 import { PWAInstallProvider } from './PWAInstallContext';
 import { UserDataSyncProvider } from './UserDataSyncProvider';
+import { GoogleFormsEntryInterceptor } from './components/GoogleFormsEntryInterceptor';
 import { ThemeProvider } from './ui/appkit';
 
 function TabRootRedirect() {
@@ -53,6 +54,7 @@ export function AppRouter() {
             <PWAReloadPrompt />
             <PWAInstallSheet />
             <TabNavigationProvider>
+              <GoogleFormsEntryInterceptor />
               <Routes>
                 <Route path="/" element={<Navigate to="/tabs/home" replace />} />
                 <Route path="/tabs/:tabId" element={<EnsureValidTab><App /></EnsureValidTab>} />
