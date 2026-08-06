@@ -89,6 +89,36 @@ describe('Google Forms ingestion inspection', () => {
         });
     });
 
+    it('extracts Google Forms responder email as a prefillable field', () => {
+        const payload = [null, [null, [[101, '4. Email', null, 0, [[501, null, 1]]]]]];
+        const html = formHtml(payload).replace(
+            '<script>',
+            '<input type="email" name="emailAddress" required><script>',
+        );
+
+        const inspection = parseGoogleFormHtml(html, FORM_URL);
+
+        expect(inspection.fields).toEqual([
+            {
+                id: 'emailAddress',
+                label: 'Email',
+                description: 'Email address used by Google Forms for this response',
+                kind: 'short_text',
+                required: true,
+                options: [],
+                prefill_parameter: 'emailAddress',
+            },
+            {
+                id: '501',
+                label: '4. Email',
+                description: null,
+                kind: 'short_text',
+                required: true,
+                options: [],
+            },
+        ]);
+    });
+
     it('fails closed when no supported question entries are present', () => {
         expect(() => parseGoogleFormHtml(formHtml([null, [null, []]]), FORM_URL)).toThrow(
             'No supported questions were found in this form.',
