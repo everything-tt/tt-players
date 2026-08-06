@@ -197,7 +197,7 @@ export async function refreshRatingSourceQuality(
             SELECT
                 ${model.id}::uuid,
                 competition.id,
-                MAX(classification.platform_id),
+                MIN(classification.platform_id::text)::uuid,
                 COUNT(classification.rubber_id)::int,
                 COUNT(classification.rubber_id) FILTER (
                     WHERE classification.eligibility_reason = 'eligible'
