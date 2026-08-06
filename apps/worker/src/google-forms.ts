@@ -24,6 +24,7 @@ export interface GoogleFormField {
     kind: GoogleFormFieldKind;
     required: boolean;
     options: string[];
+    prefill_parameter?: 'emailAddress';
 }
 
 export interface GoogleFormInspection {
@@ -226,6 +227,21 @@ function entryOptions(entry: unknown[], kind: GoogleFormFieldKind): string[] {
     return Array.from(values);
 }
 
+function collectResponseEmailField(html: string, output: Map<string, GoogleFormField>): void {
+    const responderEmailInput = /<input\b[^>]*\bname\s*=\s*(["'])emailAddress\1[^>]*>/i.test(html);
+    if (!responderEmailInput) return;
+
+    output.set('emailAddress', {
+        id: 'emailAddress',
+        label: 'Email',
+        description: 'Email address used by Google Forms for this response',
+        kind: 'short_text',
+        required: true,
+        options: [],
+        prefill_parameter: 'emailAddress',
+    });
+}
+
 function collectFields(value: unknown, output: Map<string, GoogleFormField>): void {
     if (!Array.isArray(value) || output.size >= MAX_FIELDS) return;
 
@@ -278,6 +294,7 @@ function formTitle(html: string): string {
 export function parseGoogleFormHtml(html: string, formUrl: string): GoogleFormInspection {
     const loadData = extractGoogleFormLoadData(html);
     const fields = new Map<string, GoogleFormField>();
+    collectResponseEmailField(html, fields);
     collectFields(loadData, fields);
 
     if (fields.size === 0) {
