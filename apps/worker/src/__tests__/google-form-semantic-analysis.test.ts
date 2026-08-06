@@ -99,6 +99,13 @@ describe('Google Form semantic analysis', () => {
                     evidence: 'Invented source',
                     source_field_ids: ['invented'],
                 },
+                {
+                    field: 'organizer_name',
+                    value: 'Made Up Organiser',
+                    confidence: 0.99,
+                    evidence: 'Made Up Organiser',
+                    source_field_ids: ['3'],
+                },
             ],
         }));
 
@@ -126,6 +133,7 @@ describe('Google Form semantic analysis', () => {
         });
         expect(analysis?.mappings.some((mapping) => mapping.field_id === 'invented')).toBe(false);
         expect(analysis?.event_details.some((detail) => detail.field === 'venue_town')).toBe(false);
+        expect(analysis?.event_details.some((detail) => detail.field === 'organizer_name')).toBe(false);
 
         expect(fetcher).toHaveBeenCalledOnce();
         const [url, request] = fetcher.mock.calls[0];
