@@ -5,7 +5,10 @@ import test from 'node:test';
 const workflowUrl = new URL('../../.github/workflows/main-ui-audit.yml', import.meta.url);
 const buildWorkflowUrl = new URL('../../.github/workflows/build.yml', import.meta.url);
 const playwrightConfigUrl = new URL('../../playwright.main-audit.config.ts', import.meta.url);
-const auditTestUrl = new URL('../../apps/mobile/tests/main-audit/main-audit.pw.ts', import.meta.url);
+const auditTestUrl = new URL(
+  '../../apps/mobile/tests/main-audit/screenshot-audit.pw.ts',
+  import.meta.url,
+);
 
 function extractJob(workflow, jobName) {
   const marker = `  ${jobName}:\n`;
@@ -30,7 +33,7 @@ test('main UI audit is an explicit manual workflow', async () => {
   assert.doesNotMatch(job, /continue-on-error:\s*true/);
 });
 
-test('main UI audit always publishes report and Playwright failure evidence', async () => {
+test('main UI audit publishes an aliased draft report and keeps failure evidence', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
   const job = extractJob(workflow, 'audit');
 
@@ -40,8 +43,15 @@ test('main UI audit always publishes report and Playwright failure evidence', as
   assert.match(job, /test-results\/main-audit\//);
   assert.match(job, /retention-days:\s*30/);
   assert.match(job, /GITHUB_STEP_SUMMARY/);
+  assert.match(job, /pnpm dlx netlify-cli@27\.0\.1 deploy/);
+  assert.match(job, /--alias="\$NETLIFY_ALIAS"/);
+  assert.match(job, /--context=deploy-preview/);
+  assert.match(job, /--no-build/);
+  assert.match(job, /Expected an aliased draft deploy/);
+  assert.match(job, /Refusing to use the production frontend URL/);
+  assert.match(job, /NETLIFY_SITE_ID/);
   assert.doesNotMatch(job, /actions-netlify/);
-  assert.doesNotMatch(job, /NETLIFY_SITE_ID/);
+  assert.doesNotMatch(job, /--prod(?:\s|$)/m);
 });
 
 test('frontend deployment workflow no longer owns the broad main audit', async () => {
@@ -52,13 +62,15 @@ test('frontend deployment workflow no longer owns the broad main audit', async (
   assert.doesNotMatch(workflow, /apps\/mobile\/tests\/main-audit/);
 });
 
-test('main audit records severe browser events and fails after evidence collection', async () => {
+test('main audit records diagnostics without turning the report into verification', async () => {
   const auditTest = await readFile(auditTestUrl, 'utf8');
 
-  assert.match(auditTest, /auditFailures\.push/);
-  assert.match(auditTest, /assertNoAuditFailures/);
-  assert.doesNotMatch(auditTest, /expect\(severeEvents\(events\)/);
-  assert.doesNotMatch(auditTest, /mode:\s*'serial'/);
+  assert.match(auditTest, /pageerror/);
+  assert.match(auditTest, /requestfailed/);
+  assert.match(auditTest, /eventCount/);
+  assert.match(auditTest, /status:\s*'captured'/);
+  assert.match(auditTest, /type AuditStatus = 'captured' \| 'skipped' \| 'error'/);
+  assert.doesNotMatch(auditTest, /assertNoAuditFailures/);
 });
 
 test('main UI audit never retains browser traces containing authenticated traffic', async () => {

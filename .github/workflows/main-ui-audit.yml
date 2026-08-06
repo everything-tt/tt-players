@@ -80,7 +80,6 @@ jobs:
           } > ui-review-report/diagnostics/host-before.txt
 
       - name: Collect main UI screenshots
-        continue-on-error: true
         run: pnpm --filter @tt-players/mobile exec playwright test --config=../../playwright.main-audit.config.ts
 
       - name: Record host resources after
@@ -108,23 +107,46 @@ jobs:
       - name: Deploy main UI audit report to Netlify
         if: always() && hashFiles('ui-review-report/index.html') != ''
         id: report
-        continue-on-error: true
-        uses: nwtgck/actions-netlify@v3.0
-        with:
-          publish-dir: ./ui-review-report
-          production-branch: main
-          production-deploy: false
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          deploy-message: "Main UI audit ${{ github.run_id }}.${{ github.run_attempt }} for ${{ inputs.target_url }} (${{ github.sha }})"
-          alias: main-ui-audit-${{ github.run_id }}-${{ github.run_attempt }}
-          enable-pull-request-comment: false
-          enable-commit-comment: false
-          enable-commit-status: false
-          enable-github-deployment: false
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-        timeout-minutes: 5
+          NETLIFY_ALIAS: main-ui-audit-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          pnpm dlx netlify-cli@27.0.1 deploy \
+            --dir=ui-review-report \
+            --site="$NETLIFY_SITE_ID" \
+            --auth="$NETLIFY_AUTH_TOKEN" \
+            --alias="$NETLIFY_ALIAS" \
+            --message="Main UI audit ${{ github.run_id }}.${{ github.run_attempt }} for ${{ inputs.target_url }} (${{ github.sha }})" \
+            --context=deploy-preview \
+            --no-build \
+            --json > netlify-deploy.json
+
+          REPORT_URL="$(node -e '
+            const fs = require("node:fs");
+            const result = JSON.parse(fs.readFileSync("netlify-deploy.json", "utf8"));
+            const url = result.deploy_url || result.deployUrl || result.url;
+            if (!url) throw new Error("Netlify CLI did not return a deploy URL");
+            process.stdout.write(url.replace(/\/$/, ""));
+          ')"
+
+          case "$REPORT_URL" in
+            "https://$NETLIFY_ALIAS--"*.netlify.app) ;;
+            *)
+              echo "Expected an aliased draft deploy, received: $REPORT_URL" >&2
+              exit 1
+              ;;
+          esac
+
+          if [ "$REPORT_URL" = "https://ttp.tourneypilot.com" ] || \
+             [ "$REPORT_URL" = "https://ttp-players.netlify.app" ]; then
+            echo "Refusing to use the production frontend URL for an audit report" >&2
+            exit 1
+          fi
+
+          curl -fsS --max-time 30 "$REPORT_URL" >/dev/null
+          echo "deploy-url=$REPORT_URL" >> "$GITHUB_OUTPUT"
 
       - name: Add main UI audit summary
         if: always()
@@ -148,7 +170,7 @@ jobs:
           const lines = [
             '## Main UI audit',
             '',
-            '- Mode: screenshot collection (non-blocking)',
+            '- Mode: screenshot collection',
             `- Target: ${process.env.PREVIEW_URL}`,
             `- Commit: \`${(process.env.GITHUB_SHA || '').slice(0, 7)}\``,
             `- Captured screens: ${count('captured')}`,
