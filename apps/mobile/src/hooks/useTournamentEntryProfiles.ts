@@ -3,6 +3,7 @@ import {
   TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY,
   TOURNAMENT_ENTRY_PROFILES_UPDATED_EVENT,
 } from '../local-persistence';
+import { useAuth } from '../lib/auth';
 
 export type TournamentEntrantRelationship = 'self' | 'child' | 'coached' | 'other';
 
@@ -161,13 +162,17 @@ export function draftFromTournamentEntryProfile(
   };
 }
 
-export function useTournamentEntryProfiles(ownerUserId: string | null) {
+export function useTournamentEntryProfiles(ownerUserId?: string | null) {
+  const auth = useAuth();
+  const resolvedOwnerUserId = ownerUserId === undefined
+    ? auth.user?.id ?? null
+    : ownerUserId;
   const [profiles, setProfiles] = useState<TournamentEntryProfile[]>(
-    () => readProfiles(ownerUserId),
+    () => readProfiles(resolvedOwnerUserId),
   );
 
   useEffect(() => {
-    const sync = () => setProfiles(readProfiles(ownerUserId));
+    const sync = () => setProfiles(readProfiles(resolvedOwnerUserId));
     sync();
     window.addEventListener('storage', sync);
     window.addEventListener(TOURNAMENT_ENTRY_PROFILES_UPDATED_EVENT, sync);
@@ -175,10 +180,10 @@ export function useTournamentEntryProfiles(ownerUserId: string | null) {
       window.removeEventListener('storage', sync);
       window.removeEventListener(TOURNAMENT_ENTRY_PROFILES_UPDATED_EVENT, sync);
     };
-  }, [ownerUserId]);
+  }, [resolvedOwnerUserId]);
 
   const save = useCallback((draft: TournamentEntryProfileDraft) => {
-    if (!ownerUserId) return null;
+    if (!resolvedOwnerUserId) return null;
     const next: TournamentEntryProfile = {
       version: 1,
       id: clean(draft.id, MAX_NAME_LENGTH),
@@ -205,20 +210,20 @@ export function useTournamentEntryProfiles(ownerUserId: string | null) {
         next,
         ...previous.filter((profile) => profile.id !== next.id),
       ].slice(0, MAX_PROFILES);
-      persistProfiles(ownerUserId, updated);
+      persistProfiles(resolvedOwnerUserId, updated);
       return updated;
     });
     return next;
-  }, [ownerUserId]);
+  }, [resolvedOwnerUserId]);
 
   const remove = useCallback((profileId: string) => {
-    if (!ownerUserId) return;
+    if (!resolvedOwnerUserId) return;
     setProfiles((previous) => {
       const updated = previous.filter((profile) => profile.id !== profileId);
-      persistProfiles(ownerUserId, updated);
+      persistProfiles(resolvedOwnerUserId, updated);
       return updated;
     });
-  }, [ownerUserId]);
+  }, [resolvedOwnerUserId]);
 
   const getByPlayerId = useCallback(
     (playerId: string) => profiles.find((profile) => profile.playerId === playerId) ?? null,
@@ -226,10 +231,10 @@ export function useTournamentEntryProfiles(ownerUserId: string | null) {
   );
 
   const clear = useCallback(() => {
-    if (!ownerUserId) return;
-    persistProfiles(ownerUserId, []);
+    if (!resolvedOwnerUserId) return;
+    persistProfiles(resolvedOwnerUserId, []);
     setProfiles([]);
-  }, [ownerUserId]);
+  }, [resolvedOwnerUserId]);
 
   return {
     profiles,
