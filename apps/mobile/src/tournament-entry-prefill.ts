@@ -119,6 +119,12 @@ function isSensitiveQuestion(text: string): boolean {
     'accessibility requirement',
     'special requirement',
     'special need',
+    'declaration',
+    'consent',
+    'signature',
+    'signed by',
+    'terms and conditions',
+    'agree to',
   ]);
 }
 
@@ -161,6 +167,15 @@ export function profileFieldForGoogleQuestion(
     return null;
   }
 
+  if (/(date of birth|birth date|\bdob\b)/.test(text)) return 'dateOfBirth';
+
+  if (field.kind === 'date' && (
+    label === 'date'
+    || includesAny(label, ['declaration date', 'date signed', 'signature date', 'todays date'])
+  )) {
+    return 'currentDate';
+  }
+
   if (isSensitiveQuestion(text)) return null;
 
   const isGuardian = includesAny(text, [
@@ -176,15 +191,6 @@ export function profileFieldForGoogleQuestion(
     return 'guardianPhone';
   }
   if (isGuardian && includesAny(text, ['name', 'contact person'])) return 'guardianName';
-
-  if (/(date of birth|birth date|\bdob\b)/.test(text)) return 'dateOfBirth';
-
-  if (field.kind === 'date' && (
-    label === 'date'
-    || includesAny(label, ['declaration date', 'date signed', 'signature date', 'todays date'])
-  )) {
-    return 'currentDate';
-  }
 
   if (includesAny(text, [
     'full address',
