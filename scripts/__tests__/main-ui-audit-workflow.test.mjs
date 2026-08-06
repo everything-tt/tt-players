@@ -45,13 +45,13 @@ test('main UI audit publishes an aliased draft report and keeps failure evidence
   assert.match(job, /GITHUB_STEP_SUMMARY/);
   assert.match(job, /pnpm --package=netlify-cli@27\.0\.1 dlx netlify deploy/);
   assert.match(job, /--alias="\$NETLIFY_ALIAS"/);
-  assert.match(job, /--context=deploy-preview/);
   assert.match(job, /--no-build/);
   assert.match(job, /Expected an aliased draft deploy/);
   assert.match(job, /Refusing to use the production frontend URL/);
   assert.match(job, /NETLIFY_SITE_ID/);
   assert.doesNotMatch(job, /actions-netlify/);
   assert.doesNotMatch(job, /pnpm dlx netlify-cli/);
+  assert.doesNotMatch(job, /--context(?:=|\s)/);
   assert.doesNotMatch(job, /--prod(?:\s|$)/m);
 });
 
