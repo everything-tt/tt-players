@@ -7,17 +7,9 @@ import { validateMigrationOrder } from '../migration-preflight.js';
 describe('migration preflight', () => {
     it('allows pending migrations after the executed prefix', () => {
         const pending = validateMigrationOrder(
-            [
-                '001_create_enums',
-                '002_create_core_tables',
-                '003_add_feature',
-            ],
-            [
-                '001_create_enums',
-                '002_create_core_tables',
-            ],
+            ['001_create_enums', '002_create_core_tables', '003_add_feature'],
+            ['001_create_enums', '002_create_core_tables'],
         );
-
         expect(pending).toEqual(['003_add_feature']);
     });
 
@@ -43,14 +35,8 @@ describe('migration preflight', () => {
 
     it('rejects missing previously executed migrations', () => {
         expect(() => validateMigrationOrder(
-            [
-                '001_create_enums',
-                '003_add_feature',
-            ],
-            [
-                '001_create_enums',
-                '002_create_core_tables',
-            ],
+            ['001_create_enums', '003_add_feature'],
+            ['001_create_enums', '002_create_core_tables'],
         )).toThrow('previously executed migration 002_create_core_tables is missing');
     });
 
@@ -82,6 +68,7 @@ describe('migration preflight', () => {
             '042_create_rating_audit_foundation',
             '043_create_rating_player_coverage',
             '044_create_rating_source_quality',
+            '045_create_current_rating_rankings',
         ]);
     });
 });
