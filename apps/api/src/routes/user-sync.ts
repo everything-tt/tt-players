@@ -57,7 +57,7 @@ const ErrorSchema = z.object({
     statusCode: z.number().int(),
 });
 
-const FormInspectionQuerySchema = z.object({
+const FormInspectionRequestSchema = z.object({
     url: z.string().url().max(2_048),
 });
 
@@ -99,11 +99,11 @@ export function userSyncRoutes(db: Kysely<Database>): FastifyPluginAsync {
     return async function (fastify) {
         const app = fastify.withTypeProvider<ZodTypeProvider>();
 
-        app.get(
+        app.post(
             '/form-inspection',
             {
                 schema: {
-                    querystring: FormInspectionQuerySchema,
+                    body: FormInspectionRequestSchema,
                     response: {
                         200: GoogleFormInspectionSchema,
                         400: ErrorSchema,
@@ -120,7 +120,7 @@ export function userSyncRoutes(db: Kysely<Database>): FastifyPluginAsync {
 
                 reply.header('Cache-Control', 'private, no-store');
                 try {
-                    return await inspectGoogleForm(request.query.url);
+                    return await inspectGoogleForm(request.body.url);
                 } catch (error) {
                     if (error instanceof GoogleFormInspectionError) {
                         return reply.status(error.statusCode).send({
