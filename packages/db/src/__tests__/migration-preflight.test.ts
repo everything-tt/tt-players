@@ -69,6 +69,7 @@ describe('migration preflight', () => {
             '043_create_rating_player_coverage',
             '044_create_rating_source_quality',
             '045_create_current_rating_rankings',
+            '046_create_scraping_pipeline_run_history',
         ]);
     });
 });
