@@ -77,6 +77,16 @@ export function normalizeGoogleFormUrl(input: string): URL {
     return url;
 }
 
+export function isGoogleFormUrl(input: string | null | undefined): boolean {
+    if (!input) return false;
+    try {
+        normalizeGoogleFormUrl(input);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 function canonicalViewUrl(url: URL): URL {
     const canonical = new URL(url.toString());
     canonical.search = '';

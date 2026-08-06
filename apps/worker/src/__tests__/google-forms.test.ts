@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
     GoogleFormInspectionError,
     extractGoogleFormLoadData,
+    isGoogleFormUrl,
     normalizeGoogleFormUrl,
     parseGoogleFormHtml,
-} from './google-forms.js';
+} from '../google-forms.js';
 
 const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLTestForm/viewform?usp=sf_link';
 
@@ -18,12 +19,14 @@ function formHtml(payload: unknown, title = 'Junior Entry - Google Forms'): stri
 </html>`;
 }
 
-describe('Google Forms inspection', () => {
+describe('Google Forms ingestion inspection', () => {
     it('normalises supported links and strips pre-filled query values', () => {
         expect(normalizeGoogleFormUrl(`${FORM_URL}&entry.123=Private+Value`).toString())
             .toBe('https://docs.google.com/forms/d/e/1FAIpQLTestForm/viewform');
         expect(normalizeGoogleFormUrl('https://forms.gle/abc123?secret=value').toString())
             .toBe('https://forms.gle/abc123');
+        expect(isGoogleFormUrl(FORM_URL)).toBe(true);
+        expect(isGoogleFormUrl('https://example.com/form')).toBe(false);
     });
 
     it('rejects non-Google and non-public form paths', () => {
