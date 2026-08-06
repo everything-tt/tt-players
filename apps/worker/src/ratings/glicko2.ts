@@ -32,7 +32,7 @@ export const DEFAULT_GLICKO2_CONFIG: Glicko2Config = {
     tau: 0.5,
     ratingScale: 173.7178,
     conservativeDeviationMultiplier: 2,
-    provisionalMatches: 0,
+    provisionalMatches: 10,
     provisionalDeviation: 110,
 };
 
