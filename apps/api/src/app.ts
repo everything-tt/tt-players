@@ -23,6 +23,7 @@ import { feedbackRoutes } from './routes/feedback.js';
 import { leagueRatingsRoutes } from './routes/league-ratings.js';
 import { ratingAuditRoutes } from './routes/rating-audit.js';
 import { ratingPlayerCoverageRoutes } from './routes/rating-player-coverage.js';
+import { ratingRankingQualityRoutes } from './routes/rating-ranking-quality.js';
 import { ratingSourceQualityRoutes } from './routes/rating-source-quality.js';
 import { ratingHistoryRoutes } from './routes/rating-history.js';
 import { ratingsRoutes } from './routes/ratings.js';
@@ -170,6 +171,7 @@ export async function buildApp(db: Kysely<Database>) {
     await app.register(leagueRatingsRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingAuditRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingPlayerCoverageRoutes(db), { prefix: '/api/ratings' });
+    await app.register(ratingRankingQualityRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingSourceQualityRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingHistoryRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingsRoutes(db), { prefix: '/api/ratings' });

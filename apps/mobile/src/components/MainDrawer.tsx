@@ -18,6 +18,9 @@ const FOCUSABLE_SELECTOR = [
 const RATING_AUDIT_LINKS = [
   { label: 'Overview', path: '/rating-audit' },
   { label: 'Player Audit', path: '/rating-audit/player' },
+  { label: 'Player Coverage', path: '/rating-audit/coverage' },
+  { label: 'Source Quality', path: '/rating-audit/sources' },
+  { label: 'Ranking Quality', path: '/rating-audit/ranking' },
   { label: 'Data Health', path: '/rating-audit/data' },
   { label: 'Identity Health', path: '/rating-audit/identities' },
   { label: 'Rating Network', path: '/rating-audit/network' },
@@ -131,7 +134,15 @@ export function MainDrawer({
     if (path === '/rating-audit/player') {
       const section = location.pathname.split('/')[2] ?? '';
       return section === 'player'
-        || (ratingAuditActive && !['', 'data', 'identities', 'network'].includes(section));
+        || (ratingAuditActive && ![
+          '',
+          'coverage',
+          'sources',
+          'ranking',
+          'data',
+          'identities',
+          'network',
+        ].includes(section));
     }
     return location.pathname.startsWith(path);
   };

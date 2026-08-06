@@ -116,3 +116,40 @@ pnpm --filter @tt-players/worker ratings:calculate -- --max-periods=30
 The normal worker also runs `calculateRatingsTask` daily at 04:00 UTC and processes up to 31
 outstanding match dates. Weekly history is maintained automatically by the database trigger during
 those normal incremental updates.
+
+## Current rank versus historical rating
+
+A calculated rating is retained as historical evidence even when a player is no longer eligible
+for a current rank. `rating_current_rankings` materialises the present-day leaderboard after each
+rating run and during the weekly rating audit.
+
+The default current-ranking policy requires:
+
+- a match within the last 365 days;
+- at least 10 rated matches;
+- at least 5 unique opponents inside the model window;
+- present-day rating deviation no greater than 110; and
+- no unresolved critical player data issue.
+
+Present-day deviation is calculated from `last_rated_at`, stored volatility and elapsed inactive
+days. This prevents a player who never returns from keeping an artificially low historical
+deviation indefinitely.
+
+The public endpoint defaults to the current active ranking:
+
+```http
+GET /api/ratings?ranking=active
+```
+
+The historical leaderboard remains available without applying current activity eligibility:
+
+```http
+GET /api/ratings?ranking=historical
+```
+
+Players who fail the current policy keep their calculated rating and historical rank. The rating
+audit explains the exact exclusion reason through:
+
+```http
+GET /api/ratings/audit/ranking-quality
+```

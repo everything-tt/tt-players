@@ -13,8 +13,11 @@ import {
 } from '../ratings/domain.js';
 import { PredictionPlayerSchema, RatingSchema } from '../ratings/schemas.js';
 
+const RankingModeSchema = z.enum(['active', 'historical']);
+
 const QuerySchema = z.object({
     model: z.string().min(1).default(DEFAULT_RATING_MODEL_KEY),
+    ranking: RankingModeSchema.default('active'),
     page: z.coerce.number().int().min(1).default(1),
     page_size: z.coerce.number().int().min(1).max(100).default(50),
     include_provisional: z.enum(['true', 'false']).default('false').transform((value: string) => value === 'true'),
@@ -69,6 +72,7 @@ export function ratingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                                 total_pages: z.number().int(),
                             }),
                             model: z.string(),
+                            ranking: RankingModeSchema,
                             processing: ProcessingSchema,
                         }),
                     },
@@ -77,55 +81,110 @@ export function ratingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
             async (request, reply) => {
                 const {
                     model,
+                    ranking,
                     page,
                     page_size: pageSize,
                     include_provisional: includeProvisional,
                 } = request.query;
                 const offset = (page - 1) * pageSize;
 
-                const [rowsResult, countResult, processingResult] = await Promise.all([
-                    sql<RatingRow>`
+                const rowsPromise = ranking === 'active'
+                    ? sql<RatingRow>`
                         SELECT
-                            pr.player_id,
-                            ep.name AS player_name,
-                            pr.rating,
-                            pr.rating_deviation,
-                            pr.conservative_rating,
-                            pr.rated_matches,
-                            pr.rated_wins,
-                            pr.rated_losses,
-                            pr.provisional,
-                            pr.first_rated_at,
-                            pr.last_rated_at
-                        FROM player_ratings pr
-                        JOIN rating_models rm ON rm.id = pr.model_id
-                        JOIN external_players ep ON ep.id = pr.player_id
-                        WHERE rm.key = ${model}
-                          AND ep.deleted_at IS NULL
-                          AND (${includeProvisional} OR pr.provisional = false)
-                        ORDER BY pr.conservative_rating DESC, pr.rated_matches DESC, ep.name ASC
+                            rating.player_id,
+                            player.name AS player_name,
+                            rating.rating,
+                            current_ranking.effective_deviation AS rating_deviation,
+                            current_ranking.effective_conservative_rating AS conservative_rating,
+                            rating.rated_matches,
+                            rating.rated_wins,
+                            rating.rated_losses,
+                            (rating.provisional OR NOT current_ranking.eligible) AS provisional,
+                            rating.first_rated_at,
+                            rating.last_rated_at,
+                            current_ranking.current_rank AS rank
+                        FROM rating_current_rankings current_ranking
+                        JOIN player_ratings rating
+                          ON rating.model_id = current_ranking.model_id
+                         AND rating.player_id = current_ranking.player_id
+                        JOIN rating_models rating_model ON rating_model.id = rating.model_id
+                        JOIN external_players player ON player.id = rating.player_id
+                        WHERE rating_model.key = ${model}
+                          AND player.deleted_at IS NULL
+                          AND (${includeProvisional} OR current_ranking.eligible)
+                        ORDER BY
+                            current_ranking.eligible DESC,
+                            current_ranking.current_rank ASC NULLS LAST,
+                            current_ranking.effective_conservative_rating DESC,
+                            rating.rated_matches DESC,
+                            player.name
                         LIMIT ${pageSize}
                         OFFSET ${offset}
-                    `.execute(db),
-                    sql<CountRow>`
+                    `.execute(db)
+                    : sql<RatingRow>`
+                        SELECT
+                            rating.player_id,
+                            player.name AS player_name,
+                            rating.rating,
+                            rating.rating_deviation,
+                            rating.conservative_rating,
+                            rating.rated_matches,
+                            rating.rated_wins,
+                            rating.rated_losses,
+                            rating.provisional,
+                            rating.first_rated_at,
+                            rating.last_rated_at,
+                            current_ranking.historical_rank AS rank
+                        FROM player_ratings rating
+                        JOIN rating_models rating_model ON rating_model.id = rating.model_id
+                        JOIN external_players player ON player.id = rating.player_id
+                        LEFT JOIN rating_current_rankings current_ranking
+                          ON current_ranking.model_id = rating.model_id
+                         AND current_ranking.player_id = rating.player_id
+                        WHERE rating_model.key = ${model}
+                          AND player.deleted_at IS NULL
+                          AND (${includeProvisional} OR rating.provisional = false)
+                        ORDER BY
+                            rating.conservative_rating DESC,
+                            rating.rated_matches DESC,
+                            player.name
+                        LIMIT ${pageSize}
+                        OFFSET ${offset}
+                    `.execute(db);
+
+                const countPromise = ranking === 'active'
+                    ? sql<CountRow>`
                         SELECT COUNT(*)::int AS total
-                        FROM player_ratings pr
-                        JOIN rating_models rm ON rm.id = pr.model_id
-                        JOIN external_players ep ON ep.id = pr.player_id
-                        WHERE rm.key = ${model}
-                          AND ep.deleted_at IS NULL
-                          AND (${includeProvisional} OR pr.provisional = false)
-                    `.execute(db),
+                        FROM rating_current_rankings current_ranking
+                        JOIN rating_models rating_model ON rating_model.id = current_ranking.model_id
+                        JOIN external_players player ON player.id = current_ranking.player_id
+                        WHERE rating_model.key = ${model}
+                          AND player.deleted_at IS NULL
+                          AND (${includeProvisional} OR current_ranking.eligible)
+                    `.execute(db)
+                    : sql<CountRow>`
+                        SELECT COUNT(*)::int AS total
+                        FROM player_ratings rating
+                        JOIN rating_models rating_model ON rating_model.id = rating.model_id
+                        JOIN external_players player ON player.id = rating.player_id
+                        WHERE rating_model.key = ${model}
+                          AND player.deleted_at IS NULL
+                          AND (${includeProvisional} OR rating.provisional = false)
+                    `.execute(db);
+
+                const [rowsResult, countResult, processingResult] = await Promise.all([
+                    rowsPromise,
+                    countPromise,
                     sql<ProcessingRow>`
                         SELECT
-                            rps.status,
-                            rps.last_processed_date,
-                            rps.processed_periods,
-                            rps.processed_matches,
-                            rps.updated_at
-                        FROM rating_processing_state rps
-                        JOIN rating_models rm ON rm.id = rps.model_id
-                        WHERE rm.key = ${model}
+                            processing.status,
+                            processing.last_processed_date,
+                            processing.processed_periods,
+                            processing.processed_matches,
+                            processing.updated_at
+                        FROM rating_processing_state processing
+                        JOIN rating_models rating_model ON rating_model.id = processing.model_id
+                        WHERE rating_model.key = ${model}
                         LIMIT 1
                     `.execute(db),
                 ]);
@@ -134,8 +193,11 @@ export function ratingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 const processing = processingResult.rows[0];
 
                 return reply.send({
-                    data: rowsResult.rows.map((row, index) =>
-                        presentRating(row, offset + index + 1)),
+                    data: rowsResult.rows.map((row) =>
+                        presentRating(
+                            row,
+                            row.rank === null || row.rank === undefined ? null : Number(row.rank),
+                        )),
                     pagination: {
                         page,
                         page_size: pageSize,
@@ -143,6 +205,7 @@ export function ratingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         total_pages: Math.ceil(total / pageSize),
                     },
                     model,
+                    ranking,
                     processing: processing
                         ? {
                             status: processing.status,
@@ -189,23 +252,29 @@ export function ratingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
 
                 const result = await sql<RatingRow>`
                     SELECT
-                        pr.player_id,
-                        ep.name AS player_name,
-                        pr.rating,
-                        pr.rating_deviation,
-                        pr.conservative_rating,
-                        pr.rated_matches,
-                        pr.rated_wins,
-                        pr.rated_losses,
-                        pr.provisional,
-                        pr.first_rated_at,
-                        pr.last_rated_at
-                    FROM player_ratings pr
-                    JOIN rating_models rm ON rm.id = pr.model_id
-                    JOIN external_players ep ON ep.id = pr.player_id
-                    WHERE rm.key = ${model}
-                      AND ep.deleted_at IS NULL
-                      AND pr.player_id IN (${player1Id}::uuid, ${player2Id}::uuid)
+                        rating.player_id,
+                        player.name AS player_name,
+                        rating.rating,
+                        COALESCE(current_ranking.effective_deviation, rating.rating_deviation) AS rating_deviation,
+                        COALESCE(
+                            current_ranking.effective_conservative_rating,
+                            rating.conservative_rating
+                        ) AS conservative_rating,
+                        rating.rated_matches,
+                        rating.rated_wins,
+                        rating.rated_losses,
+                        rating.provisional,
+                        rating.first_rated_at,
+                        rating.last_rated_at
+                    FROM player_ratings rating
+                    JOIN rating_models rating_model ON rating_model.id = rating.model_id
+                    JOIN external_players player ON player.id = rating.player_id
+                    LEFT JOIN rating_current_rankings current_ranking
+                      ON current_ranking.model_id = rating.model_id
+                     AND current_ranking.player_id = rating.player_id
+                    WHERE rating_model.key = ${model}
+                      AND player.deleted_at IS NULL
+                      AND rating.player_id IN (${player1Id}::uuid, ${player2Id}::uuid)
                 `.execute(db);
 
                 const byId = new Map(result.rows.map((row) => [row.player_id, row]));
@@ -252,36 +321,30 @@ export function ratingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
             async (request, reply) => {
                 const result = await sql<RatingRow>`
                     SELECT
-                        pr.player_id,
-                        ep.name AS player_name,
-                        pr.rating,
-                        pr.rating_deviation,
-                        pr.conservative_rating,
-                        pr.rated_matches,
-                        pr.rated_wins,
-                        pr.rated_losses,
-                        pr.provisional,
-                        pr.first_rated_at,
-                        pr.last_rated_at,
-                        CASE
-                            WHEN pr.provisional THEN NULL
-                            ELSE 1 + (
-                                SELECT COUNT(*)::int
-                                FROM player_ratings ranked
-                                JOIN rating_models ranked_model ON ranked_model.id = ranked.model_id
-                                JOIN external_players ranked_player ON ranked_player.id = ranked.player_id
-                                WHERE ranked_model.key = ${request.query.model}
-                                  AND ranked.provisional = false
-                                  AND ranked_player.deleted_at IS NULL
-                                  AND ranked.conservative_rating > pr.conservative_rating
-                            )
-                        END AS rank
-                    FROM player_ratings pr
-                    JOIN rating_models rm ON rm.id = pr.model_id
-                    JOIN external_players ep ON ep.id = pr.player_id
-                    WHERE rm.key = ${request.query.model}
-                      AND pr.player_id = ${request.params.id}::uuid
-                      AND ep.deleted_at IS NULL
+                        rating.player_id,
+                        player.name AS player_name,
+                        rating.rating,
+                        COALESCE(current_ranking.effective_deviation, rating.rating_deviation) AS rating_deviation,
+                        COALESCE(
+                            current_ranking.effective_conservative_rating,
+                            rating.conservative_rating
+                        ) AS conservative_rating,
+                        rating.rated_matches,
+                        rating.rated_wins,
+                        rating.rated_losses,
+                        (rating.provisional OR COALESCE(NOT current_ranking.eligible, false)) AS provisional,
+                        rating.first_rated_at,
+                        rating.last_rated_at,
+                        current_ranking.current_rank AS rank
+                    FROM player_ratings rating
+                    JOIN rating_models rating_model ON rating_model.id = rating.model_id
+                    JOIN external_players player ON player.id = rating.player_id
+                    LEFT JOIN rating_current_rankings current_ranking
+                      ON current_ranking.model_id = rating.model_id
+                     AND current_ranking.player_id = rating.player_id
+                    WHERE rating_model.key = ${request.query.model}
+                      AND rating.player_id = ${request.params.id}::uuid
+                      AND player.deleted_at IS NULL
                     LIMIT 1
                 `.execute(db);
                 const row = result.rows[0];
