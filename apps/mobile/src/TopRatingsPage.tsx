@@ -43,6 +43,10 @@ function readSelectedLeagueIds(): string[] {
   }
 }
 
+function formatVolatility(value: number): string {
+  return Number.isFinite(value) ? value.toFixed(4) : '—';
+}
+
 export function TopRatingsPage() {
   const { navigateInTab } = useTabNavigation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -140,8 +144,8 @@ export function TopRatingsPage() {
               iconClassName="fa fa-ranking-star"
               title="No established ratings yet"
               message={isSelectedScope
-                ? 'Established players from your selected leagues will appear after their rating history has been calculated.'
-                : 'Established players will appear after their site-wide rating history has been calculated.'}
+                ? 'Established players from your selected leagues will appear after they meet the current match-history, activity, opponent, and confidence requirements.'
+                : 'Established players will appear after they meet the current match-history, activity, opponent, and confidence requirements.'}
             />
           ) : (
             <>
@@ -154,7 +158,7 @@ export function TopRatingsPage() {
                     key={player.player_id}
                     leading={<RankBadge>{player.rank ?? index + 1}</RankBadge>}
                     title={player.player_name}
-                    subtitle={`${ratingConfidenceLabel(player.confidence)} confidence · ${player.rated_matches} rated matches`}
+                    subtitle={`${ratingConfidenceLabel(player.confidence)} confidence · RD ${player.rating_deviation.toFixed(1)} · σ ${formatVolatility(player.volatility)}`}
                     trailing={<Pill tone="accent">{Math.round(player.rating)}</Pill>}
                     onClick={() => navigateInTab('players', `player/${player.player_id}`)}
                   />

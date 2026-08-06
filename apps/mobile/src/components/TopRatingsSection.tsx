@@ -29,6 +29,10 @@ type RatingsScope = 'site' | 'selected';
 
 const TOP_RATINGS_LIMIT = 5;
 
+function formatVolatility(value: number): string {
+  return Number.isFinite(value) ? value.toFixed(4) : '—';
+}
+
 export function TopRatingsSection({ leagueIds, onOpenPlayer }: TopRatingsSectionProps) {
   const { navigateInTab } = useTabNavigation();
   const hasSelectedLeagues = leagueIds.length > 0;
@@ -95,8 +99,8 @@ export function TopRatingsSection({ leagueIds, onOpenPlayer }: TopRatingsSection
           iconClassName="fa fa-ranking-star"
           title="No established ratings yet"
           message={isSelectedScope
-            ? 'Established players from the selected leagues will appear after their rating history has been calculated.'
-            : 'Established players will appear after their site-wide rating history has been calculated.'}
+            ? 'Established players from the selected leagues will appear after they meet the current match-history, activity, opponent, and confidence requirements.'
+            : 'Established players will appear after they meet the current match-history, activity, opponent, and confidence requirements.'}
         />
       ) : (
         <List divider="hairline">
@@ -105,7 +109,7 @@ export function TopRatingsSection({ leagueIds, onOpenPlayer }: TopRatingsSection
               key={player.player_id}
               leading={<RankBadge>{player.rank ?? index + 1}</RankBadge>}
               title={player.player_name}
-              subtitle={`${ratingConfidenceLabel(player.confidence)} confidence · ${player.rated_matches} rated matches`}
+              subtitle={`${ratingConfidenceLabel(player.confidence)} confidence · RD ${player.rating_deviation.toFixed(1)} · σ ${formatVolatility(player.volatility)}`}
               trailing={<Pill tone="accent">{Math.round(player.rating)}</Pill>}
               onClick={() => onOpenPlayer(player.player_id)}
             />

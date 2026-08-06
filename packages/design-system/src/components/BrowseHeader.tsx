@@ -53,6 +53,10 @@ function BrowseHeaderActionButton({ action, placement }: BrowseHeaderActionButto
   );
 }
 
+function inertAttribute(isInert: boolean): Record<string, string> {
+  return isInert ? { inert: '' } : {};
+}
+
 /**
  * Browse-page header with two coordinated visual states:
  * an in-flow large title at the top of the page and a compact fixed toolbar
@@ -83,7 +87,7 @@ export function BrowseHeader({
         data-state={isCompact ? 'hidden' : 'visible'}
         aria-label={ariaLabel}
         aria-hidden={isCompact}
-        inert={isCompact ? true : undefined}
+        {...inertAttribute(isCompact)}
       >
         <div className="tt-browse-header__expanded-inner">
           <h1 className="tt-browse-header__title">{title}</h1>
@@ -104,7 +108,7 @@ export function BrowseHeader({
         data-state={isCompact ? 'visible' : 'hidden'}
         aria-label={ariaLabel}
         aria-hidden={!isCompact}
-        inert={!isCompact ? true : undefined}
+        {...inertAttribute(!isCompact)}
       >
         <div className="tt-browse-header__compact-inner">
           {leadingAction ? (

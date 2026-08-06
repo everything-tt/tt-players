@@ -13,16 +13,17 @@ The worker never loads the full match history or every player rating into memory
 - Writes are split into batches (250 by default).
 - `rating_processing_state.last_processed_date` is committed with the rating updates, so a
   stopped process resumes from the next date.
-- Inactivity uncertainty is calculated lazily when a player next appears. No daily rows are
-  written for inactive players.
+- Inactivity uncertainty is calculated lazily when a player next appears. Elapsed inactive days
+  are converted into fractional 28-day rating periods, and no daily rows are written for inactive
+  players.
 - The daily worker processes at most 31 match dates, limiting load on a small VPS.
 
 Memory usage is therefore bounded by the busiest single match date rather than by the complete
 multi-million-row rubber table.
 
-## Included results
+## Included results and rating periods
 
-The first model includes only:
+The current model includes only:
 
 - singles rubbers;
 - normal outcomes;
@@ -30,18 +31,36 @@ The first model includes only:
 - results with a non-tied game score; and
 - records with `rubbers.played_at` or `fixtures.date_played`.
 
-Walkovers, retirements, void results and doubles are excluded.
+Walkovers, retirements, void results and doubles are excluded. Calendar records without persisted
+rubbers cannot affect a rating. Once result ingestion persists an eligible rubber, it is available
+to the incremental calculator or historical replay.
 
-## Rating and leaderboard score
+Every eligible match on one rating date is calculated from the same pre-date state, and the whole
+period is committed in one database transaction. A failed period therefore changes no player
+ratings, and multiple same-day matches do not receive an invented ordering.
 
-The model starts new players at rating 1500, deviation 350 and volatility 0.06. The public
-leaderboard orders players using:
+## Rating state and leaderboard score
+
+The v1 model starts new players at rating 1500, rating deviation 350 and volatility 0.06. It uses
+`tau = 0.5`, a volatility convergence tolerance of `0.000001`, and a 28-day inactivity period.
+Inactive time is represented as fractional periods, so 14 inactive days add half a period of
+uncertainty and 28 inactive days add one period.
+
+The API and player UI expose all three Glicko-2 state values:
+
+- rating: the current ability estimate;
+- rating deviation (RD): uncertainty in that estimate; and
+- volatility (`σ`): how quickly the player's underlying strength is changing.
+
+The v1 public leaderboard orders players using:
 
 ```text
 conservative_rating = rating - 2 * rating_deviation
 ```
 
-A player is provisional while they have fewer than 10 rated matches or a deviation above 110.
+A v1 rating is provisional while the player has fewer than 10 rated matches or their rating
+deviation is above 110. These production thresholds and the ranking formula remain unchanged while
+the alternatives proposed in issue #173 are evaluated through chronological backtesting.
 
 ## Weekly rating history
 
@@ -57,20 +76,18 @@ GET /api/ratings/:playerId/history?range=1y
 
 Supported ranges are `3m`, `1y`, `3y`, `10y` and `all`.
 
-## Ten-year history rebuild
+## Historical rebuilds
 
-After applying database migrations, rebuild the current model and weekly history from a rolling
-ten-year cutoff:
+The normal rebuild command replaces the selected model's ratings, current rankings, replay
+checkpoints and weekly history, then reuses the low-memory date-by-date processor.
+
+Rebuild the default rolling ten-year window:
 
 ```bash
 pnpm --filter @tt-players/worker ratings:rebuild-history
 ```
 
-The default cutoff is the Monday of the ISO week containing the date ten calendar years ago.
-Matches before that cutoff are not replayed. Current ratings and weekly history are therefore both
-based on the same ten-year window.
-
-Optional overrides:
+Rebuild a different rolling window or start date:
 
 ```bash
 pnpm --filter @tt-players/worker ratings:rebuild-history -- --years=8
@@ -78,26 +95,39 @@ pnpm --filter @tt-players/worker ratings:rebuild-history -- --start-date=2018-01
 pnpm --filter @tt-players/worker ratings:rebuild-history -- --model=global-singles-glicko2-v1
 ```
 
-The command clears the selected model's current ratings and weekly snapshots, sets the processing
-checkpoint to the day before the cutoff, and then reuses the normal low-memory date-by-date
-processor. It is safe to restart: after the reset has committed, the normal calculation checkpoint
-continues from the last completed date.
+Rebuild every eligible result from the earliest available rating date:
+
+```bash
+pnpm --filter @tt-players/worker ratings:rebuild-history -- --all
+```
+
+`--all`, `--years` and `--start-date` are mutually exclusive scopes. Explicit invalid values fail
+rather than silently falling back to defaults. The command emits a `RATING_REBUILD=...` JSON line
+for automation and marks the processing state as failed if replay stops with an error.
+
+### Production GitHub Action
+
+The manual **Rebuild calculated ratings** workflow provides the same three scopes:
+
+- `all`: replay every eligible result;
+- `years`: replay a rolling number of years; and
+- `start-date`: replay from a supplied date.
+
+The workflow requires the confirmation text `REBUILD_RATINGS`. It shares the VPS production
+concurrency group with deployments, verifies that the compatible rebuild command is deployed,
+stops the scheduled rating worker, runs the rebuild under the production worker account, refreshes
+the audit snapshot and current-ranking read model, restarts the worker even after failure, verifies
+production health, and stores the command log as an artifact.
+
+Run a production rebuild during a maintenance window. The API remains online, but calculated-rating
+responses can be incomplete while the derived tables are being replayed. The current ranking is
+republished only after the final audit/read-model refresh.
 
 ## Historical corrections
 
-The v1 checkpoint is forward-only. If a rubber or fixture dated on or before the committed
-`last_processed_date` is inserted or corrected later, rerun the ten-year history rebuild so all
-later periods inside the supported history window are replayed:
-
-```bash
-pnpm --filter @tt-players/worker ratings:rebuild-history
-```
-
-A complete all-archive rebuild remains available when deliberately required:
-
-```bash
-pnpm --filter @tt-players/worker ratings:calculate -- --rebuild
-```
+The v1 checkpoint is forward-only during ordinary processing. If a rubber or fixture dated on or
+before the committed `last_processed_date` is inserted or corrected later, use the historical
+rebuild command so all later periods inside the chosen history window are replayed.
 
 ## Running the normal processor
 
@@ -123,7 +153,7 @@ A calculated rating is retained as historical evidence even when a player is no 
 for a current rank. `rating_current_rankings` materialises the present-day leaderboard after each
 rating run and during the weekly rating audit.
 
-The default current-ranking policy requires:
+The default v1 current-ranking policy requires:
 
 - a match within the last 365 days;
 - at least 10 rated matches;
@@ -132,8 +162,9 @@ The default current-ranking policy requires:
 - no unresolved critical player data issue.
 
 Present-day deviation is calculated from `last_rated_at`, stored volatility and elapsed inactive
-days. This prevents a player who never returns from keeping an artificially low historical
-deviation indefinitely.
+days, using the same fractional 28-day periods as the historical calculator. This prevents a player
+who never returns from keeping an artificially low historical deviation indefinitely without
+penalising normal gaps between league matches as if every day were a complete Glicko period.
 
 The public endpoint defaults to the current active ranking:
 
@@ -185,7 +216,23 @@ calibration buckets and its final top 25. Lower Brier score, log loss and calibr
 better. Higher favourite accuracy is better.
 
 The latest JSON snapshot is also persisted under
-`source_quality_snapshots.key = rating-backtest:<model-key>`. The `Run rating backtest` GitHub
+`source_quality_snapshots.key = rating-backtest:<model-key>`. The **Run rating backtest** GitHub
 Action runs on the first day of every month at 05:41 UTC and supports manual inputs. It executes the
 deployed worker on the VPS, uploads the JSON and standalone HTML reports as a 90-day artifact, and
 writes the window comparison into the workflow summary.
+
+## Issue #173 scope
+
+Exposing rating, RD and volatility is a prerequisite for the clearer ability/confidence separation
+proposed in issue #173, but it does not complete that issue. This version adopts a 28-day inactivity
+period as the initial production calibration. The following work remains separate:
+
+- calculation-run, rating-period and per-match audit records;
+- attributed same-day match contributions and player-facing explanations;
+- configurable and side-by-side inactivity-period alternatives;
+- alternative public ranking-score coefficients;
+- deterministic newcomer and reproducibility scenarios; and
+- a side-by-side `global-singles-glicko2-v2` rollout backed by audit review and backtesting.
+
+Further rating-policy changes should continue to be validated through chronological backtesting and
+reviewed before rollout.

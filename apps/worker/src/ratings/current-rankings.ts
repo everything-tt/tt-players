@@ -1,6 +1,7 @@
 import { sql, type Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
 import { DEFAULT_RATING_MODEL_KEY } from './domain.js';
+import { DEFAULT_GLICKO2_CONFIG } from './glicko2.js';
 
 interface ModelRow {
     id: string;
@@ -64,6 +65,7 @@ export async function refreshCurrentRankings(
                     COALESCE((rating_model.config ->> 'initialDeviation')::double precision, 350) AS initial_deviation,
                     COALESCE((rating_model.config ->> 'ratingScale')::double precision, 173.7178) AS rating_scale,
                     COALESCE((rating_model.config ->> 'conservativeDeviationMultiplier')::double precision, 2) AS deviation_multiplier,
+                    ${DEFAULT_GLICKO2_CONFIG.inactivityPeriodDays}::double precision AS inactivity_period_days,
                     policy.active_days,
                     policy.minimum_matches,
                     policy.minimum_unique_opponents,
@@ -98,6 +100,7 @@ export async function refreshCurrentRankings(
                     settings.initial_deviation,
                     settings.rating_scale,
                     settings.deviation_multiplier,
+                    settings.inactivity_period_days,
                     settings.active_days,
                     settings.minimum_matches,
                     settings.minimum_unique_opponents,
@@ -118,7 +121,8 @@ export async function refreshCurrentRankings(
                         evidence.initial_deviation,
                         SQRT(
                             POWER(evidence.rating_deviation / evidence.rating_scale, 2)
-                            + POWER(evidence.volatility, 2) * evidence.days_inactive
+                            + POWER(evidence.volatility, 2)
+                                * (evidence.days_inactive / evidence.inactivity_period_days)
                         ) * evidence.rating_scale
                     ) AS effective_deviation
                 FROM evidence

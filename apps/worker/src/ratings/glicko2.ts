@@ -7,6 +7,7 @@ export interface Glicko2Config {
     conservativeDeviationMultiplier: number;
     provisionalMatches: number;
     provisionalDeviation: number;
+    inactivityPeriodDays: number;
 }
 
 export interface RatingState {
@@ -34,6 +35,7 @@ export const DEFAULT_GLICKO2_CONFIG: Glicko2Config = {
     conservativeDeviationMultiplier: 2,
     provisionalMatches: 10,
     provisionalDeviation: 110,
+    inactivityPeriodDays: 28,
 };
 
 const PI_SQUARED = Math.PI * Math.PI;
@@ -56,15 +58,17 @@ export function conservativeRating(
 
 /**
  * Applies uncertainty growth without writing one row per inactive player/day.
- * This keeps the calculation database-backed and memory bounded.
+ * Inactivity is converted to fractional 28-day rating periods by default.
  */
 export function inflateDeviationForInactivity(
     state: RatingState,
-    inactivePeriods: number,
+    inactiveDays: number,
     config: Glicko2Config = DEFAULT_GLICKO2_CONFIG,
 ): RatingState {
-    if (inactivePeriods <= 0) return state;
+    if (inactiveDays <= 0) return state;
 
+    const inactivityPeriodDays = Math.max(1, config.inactivityPeriodDays);
+    const inactivePeriods = inactiveDays / inactivityPeriodDays;
     const phi = state.deviation / config.ratingScale;
     const initialPhi = config.initialDeviation / config.ratingScale;
     const inflatedPhi = Math.min(

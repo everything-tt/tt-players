@@ -10,6 +10,10 @@ interface PlayerRatingPanelProps {
   playerId: string;
 }
 
+function formatVolatility(value: number): string {
+  return Number.isFinite(value) ? value.toFixed(4) : '—';
+}
+
 export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
   const navigate = useNavigate();
   const { navigateInActiveTab } = useTabNavigation();
@@ -20,6 +24,8 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
   const metrics = rating ? [
     { label: 'Rating', value: Math.round(rating.rating) },
     ...(rating.rank != null ? [{ label: 'Global Rank', value: `#${rating.rank}` }] : []),
+    { label: 'RD', value: rating.rating_deviation.toFixed(1) },
+    { label: 'Volatility', value: formatVolatility(rating.volatility) },
     { label: 'Confidence', value: ratingConfidenceLabel(rating.confidence) },
   ] : [];
 
@@ -38,6 +44,8 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
           metrics={[
             { label: 'Rating', value: <SkeletonBlock className="tt-skeleton-stat" /> },
             { label: 'Rank', value: <SkeletonBlock className="tt-skeleton-stat" /> },
+            { label: 'RD', value: <SkeletonBlock className="tt-skeleton-stat" /> },
+            { label: 'Volatility', value: <SkeletonBlock className="tt-skeleton-stat" /> },
             { label: 'Confidence', value: <SkeletonBlock className="tt-skeleton-stat" /> },
           ]}
         />
@@ -75,7 +83,7 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
           </Surface>
 
           {rating.provisional ? (
-            <p className="tt-rating-note">Provisional rating: a global rank will appear once the rating confidence is high enough.</p>
+            <p className="tt-rating-note">Provisional rating: a global rank appears after enough rated match history and confidence are established.</p>
           ) : null}
 
           <AppButtonLink

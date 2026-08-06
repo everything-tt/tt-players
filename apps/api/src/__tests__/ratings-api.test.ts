@@ -203,7 +203,7 @@ afterAll(async () => {
 }, 15_000);
 
 describe('calculated ratings API', () => {
-    it('lists active current rankings with pagination and processing state', async () => {
+    it('lists active current rankings with pagination, volatility and processing state', async () => {
         const response = await app.inject({
             method: 'GET',
             url: '/api/ratings?page=1&page_size=1',
@@ -218,6 +218,7 @@ describe('calculated ratings API', () => {
                     player_name: 'Higher Player',
                     rating: 1700,
                     rating_deviation: 64,
+                    volatility: 0.06,
                     conservative_rating: 1572,
                 },
             ],
@@ -249,6 +250,7 @@ describe('calculated ratings API', () => {
                 rank: 1,
                 player_id: higherPlayerId,
                 rating_deviation: 60,
+                volatility: 0.06,
                 conservative_rating: 1580,
             }],
         });
@@ -262,6 +264,8 @@ describe('calculated ratings API', () => {
 
         expect(response.statusCode).toBe(200);
         const payload = response.json();
+        expect(payload.player1.volatility).toBe(0.06);
+        expect(payload.player2.volatility).toBe(0.06);
         expect(payload.player1.win_probability).toBeGreaterThan(0.5);
         expect(payload.player1.win_probability + payload.player2.win_probability).toBeCloseTo(1, 4);
         expect(payload.confidence).toBe('medium');
@@ -280,7 +284,7 @@ describe('calculated ratings API', () => {
         });
     });
 
-    it('returns the current rank and effective uncertainty for a player', async () => {
+    it('returns the current rank, effective uncertainty and volatility for a player', async () => {
         const response = await app.inject({
             method: 'GET',
             url: `/api/ratings/${lowerPlayerId}`,
@@ -293,6 +297,7 @@ describe('calculated ratings API', () => {
                 player_id: lowerPlayerId,
                 player_name: 'Lower Player',
                 rating_deviation: 94,
+                volatility: 0.06,
                 conservative_rating: 1312,
             },
         });

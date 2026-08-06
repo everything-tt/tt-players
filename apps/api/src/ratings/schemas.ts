@@ -5,6 +5,7 @@ const RatingFields = {
     player_name: z.string(),
     rating: z.number(),
     rating_deviation: z.number(),
+    volatility: z.number(),
     conservative_rating: z.number(),
     rating_low: z.number(),
     rating_high: z.number(),
@@ -33,6 +34,7 @@ export const PredictionPlayerSchema = z.object({
     player_name: z.string(),
     rating: z.number(),
     rating_deviation: z.number(),
+    volatility: z.number(),
     provisional: z.boolean(),
     win_probability: z.number().min(0).max(1),
 });

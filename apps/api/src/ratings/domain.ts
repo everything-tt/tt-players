@@ -9,6 +9,7 @@ export interface RatingRow {
     player_name: string;
     rating: number | string;
     rating_deviation: number | string;
+    volatility: number | string;
     conservative_rating: number | string;
     rated_matches: number | string;
     rated_wins: number | string;
@@ -36,6 +37,7 @@ export function presentRating(row: RatingRow, rank: number | null) {
         player_name: row.player_name,
         rating,
         rating_deviation: deviation,
+        volatility: Number(row.volatility),
         conservative_rating: Number(row.conservative_rating),
         rating_low: round(rating - 2 * deviation, 2),
         rating_high: round(rating + 2 * deviation, 2),
@@ -80,6 +82,7 @@ export function presentPredictionPlayer(row: RatingRow, probability: number) {
         player_name: row.player_name,
         rating: Number(row.rating),
         rating_deviation: Number(row.rating_deviation),
+        volatility: Number(row.volatility),
         provisional: row.provisional,
         win_probability: round(clampProbability(probability), 4),
     };

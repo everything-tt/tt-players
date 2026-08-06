@@ -86,7 +86,7 @@ describe('current rating rankings', () => {
             { externalId: 'active', rating: 1800, rd: 70, matches: 40, last: '2026-07-20', opponents: 20 },
             { externalId: 'inactive', rating: 2100, rd: 65, matches: 80, last: '2024-07-20', opponents: 35 },
             { externalId: 'sparse', rating: 1750, rd: 75, matches: 25, last: '2026-07-20', opponents: 2 },
-            { externalId: 'uncertain', rating: 1850, rd: 109, matches: 30, last: '2026-07-01', opponents: 15 },
+            { externalId: 'uncertain', rating: 1850, rd: 109, matches: 30, last: '2025-09-01', opponents: 15 },
         ];
 
         for (const row of ratingRows) {
