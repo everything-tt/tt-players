@@ -27,7 +27,7 @@ async function prepareAppState(page: Page, theme: 'light-mode' | 'dark-mode') {
     localStorage.setItem('tt_players_league_onboarding_complete', 'true');
     localStorage.setItem('tt_players_selected_league_ids', JSON.stringify([]));
     localStorage.setItem('tt_players_favourite_tournaments', JSON.stringify([]));
-    localStorage.setItem('TTPlayers-Theme', value);
+    if (!localStorage.getItem('TTPlayers-Theme')) localStorage.setItem('TTPlayers-Theme', value);
     localStorage.setItem('pwa-install-dismissed', Date.now().toString());
   }, theme);
 }
