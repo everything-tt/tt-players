@@ -1,0 +1,125 @@
+name: Backfill tournament entry forms
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: Maximum number of current tournaments to inspect (1-500)
+        required: true
+        default: '500'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tournament-entry-form-production-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Validate inputs
+        env:
+          BACKFILL_LIMIT: ${{ inputs.limit }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$BACKFILL_LIMIT" =~ ^[0-9]+$ ]]; then
+            echo "limit must be an integer" >&2
+            exit 64
+          fi
+          if (( BACKFILL_LIMIT < 1 || BACKFILL_LIMIT > 500 )); then
+            echo "limit must be between 1 and 500" >&2
+            exit 64
+          fi
+
+      - name: Configure SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_SSH_KEY"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Verify backfill command is deployed
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_USER"
+          ssh "$VPS_USER@$VPS_HOST" \
+            "test -f /opt/tt-players/current/apps/worker/src/backfill-tournament-entry-forms.ts && \
+             test -x /opt/tt-players/current/apps/worker/node_modules/.bin/tsx"
+
+      - name: Run tournament entry form backfill
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          BACKFILL_LIMIT: ${{ inputs.limit }}
+        run: |
+          set -euo pipefail
+          ssh "$VPS_USER@$VPS_HOST" \
+            "systemd-run \
+              --quiet \
+              --wait \
+              --pipe \
+              --collect \
+              --unit=ttp-entry-form-backfill \
+              --uid=ttp \
+              --gid=ttp \
+              --property=EnvironmentFile=/etc/ttp/worker.env \
+              --property=WorkingDirectory=/opt/tt-players/current/apps/worker \
+              /opt/tt-players/current/apps/worker/node_modules/.bin/tsx \
+              src/backfill-tournament-entry-forms.ts \
+              --limit=$BACKFILL_LIMIT" \
+            | tee backfill-output.txt
+
+      - name: Add workflow summary
+        if: always()
+        env:
+          BACKFILL_LIMIT: ${{ inputs.limit }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Tournament entry form backfill"
+            echo
+            echo "- Requested limit: \`$BACKFILL_LIMIT\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ -f backfill-output.txt ]]; then
+            node <<'NODE'
+          const fs = require('node:fs');
+          const output = fs.readFileSync('backfill-output.txt', 'utf8');
+          const match = output.match(/\{\s*"candidates"\s*:\s*(\d+)\s*,\s*"ready"\s*:\s*(\d+)\s*,\s*"failed"\s*:\s*(\d+)\s*,\s*"unsupported"\s*:\s*(\d+)\s*,\s*"unchanged"\s*:\s*(\d+)\s*\}/m);
+
+          if (match) {
+            const [, candidates, ready, failed, unsupported, unchanged] = match;
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+              `- Candidates checked: ${candidates}\n` +
+              `- Ready: ${ready}\n` +
+              `- Failed inspection: ${failed}\n` +
+              `- Unsupported links: ${unsupported}\n` +
+              `- Already inspected: ${unchanged}\n`
+            );
+          }
+          NODE
+
+            {
+              echo
+              echo "<details><summary>Command output</summary>"
+              echo
+              echo '```text'
+              sed -n '1,360p' backfill-output.txt
+              echo '```'
+              echo "</details>"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
