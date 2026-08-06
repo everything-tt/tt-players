@@ -26,8 +26,8 @@ export interface BottomSheetProps {
 
 /**
  * TT mobile sheet composed from shadcn's Radix Dialog foundation. Radix owns
- * focus trapping, inert background behaviour, Escape handling, scroll locking
- * and focus restoration; this wrapper owns TT geometry and safe-area layout.
+ * focus trapping, inert background behaviour, Escape handling and scroll
+ * locking; this controlled wrapper records and restores the invoking element.
  */
 export function BottomSheet({
   isOpen,
@@ -45,6 +45,7 @@ export function BottomSheet({
   className,
 }: BottomSheetProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
   const descriptionId = useId();
 
@@ -71,9 +72,19 @@ export function BottomSheet({
               if (disableBackdropClose) event.preventDefault();
             }}
             onOpenAutoFocus={(event) => {
+              const activeElement = document.activeElement;
+              returnFocusRef.current = activeElement instanceof HTMLElement ? activeElement : null;
               if (autoFocus) return;
               event.preventDefault();
-              contentRef.current?.focus();
+              contentRef.current?.focus({ preventScroll: true });
+            }}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              const returnFocusElement = returnFocusRef.current;
+              returnFocusRef.current = null;
+              if (returnFocusElement?.isConnected) {
+                returnFocusElement.focus({ preventScroll: true });
+              }
             }}
             data-slot="dialog-content"
           >
