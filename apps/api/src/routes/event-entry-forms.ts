@@ -35,14 +35,72 @@ const GoogleFormSchema = z.object({
     fields: z.array(GoogleFormFieldSchema),
 });
 
+const ProfileFieldSchema = z.enum([
+    'entrantName',
+    'dateOfBirth',
+    'email',
+    'phone',
+    'tteMembershipNumber',
+    'club',
+    'county',
+    'fullAddress',
+    'nationalAssociation',
+    'relationship',
+    'currentDate',
+    'guardianName',
+    'guardianEmail',
+    'guardianPhone',
+]);
+
+const SemanticMappingSchema = z.object({
+    field_id: z.string(),
+    profile_field: ProfileFieldSchema.nullable(),
+    confidence: z.number().min(0).max(1),
+    reason: z.string(),
+});
+
+const EventDetailSchema = z.object({
+    field: z.enum([
+        'display_name',
+        'description',
+        'start_date',
+        'end_date',
+        'entry_deadline',
+        'venue_name',
+        'venue_address',
+        'venue_town',
+        'venue_postcode',
+        'organizer_name',
+        'category',
+    ]),
+    value: z.string(),
+    confidence: z.number().min(0).max(1),
+    evidence: z.string(),
+    source_field_ids: z.array(z.string()),
+});
+
+const SemanticAnalysisSchema = z.object({
+    version: z.literal(1),
+    status: z.enum(['ready', 'failed']),
+    provider: z.literal('openai_compatible'),
+    model: z.string(),
+    prompt_version: z.string(),
+    analysis_key: z.string(),
+    analyzed_at: z.string(),
+    mappings: z.array(SemanticMappingSchema),
+    event_details: z.array(EventDetailSchema),
+    error_message: z.string().nullable(),
+});
+
 const CachedEntryFormSchema = z.object({
-    version: z.union([z.literal(1), z.literal(2)]),
+    version: z.union([z.literal(1), z.literal(2), z.literal(3)]),
     provider: z.literal('google_forms'),
     status: z.enum(['ready', 'failed']),
     source_url: z.string().url(),
     inspected_at: z.string(),
     fingerprint: z.string().nullable(),
     form: GoogleFormSchema.nullable(),
+    semantic_analysis: SemanticAnalysisSchema.nullable().optional(),
     error_code: z.string().nullable(),
     error_message: z.string().nullable(),
 });
