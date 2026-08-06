@@ -86,12 +86,7 @@ describe('rating source quality materialisation', () => {
             season_id: season.id,
             external_id: 'competition',
             name: 'Materialisation Competition',
-            display_name: null,
-            event_date: null,
-            category: null,
             type: 'individual',
-            source: null,
-            source_url: null,
             last_scraped_at: null,
             deleted_at: null,
         }).returning('id').executeTakeFirstOrThrow();
