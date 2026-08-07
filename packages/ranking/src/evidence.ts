@@ -1,4 +1,4 @@
-import type { Glicko2Config, RatingScore, RatingState } from './glicko2.js';
+import { expectedScore, type Glicko2Config, type RatingScore, type RatingState } from './glicko2.js';
 
 const PI_SQUARED = Math.PI * Math.PI;
 
@@ -21,11 +21,9 @@ export function calculateRatingMatchEvidence(
   updatedDeviation: number,
   config: Glicko2Config,
 ): RatingMatchEvidence {
-  const playerMu = (player.rating - config.initialRating) / config.ratingScale;
-  const opponentMu = (opponent.rating - config.initialRating) / config.ratingScale;
   const opponentPhi = opponent.deviation / config.ratingScale;
   const g = 1 / Math.sqrt(1 + (3 * opponentPhi * opponentPhi) / PI_SQUARED);
-  const expectedWinProbability = 1 / (1 + Math.exp(-g * (playerMu - opponentMu)));
+  const expectedWinProbability = expectedScore(player, opponent, config);
   const surpriseValue = score - expectedWinProbability;
   const updatedPhi = updatedDeviation / config.ratingScale;
 
