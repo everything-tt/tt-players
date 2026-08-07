@@ -39,6 +39,11 @@ Every eligible match on one rating date is calculated from the same pre-date sta
 period is committed in one database transaction. A failed period therefore changes no player
 ratings, and multiple same-day matches do not receive an invented ordering.
 
+The live calculator, backtesting code and calculation audit share
+`rating_rubber_classification` as the eligibility source of truth. See
+[`rating-calculation-audit.md`](./rating-calculation-audit.md) for the persisted run, period,
+per-match and exclusion evidence.
+
 ## Rating state and leaderboard score
 
 The v1 model starts new players at rating 1500, rating deviation 350 and volatility 0.06. It uses
@@ -104,6 +109,11 @@ pnpm --filter @tt-players/worker ratings:rebuild-history -- --all
 `--all`, `--years` and `--start-date` are mutually exclusive scopes. Explicit invalid values fail
 rather than silently falling back to defaults. The command emits a `RATING_REBUILD=...` JSON line
 for automation and marks the processing state as failed if replay stops with an error.
+
+A deployment that first introduces the calculation-audit schema needs one guarded rebuild over the
+intended production history so historical before/after period states and included-match evidence
+can be reconstructed. Merely deploying the schema can audit new runs and exclusions, but the final
+`player_ratings` table alone cannot recreate past period states.
 
 ### Production GitHub Action
 
@@ -223,16 +233,19 @@ writes the window comparison into the workflow summary.
 
 ## Issue #173 scope
 
-Exposing rating, RD and volatility is a prerequisite for the clearer ability/confidence separation
-proposed in issue #173, but it does not complete that issue. This version adopts a 28-day inactivity
-period as the initial production calibration. The following work remains separate:
+The v1 model now has the first auditability foundation requested in issue #173: calculation-run,
+player-period and per-match evidence, explicit exclusions, deterministic same-day attribution, and
+reproducibility coverage. This phase deliberately leaves the current v1 rating and ranking policy
+unchanged.
 
-- calculation-run, rating-period and per-match audit records;
-- attributed same-day match contributions and player-facing explanations;
+The following work remains separate:
+
+- player-facing rating explanations and admin audit UI;
 - configurable and side-by-side inactivity-period alternatives;
-- alternative public ranking-score coefficients;
-- deterministic newcomer and reproducibility scenarios; and
-- a side-by-side `global-singles-glicko2-v2` rollout backed by audit review and backtesting.
+- alternative public ranking-score coefficients and ability/confidence presentation;
+- broader newcomer calibration scenarios and historical distribution review;
+- a side-by-side `global-singles-glicko2-v2` rollout backed by audit review and backtesting; and
+- possible game-score weighting only after the auditable v1/v2 comparison is established.
 
 Further rating-policy changes should continue to be validated through chronological backtesting and
 reviewed before rollout.
