@@ -60,10 +60,15 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
           clearLocalDataBackup();
           window.location.reload();
         }
-      } catch {
-        if (!cancelled) {
-          retryTimer = window.setTimeout(() => void bootstrap(), BOOTSTRAP_RETRY_MS);
+      } catch (error) {
+        if (cancelled) return;
+        // An invalid or expired session should not be retried forever; drop it
+        // and wait for the user to sign in again.
+        if ((error as SyncRequestError).status === 401) {
+          void auth.signOut();
+          return;
         }
+        retryTimer = window.setTimeout(() => void bootstrap(), BOOTSTRAP_RETRY_MS);
       }
     };
 
@@ -101,8 +106,13 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
         if (!cancelled) {
           lastSyncedSnapshot.current = serializeUserDataSnapshot(response.data);
         }
-      } catch {
-        // Keep the previous fingerprint so the interval retries automatically.
+      } catch (error) {
+        // An invalid or expired session should not be retried; drop it and
+        // wait for the user to sign in again. Other errors keep the previous
+        // fingerprint so the interval retries automatically.
+        if ((error as SyncRequestError).status === 401) {
+          void auth.signOut();
+        }
       } finally {
         writing = false;
       }
@@ -127,6 +137,10 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
   return children;
 }
 
+interface SyncRequestError extends Error {
+  status?: number;
+}
+
 async function sendSyncRequest(
   path: string,
   method: 'POST' | 'PUT',
@@ -142,6 +156,10 @@ async function sendSyncRequest(
     body: JSON.stringify(snapshot),
   });
 
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  if (!response.ok) {
+    const error = new Error(`HTTP ${response.status}`) as SyncRequestError;
+    error.status = response.status;
+    throw error;
+  }
   return response.json() as Promise<SyncStateResponse>;
 }
