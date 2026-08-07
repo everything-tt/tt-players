@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // Integrated browse header and compact scroll-toolbar review.
-  testMatch: 'zz-browse-header-shell.pw.ts',
+  // Rating audit evidence and latest calculation-run review.
+  testMatch: 'zz-rating-calculation-audit.pw.ts',
 
   timeout: 120_000,
   expect: {

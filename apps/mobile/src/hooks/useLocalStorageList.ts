@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { notifyUserDataChanged } from '../local-persistence';
 
 /**
  * Generic reactive list persisted to localStorage + synced across tabs/components
@@ -34,6 +35,7 @@ export function useLocalStorageList<T>(
   const persist = useCallback((next: T[]) => {
     localStorage.setItem(storageKey, JSON.stringify(next));
     window.dispatchEvent(new Event(updatedEventName));
+    notifyUserDataChanged();
   }, [storageKey, updatedEventName]);
 
   const set = useCallback((next: T[]) => {

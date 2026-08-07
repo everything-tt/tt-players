@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
+  notifyUserDataChanged,
   TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY,
   TOURNAMENT_ENTRY_PROFILES_UPDATED_EVENT,
 } from '../local-persistence';
@@ -134,6 +135,7 @@ function persistProfiles(ownerUserId: string, profiles: TournamentEntryProfile[]
   };
   localStorage.setItem(TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY, JSON.stringify(store));
   window.dispatchEvent(new Event(TOURNAMENT_ENTRY_PROFILES_UPDATED_EVENT));
+  notifyUserDataChanged();
 }
 
 export function createEmptyTournamentEntryProfile(

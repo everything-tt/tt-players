@@ -23,6 +23,7 @@ import { eventEntryFormsRoutes } from './routes/event-entry-forms.js';
 import { feedbackRoutes } from './routes/feedback.js';
 import { leagueRatingsRoutes } from './routes/league-ratings.js';
 import { ratingAuditRoutes } from './routes/rating-audit.js';
+import { ratingCalculationAuditRoutes } from './routes/rating-calculation-audit.js';
 import { ratingPlayerCoverageRoutes } from './routes/rating-player-coverage.js';
 import { ratingRankingQualityRoutes } from './routes/rating-ranking-quality.js';
 import { ratingSourceQualityRoutes } from './routes/rating-source-quality.js';
@@ -66,7 +67,7 @@ export async function buildApp(db: Kysely<Database>) {
         .filter(Boolean);
     await app.register(cors, {
         origin: allowedOrigins,
-        methods: ['GET', 'POST', 'PUT', 'OPTIONS'],
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
     });
 
     await app.register(compress, { global: true, threshold: 1024 });
@@ -174,6 +175,7 @@ export async function buildApp(db: Kysely<Database>) {
     await app.register(eventEntryFormsRoutes(db), { prefix: '/api/events' });
     await app.register(leagueRatingsRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingAuditRoutes(db), { prefix: '/api/ratings' });
+    await app.register(ratingCalculationAuditRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingPlayerCoverageRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingRankingQualityRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingSourceQualityRoutes(db), { prefix: '/api/ratings' });
