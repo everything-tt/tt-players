@@ -338,10 +338,10 @@ async function applySemanticEventEnrichment(
     }
 
     if (analysis.categories.length > 0) {
-        updates.categories = analysis.categories.map((category) => ({
+        updates.categories = JSON.stringify(analysis.categories.map((category) => ({
             name: category.name,
             entry_fee: category.entry_fee,
-        }));
+        })));
     }
 
     if (Object.keys(updates).length > 0) {
