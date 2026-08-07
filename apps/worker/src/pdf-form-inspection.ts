@@ -1,4 +1,5 @@
 import { PDFParse } from 'pdf-parse';
+import { fetchPublicHttps, PublicHttpError, readBodyLimited } from './public-http.js';
 
 export class PdfFormInspectionError extends Error {
     readonly statusCode: number;
@@ -42,6 +43,12 @@ function firstMeaningfulLine(text: string): string | null {
     return line ? line.slice(0, 200) : null;
 }
 
+function publicHttpStatus(error: PublicHttpError): number {
+    if (error.code === 'response_too_large') return 413;
+    if (error.code === 'blocked_address' || error.code === 'invalid_url') return 400;
+    return 502;
+}
+
 export async function inspectPdfForm(
     input: string,
     fetcher: typeof fetch = fetch,
@@ -63,15 +70,23 @@ export async function inspectPdfForm(
         throw new PdfFormInspectionError('Only PDF entry forms are supported.', 400);
     }
 
-    const response = await fetcher(url, {
-        method: 'GET',
-        redirect: 'follow',
-        headers: {
-            Accept: 'application/pdf,*/*',
-            'User-Agent': 'TT-Players-Form-Inspector/1.0',
-        },
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+    let response: Response;
+    try {
+        response = await fetchPublicHttps(url, {
+            fetcher,
+            timeoutMs: FETCH_TIMEOUT_MS,
+            headers: {
+                Accept: 'application/pdf,*/*',
+                'User-Agent': 'TT-Players-Form-Inspector/1.0',
+            },
+        });
+    } catch (error) {
+        if (error instanceof PublicHttpError) {
+            throw new PdfFormInspectionError(error.message, publicHttpStatus(error));
+        }
+        throw error;
+    }
+
     if (!response.ok) {
         throw new PdfFormInspectionError(
             response.status === 401 || response.status === 403
@@ -86,10 +101,16 @@ export async function inspectPdfForm(
         throw new PdfFormInspectionError('The link did not return a PDF document.', 422);
     }
 
-    const buffer = Buffer.from(await response.arrayBuffer());
-    if (buffer.length > MAX_PDF_BYTES) {
-        throw new PdfFormInspectionError('The PDF is too large to inspect.', 413);
+    let buffer: Buffer;
+    try {
+        buffer = await readBodyLimited(response, MAX_PDF_BYTES);
+    } catch (error) {
+        if (error instanceof PublicHttpError) {
+            throw new PdfFormInspectionError(error.message, publicHttpStatus(error));
+        }
+        throw error;
     }
+
     if (buffer.length < 5 || buffer.subarray(0, 5).toString('latin1') !== '%PDF-') {
         throw new PdfFormInspectionError('The link did not return a valid PDF document.', 422);
     }

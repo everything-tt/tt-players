@@ -54,7 +54,7 @@ function App() {
   const { activeTab, handleSystemBack, navigateInActiveTab, switchTab } = useTabNavigation();
   const { isDarkMode, toggleTheme } = useTheme();
   const {
-    showAndroidSheet,
+    showInstallSheet,
     showIosSheet,
     dismiss: dismissPWAInstall,
     triggerInstallPrompt,
@@ -113,7 +113,7 @@ function App() {
       setIsShareSheetOpen(false);
       return true;
     }
-    if (showAndroidSheet || showIosSheet) {
+    if (showInstallSheet || showIosSheet) {
       dismissPWAInstall();
       return true;
     }
@@ -134,7 +134,7 @@ function App() {
     isLeagueSelectorOpen,
     isMainMenuOpen,
     isShareSheetOpen,
-    showAndroidSheet,
+    showInstallSheet,
     showIosSheet,
   ]);
 

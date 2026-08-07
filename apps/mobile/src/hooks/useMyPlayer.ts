@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { MY_PLAYER_STORAGE_KEY, MY_PLAYER_UPDATED_EVENT } from '../local-persistence';
+import {
+  MY_PLAYER_STORAGE_KEY,
+  MY_PLAYER_UPDATED_EVENT,
+  notifyUserDataChanged,
+} from '../local-persistence';
 
 export interface MyPlayer {
   id: string;
@@ -49,6 +53,7 @@ export function useMyPlayer() {
       localStorage.removeItem(MY_PLAYER_STORAGE_KEY);
     }
     window.dispatchEvent(new Event(MY_PLAYER_UPDATED_EVENT));
+    notifyUserDataChanged();
   }, []);
 
   const isMyPlayer = useCallback(

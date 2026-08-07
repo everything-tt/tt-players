@@ -1,3 +1,5 @@
+import { fetchPublicHttps, PublicHttpError, readBodyLimited } from './public-http.js';
+
 export class WebFormInspectionError extends Error {
     readonly statusCode: number;
 
@@ -66,6 +68,12 @@ function extractTitle(html: string): string | null {
     return best.slice(0, 200);
 }
 
+function publicHttpStatus(error: PublicHttpError): number {
+    if (error.code === 'response_too_large') return 413;
+    if (error.code === 'blocked_address' || error.code === 'invalid_url') return 400;
+    return 502;
+}
+
 export async function inspectWebForm(
     input: string,
     fetcher: typeof fetch = fetch,
@@ -80,15 +88,23 @@ export async function inspectWebForm(
         throw new WebFormInspectionError('Only HTTPS form links are supported.', 400);
     }
 
-    const response = await fetcher(url, {
-        method: 'GET',
-        redirect: 'follow',
-        headers: {
-            Accept: 'text/html,application/xhtml+xml',
-            'User-Agent': 'TT-Players-Form-Inspector/1.0',
-        },
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+    let response: Response;
+    try {
+        response = await fetchPublicHttps(url, {
+            fetcher,
+            timeoutMs: FETCH_TIMEOUT_MS,
+            headers: {
+                Accept: 'text/html,application/xhtml+xml',
+                'User-Agent': 'TT-Players-Form-Inspector/1.0',
+            },
+        });
+    } catch (error) {
+        if (error instanceof PublicHttpError) {
+            throw new WebFormInspectionError(error.message, publicHttpStatus(error));
+        }
+        throw error;
+    }
+
     if (!response.ok) {
         throw new WebFormInspectionError(
             response.status === 401 || response.status === 403
@@ -103,7 +119,16 @@ export async function inspectWebForm(
         throw new WebFormInspectionError('The link did not return an HTML form page.', 422);
     }
 
-    const html = (await response.text()).slice(0, MAX_HTML_BYTES);
+    let html: string;
+    try {
+        html = (await readBodyLimited(response, MAX_HTML_BYTES)).toString('utf8');
+    } catch (error) {
+        if (error instanceof PublicHttpError) {
+            throw new WebFormInspectionError(error.message, publicHttpStatus(error));
+        }
+        throw error;
+    }
+
     const text = extractVisibleText(html);
     if (!text) {
         throw new WebFormInspectionError('No readable form content was found on this page.', 422);

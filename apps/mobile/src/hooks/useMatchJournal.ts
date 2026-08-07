@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { MATCH_JOURNAL_STORAGE_KEY, MATCH_JOURNAL_UPDATED_EVENT } from '../local-persistence';
+import {
+  MATCH_JOURNAL_STORAGE_KEY,
+  MATCH_JOURNAL_UPDATED_EVENT,
+  notifyUserDataChanged,
+} from '../local-persistence';
 
 export type JournalOutcome = 'win' | 'loss' | 'practice';
 
@@ -75,6 +79,7 @@ export function useMatchJournal(playerId: string) {
     else delete all[playerId];
     localStorage.setItem(MATCH_JOURNAL_STORAGE_KEY, JSON.stringify(all));
     window.dispatchEvent(new Event(MATCH_JOURNAL_UPDATED_EVENT));
+    notifyUserDataChanged();
   }, [playerId]);
 
   const add = useCallback((entry: NewMatchJournalEntry) => {
