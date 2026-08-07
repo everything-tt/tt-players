@@ -234,7 +234,7 @@ describe('authenticated sync state', () => {
                 version: 1,
                 entries: {
                     tt_players_selected_league_ids: '["league-legacy"]',
-                    tt_players_tournament_filters: '{"version":1}',
+                    tt_players_tournament_filters: '{"status":"completed"}',
                     unsupported_legacy_key: 'value',
                 },
                 known_keys: ['tt_players_selected_league_ids'],
@@ -252,8 +252,8 @@ describe('authenticated sync state', () => {
         expect(body.source).toBe('server');
         expect(body.data.entries).toEqual({
             tt_players_selected_league_ids: '["league-legacy"]',
+            tt_players_tournament_filters: '{"status":"completed"}',
         });
-        expect(body.data.entries).not.toHaveProperty('tt_players_tournament_filters');
         expect(body.data.entries).not.toHaveProperty('unsupported_legacy_key');
     });
 });

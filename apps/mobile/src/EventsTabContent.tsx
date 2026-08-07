@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FavouriteButton } from './components/FavouriteButton';
 import { useFavouriteTournaments } from './hooks/useFavouriteTournaments';
 import {
@@ -8,6 +8,7 @@ import {
 } from './hooks/useTournamentList';
 import { useSearch } from './hooks/useSearch';
 import { useTabNavigation } from './navigation/tab-navigation';
+import { TOURNAMENT_FILTERS_STORAGE_KEY } from './local-persistence';
 import {
   TOURNAMENT_CATEGORY_OPTIONS,
   toggleTournamentCategory,
@@ -245,12 +246,59 @@ function TournamentResults({
   );
 }
 
+interface StoredTournamentFilters {
+  status: TournamentListStatus;
+  savedOnly: boolean;
+  categoryFiltersOpen: boolean;
+  categories: TournamentCategoryFilter[];
+}
+
+function loadStoredTournamentFilters(): StoredTournamentFilters {
+  try {
+    const raw = localStorage.getItem(TOURNAMENT_FILTERS_STORAGE_KEY);
+    if (!raw) {
+      return { status: 'upcoming', savedOnly: false, categoryFiltersOpen: false, categories: [] };
+    }
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') {
+      return { status: 'upcoming', savedOnly: false, categoryFiltersOpen: false, categories: [] };
+    }
+    const obj = parsed as Record<string, unknown>;
+    const status: TournamentListStatus = obj.status === 'completed' ? 'completed' : 'upcoming';
+    const savedOnly = Boolean(obj.savedOnly);
+    const categoryFiltersOpen = Boolean(obj.categoryFiltersOpen);
+    const validCategorySet = new Set(TOURNAMENT_CATEGORY_OPTIONS.map((opt) => opt.value));
+    const categories = Array.isArray(obj.categories)
+      ? obj.categories.filter((cat): cat is TournamentCategoryFilter => typeof cat === 'string' && validCategorySet.has(cat as TournamentCategoryFilter))
+      : [];
+
+    return { status, savedOnly, categoryFiltersOpen, categories };
+  } catch {
+    return { status: 'upcoming', savedOnly: false, categoryFiltersOpen: false, categories: [] };
+  }
+}
+
 export function EventsTabContent() {
   const { navigateInActiveTab } = useTabNavigation();
-  const [status, setStatus] = useState<TournamentListStatus>('upcoming');
-  const [savedOnly, setSavedOnly] = useState(false);
-  const [categoryFiltersOpen, setCategoryFiltersOpen] = useState(false);
-  const [categories, setCategories] = useState<TournamentCategoryFilter[]>([]);
+  const [initialFilters] = useState(loadStoredTournamentFilters);
+  const [status, setStatus] = useState<TournamentListStatus>(initialFilters.status);
+  const [savedOnly, setSavedOnly] = useState(initialFilters.savedOnly);
+  const [categoryFiltersOpen, setCategoryFiltersOpen] = useState(initialFilters.categoryFiltersOpen);
+  const [categories, setCategories] = useState<TournamentCategoryFilter[]>(initialFilters.categories);
+
+  useEffect(() => {
+    try {
+      const stateToSave: StoredTournamentFilters = {
+        status,
+        savedOnly,
+        categoryFiltersOpen,
+        categories,
+      };
+      localStorage.setItem(TOURNAMENT_FILTERS_STORAGE_KEY, JSON.stringify(stateToSave));
+    } catch {
+      // Ignore storage write errors
+    }
+  }, [status, savedOnly, categoryFiltersOpen, categories]);
   const search = useSearch({ minLength: 0, resetOnDisable: false });
   const {
     items: favouriteTournaments,

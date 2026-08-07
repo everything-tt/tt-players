@@ -11,6 +11,7 @@ import {
   restoreLocalDataBackup,
   THEME_STORAGE_KEY,
   TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY,
+  TOURNAMENT_FILTERS_STORAGE_KEY,
 } from './local-persistence';
 import { FAVOURITES_STORAGE_KEY } from './player-shared';
 
@@ -30,15 +31,18 @@ describe('local data persistence backup', () => {
     local.setItem(LEAGUES_STORAGE_KEY, JSON.stringify(['league-1']));
     local.setItem(FAVOURITES_STORAGE_KEY, JSON.stringify([{ id: 'p1', name: 'Alice', played: 3, wins: 2 }]));
     local.setItem(MATCH_JOURNAL_STORAGE_KEY, JSON.stringify({ p1: [] }));
+    local.setItem(TOURNAMENT_FILTERS_STORAGE_KEY, JSON.stringify({ status: 'completed' }));
 
     backupLocalData(local, session);
     local.removeItem(LEAGUES_STORAGE_KEY);
     local.removeItem(MATCH_JOURNAL_STORAGE_KEY);
+    local.removeItem(TOURNAMENT_FILTERS_STORAGE_KEY);
 
-    expect(restoreLocalDataBackup(local, session)).toBe(2);
+    expect(restoreLocalDataBackup(local, session)).toBe(3);
     expect(local.getItem(LEAGUES_STORAGE_KEY)).toBe(JSON.stringify(['league-1']));
     expect(local.getItem(FAVOURITES_STORAGE_KEY)).toBe(JSON.stringify([{ id: 'p1', name: 'Alice', played: 3, wins: 2 }]));
     expect(local.getItem(MATCH_JOURNAL_STORAGE_KEY)).toBe(JSON.stringify({ p1: [] }));
+    expect(local.getItem(TOURNAMENT_FILTERS_STORAGE_KEY)).toBe(JSON.stringify({ status: 'completed' }));
     expect(session.getItem(LOCAL_DATA_BACKUP_KEY)).toBeNull();
   });
 
@@ -85,6 +89,7 @@ describe('account data snapshots', () => {
     local.setItem(LEAGUES_STORAGE_KEY, JSON.stringify(['league-1']));
     local.setItem(MY_PLAYER_STORAGE_KEY, JSON.stringify({ id: 'p1', name: 'Alice' }));
     local.setItem(THEME_STORAGE_KEY, 'dark-mode');
+    local.setItem(TOURNAMENT_FILTERS_STORAGE_KEY, JSON.stringify({ status: 'completed' }));
     local.setItem('tt_players_h2h_active_player_a', JSON.stringify({ id: 'p2' }));
 
     const snapshot = createUserDataSnapshot(local);
@@ -92,6 +97,7 @@ describe('account data snapshots', () => {
     expect(snapshot.entries[LEAGUES_STORAGE_KEY]).toBe(JSON.stringify(['league-1']));
     expect(snapshot.entries[MY_PLAYER_STORAGE_KEY]).toBe(JSON.stringify({ id: 'p1', name: 'Alice' }));
     expect(snapshot.entries[THEME_STORAGE_KEY]).toBe('dark-mode');
+    expect(snapshot.entries[TOURNAMENT_FILTERS_STORAGE_KEY]).toBe(JSON.stringify({ status: 'completed' }));
     expect(snapshot.entries.tt_players_h2h_active_player_a).toBeUndefined();
   });
 
