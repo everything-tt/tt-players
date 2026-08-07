@@ -10,14 +10,25 @@ export const DEFAULT_PWA_GLOB_PATTERNS = [
   '**/*.{js,css,html,ico,png,svg,woff,woff2}',
 ] as const;
 
-export function createPWAPlugin(options: VitePWAOptions = {}) {
+export type PWAPluginOptions = NonNullable<Parameters<typeof VitePWA>[0]>;
+
+export function createPWAPlugin(
+  options: PWAPluginOptions = {},
+): ReturnType<typeof VitePWA> {
+  const {
+    registerType = 'prompt',
+    includeAssets = [...DEFAULT_PWA_ASSETS],
+    workbox,
+    ...rest
+  } = options;
+
   return VitePWA({
-    registerType: 'prompt',
-    includeAssets: [...DEFAULT_PWA_ASSETS],
-    ...options,
+    ...rest,
+    registerType,
+    includeAssets,
     workbox: {
       globPatterns: [...DEFAULT_PWA_GLOB_PATTERNS],
-      ...(options.workbox ?? {}),
+      ...(workbox ?? {}),
     },
   });
 }
