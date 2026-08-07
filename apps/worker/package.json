@@ -26,6 +26,7 @@
     },
     "dependencies": {
         "@tt-players/db": "workspace:*",
+        "@tt-players/ranking": "workspace:*",
         "cheerio": "^1.2.0",
         "dotenv": "^16.4.7",
         "graphile-worker": "^0.16.6",
