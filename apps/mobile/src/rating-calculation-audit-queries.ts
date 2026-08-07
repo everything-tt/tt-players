@@ -75,6 +75,10 @@ export interface RatingPlayerAuditEvidenceRow {
   opponent_name: string;
   result: string;
   game_score: string | null;
+  player_rating_before: number;
+  player_rating_deviation_before: number;
+  opponent_rating_before: number;
+  opponent_rating_deviation_before: number;
   expected_win_probability: number;
   actual_score: number;
   surprise: number;
