@@ -52,8 +52,16 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
         );
         if (cancelled) return;
 
-        const changed = applyUserDataSnapshot(response.data, localStorage, userId);
-        lastSyncedSnapshot.current = serializeUserDataSnapshot(response.data);
+        const mergedSnapshot: UserDataSnapshot = {
+          version: 1,
+          entries: {
+            ...localSnapshot.entries,
+            ...response.data.entries,
+          },
+        };
+
+        const changed = applyUserDataSnapshot(mergedSnapshot, localStorage, userId);
+        lastSyncedSnapshot.current = serializeUserDataSnapshot(mergedSnapshot);
         setHydratedUserId(userId);
 
         if (changed) {

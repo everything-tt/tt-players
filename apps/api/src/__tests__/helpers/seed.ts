@@ -1,83 +1,14 @@
-import { Kysely, Migrator, PostgresDialect } from 'kysely';
-import type { MigrationProvider, Migration } from 'kysely';
+import { FileMigrationProvider, Kysely, Migrator, PostgresDialect } from 'kysely';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import pg from 'pg';
 import type { Database } from '@tt-players/db';
-
-// Import migrations directly so Vitest's TS loader handles them
-// Relative path from apps/api/src/__tests__/helpers → monorepo root (5 levels up)
-import * as m001 from '../../../../../packages/db/src/migrations/001_create_enums.js';
-import * as m002 from '../../../../../packages/db/src/migrations/002_create_core_tables.js';
-import * as m003 from '../../../../../packages/db/src/migrations/003_create_match_tables.js';
-import * as m004 from '../../../../../packages/db/src/migrations/004_create_raw_scrape_logs.js';
-import * as m005 from '../../../../../packages/db/src/migrations/005_make_rubber_players_nullable.js';
-import * as m006 from '../../../../../packages/db/src/migrations/006_add_canonical_player_id_to_external_players.js';
-import * as m007 from '../../../../../packages/db/src/migrations/007_add_performance_indexes.js';
-import * as m008 from '../../../../../packages/db/src/migrations/008_create_cache_entries.js';
-import * as m009 from '../../../../../packages/db/src/migrations/009_create_regions.js';
-import * as m010 from '../../../../../packages/db/src/migrations/010_add_performance_indexes_2.js';
-import * as m011 from '../../../../../packages/db/src/migrations/011_add_detail_page_performance_indexes.js';
-import * as m012 from '../../../../../packages/db/src/migrations/012_add_raw_scrape_log_source_url_indexes.js';
-import * as m013 from '../../../../../packages/db/src/migrations/013_add_rubber_score_source.js';
-import * as m014 from '../../../../../packages/db/src/migrations/014_create_ranking_history_tables.js';
-import * as m015 from '../../../../../packages/db/src/migrations/015_add_rubber_played_at.js';
-import * as m016 from '../../../../../packages/db/src/migrations/016_create_sport80_event_scrape_state.js';
-import * as m017 from '../../../../../packages/db/src/migrations/017_create_source_event_staging_tables.js';
-import * as m018 from '../../../../../packages/db/src/migrations/018_add_competition_event_display_fields.js';
-import * as m019 from '../../../../../packages/db/src/migrations/019_add_competition_source_fields.js';
-import * as m020 from '../../../../../packages/db/src/migrations/020_create_staging_schema.js';
-import * as m021 from '../../../../../packages/db/src/migrations/021_create_feedback_table.js';
-import * as m022 from '../../../../../packages/db/src/migrations/022_add_updated_at_indexes.js';
-import * as m023 from '../../../../../packages/db/src/migrations/023_add_expression_and_region_indexes.js';
-import * as m024 from '../../../../../packages/db/src/migrations/024_add_recent_fixture_search_indexes.js';
-import * as m025 from '../../../../../packages/db/src/migrations/025_add_feedback_github_issue_link.js';
-import * as m026 from '../../../../../packages/db/src/migrations/026_create_feedback_attachments.js';
-import * as m027 from '../../../../../packages/db/src/migrations/027_expand_feedback_context_and_attachments.js';
-import * as m036 from '../../../../../packages/db/src/migrations/036_create_tournament_sources.js';
-import * as m038 from '../../../../../packages/db/src/migrations/038_flatten_player_identity_chains.js';
-import * as m047 from '../../../../../packages/db/src/migrations/047_separate_tournament_lifecycles.js';
 
 const { Pool } = pg;
 
 const TEST_DB_NAME = `tt_players_api_test_${process.pid}_${process.env.VITEST_POOL_ID ?? 'main'}`;
 const ADMIN_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/postgres';
 export const TEST_DATABASE_URL = `postgres://postgres:postgres@localhost:5432/${TEST_DB_NAME}`;
-
-class StaticMigrationProvider implements MigrationProvider {
-    async getMigrations(): Promise<Record<string, Migration>> {
-        return {
-            '001_create_enums': m001,
-            '002_create_core_tables': m002,
-            '003_create_match_tables': m003,
-            '004_create_raw_scrape_logs': m004,
-            '005_make_rubber_players_nullable': m005,
-            '006_add_canonical_player_id_to_external_players': m006,
-            '007_add_performance_indexes': m007,
-            '008_create_cache_entries': m008,
-            '009_create_regions': m009,
-            '010_add_performance_indexes_2': m010,
-            '011_add_detail_page_performance_indexes': m011,
-            '012_add_raw_scrape_log_source_url_indexes': m012,
-            '013_add_rubber_score_source': m013,
-            '014_create_ranking_history_tables': m014,
-            '015_add_rubber_played_at': m015,
-            '016_create_sport80_event_scrape_state': m016,
-            '017_create_source_event_staging_tables': m017,
-            '018_add_competition_event_display_fields': m018,
-            '019_add_competition_source_fields': m019,
-            '020_create_staging_schema': m020,
-            '021_create_feedback_table': m021,
-            '022_add_updated_at_indexes': m022,
-            '023_add_expression_and_region_indexes': m023,
-            '024_add_recent_fixture_search_indexes': m024,
-            '025_add_feedback_github_issue_link': m025,
-            '026_create_feedback_attachments': m026,
-            '027_expand_feedback_context_and_attachments': m027,
-            '036_create_tournament_sources': m036,
-            '038_flatten_player_identity_chains': m038,
-            '047_separate_tournament_lifecycles': m047,
-        };
-    }
-}
 
 export function createTestKysely(): Kysely<Database> {
     return new Kysely<Database>({
@@ -108,9 +39,14 @@ export async function dropTestDatabase(db: Kysely<Database>): Promise<void> {
 }
 
 export async function runMigrations(db: Kysely<Database>): Promise<void> {
+    const migrationFolder = path.join(import.meta.dirname, '../../../../../packages/db/src/migrations');
     const migrator = new Migrator({
         db,
-        provider: new StaticMigrationProvider(),
+        provider: new FileMigrationProvider({
+            fs,
+            path,
+            migrationFolder,
+        }),
     });
     const { error } = await migrator.migrateToLatest();
     if (error) throw error;
