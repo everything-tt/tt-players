@@ -1,6 +1,46 @@
 import { type Kysely, sql } from 'kysely';
 
 export async function up(db: Kysely<any>): Promise<void> {
+    // Keep the existing v1 eligibility boundary while making non-normal outcomes
+    // explainable in the audit trail instead of grouping them under one reason.
+    await sql`
+        CREATE OR REPLACE FUNCTION rating_rubber_exclusion_reason(
+            p_is_doubles boolean,
+            p_outcome_type text,
+            p_effective_date date,
+            p_home_player_id uuid,
+            p_away_player_id uuid,
+            p_home_record_id uuid,
+            p_away_record_id uuid,
+            p_home_canonical_id uuid,
+            p_away_canonical_id uuid,
+            p_home_games_won integer,
+            p_away_games_won integer
+        ) RETURNS text
+        LANGUAGE sql
+        IMMUTABLE
+        PARALLEL SAFE
+        AS $$
+            SELECT CASE
+                WHEN p_is_doubles THEN 'doubles'
+                WHEN p_outcome_type = 'walkover' THEN 'walkover'
+                WHEN p_outcome_type = 'retired' THEN 'retirement'
+                WHEN p_outcome_type = 'void' THEN 'void_result'
+                WHEN p_outcome_type <> 'normal' THEN 'non_normal_outcome'
+                WHEN p_effective_date IS NULL THEN 'missing_date'
+                WHEN p_home_player_id IS NULL AND p_away_player_id IS NULL THEN 'missing_both_player_ids'
+                WHEN p_home_player_id IS NULL THEN 'missing_home_player_id'
+                WHEN p_away_player_id IS NULL THEN 'missing_away_player_id'
+                WHEN p_home_record_id IS NULL AND p_away_record_id IS NULL THEN 'missing_both_player_records'
+                WHEN p_home_record_id IS NULL THEN 'missing_home_player_record'
+                WHEN p_away_record_id IS NULL THEN 'missing_away_player_record'
+                WHEN p_home_canonical_id = p_away_canonical_id THEN 'same_canonical_player'
+                WHEN p_home_games_won = p_away_games_won THEN 'tied_score'
+                ELSE 'eligible'
+            END
+        $$
+    `.execute(db);
+
     await db.schema
         .createTable('rating_calculation_runs')
         .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
@@ -121,4 +161,39 @@ export async function down(db: Kysely<any>): Promise<void> {
     await db.schema.dropTable('rating_match_audits').ifExists().execute();
     await db.schema.dropTable('rating_period_audits').ifExists().execute();
     await db.schema.dropTable('rating_calculation_runs').ifExists().execute();
+
+    await sql`
+        CREATE OR REPLACE FUNCTION rating_rubber_exclusion_reason(
+            p_is_doubles boolean,
+            p_outcome_type text,
+            p_effective_date date,
+            p_home_player_id uuid,
+            p_away_player_id uuid,
+            p_home_record_id uuid,
+            p_away_record_id uuid,
+            p_home_canonical_id uuid,
+            p_away_canonical_id uuid,
+            p_home_games_won integer,
+            p_away_games_won integer
+        ) RETURNS text
+        LANGUAGE sql
+        IMMUTABLE
+        PARALLEL SAFE
+        AS $$
+            SELECT CASE
+                WHEN p_is_doubles THEN 'doubles'
+                WHEN p_outcome_type <> 'normal' THEN 'non_normal_outcome'
+                WHEN p_effective_date IS NULL THEN 'missing_date'
+                WHEN p_home_player_id IS NULL AND p_away_player_id IS NULL THEN 'missing_both_player_ids'
+                WHEN p_home_player_id IS NULL THEN 'missing_home_player_id'
+                WHEN p_away_player_id IS NULL THEN 'missing_away_player_id'
+                WHEN p_home_record_id IS NULL AND p_away_record_id IS NULL THEN 'missing_both_player_records'
+                WHEN p_home_record_id IS NULL THEN 'missing_home_player_record'
+                WHEN p_away_record_id IS NULL THEN 'missing_away_player_record'
+                WHEN p_home_canonical_id = p_away_canonical_id THEN 'same_canonical_player'
+                WHEN p_home_games_won = p_away_games_won THEN 'tied_score'
+                ELSE 'eligible'
+            END
+        $$
+    `.execute(db);
 }
