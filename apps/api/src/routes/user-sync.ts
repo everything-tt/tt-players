@@ -17,6 +17,7 @@ const ALLOWED_SYNC_KEYS = new Set([
     'tt_players_my_player',
     'tt_players_my_tt_profile',
     'tt_players_tournament_entry_profiles',
+    'tt_players_tournament_filters',
     'tt_players_match_journal',
 ]);
 
