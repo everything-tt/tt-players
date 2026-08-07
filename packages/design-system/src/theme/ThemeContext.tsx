@@ -31,12 +31,7 @@ function readStoredTheme(storageKey: string): boolean | null {
 }
 
 function resolveTheme(storageKey: string, defaultDark: boolean): boolean {
-  const stored = readStoredTheme(storageKey);
-  if (stored !== null) return stored;
-  if (!canUseDOM()) return defaultDark;
-  if (document.body.classList.contains('theme-dark')) return true;
-  if (document.body.classList.contains('theme-light')) return false;
-  return defaultDark;
+  return readStoredTheme(storageKey) ?? defaultDark;
 }
 
 function persistTheme(storageKey: string, value: 'dark-mode' | 'light-mode') {
