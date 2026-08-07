@@ -63,5 +63,7 @@ export function writeTournamentPreferences(
     version: 1,
     ...preferences,
   } satisfies TournamentPreferences));
-  if (storage === localStorage) notifyUserDataChanged();
+  if (typeof window !== 'undefined' && storage === window.localStorage) {
+    notifyUserDataChanged();
+  }
 }
