@@ -88,6 +88,10 @@ const PlayerEvidenceSchema = z.object({
     opponent_name: z.string(),
     result: z.string(),
     game_score: z.string().nullable(),
+    player_rating_before: z.number(),
+    player_rating_deviation_before: z.number(),
+    opponent_rating_before: z.number(),
+    opponent_rating_deviation_before: z.number(),
     expected_win_probability: z.number(),
     actual_score: z.number(),
     surprise: z.number(),
@@ -106,6 +110,11 @@ const PlayerEvidenceResponseSchema = z.object({
     player_name: z.string(),
     model: z.string(),
     data: z.array(PlayerEvidenceSchema),
+});
+
+const ErrorResponseSchema = z.object({
+    error: z.string(),
+    statusCode: z.number().int(),
 });
 
 interface RunRow {
@@ -168,6 +177,10 @@ interface PlayerEvidenceRow {
     opponent_name: string | null;
     result: string;
     game_score: string | null;
+    player_rating_before: number | string;
+    player_rating_deviation_before: number | string;
+    opponent_rating_before: number | string;
+    opponent_rating_deviation_before: number | string;
     expected_win_probability: number | string;
     actual_score: number | string;
     surprise: number | string;
@@ -403,9 +416,8 @@ export function ratingCalculationAuditRoutes(db: Kysely<Database>): FastifyPlugi
                     surprise: Number(row.surprise),
                     attributed_rating_delta: Number(row.attributed_rating_delta),
                 })),
-                // Backtest reports are currently generated as workflow artifacts rather than
-                // persisted against calculation runs. Keep the contract explicit until Phase 3
-                // stores comparable metrics for candidate models.
+                // Current backtests are generated as workflow artifacts, not persisted against a run.
+                // Phase 3 can populate this field when candidate-model metrics become durable data.
                 backtest: null,
             });
         });
@@ -414,7 +426,10 @@ export function ratingCalculationAuditRoutes(db: Kysely<Database>): FastifyPlugi
             schema: {
                 params: PlayerParamsSchema,
                 querystring: PlayerEvidenceQuerySchema,
-                response: { 200: PlayerEvidenceResponseSchema },
+                response: {
+                    200: PlayerEvidenceResponseSchema,
+                    404: ErrorResponseSchema,
+                },
             },
         }, async (request, reply) => {
             const { playerId } = request.params;
@@ -430,7 +445,7 @@ export function ratingCalculationAuditRoutes(db: Kysely<Database>): FastifyPlugi
                 return reply.code(404).send({
                     error: 'Player not found',
                     statusCode: 404,
-                } as never);
+                });
             }
 
             const evidenceResult = await sql<PlayerEvidenceRow>`
@@ -457,6 +472,10 @@ export function ratingCalculationAuditRoutes(db: Kysely<Database>): FastifyPlugi
                     opponent.name AS opponent_name,
                     evidence.result,
                     evidence.game_score,
+                    evidence.player_rating_before,
+                    evidence.player_rating_deviation_before,
+                    evidence.opponent_rating_before,
+                    evidence.opponent_rating_deviation_before,
                     evidence.expected_win_probability,
                     evidence.actual_score,
                     evidence.surprise_value AS surprise,
@@ -474,6 +493,10 @@ export function ratingCalculationAuditRoutes(db: Kysely<Database>): FastifyPlugi
                 WHERE evidence.rating_date IS NOT NULL
                   AND evidence.opponent_id IS NOT NULL
                   AND evidence.result IS NOT NULL
+                  AND evidence.player_rating_before IS NOT NULL
+                  AND evidence.player_rating_deviation_before IS NOT NULL
+                  AND evidence.opponent_rating_before IS NOT NULL
+                  AND evidence.opponent_rating_deviation_before IS NOT NULL
                   AND evidence.expected_win_probability IS NOT NULL
                   AND evidence.actual_score IS NOT NULL
                   AND evidence.surprise_value IS NOT NULL
@@ -493,6 +516,10 @@ export function ratingCalculationAuditRoutes(db: Kysely<Database>): FastifyPlugi
                     opponent_name: row.opponent_name ?? 'Unknown player',
                     result: row.result,
                     game_score: row.game_score,
+                    player_rating_before: Number(row.player_rating_before),
+                    player_rating_deviation_before: Number(row.player_rating_deviation_before),
+                    opponent_rating_before: Number(row.opponent_rating_before),
+                    opponent_rating_deviation_before: Number(row.opponent_rating_deviation_before),
                     expected_win_probability: Number(row.expected_win_probability),
                     actual_score: Number(row.actual_score),
                     surprise: Number(row.surprise),
