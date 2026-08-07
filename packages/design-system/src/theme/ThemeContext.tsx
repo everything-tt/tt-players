@@ -10,6 +10,7 @@ export interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const THEME_STORAGE_KEY = 'TTPlayers-Theme';
+const USER_DATA_CHANGED_EVENT = 'tt-players:user-data-changed';
 const LIGHT_THEME_COLOR = '#f1f8f2';
 const DARK_THEME_COLOR = '#17382f';
 
@@ -17,10 +18,23 @@ function canUseDOM() {
   return typeof window !== 'undefined' && typeof document !== 'undefined';
 }
 
+function readStoredTheme(storageKey: string): boolean | null {
+  if (!canUseDOM()) return null;
+  try {
+    const value = window.localStorage.getItem(storageKey);
+    if (value === 'dark-mode') return true;
+    if (value === 'light-mode') return false;
+  } catch {
+    // Storage can be unavailable in private browsing or embedded contexts.
+  }
+  return null;
+}
+
 function persistTheme(storageKey: string, value: 'dark-mode' | 'light-mode') {
   if (!canUseDOM()) return;
   try {
     window.localStorage.setItem(storageKey, value);
+    window.dispatchEvent(new Event(USER_DATA_CHANGED_EVENT));
   } catch {
     // Storage can be unavailable in private browsing or embedded contexts.
   }
@@ -30,6 +44,13 @@ function syncThemeColor(isDarkMode: boolean) {
   if (!canUseDOM()) return;
   const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   meta?.setAttribute('content', isDarkMode ? DARK_THEME_COLOR : LIGHT_THEME_COLOR);
+}
+
+function applyThemeClasses(isDarkMode: boolean) {
+  if (!canUseDOM()) return;
+  document.body.classList.add(isDarkMode ? 'theme-dark' : 'theme-light');
+  document.body.classList.remove(isDarkMode ? 'theme-light' : 'theme-dark', 'detect-theme');
+  syncThemeColor(isDarkMode);
 }
 
 export interface ThemeProviderProps {
@@ -45,26 +66,20 @@ export function ThemeProvider({
 }: ThemeProviderProps) {
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (!canUseDOM()) return defaultDark;
-    return document.body.classList.contains('theme-dark') || defaultDark;
+    return readStoredTheme(storageKey)
+      ?? document.body.classList.contains('theme-dark')
+      ?? defaultDark;
   });
 
-  const activateDarkMode = () => {
+  const applyTheme = (nextDarkMode: boolean, persist: boolean) => {
     if (!canUseDOM()) return;
-    document.body.classList.add('theme-dark');
-    document.body.classList.remove('theme-light', 'detect-theme');
-    persistTheme(storageKey, 'dark-mode');
-    syncThemeColor(true);
-    setIsDarkMode(true);
+    applyThemeClasses(nextDarkMode);
+    if (persist) persistTheme(storageKey, nextDarkMode ? 'dark-mode' : 'light-mode');
+    setIsDarkMode(nextDarkMode);
   };
 
-  const activateLightMode = () => {
-    if (!canUseDOM()) return;
-    document.body.classList.add('theme-light');
-    document.body.classList.remove('theme-dark', 'detect-theme');
-    persistTheme(storageKey, 'light-mode');
-    syncThemeColor(false);
-    setIsDarkMode(false);
-  };
+  const activateDarkMode = () => applyTheme(true, true);
+  const activateLightMode = () => applyTheme(false, true);
 
   const toggleTheme = (
     event?: React.MouseEvent<HTMLElement> | React.ChangeEvent<HTMLInputElement>
@@ -73,19 +88,25 @@ export function ThemeProvider({
       event.preventDefault();
     }
     if (!canUseDOM()) return;
-    if (document.body.classList.contains('theme-dark')) {
-      activateLightMode();
-    } else {
-      activateDarkMode();
-    }
+    applyTheme(!isDarkMode, true);
   };
 
   useEffect(() => {
     if (!canUseDOM()) return;
-    const nextDarkMode = document.body.classList.contains('theme-dark');
-    syncThemeColor(nextDarkMode);
-    setIsDarkMode(nextDarkMode);
-  }, []);
+
+    const syncFromStorage = () => {
+      const stored = readStoredTheme(storageKey);
+      const nextDarkMode = stored
+        ?? document.body.classList.contains('theme-dark')
+        ?? defaultDark;
+      applyThemeClasses(nextDarkMode);
+      setIsDarkMode(nextDarkMode);
+    };
+
+    syncFromStorage();
+    window.addEventListener('storage', syncFromStorage);
+    return () => window.removeEventListener('storage', syncFromStorage);
+  }, [defaultDark, storageKey]);
 
   return (
     <ThemeContext.Provider value={{ isDarkMode, toggleTheme, activateDarkMode, activateLightMode }}>
