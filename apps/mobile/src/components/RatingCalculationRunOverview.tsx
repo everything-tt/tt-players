@@ -3,6 +3,7 @@ import {
   type RatingCalculationMover,
   useRatingCalculationAuditQuery,
 } from '../rating-calculation-audit-queries';
+import { SkeletonList } from './Skeleton';
 import {
   DesignList,
   ErrorState,
@@ -10,7 +11,6 @@ import {
   MetricGrid,
   PageSection,
   Pill,
-  SkeletonList,
   Surface,
 } from '../ui/appkit';
 
