@@ -14,9 +14,13 @@ describe('UserDataSyncProvider hydration gate', () => {
     expect(shouldRenderSyncedChildren(false, null, null, 'user-a')).toBe(false);
   });
 
-  it('holds authenticated UI until that account snapshot has hydrated', () => {
-    expect(shouldRenderSyncedChildren(false, 'user-a', null)).toBe(false);
-    expect(shouldRenderSyncedChildren(false, 'user-a', 'user-b')).toBe(false);
+  it('holds first-login and account-switch UI until the matching snapshot hydrates', () => {
+    expect(shouldRenderSyncedChildren(false, 'user-a', null, null)).toBe(false);
+    expect(shouldRenderSyncedChildren(false, 'user-a', 'user-b', 'user-b')).toBe(false);
+  });
+
+  it('can render a cache already owned by the same account while it refreshes', () => {
+    expect(shouldRenderSyncedChildren(false, 'user-a', null, 'user-a')).toBe(true);
   });
 
   it('mounts authenticated UI after the matching account snapshot is applied', () => {
