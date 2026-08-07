@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
+import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth, type AuthState } from './lib/auth';
 import {
   applyUserDataSnapshot,
@@ -34,7 +34,7 @@ export function shouldRenderSyncedChildren(
 ): boolean {
   if (authLoading) return false;
   if (!sessionUserId) return hydratedUserId === null && localOwnerUserId === null;
-  return hydratedUserId === sessionUserId;
+  return hydratedUserId === sessionUserId || localOwnerUserId === sessionUserId;
 }
 
 export function UserDataSyncProvider({ children }: { children: ReactNode }) {
@@ -47,13 +47,13 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
 
   sessionRef.current = auth.session;
 
-  const publishAppliedData = () => {
+  const publishAppliedData = useCallback(() => {
     notifyUserDataApplied();
     // Some root views still initialise localStorage-backed state only on mount.
     // A revision key guarantees an authoritative server apply becomes visible
     // everywhere without relying on a full page reload.
     setDataRevision((current) => current + 1);
-  };
+  }, []);
 
   useEffect(() => {
     if (auth.loading) return;
@@ -119,9 +119,9 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
 
         // Do not make an already-authenticated PWA unusable during a temporary
-        // API outage. The cache is safe to render when it was either anonymous
-        // or already owned by this account; writes remain paused until a server
-        // baseline has been obtained successfully.
+        // API outage. A cache is safe to render when it is anonymous or already
+        // owned by this account; writes remain paused until a server baseline
+        // has been obtained successfully.
         const owner = getLocalSyncOwner();
         if (!owner || owner === userId) setHydratedUserId(userId);
         retryTimer = window.setTimeout(() => void bootstrap(), BOOTSTRAP_RETRY_MS);
@@ -133,7 +133,7 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       if (retryTimer !== null) window.clearTimeout(retryTimer);
     };
-  }, [auth.loading, auth.session?.user.id]);
+  }, [auth.loading, auth.session?.user.id, publishAppliedData]);
 
   useEffect(() => {
     const userId = auth.session?.user.id ?? null;
@@ -240,7 +240,7 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('online', handleOnline);
     };
-  }, [auth.session?.user.id, hydratedUserId]);
+  }, [auth.session?.user.id, hydratedUserId, publishAppliedData]);
 
   const sessionUserId = auth.session?.user.id ?? null;
   if (!shouldRenderSyncedChildren(auth.loading, sessionUserId, hydratedUserId, localOwnerUserId)) return null;
