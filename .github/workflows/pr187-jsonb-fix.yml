@@ -1,0 +1,50 @@
+name: PR 187 jsonb fix
+
+on:
+  push:
+    branches:
+      - agent/entry-form-parsing
+    paths:
+      - '.github/workflows/pr187-jsonb-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/entry-form-parsing
+          fetch-depth: 0
+
+      - name: Serialize categories as JSON for jsonb
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('apps/worker/src/entry-form-inspection.ts')
+          text = path.read_text()
+          old = """        updates.categories = analysis.categories.map((category) => ({
+              name: category.name,
+              entry_fee: category.entry_fee,
+          }));"""
+          new = """        updates.categories = JSON.stringify(analysis.categories.map((category) => ({
+              name: category.name,
+              entry_fee: category.entry_fee,
+          })));"""
+          if old not in text:
+              raise SystemExit('expected category assignment not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Commit fix and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add apps/worker/src/entry-form-inspection.ts
+          git rm .github/workflows/pr187-jsonb-fix.yml
+          git commit -m 'fix(worker): serialize competition categories as jsonb'
+          git push origin HEAD:agent/entry-form-parsing
