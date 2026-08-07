@@ -67,6 +67,7 @@ type RichEventItem = EventItem & {
   organizer_name?: string | null;
   organizer_url?: string | null;
   entry_deadline?: string | null;
+  entry_fee?: string | null;
   entry_url?: string | null;
   information_url?: string | null;
 };
@@ -353,6 +354,22 @@ export function EventDetailPage() {
                   subtitle="Event date"
                   hideChevron
                 />
+                {event.category ? (
+                  <ListItem
+                    leading={<IconCircle iconClassName="fa fa-tags" tone="accent" />}
+                    title={event.category}
+                    subtitle="Category"
+                    hideChevron
+                  />
+                ) : null}
+                {event.entry_fee ? (
+                  <ListItem
+                    leading={<IconCircle iconClassName="fa fa-tag" />}
+                    title={event.entry_fee}
+                    subtitle="Entry fee"
+                    hideChevron
+                  />
+                ) : null}
                 {event.entry_deadline ? (
                   <ListItem
                     leading={<IconCircle iconClassName="fa fa-clock" />}
