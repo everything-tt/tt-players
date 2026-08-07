@@ -18,6 +18,16 @@ interface SyncStateResponse {
   source: 'local' | 'server';
 }
 
+export function shouldRenderSyncedChildren(
+  authLoading: boolean,
+  sessionUserId: string | null,
+  hydratedUserId: string | null,
+): boolean {
+  if (authLoading) return false;
+  if (!sessionUserId) return true;
+  return hydratedUserId === sessionUserId;
+}
+
 export function UserDataSyncProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const sessionRef = useRef<AuthState['session']>(auth.session);
@@ -38,6 +48,13 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
     let retryTimer: number | null = null;
     const userId = auth.session.user.id;
 
+    // Do not let account-aware children mount until this bootstrap has applied
+    // the authoritative server snapshot. Many of those children initialise
+    // React state from localStorage only once on mount, so mounting first and
+    // mutating storage afterwards can leave the UI showing stale anonymous or
+    // pre-login data.
+    setHydratedUserId((current) => current === userId ? current : null);
+
     const bootstrap = async () => {
       const session = sessionRef.current;
       if (!session || session.user.id !== userId) return;
@@ -53,13 +70,9 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
 
         const changed = applyUserDataSnapshot(response.data, localStorage, userId);
+        if (changed) clearLocalDataBackup();
         lastSyncedSnapshot.current = serializeUserDataSnapshot(response.data);
         setHydratedUserId(userId);
-
-        if (changed) {
-          clearLocalDataBackup();
-          window.location.reload();
-        }
       } catch {
         if (!cancelled) {
           retryTimer = window.setTimeout(() => void bootstrap(), BOOTSTRAP_RETRY_MS);
@@ -123,6 +136,9 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [auth.session?.user.id, hydratedUserId]);
+
+  const sessionUserId = auth.session?.user.id ?? null;
+  if (!shouldRenderSyncedChildren(auth.loading, sessionUserId, hydratedUserId)) return null;
 
   return children;
 }
