@@ -8,7 +8,9 @@ import {
     type GoogleFormInspection,
 } from './google-forms.js';
 import {
+    analyzeDocumentSemantics,
     analyzeGoogleFormSemantics,
+    documentSemanticAnalysisKey,
     entryFormSemanticAnalysisKey,
     ENTRY_FORM_EVENT_ENRICHMENT_CONFIDENCE,
     type EntryFormEventDetail,
@@ -16,6 +18,18 @@ import {
     type EntryFormSemanticAnalyzer,
     type EntryFormSemanticContext,
 } from './google-form-semantic-analysis.js';
+import {
+    inspectPdfForm,
+    isPdfFormUrl,
+    PdfFormInspectionError,
+    type PdfFormInspection,
+} from './pdf-form-inspection.js';
+import {
+    inspectWebForm,
+    isWebFormUrl,
+    WebFormInspectionError,
+    type WebFormInspection,
+} from './web-form-inspection.js';
 
 const ENTRY_FORM_INSPECTION_VERSION = 3 as const;
 
@@ -23,18 +37,18 @@ export type EntryFormInspectionStatus = 'ready' | 'failed';
 
 export interface CachedEntryFormInspection {
     version: typeof ENTRY_FORM_INSPECTION_VERSION;
-    provider: 'google_forms';
+    provider: 'google_forms' | 'pdf_document' | 'web_form';
     status: EntryFormInspectionStatus;
     source_url: string;
     inspected_at: string;
     fingerprint: string | null;
-    form: GoogleFormInspection | null;
+    form: GoogleFormInspection | PdfFormInspection | WebFormInspection | null;
     semantic_analysis: EntryFormSemanticAnalysis | null;
     error_code: string | null;
     error_message: string | null;
 }
 
-export type EntryFormInspector = (url: string) => Promise<GoogleFormInspection>;
+export type EntryFormInspector = (url: string) => Promise<GoogleFormInspection | PdfFormInspection | WebFormInspection>;
 export type EntryFormInspectionOutcome = 'ready' | 'failed' | 'unsupported' | 'unchanged';
 
 interface SyncEntryFormInspectionOptions {
@@ -57,13 +71,14 @@ export interface InspectPendingEntryFormsSummary {
     unchanged: number;
 }
 
-function inspectionFingerprint(inspection: GoogleFormInspection): string {
+function inspectionFingerprint(inspection: GoogleFormInspection | PdfFormInspection | WebFormInspection): string {
     return createHash('sha256')
         .update(JSON.stringify({
             provider: inspection.provider,
             form_url: inspection.form_url,
             title: inspection.title,
-            fields: inspection.fields,
+            fields: 'fields' in inspection ? inspection.fields : undefined,
+            text: 'text' in inspection ? inspection.text : undefined,
         }))
         .digest('hex');
 }
@@ -95,18 +110,27 @@ function failureCode(error: unknown): string {
         if (error.statusCode === 422) return 'form_not_publicly_inspectable';
         return 'google_forms_unavailable';
     }
+    if (error instanceof PdfFormInspectionError) {
+        if (error.statusCode === 400) return 'invalid_pdf_url';
+        if (error.statusCode === 422) return 'pdf_not_inspectable';
+        return 'pdf_unavailable';
+    }
+    if (error instanceof WebFormInspectionError) {
+        if (error.statusCode === 400) return 'invalid_web_form_url';
+        if (error.statusCode === 422) return 'web_form_not_inspectable';
+        return 'web_form_unavailable';
+    }
     return 'inspection_failed';
 }
 
 function failureMessage(error: unknown): string {
     if (error instanceof Error && error.message.trim()) return error.message.slice(0, 500);
-    return 'The Google Form could not be inspected during event ingestion.';
+    return 'The entry form could not be inspected during event ingestion.';
 }
 
 async function removeStaleInspection(db: Kysely<any>, competitionId: string): Promise<void> {
     await db
         .deleteFrom('tournament_sources')
-        .where('provider', '=', 'google_forms')
         .where('source_type', '=', 'entry_form')
         .where('source_key', '=', competitionId)
         .execute();
@@ -123,7 +147,7 @@ async function persistInspection(
         .insertInto('tournament_sources')
         .values({
             competition_id: competitionId,
-            provider: 'google_forms',
+            provider: payload.provider,
             source_type: 'entry_form',
             external_id: null,
             source_url: sourceUrl,
@@ -248,6 +272,7 @@ async function applySemanticEventEnrichment(
             'venue_postcode',
             'organizer_name',
             'category',
+            'entry_fee',
         ])
         .where('id', '=', competitionId)
         .executeTakeFirst();
@@ -267,6 +292,7 @@ async function applySemanticEventEnrichment(
         { field: 'venue_postcode', column: 'venue_postcode', maximumLength: 20 },
         { field: 'organizer_name', column: 'organizer_name', maximumLength: 500 },
         { field: 'category', column: 'category', maximumLength: 500 },
+        { field: 'entry_fee', column: 'entry_fee', maximumLength: 200 },
     ];
 
     for (const item of textFields) {
@@ -304,11 +330,14 @@ async function applySemanticEventEnrichment(
 async function runSemanticAnalysis(
     db: Kysely<any>,
     competitionId: string,
-    form: GoogleFormInspection,
+    form: GoogleFormInspection | PdfFormInspection | WebFormInspection,
     options: SyncEntryFormInspectionOptions,
 ): Promise<EntryFormSemanticAnalysis | null> {
     const analyzer = options.semanticAnalyzer === undefined
-        ? analyzeGoogleFormSemantics
+        ? ((form: GoogleFormInspection | PdfFormInspection | WebFormInspection, context: EntryFormSemanticContext) => {
+            if (form.provider === 'google_forms') return analyzeGoogleFormSemantics(form, context);
+            return analyzeDocumentSemantics(form, context);
+        }) as EntryFormSemanticAnalyzer
         : options.semanticAnalyzer;
     if (!analyzer) return null;
     const analysis = await analyzer(form, await semanticContext(db, competitionId));
@@ -323,20 +352,28 @@ export async function syncTournamentEntryFormInspection(
     now: Date = new Date(),
     options: SyncEntryFormInspectionOptions = {},
 ): Promise<EntryFormInspectionOutcome> {
-    if (!isGoogleFormUrl(entryUrl)) {
+    const isGoogle = isGoogleFormUrl(entryUrl);
+    const isPdf = !isGoogle && isPdfFormUrl(entryUrl);
+    const isWeb = !isGoogle && !isPdf && isWebFormUrl(entryUrl);
+    if (!isGoogle && !isPdf && !isWeb) {
         await removeStaleInspection(db, competitionId);
         return 'unsupported';
     }
 
-    const sourceUrl = normalizeGoogleFormUrl(entryUrl!).toString();
+    const provider: CachedEntryFormInspection['provider'] = isGoogle ? 'google_forms' : isPdf ? 'pdf_document' : 'web_form';
+    const sourceUrl = isGoogle
+        ? normalizeGoogleFormUrl(entryUrl!).toString()
+        : new URL(entryUrl!.trim()).toString();
     const existing = await db
         .selectFrom('tournament_sources')
         .select(['source_url', 'raw_payload'])
-        .where('provider', '=', 'google_forms')
+        .where('provider', '=', provider)
         .where('source_type', '=', 'entry_form')
         .where('source_key', '=', competitionId)
         .executeTakeFirst();
-    const semanticKey = expectedSemanticAnalysisKey(options);
+    const semanticKey = isPdf || isWeb
+        ? documentSemanticAnalysisKey()
+        : expectedSemanticAnalysisKey(options);
 
     if (
         !options.force
@@ -347,14 +384,14 @@ export async function syncTournamentEntryFormInspection(
         return 'unchanged';
     }
 
-    const inspector = options.inspector ?? inspectGoogleForm;
+    const inspector = options.inspector ?? (isGoogle ? inspectGoogleForm : isPdf ? inspectPdfForm : inspectWebForm);
     try {
         const form = await inspector(sourceUrl);
         const fingerprint = inspectionFingerprint(form);
         const semanticAnalysis = await runSemanticAnalysis(db, competitionId, form, options);
         const payload: CachedEntryFormInspection = {
             version: ENTRY_FORM_INSPECTION_VERSION,
-            provider: 'google_forms',
+            provider,
             status: 'ready',
             source_url: sourceUrl,
             inspected_at: now.toISOString(),
@@ -369,7 +406,7 @@ export async function syncTournamentEntryFormInspection(
     } catch (error) {
         const payload: CachedEntryFormInspection = {
             version: ENTRY_FORM_INSPECTION_VERSION,
-            provider: 'google_forms',
+            provider,
             status: 'failed',
             source_url: sourceUrl,
             inspected_at: now.toISOString(),

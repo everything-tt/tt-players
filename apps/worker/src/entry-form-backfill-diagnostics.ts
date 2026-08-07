@@ -57,7 +57,7 @@ export function diagnosticsFromCachedEntryForm(
             error_code: nonEmptyString(cached.error_code) ?? 'inspection_failed',
             error_message: diagnosticMessage(
                 cached.error_message,
-                'The Google Form inspection pipeline failed.',
+                'The entry form inspection pipeline failed.',
             ),
         });
     }
@@ -105,7 +105,7 @@ export async function collectTournamentEntryFormBackfillDiagnostics(
     const sources = await db
         .selectFrom('tournament_sources')
         .select(['source_key', 'source_url', 'raw_payload'])
-        .where('provider', '=', 'google_forms')
+        .where('provider', 'in', ['google_forms', 'pdf_document', 'web_form'])
         .where('source_type', '=', 'entry_form')
         .where('source_key', 'in', candidates.map((candidate) => candidate.id))
         .execute();

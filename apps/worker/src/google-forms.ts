@@ -58,7 +58,7 @@ function isAllowedGoogleFormHost(hostname: string): boolean {
 function isGoogleFormPath(url: URL): boolean {
     if (url.hostname === GOOGLE_SHORT_HOST) return url.pathname.length > 1;
     if (url.hostname !== GOOGLE_DOCS_HOST) return false;
-    return /^\/forms\/d\/(?:e\/)?[^/]+(?:\/viewform)?\/?$/.test(url.pathname);
+    return /^\/forms\/d\/(?:e\/)?[^/]+(?:\/(?:viewform|edit))?\/?$/.test(url.pathname);
 }
 
 export function normalizeGoogleFormUrl(input: string): URL {

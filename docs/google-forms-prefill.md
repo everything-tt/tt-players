@@ -23,28 +23,28 @@ The browser never asks TT Players to inspect a form when the user clicks Enter. 
 - A missing or failed cached schema shows that automatic preparation is unavailable and offers the original form.
 - A changed `entry_url` is inspected during the next ingestion run.
 - A changed inspection schema, semantic prompt, or model identifier causes a new one-time analysis.
-- The scheduled event scrape may check active tournament rows on every run, but it returns `unchanged` before downloading the form or calling DeepSeek when the normalized URL, inspection version, and semantic-analysis key match.
+- The scheduled event scrape may check active tournament rows on every run, but it returns `unchanged` before downloading the form or calling the form-analysis LLM when the normalized URL, inspection version, and semantic-analysis key match.
 - Failed inspections and semantic analyses are cached as completed attempts and are not repeatedly retried by the user flow.
 - Operators can run `pnpm --filter @tt-players/worker tte:backfill-entry-forms` or the manual GitHub Actions backfill workflow. The backfill uses the same cache guard and skips completed matching analyses unless code explicitly opts into force mode.
 
-Changing from another model to `deepseek-v4-flash` changes the semantic-analysis key, so each existing form is analysed once with the new model and then skipped on later scheduled scrapes and backfills.
+Changing to `deepseek-v4-flash:0731` changes the semantic-analysis key, so each existing form is analysed once with the new model and then skipped on later scheduled scrapes and backfills.
 
-## DeepSeek configuration
+## Ollama configuration
 
-The production worker uses DeepSeek's OpenAI-compatible Chat Completions API in non-thinking mode.
+The production worker uses Ollama's native chat API (`https://api.ollama.com/api/chat`) with the `deepseek-v4-flash:0731` model in JSON mode.
 
 ```dotenv
-DEEPSEEK_API_KEY=your-secret-key
-ENTRY_FORM_LLM_BASE_URL=https://api.deepseek.com
-ENTRY_FORM_LLM_MODEL=deepseek-v4-flash
+OLLAMA_API_KEY=your-secret-key
+ENTRY_FORM_LLM_BASE_URL=https://api.ollama.com
+ENTRY_FORM_LLM_MODEL=deepseek-v4-flash:0731
 ENTRY_FORM_LLM_TIMEOUT_MS=30000
 ```
 
-- `DEEPSEEK_API_KEY` enables semantic analysis and is supplied from the GitHub Actions secret with the same name.
-- `ENTRY_FORM_LLM_BASE_URL` defaults to `https://api.deepseek.com` whenever `DEEPSEEK_API_KEY` is present.
-- `ENTRY_FORM_LLM_MODEL` defaults to `deepseek-v4-flash`.
+- `OLLAMA_API_KEY` enables semantic analysis and is supplied from the GitHub Actions secret with the same name.
+- `ENTRY_FORM_LLM_BASE_URL` defaults to `https://api.ollama.com` whenever `OLLAMA_API_KEY` is present.
+- `ENTRY_FORM_LLM_MODEL` defaults to `deepseek-v4-flash:0731`.
 - `ENTRY_FORM_LLM_TIMEOUT_MS` is bounded between 5 and 120 seconds.
-- `ENTRY_FORM_LLM_API_KEY` remains available as a compatibility fallback for another OpenAI-compatible endpoint, but `DEEPSEEK_API_KEY` takes priority.
+- `ENTRY_FORM_LLM_API_KEY` and `DEEPSEEK_API_KEY` remain available as compatibility fallbacks; `OLLAMA_API_KEY` takes priority.
 
 The production deploy workflow and the manual tournament-entry-form backfill workflow securely write these values to `/etc/ttp/worker.env`. Scheduled worker jobs and backfill jobs both load that environment file.
 

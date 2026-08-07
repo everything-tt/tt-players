@@ -36,9 +36,18 @@ describe('Google Forms ingestion inspection', () => {
 
     it('rejects non-Google and non-public form paths', () => {
         expect(() => normalizeGoogleFormUrl('https://example.com/form')).toThrow(GoogleFormInspectionError);
-        expect(() => normalizeGoogleFormUrl('https://docs.google.com/forms/d/example/edit')).toThrow(
+        expect(() => normalizeGoogleFormUrl('https://docs.google.com/forms/d/example/not-a-form-path')).toThrow(
             'Only public Google Forms links are supported.',
         );
+    });
+
+    it('accepts editor links and strips query parameters', () => {
+        expect(normalizeGoogleFormUrl(
+            'https://docs.google.com/forms/d/13myTIRN8pp-N02pzlMhNO5V1QTF0Cpj8SmBYyrtgDBs/edit?edit_requested=true',
+        ).toString()).toBe('https://docs.google.com/forms/d/13myTIRN8pp-N02pzlMhNO5V1QTF0Cpj8SmBYyrtgDBs/edit');
+        expect(isGoogleFormUrl(
+            'https://docs.google.com/forms/d/13myTIRN8pp-N02pzlMhNO5V1QTF0Cpj8SmBYyrtgDBs/viewform?edit_requested=true',
+        )).toBe(true);
     });
 
     it('extracts the balanced public data assignment', () => {
