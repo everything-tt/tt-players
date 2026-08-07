@@ -29,13 +29,35 @@
   padding: 9px 4px;
 }
 
-.tt-list--editorial > .tt-list-item,
-.tt-list--editorial > .tt-list-item > .tt-list-item__clickable {
+.tt-list--editorial > .tt-list-item {
+  align-items: flex-start;
   min-height: 96px;
 }
 
 .tt-list--editorial > .tt-list-item > .tt-list-item__clickable {
-  padding: 14px;
+  align-items: flex-start;
+  min-height: 96px;
+  padding: 14px 0 14px 14px;
+}
+
+.tt-list--editorial > .tt-list-item > .tt-list-item__trailing {
+  align-self: flex-start;
+  padding: 14px 14px 14px 12px;
+}
+
+.tt-list--text-multiline > .tt-list-item,
+.tt-list--text-rich > .tt-list-item {
+  align-items: flex-start;
+}
+
+.tt-list--text-multiline > .tt-list-item > .tt-list-item__clickable,
+.tt-list--text-rich > .tt-list-item > .tt-list-item__clickable {
+  align-items: flex-start;
+}
+
+.tt-list--text-multiline > .tt-list-item > .tt-list-item__trailing,
+.tt-list--text-rich > .tt-list-item > .tt-list-item__trailing {
+  align-self: flex-start;
 }
 
 .tt-list--surface-grouped {
