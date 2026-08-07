@@ -23,6 +23,7 @@ import { eventEntryFormsRoutes } from './routes/event-entry-forms.js';
 import { feedbackRoutes } from './routes/feedback.js';
 import { leagueRatingsRoutes } from './routes/league-ratings.js';
 import { ratingAuditRoutes } from './routes/rating-audit.js';
+import { ratingCalculationAuditRoutes } from './routes/rating-calculation-audit.js';
 import { ratingPlayerCoverageRoutes } from './routes/rating-player-coverage.js';
 import { ratingRankingQualityRoutes } from './routes/rating-ranking-quality.js';
 import { ratingSourceQualityRoutes } from './routes/rating-source-quality.js';
@@ -69,74 +70,121 @@ export async function buildApp(db: Kysely<Database>) {
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
     });
 
-    // ── Compression (gzip/deflate) ───────────────────────────────────────────
     await app.register(compress, { global: true, threshold: 1024 });
-
-    // ── Multipart (CSV uploads, etc.) ────────────────────────────────────────
     await app.register(multipart, {
-        limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
+        limits: {
+            files: 4,
+            fileSize: 1024 * 1024,
+            fields: 7,
+        },
     });
 
-    // ── Cache-Control ────────────────────────────────────────────────────────
-    // Ordered most-specific first.  The browser cache honours these headers;
-    // TanStack Query's staleTime handles in-app deduplication separately.
-    const CACHE_STATIC = 'public, max-age=300, stale-while-revalidate=600';
-    const CACHE_DYNAMIC = 'public, max-age=30, stale-while-revalidate=60';
-    const CACHE_LIVE = 'public, max-age=10, stale-while-revalidate=20';
+    const CACHE_STATIC = 'public, max-age=300, s-maxage=300, stale-while-revalidate=60';
+    const CACHE_DYNAMIC = 'public, max-age=60, s-maxage=120, stale-while-revalidate=30';
+    const CACHE_LEADERBOARD = 'public, max-age=300, s-maxage=600, stale-while-revalidate=120';
 
-    const cacheRules: Array<[RegExp, string]> = [
+    const CACHE_ROUTE_MAP: Array<[RegExp, string]> = [
         [/^\/api\/leagues(\/|$)/, CACHE_STATIC],
-        [/^\/api\/competitions(\/|$)/, CACHE_STATIC],
-        [/^\/api\/players\/[\w-]+\/(profile-overview|season-affiliations|tournaments)(\/|$)/, CACHE_DYNAMIC],
-        [/^\/api\/players\/[\w-]+\/(rubbers|form|rating-history|rivals)(\/|$)/, CACHE_LIVE],
-        [/^\/api\/players(\/|$)/, CACHE_DYNAMIC],
-        [/^\/api\/h2h(\/|$)/, CACHE_DYNAMIC],
+        [/^\/api\/competitions\/[\w-]+\/standings(\/|$)/, CACHE_STATIC],
+        [/^\/api\/players\/leaders(\/|$)/, CACHE_LEADERBOARD],
+        [/^\/api\/ratings(\/|$)/, CACHE_LEADERBOARD],
+        [/^\/api\/players\/count(\/|$)/, CACHE_STATIC],
+        [/^\/api\/players\/search(\/|$)/, CACHE_DYNAMIC],
+        [/^\/api\/players\/[\w-]+\/profile-overview(\/|$)/, CACHE_DYNAMIC],
+        [/^\/api\/players\/[\w-]+\/rivals(\/|$)/, CACHE_DYNAMIC],
+        [/^\/api\/players\/[\w-]+\/h2h\/[\w-]+\/analysis(\/|$)/, CACHE_DYNAMIC],
+        [/^\/api\/players\/[\w-]+\/h2h\/[\w-]+\/common-opponents(\/|$)/, CACHE_DYNAMIC],
         [/^\/api\/teams\/[\w-]+\/(summary|roster|form)(\/|$)/, CACHE_STATIC],
         [/^\/api\/fixtures\/[\w-]+\/rubbers(\/|$)/, CACHE_DYNAMIC],
         [/^\/api\/sources\/quality(\/|$)/, CACHE_STATIC],
+        [/^\/api\/scraping\/monitor(\/|$)/, 'private, no-store'],
         [/^\/api\/me(\/|$)/, 'private, no-store'],
         [/^\/api\/health(\/|$)/, 'no-cache'],
     ];
 
-    app.addHook('onSend', async (request, reply, payload) => {
-        const url = request.url;
-        if (!reply.hasHeader('Cache-Control')) {
-            const rule = cacheRules.find(([pattern]) => pattern.test(url));
-            if (rule) reply.header('Cache-Control', rule[1]);
+    app.addHook('onSend', async (request, reply) => {
+        if (reply.statusCode < 200 || reply.statusCode >= 300) return;
+        if (reply.getHeader('Cache-Control')) return;
+
+        const url = request.url.split('?')[0] ?? request.url;
+        for (const [pattern, cacheControl] of CACHE_ROUTE_MAP) {
+            if (pattern.test(url)) {
+                reply.header('Cache-Control', cacheControl);
+                reply.header('Surrogate-Control', cacheControl);
+                break;
+            }
         }
-        return payload;
     });
 
-    // ── Health ───────────────────────────────────────────────────────────────
-    app.get('/api/health', async () => {
-        const result = await sql<{ now: Date }>`select now() as now`.execute(db);
-        return { status: 'ok', database_time: result.rows[0]?.now ?? null };
+    const slowRequestMs = envInteger('API_SLOW_REQUEST_MS', 1_000);
+    app.addHook('onResponse', async (request, reply) => {
+        if (reply.elapsedTime < slowRequestMs) return;
+
+        request.log.warn({
+            method: request.method,
+            url: request.url,
+            statusCode: reply.statusCode,
+            elapsedMs: Math.round(reply.elapsedTime),
+        }, 'slow request');
     });
 
-    // ── Routes ───────────────────────────────────────────────────────────────
-    await app.register(competitionsRoutes(db), { prefix: '/api/competitions' });
+    app.setErrorHandler((error: FastifyError, request, reply) => {
+        const candidateStatus = error.statusCode;
+        const statusCode = typeof candidateStatus === 'number'
+            && candidateStatus >= 400
+            && candidateStatus <= 599
+            ? candidateStatus
+            : 500;
+
+        if (statusCode >= 500) {
+            request.log.error({ err: error, statusCode }, 'request failed');
+        }
+
+        reply.status(statusCode).send({
+            error: statusCode >= 500
+                ? 'Internal Server Error'
+                : error.message || 'Request failed',
+            statusCode,
+        });
+    });
+
+    app.get('/api/health', async () => ({
+        status: 'ok',
+        service: 'tt-players-api',
+    }));
+
+    app.get('/api/health/db', async () => {
+        await sql`select 1`.execute(db);
+
+        return {
+            status: 'ok',
+            service: 'tt-players-api',
+            database: 'ok',
+        };
+    });
+
     await app.register(leaguesRoutes(db), { prefix: '/api/leagues' });
+    await app.register(competitionsRoutes(db), { prefix: '/api/competitions' });
     await app.register(teamsRoutes(db), { prefix: '/api/teams' });
     await app.register(playersRoutes(db), { prefix: '/api/players' });
     await app.register(playerRivalsRoutes(db), { prefix: '/api/players' });
-    await app.register(h2hAnalysisRoutes(db), { prefix: '/api/h2h' });
-    await app.register(h2hCommonOpponentRoutes(db), { prefix: '/api/h2h' });
+    await app.register(h2hAnalysisRoutes(db), { prefix: '/api/players' });
+    await app.register(h2hCommonOpponentRoutes(db), { prefix: '/api/players' });
     await app.register(fixturesRoutes(db), { prefix: '/api/fixtures' });
     await app.register(eventsRoutes(db), { prefix: '/api/events' });
     await app.register(eventEntryFormsRoutes(db), { prefix: '/api/events' });
     await app.register(leagueRatingsRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingAuditRoutes(db), { prefix: '/api/ratings' });
+    await app.register(ratingCalculationAuditRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingPlayerCoverageRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingRankingQualityRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingSourceQualityRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingHistoryRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingsRoutes(db), { prefix: '/api/ratings' });
     await app.register(sourceQualityRoutes(db), { prefix: '/api/sources' });
-    await app.register(scrapingMonitorRoutes(db), { prefix: '/api/scraping-monitor' });
+    await app.register(scrapingMonitorRoutes(db), { prefix: '/api/scraping' });
     await app.register(userSyncRoutes(db), { prefix: '/api/me' });
     await app.register(feedbackRoutes(), { prefix: '/api/feedback' });
 
     return app;
 }
-
-export type AppInstance = Awaited<ReturnType<typeof buildApp>>;
