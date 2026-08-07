@@ -149,17 +149,72 @@ jobs:
             node <<'NODE'
           const fs = require('node:fs');
           const output = fs.readFileSync('backfill-output.txt', 'utf8');
-          const match = output.match(/\{\s*"candidates"\s*:\s*(\d+)\s*,\s*"ready"\s*:\s*(\d+)\s*,\s*"failed"\s*:\s*(\d+)\s*,\s*"unsupported"\s*:\s*(\d+)\s*,\s*"unchanged"\s*:\s*(\d+)\s*\}/m);
+          const start = output.indexOf('{');
+          const end = output.lastIndexOf('}');
+          if (start < 0 || end <= start) {
+            throw new Error('Backfill output did not contain a JSON summary');
+          }
 
-          if (match) {
-            const [, candidates, ready, failed, unsupported, unchanged] = match;
-            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
-              `- Candidates checked: ${candidates}\n` +
-              `- Ready: ${ready}\n` +
-              `- Failed inspection: ${failed}\n` +
-              `- Unsupported links: ${unsupported}\n` +
-              `- Already inspected and skipped: ${unchanged}\n`
-            );
+          const summary = JSON.parse(output.slice(start, end + 1));
+          const diagnostics = Array.isArray(summary.diagnostics) ? summary.diagnostics : [];
+          const append = (value) => fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, value);
+          const cell = (value) => String(value ?? '')
+            .replace(/\r?\n/g, ' ')
+            .replace(/\|/g, '\\|')
+            .replace(/`/g, "'");
+
+          append(
+            `- Candidates checked: ${summary.candidates ?? 0}\n` +
+            `- Ready: ${summary.ready ?? 0}\n` +
+            `- Failed inspection pipeline: ${summary.failed ?? 0}\n` +
+            `- Unsupported links: ${summary.unsupported ?? 0}\n` +
+            `- Already inspected and skipped: ${summary.unchanged ?? 0}\n` +
+            `- Diagnostic records: ${diagnostics.length}\n`
+          );
+
+          if (summary.diagnostic_collection_error) {
+            append(`- Diagnostic collection error: \`${cell(summary.diagnostic_collection_error)}\`\n`);
+          }
+
+          if (diagnostics.length > 0) {
+            const grouped = new Map();
+            for (const diagnostic of diagnostics) {
+              const key = JSON.stringify([
+                diagnostic.stage,
+                diagnostic.model,
+                diagnostic.error_code,
+                diagnostic.error_message,
+              ]);
+              const current = grouped.get(key) ?? { ...diagnostic, count: 0 };
+              current.count += 1;
+              grouped.set(key, current);
+            }
+
+            append('\n### Failure reasons\n\n');
+            append('| Count | Stage | Model | Code | Message |\n');
+            append('| ---: | --- | --- | --- | --- |\n');
+            for (const diagnostic of grouped.values()) {
+              append(`| ${diagnostic.count} | ${cell(diagnostic.stage)} | ${cell(diagnostic.model)} | ${cell(diagnostic.error_code)} | ${cell(diagnostic.error_message)} |\n`);
+            }
+
+            const shown = diagnostics.slice(0, 100);
+            append('\n<details><summary>Per-form diagnostics</summary>\n\n');
+            append('| Competition | Stage | Model | Code | Message | Inspected | Form |\n');
+            append('| --- | --- | --- | --- | --- | --- | --- |\n');
+            for (const diagnostic of shown) {
+              const formLink = diagnostic.source_url
+                ? `[open](${diagnostic.source_url})`
+                : '';
+              append(`| ${cell(diagnostic.competition_name)} | ${cell(diagnostic.stage)} | ${cell(diagnostic.model)} | ${cell(diagnostic.error_code)} | ${cell(diagnostic.error_message)} | ${cell(diagnostic.inspected_at)} | ${formLink} |\n`);
+            }
+            if (diagnostics.length > shown.length) {
+              append(`\n${diagnostics.length - shown.length} additional diagnostic records are available in the command output.\n`);
+            }
+            append('\n</details>\n');
+          }
+
+          if ((summary.failed ?? 0) > 0 || diagnostics.length > 0 || summary.diagnostic_collection_error) {
+            console.log(`::warning title=Tournament entry form diagnostics::${summary.failed ?? 0} pipeline failures and ${diagnostics.length} diagnostic records were reported. See the workflow summary.`);
           }
           NODE
 
@@ -167,8 +222,8 @@ jobs:
               echo
               echo "<details><summary>Command output</summary>"
               echo
-              echo '```text'
-              sed -n '1,360p' backfill-output.txt
+              echo '```json'
+              sed -n '1,1800p' backfill-output.txt
               echo '```'
               echo "</details>"
             } >> "$GITHUB_STEP_SUMMARY"

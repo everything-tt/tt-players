@@ -4,11 +4,34 @@ import { resolve } from 'node:path';
 import { db } from '@tt-players/db';
 import { inspectPendingTournamentEntryForms } from './entry-form-inspection.js';
 import { parseTournamentEntryFormBackfillOptions } from './backfill-tournament-entry-form-options.js';
+import {
+    collectTournamentEntryFormBackfillDiagnostics,
+    type TournamentEntryFormDiagnostic,
+} from './entry-form-backfill-diagnostics.js';
+
+function errorMessage(error: unknown): string {
+    return error instanceof Error && error.message.trim()
+        ? error.message.replace(/\s+/g, ' ').slice(0, 500)
+        : 'Could not collect entry form diagnostics.';
+}
 
 export async function runTournamentEntryFormBackfill(): Promise<void> {
     const options = parseTournamentEntryFormBackfillOptions();
     const summary = await inspectPendingTournamentEntryForms(db, options);
-    console.log(JSON.stringify(summary, null, 2));
+
+    let diagnosticCollectionError: string | null = null;
+    let diagnostics: TournamentEntryFormDiagnostic[] = [];
+    try {
+        diagnostics = await collectTournamentEntryFormBackfillDiagnostics(db, options.limit);
+    } catch (error) {
+        diagnosticCollectionError = errorMessage(error);
+    }
+
+    console.log(JSON.stringify({
+        ...summary,
+        diagnostics,
+        diagnostic_collection_error: diagnosticCollectionError,
+    }, null, 2));
 }
 
 const currentModulePath = fileURLToPath(import.meta.url);
