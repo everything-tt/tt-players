@@ -109,11 +109,9 @@ export function PlayerRatingAuditEvidence({ playerId }: { playerId: string }) {
                   <span className="tt-rating-evidence-main">
                     <span className="tt-rating-evidence-meta">
                       <span>{formatDate(row.match_date)}</span>
-                      <Pill
-                        label={row.result === 'win' ? 'Win' : 'Loss'}
-                        tone={resultTone(row.result)}
-                        size="xs"
-                      />
+                      <Pill tone={resultTone(row.result)} size="xs">
+                        {row.result === 'win' ? 'Win' : 'Loss'}
+                      </Pill>
                     </span>
                     <strong>{row.opponent_name}</strong>
                     <span className="tt-rating-evidence-score">
