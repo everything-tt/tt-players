@@ -9,7 +9,6 @@ import {
   getLocalSyncOwner,
   notifyUserDataApplied,
   reconcileServerSnapshot,
-  serializeUserDataSnapshot,
   setLocalSyncOwner,
   USER_DATA_CHANGED_EVENT,
   type UserDataChanges,
@@ -51,7 +50,11 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
     if (auth.loading) return;
 
     if (!auth.session) {
-      const changed = clearSyncedLocalData();
+      // Anonymous preferences are intentionally local and should survive normal
+      // anonymous launches. Only clear when the cache is explicitly marked as
+      // belonging to a previously signed-in account (including sign-out).
+      const owner = getLocalSyncOwner();
+      const changed = owner ? clearSyncedLocalData() : false;
       setLocalOwnerUserId(null);
       setHydratedUserId(null);
       lastSyncedSnapshot.current = null;
@@ -88,7 +91,6 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
         const localSnapshot = createUserDataSnapshot(localStorage, userId);
         const response = await sendSnapshotRequest(
           '/me/sync-state/bootstrap',
-          'POST',
           session.access_token,
           localSnapshot,
         );
@@ -249,12 +251,11 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit): Pr
 
 async function sendSnapshotRequest(
   path: string,
-  method: 'POST' | 'PUT',
   accessToken: string,
   snapshot: UserDataSnapshot,
 ): Promise<SyncStateResponse> {
   const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
-    method,
+    method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
