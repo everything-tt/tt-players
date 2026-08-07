@@ -259,7 +259,9 @@ test('reviews player evidence and latest calculation run', async ({ page }, test
   await upsetRow.click();
   await expect(page.getByText(/18% chance/)).toBeVisible();
   await expect(page.getByText(/All 2 matches on this date use the same starting rating/)).toBeVisible();
-  await expect(page.getByText(/Rating after 1,618/)).toBeVisible();
+  await expect(
+    page.getByLabel('Rating state after Established Favourite').getByText(/Rating after 1,618/),
+  ).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, 'player-rating-evidence');
 
@@ -335,8 +337,8 @@ test('reviews player evidence and latest calculation run', async ({ page }, test
   await page.goto(`${previewUrl}/rating-audit`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Latest calculation run' })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByLabel('Calculation run summary').getByText('12,382', { exact: true })).toBeVisible();
-  await expect(page.getByText('Fast Newcomer')).toBeVisible();
-  await expect(page.getByText('Established Favourite')).toBeVisible();
+  await expect(page.getByText('Fast Newcomer', { exact: true })).toBeVisible();
+  await expect(page.getByText('Fast Newcomer beat Established Favourite', { exact: true })).toBeVisible();
   await expect(page.getByText(/Backtest metrics are not attached/)).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, 'rating-audit-latest-run');
