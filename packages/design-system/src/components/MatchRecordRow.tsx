@@ -20,7 +20,7 @@ export interface MatchRecordAction {
 }
 
 export interface MatchRecordRowProps {
-  score: MatchRecordScore;
+  score?: MatchRecordScore;
   title: ReactNode;
   metadata?: ReactNode[];
   onClick?: () => void;
@@ -44,7 +44,7 @@ export function MatchRecordRow({
   return (
     <ListItem
       className={cx('tt-match-record-row', `tt-match-record-row--${density}`, className)}
-      leading={(
+      leading={score ? (
         <span
           className={cx('tt-match-record-score', `tt-match-record-score--${score.outcome}`)}
           role="img"
@@ -52,7 +52,7 @@ export function MatchRecordRow({
         >
           {score.value}
         </span>
-      )}
+      ) : undefined}
       title={title}
       subtitle={visibleMetadata.length > 0 ? (
         <span className="tt-match-record-meta">
@@ -80,7 +80,10 @@ export function MatchRecordRow({
               )}
               aria-label={action.label}
               title={action.label}
-              onClick={action.onClick}
+              onClick={(event) => {
+                event.stopPropagation();
+                action.onClick();
+              }}
             >
               <i className={action.iconClassName} aria-hidden="true" />
             </AppButton>

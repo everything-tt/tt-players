@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useEventDetailQuery } from './queries';
 import { useTabNavigation } from './navigation/tab-navigation';
 import { TabShellPage } from './TabShellPage';
@@ -136,6 +136,7 @@ function EventDetailSkeleton() {
 }
 
 export function EventDetailPage() {
+  const navigate = useNavigate();
   const { switchTab } = useTabNavigation();
   const goHome = (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
@@ -303,7 +304,7 @@ export function EventDetailPage() {
               actions={(
                 <Inline gap="xs" align="center" wrap>
                   <FavouriteButton saved={Boolean(isFavourite)} onToggle={() => toggleFavouriteTournament(event)} />
-                  {event.entry_url ? (
+                  {event.entry_url && event.status !== 'completed' ? (
                     <AppButtonLink
                       href={event.entry_url}
                       target="_blank"
@@ -360,7 +361,7 @@ export function EventDetailPage() {
                     leading={<IconCircle iconClassName="fa fa-clock" />}
                     title={formatDateOrUnknown(event.entry_deadline)}
                     subtitle="Entry deadline"
-                    trailing={event.entry_url ? (
+                    trailing={event.entry_url && event.status !== 'completed' ? (
                       <AppButtonLink
                         href={event.entry_url}
                         target="_blank"
@@ -535,9 +536,30 @@ export function EventDetailPage() {
                           title={selectedPlayer.name}
                           subtitle="Filtering recorded matches"
                           trailing={(
-                            <AppButton size="sm" tone="ghost" onClick={() => setSelectedPlayer(null)}>
-                              Clear player
-                            </AppButton>
+                            <Inline gap="xs" align="center">
+                              {selectedPlayer.playerId ? (
+                                <FavouriteButton
+                                  size="icon"
+                                  saved={isFavouritePlayer(selectedPlayer.playerId)}
+                                  onToggle={() => toggleFavouritePlayer({
+                                    id: selectedPlayer.playerId!,
+                                    name: selectedPlayer.name,
+                                    played: selectedPlayer.played,
+                                    wins: selectedPlayer.wins,
+                                  })}
+                                />
+                              ) : null}
+                              <AppButton
+                                size="sm"
+                                tone="outline"
+                                iconOnly
+                                aria-label="Clear player"
+                                title="Clear player"
+                                onClick={() => setSelectedPlayer(null)}
+                              >
+                                <i className="fa fa-times-circle" aria-hidden="true" />
+                              </AppButton>
+                            </Inline>
                           )}
                           active
                           hideChevron
@@ -665,6 +687,23 @@ export function EventDetailPage() {
                               const primaryScore = primaryIsHome ? match.home_games_won : match.away_games_won;
                               const secondaryScore = primaryIsHome ? match.away_games_won : match.home_games_won;
                               const player = tournamentPlayers.find((item) => item.key === primaryKey) ?? null;
+                              const hasH2HLink = Boolean(
+                                selectedPlayer &&
+                                  (homeKey === selectedPlayer.key || awayKey === selectedPlayer.key) &&
+                                  match.home_player_resolved_id &&
+                                  match.away_player_resolved_id,
+                              );
+                              const actions = hasH2HLink
+                                ? [
+                                    {
+                                      iconClassName: 'fa fa-code-compare',
+                                      label: `Head-to-head between ${match.home_player_name} and ${match.away_player_name}`,
+                                      onClick: () => {
+                                        navigate(`/h2h/${match.home_player_resolved_id}/${match.away_player_resolved_id}`);
+                                      },
+                                    },
+                                  ]
+                                : undefined;
 
                               return (
                                 <MatchRecordRow
@@ -679,6 +718,7 @@ export function EventDetailPage() {
                                     `${primaryWon ? 'Defeated' : 'Lost to'} ${secondaryName}`,
                                     match.played_at ? formatTime(match.played_at) : null,
                                   ]}
+                                  actions={actions}
                                   onClick={player ? () => togglePlayerFilter(player) : undefined}
                                 />
                               );

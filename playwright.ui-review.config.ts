@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // Integrated browse header and compact scroll-toolbar review.
-  testMatch: 'zz-browse-header-shell.pw.ts',
+  // Event selected player clear button and match H2H link review.
+  testMatch: 'zz-event-player-h2h.pw.ts',
 
   timeout: 120_000,
   expect: {
