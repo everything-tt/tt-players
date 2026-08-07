@@ -97,11 +97,14 @@ function cachedSemanticAnalysisKey(value: unknown): string | null {
     return typeof analysisKey === 'string' && analysisKey.trim() ? analysisKey : null;
 }
 
-function expectedSemanticAnalysisKey(options: SyncEntryFormInspectionOptions): string | null {
+function expectedSemanticAnalysisKey(
+    options: SyncEntryFormInspectionOptions,
+    document: boolean = false,
+): string | null {
     if (options.semanticAnalysisKey !== undefined) return options.semanticAnalysisKey;
     if (options.semanticAnalyzer === null) return null;
     if (options.semanticAnalyzer) return 'custom-entry-form-semantic-analyzer';
-    return entryFormSemanticAnalysisKey();
+    return document ? documentSemanticAnalysisKey() : entryFormSemanticAnalysisKey();
 }
 
 function failureCode(error: unknown): string {
@@ -112,11 +115,13 @@ function failureCode(error: unknown): string {
     }
     if (error instanceof PdfFormInspectionError) {
         if (error.statusCode === 400) return 'invalid_pdf_url';
+        if (error.statusCode === 413) return 'pdf_too_large';
         if (error.statusCode === 422) return 'pdf_not_inspectable';
         return 'pdf_unavailable';
     }
     if (error instanceof WebFormInspectionError) {
         if (error.statusCode === 400) return 'invalid_web_form_url';
+        if (error.statusCode === 413) return 'web_form_too_large';
         if (error.statusCode === 422) return 'web_form_not_inspectable';
         return 'web_form_unavailable';
     }
@@ -136,6 +141,19 @@ async function removeStaleInspection(db: Kysely<any>, competitionId: string): Pr
         .execute();
 }
 
+async function removeOtherProviderInspections(
+    db: Kysely<any>,
+    competitionId: string,
+    provider: CachedEntryFormInspection['provider'],
+): Promise<void> {
+    await db
+        .deleteFrom('tournament_sources')
+        .where('source_type', '=', 'entry_form')
+        .where('source_key', '=', competitionId)
+        .where('provider', '!=', provider)
+        .execute();
+}
+
 async function persistInspection(
     db: Kysely<any>,
     competitionId: string,
@@ -143,6 +161,7 @@ async function persistInspection(
     payload: CachedEntryFormInspection,
     now: Date,
 ): Promise<void> {
+    await removeOtherProviderInspections(db, competitionId, payload.provider);
     await db
         .insertInto('tournament_sources')
         .values({
@@ -256,7 +275,7 @@ async function applySemanticEventEnrichment(
 ): Promise<void> {
     if (!analysis || analysis.status !== 'ready') return;
     const details = bestEventDetails(analysis);
-    if (details.size === 0) return;
+    if (details.size === 0 && analysis.categories.length === 0) return;
 
     const competition = await db
         .selectFrom('competitions')
@@ -319,10 +338,10 @@ async function applySemanticEventEnrichment(
     }
 
     if (analysis.categories.length > 0) {
-        updates.categories = JSON.stringify(analysis.categories.map((category) => ({
+        updates.categories = analysis.categories.map((category) => ({
             name: category.name,
             entry_fee: category.entry_fee,
-        })));
+        }));
     }
 
     if (Object.keys(updates).length > 0) {
@@ -378,9 +397,7 @@ export async function syncTournamentEntryFormInspection(
         .where('source_type', '=', 'entry_form')
         .where('source_key', '=', competitionId)
         .executeTakeFirst();
-    const semanticKey = isPdf || isWeb
-        ? documentSemanticAnalysisKey()
-        : expectedSemanticAnalysisKey(options);
+    const semanticKey = expectedSemanticAnalysisKey(options, isPdf || isWeb);
 
     if (
         !options.force
