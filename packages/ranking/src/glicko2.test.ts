@@ -72,6 +72,19 @@ describe('Glicko-2 rating engine', () => {
     expect(updated.deviation).toBeLessThan(state.deviation);
   });
 
+  it('grows uncertainty for an empty rating period without changing the rating', () => {
+    const state = { rating: 1650, deviation: 50, volatility: 0.06 };
+    const updated = updateRating(state, []);
+
+    expect(updated.rating).toBe(state.rating);
+    expect(updated.deviation).toBeGreaterThan(state.deviation);
+    expect(updated.volatility).toBe(state.volatility);
+    expect(updated.conservativeRating).toBeCloseTo(
+      conservativeRating(updated),
+      12,
+    );
+  });
+
   it('converts inactive days to fractional periods and caps uncertainty', () => {
     const state = { rating: 1650, deviation: 50, volatility: 0.06 };
     const oneDay = inflateDeviationForInactivity(state, 1);
