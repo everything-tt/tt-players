@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   MY_TT_PROFILE_STORAGE_KEY,
   MY_TT_PROFILE_UPDATED_EVENT,
+  notifyUserDataChanged,
 } from '../local-persistence';
 import type { MyPlayer } from './useMyPlayer';
 
@@ -178,6 +179,7 @@ export function useMyTTProfile(player: MyPlayer | null) {
     };
     localStorage.setItem(MY_TT_PROFILE_STORAGE_KEY, JSON.stringify(next));
     window.dispatchEvent(new Event(MY_TT_PROFILE_UPDATED_EVENT));
+    notifyUserDataChanged();
     setProfile(next);
     return next;
   }, [player]);
@@ -185,6 +187,7 @@ export function useMyTTProfile(player: MyPlayer | null) {
   const clear = useCallback(() => {
     localStorage.removeItem(MY_TT_PROFILE_STORAGE_KEY);
     window.dispatchEvent(new Event(MY_TT_PROFILE_UPDATED_EVENT));
+    notifyUserDataChanged();
     setProfile(null);
   }, []);
 
