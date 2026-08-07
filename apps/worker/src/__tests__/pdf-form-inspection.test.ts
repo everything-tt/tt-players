@@ -5,6 +5,8 @@ import {
     PdfFormInspectionError,
 } from '../pdf-form-inspection.js';
 
+const PUBLIC_PDF_URL = 'https://1.1.1.1/entry-form.pdf';
+
 describe('PDF entry form inspection', () => {
     it('recognises PDF form URLs', () => {
         expect(isPdfFormUrl('https://example.com/entry-form.pdf')).toBe(true);
@@ -24,11 +26,11 @@ describe('PDF entry form inspection', () => {
             total: 4,
         }));
 
-        const inspection = await inspectPdfForm('https://example.com/entry-form.pdf', fetcher, parser);
+        const inspection = await inspectPdfForm(PUBLIC_PDF_URL, fetcher, parser);
 
         expect(inspection).toEqual({
             provider: 'pdf_document',
-            form_url: 'https://example.com/entry-form.pdf',
+            form_url: PUBLIC_PDF_URL,
             title: 'Nottingham Veterans 2*',
             text: 'Nottingham Veterans 2* CLOSING DATE FOR ENTRIES: Friday 14th August 2026 Venue: Nottingham TTC',
             page_count: 4,
@@ -36,12 +38,39 @@ describe('PDF entry form inspection', () => {
         expect(fetcher).toHaveBeenCalledOnce();
     });
 
+    it('rejects redirects to local or private addresses before following them', async () => {
+        const fetcher = vi.fn<typeof fetch>(async () => new Response(null, {
+            status: 302,
+            headers: { Location: 'https://169.254.169.254/latest/meta-data' },
+        }));
+
+        await expect(inspectPdfForm(PUBLIC_PDF_URL, fetcher))
+            .rejects.toThrow('local or private address');
+        expect(fetcher).toHaveBeenCalledOnce();
+    });
+
+    it('rejects declared PDFs larger than the inspection limit', async () => {
+        const fetcher = vi.fn<typeof fetch>(async () => new Response(
+            new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]),
+            {
+                status: 200,
+                headers: {
+                    'Content-Type': 'application/pdf',
+                    'Content-Length': String(10 * 1024 * 1024 + 1),
+                },
+            },
+        ));
+
+        await expect(inspectPdfForm(PUBLIC_PDF_URL, fetcher))
+            .rejects.toThrow('too large to inspect');
+    });
+
     it('rejects responses that are not PDF documents', async () => {
         const fetcher = vi.fn<typeof fetch>(async () => new Response('not a pdf', {
             status: 200,
             headers: { 'Content-Type': 'text/html' },
         }));
-        await expect(inspectPdfForm('https://example.com/entry-form.pdf', fetcher))
+        await expect(inspectPdfForm(PUBLIC_PDF_URL, fetcher))
             .rejects.toThrow(PdfFormInspectionError);
     });
 
@@ -51,7 +80,7 @@ describe('PDF entry form inspection', () => {
             { status: 200, headers: { 'Content-Type': 'application/pdf' } },
         ));
         const parser = vi.fn(async () => ({ text: '   ', total: 1 }));
-        await expect(inspectPdfForm('https://example.com/entry-form.pdf', fetcher, parser))
+        await expect(inspectPdfForm(PUBLIC_PDF_URL, fetcher, parser))
             .rejects.toThrow('No extractable text');
     });
 });
