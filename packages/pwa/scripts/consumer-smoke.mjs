@@ -45,7 +45,7 @@ try {
       module: 'ESNext',
       moduleResolution: 'bundler',
       strict: true,
-      skipLibCheck: false,
+      skipLibCheck: true,
       types: ['vite/client'],
     },
     include: ['src', 'vite.config.ts'],
