@@ -2,7 +2,7 @@
 
 Dependency-free TypeScript helpers for the player rating model used by TT Players.
 
-The package owns the deterministic algorithm layer only. Database reads/writes, match selection, job scheduling, audit persistence, and leaderboard materialization remain application concerns.
+The package owns the deterministic algorithm layer only. Database reads/writes, match selection, persisted model policy, job scheduling, audit persistence, and leaderboard materialization remain application concerns.
 
 ## Published package
 
@@ -23,8 +23,6 @@ import {
   conservativeRating,
   defaultRatingState,
   inflateDeviationForInactivity,
-  isProvisionalRating,
-  parseGlicko2Config,
   updateRating,
 } from '@wudong/tt-players-ranking';
 ```
@@ -35,9 +33,7 @@ The public API includes:
 - default state creation;
 - Glicko-2 period updates for win/loss/draw observations;
 - inactivity-driven rating-deviation inflation;
-- conservative leaderboard score calculation;
-- defensive parsing of persisted model configuration;
-- provisional-rating classification; and
+- conservative leaderboard score calculation; and
 - deterministic per-match evidence attribution used by rating audits.
 
 ## Rating-period semantics
@@ -48,4 +44,4 @@ Inactivity inflation is expressed as fractional periods (28 days by default) and
 
 ## Testing
 
-The package test suite covers the official Glicko-2 worked example, win/loss/draw behavior, inactivity, conservative scores, persisted configuration parsing, provisional thresholds, evidence attribution, and a packed-package consumer smoke test.
+The package test suite covers the official Glicko-2 worked example, win/loss/draw behavior, inactivity, conservative scores, custom model parameters, evidence attribution, and a packed-package consumer smoke test.
