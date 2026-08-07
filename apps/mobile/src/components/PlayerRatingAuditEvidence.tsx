@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import '../rating-evidence.css';
 import {
   type RatingPlayerAuditEvidenceRow,
   useRatingPlayerAuditEvidenceQuery,
@@ -108,7 +109,7 @@ export function PlayerRatingAuditEvidence({ playerId }: { playerId: string }) {
                   <span className="tt-rating-evidence-main">
                     <span className="tt-rating-evidence-meta">
                       <span>{formatDate(row.match_date)}</span>
-                      <Pill tone={resultTone(row.result)}>{row.result === 'win' ? 'Win' : 'Loss'}</Pill>
+                      <Pill label={row.result === 'win' ? 'Win' : 'Loss'} tone={resultTone(row.result)} />
                     </span>
                     <strong>{row.opponent_name}</strong>
                     <span className="tt-rating-evidence-score">
