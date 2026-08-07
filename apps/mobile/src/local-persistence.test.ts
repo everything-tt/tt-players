@@ -11,6 +11,7 @@ import {
   restoreLocalDataBackup,
   THEME_STORAGE_KEY,
   TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY,
+  TOURNAMENT_FILTERS_STORAGE_KEY,
 } from './local-persistence';
 import { FAVOURITES_STORAGE_KEY } from './player-shared';
 
@@ -82,9 +83,16 @@ describe('local data persistence backup', () => {
 describe('account data snapshots', () => {
   it('captures preferences and private user data but excludes temporary picker state', () => {
     const local = createStorage();
+    const tournamentFilters = JSON.stringify({
+      version: 1,
+      status: 'completed',
+      savedOnly: true,
+      categories: ['junior'],
+    });
     local.setItem(LEAGUES_STORAGE_KEY, JSON.stringify(['league-1']));
     local.setItem(MY_PLAYER_STORAGE_KEY, JSON.stringify({ id: 'p1', name: 'Alice' }));
     local.setItem(THEME_STORAGE_KEY, 'dark-mode');
+    local.setItem(TOURNAMENT_FILTERS_STORAGE_KEY, tournamentFilters);
     local.setItem('tt_players_h2h_active_player_a', JSON.stringify({ id: 'p2' }));
 
     const snapshot = createUserDataSnapshot(local);
@@ -92,6 +100,7 @@ describe('account data snapshots', () => {
     expect(snapshot.entries[LEAGUES_STORAGE_KEY]).toBe(JSON.stringify(['league-1']));
     expect(snapshot.entries[MY_PLAYER_STORAGE_KEY]).toBe(JSON.stringify({ id: 'p1', name: 'Alice' }));
     expect(snapshot.entries[THEME_STORAGE_KEY]).toBe('dark-mode');
+    expect(snapshot.entries[TOURNAMENT_FILTERS_STORAGE_KEY]).toBe(tournamentFilters);
     expect(snapshot.entries.tt_players_h2h_active_player_a).toBeUndefined();
   });
 
