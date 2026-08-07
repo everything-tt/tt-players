@@ -3,8 +3,8 @@ import { AppButton, BottomSheet } from './ui/appkit';
 import { usePWAInstallContext } from './PWAInstallContext';
 
 const PWAInstallSheet: React.FC = () => {
-  const { showAndroidSheet, showIosSheet, install, dismiss } = usePWAInstallContext();
-  const isOpen = showAndroidSheet || showIosSheet;
+  const { showInstallSheet, showIosSheet, install, dismiss } = usePWAInstallContext();
+  const isOpen = showInstallSheet || showIosSheet;
 
   return (
     <BottomSheet
@@ -28,7 +28,7 @@ const PWAInstallSheet: React.FC = () => {
           )}
         </p>
         <div className="tt-pwa-sheet__actions">
-          {showAndroidSheet ? (
+          {showInstallSheet ? (
             <AppButton onClick={install} full>
               Add to Home Screen
             </AppButton>
