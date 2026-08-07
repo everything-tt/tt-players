@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // Event selected player clear button and match H2H link review.
-  testMatch: 'zz-event-player-h2h.pw.ts',
+  // Home tab following favourite button review.
+  testMatch: 'zz-home-following-fav-button.pw.ts',
 
   timeout: 120_000,
   expect: {

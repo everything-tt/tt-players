@@ -14,10 +14,10 @@ describe('My TT identity behaviour', () => {
     expect(source).toContain('This is me');
   });
 
-  it('shows identity selection only before an identity exists and exposes Unfollow', () => {
+  it('shows identity selection only before an identity exists and exposes unfollow via FavouriteButton', () => {
     const source = read('./MyTTSection.tsx');
     expect(source).toContain('!myPlayer');
-    expect(source).toContain('Unfollow');
+    expect(source).toContain('FavouriteButton');
     expect(source).toContain('remove(player.id)');
   });
 

@@ -179,12 +179,6 @@
   --tt-filter-bar-justify: space-between;
 }
 
-.tt-leagues-pulse-leading {
-  align-items: center;
-  display: inline-flex;
-  gap: var(--tt-space-2);
-}
-
 .tt-leagues-pulse-you {
   background: color-mix(in oklch, var(--state-success, var(--accent)) 8%, transparent);
   border-radius: var(--tt-radius-md);

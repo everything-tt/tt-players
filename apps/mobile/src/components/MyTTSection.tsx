@@ -4,7 +4,6 @@ import { useAuth } from '../lib/auth';
 import { useTabNavigation } from '../navigation/tab-navigation';
 import { usePlayerExtendedStatsQuery, usePlayerInsightsQuery } from '../queries';
 import {
-  ActionMenu,
   AppButton,
   Avatar,
   EmptyState,
@@ -13,6 +12,7 @@ import {
   Pill,
   SectionHeader,
 } from '../ui/appkit';
+import { FavouriteButton } from './FavouriteButton';
 import { SkeletonList } from './Skeleton';
 
 interface MyTTSectionProps {
@@ -138,18 +138,10 @@ export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
                         This is me
                       </AppButton>
                     ) : null}
-                    <ActionMenu
-                      label={`Following actions for ${player.name}`}
-                      title={player.name}
-                      items={[
-                        {
-                          id: 'unfollow',
-                          label: 'Unfollow',
-                          iconClassName: 'fa fa-user-minus',
-                          tone: 'danger',
-                          onSelect: () => remove(player.id),
-                        },
-                      ]}
+                    <FavouriteButton
+                      size="icon"
+                      saved
+                      onToggle={() => remove(player.id)}
                     />
                   </span>
                 )}

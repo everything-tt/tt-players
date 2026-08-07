@@ -5,16 +5,19 @@ export interface FavouriteButtonProps {
   onToggle: () => void;
   /** Full pill (label "Save"/"Saved") or bare icon. */
   size?: 'sm' | 'icon';
+  tone?: 'primary' | 'outline' | 'ghost';
   className?: string;
 }
 
 /**
  * Single favourite/save control for list rows, event cards, and hero actions.
  */
-export function FavouriteButton({ saved, onToggle, size = 'sm', className }: FavouriteButtonProps) {
+export function FavouriteButton({ saved, onToggle, size = 'sm', tone, className }: FavouriteButtonProps) {
+  const effectiveTone = tone ?? (size === 'icon' ? (saved ? 'ghost' : 'outline') : (saved ? 'primary' : 'outline'));
+
   return (
     <AppButton
-      tone={saved ? 'primary' : 'outline'}
+      tone={effectiveTone}
       size="sm"
       iconOnly={size === 'icon'}
       onClick={(event) => { event.preventDefault(); event.stopPropagation(); onToggle(); }}

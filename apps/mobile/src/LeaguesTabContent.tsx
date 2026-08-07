@@ -585,12 +585,7 @@ export function LeaguesTabContent({
                       <ListItem
                         key={player.player_id}
                         className={personal ? 'tt-leagues-pulse-you' : undefined}
-                        leading={(
-                          <span className="tt-leagues-pulse-leading">
-                            <RankBadge>{player.rank || index + 1}</RankBadge>
-                            <DesignAvatar size="compact" text={getInitials(player.player_name)} />
-                          </span>
-                        )}
+                        leading={<RankBadge>{player.rank || index + 1}</RankBadge>}
                         title={<PulseTitle name={player.player_name} personal={personal} rank={player.rank || index + 1} />}
                         subtitle={`${player.wins}W · ${player.losses}L · ${player.played} played`}
                         trailing={<PulseValue mode={playerMode} winRate={player.win_rate} score={player.score} />}
