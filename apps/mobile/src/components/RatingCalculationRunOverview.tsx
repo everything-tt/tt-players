@@ -47,8 +47,8 @@ function formatDelta(value: number): string {
 function formatParameterName(value: string): string {
   return value
     .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replaceAll('_', ' ')
-    .replace(/^./, (character) => character.toUpperCase());
+    .replace(/_/g, ' ')
+    .replace(/^./, (character: string) => character.toUpperCase());
 }
 
 function formatParameterValue(value: unknown): string {
@@ -169,7 +169,7 @@ export function RatingCalculationRunOverview() {
               <ListItem
                 key={item.reason}
                 title={formatParameterName(item.reason)}
-                trailing={<Pill label={item.matches.toLocaleString('en-GB')} tone="warning" />}
+                trailing={<Pill tone="warning">{item.matches.toLocaleString('en-GB')}</Pill>}
               />
             ))}
           </DesignList>
@@ -194,10 +194,9 @@ export function RatingCalculationRunOverview() {
                 title={mover.player_name}
                 subtitle={moverSubtitle(mover)}
                 trailing={(
-                  <Pill
-                    label={formatDelta(mover.change)}
-                    tone={mover.change >= 0 ? 'success' : 'danger'}
-                  />
+                  <Pill tone={mover.change >= 0 ? 'success' : 'danger'}>
+                    {formatDelta(mover.change)}
+                  </Pill>
                 )}
                 onClick={() => navigate(`/rating-audit/player/${mover.player_id}`)}
               />
@@ -223,7 +222,7 @@ export function RatingCalculationRunOverview() {
                 key={`${result.rubber_id}:${result.player_id}`}
                 title={`${result.player_name} beat ${result.opponent_name}`}
                 subtitle={`${formatDate(result.match_date)} · ${result.game_score ?? 'Score unavailable'} · expected ${Math.round(result.expected_win_probability * 100)}%`}
-                trailing={<Pill label={formatDelta(result.attributed_rating_delta)} tone="success" />}
+                trailing={<Pill tone="success">{formatDelta(result.attributed_rating_delta)}</Pill>}
                 onClick={() => navigate(`/rating-audit/player/${result.player_id}`)}
               />
             ))}
