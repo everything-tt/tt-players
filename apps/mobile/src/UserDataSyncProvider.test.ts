@@ -6,8 +6,12 @@ describe('UserDataSyncProvider hydration gate', () => {
     expect(shouldRenderSyncedChildren(true, null, null)).toBe(false);
   });
 
-  it('allows anonymous users through once auth is resolved', () => {
-    expect(shouldRenderSyncedChildren(false, null, null)).toBe(true);
+  it('allows anonymous users through once auth is resolved when storage is anonymous', () => {
+    expect(shouldRenderSyncedChildren(false, null, null, null)).toBe(true);
+  });
+
+  it('holds anonymous UI while signed-in account data still owns the local cache', () => {
+    expect(shouldRenderSyncedChildren(false, null, null, 'user-a')).toBe(false);
   });
 
   it('holds authenticated UI until that account snapshot has hydrated', () => {
@@ -16,6 +20,6 @@ describe('UserDataSyncProvider hydration gate', () => {
   });
 
   it('mounts authenticated UI after the matching account snapshot is applied', () => {
-    expect(shouldRenderSyncedChildren(false, 'user-a', 'user-a')).toBe(true);
+    expect(shouldRenderSyncedChildren(false, 'user-a', 'user-a', 'user-a')).toBe(true);
   });
 });
