@@ -3,7 +3,10 @@ import {
   TOURNAMENT_CATEGORY_OPTIONS,
   type TournamentCategoryFilter,
 } from './tournament-category-filter';
-import { TOURNAMENT_FILTERS_STORAGE_KEY } from './local-persistence';
+import {
+  notifyUserDataChanged,
+  TOURNAMENT_FILTERS_STORAGE_KEY,
+} from './local-persistence';
 
 export interface TournamentPreferences {
   version: 1;
@@ -60,4 +63,5 @@ export function writeTournamentPreferences(
     version: 1,
     ...preferences,
   } satisfies TournamentPreferences));
+  if (storage === localStorage) notifyUserDataChanged();
 }
