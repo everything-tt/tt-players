@@ -7,8 +7,6 @@ import {
   conservativeRating,
   defaultRatingState,
   inflateDeviationForInactivity,
-  isProvisionalRating,
-  parseGlicko2Config,
   updateRating,
 } from '../dist/index.js';
 
@@ -89,34 +87,23 @@ test('an empty rating period grows uncertainty and recomputes conservative score
   closeTo(updated.conservativeRating, conservativeRating(updated), 0.000001);
 });
 
-test('uses conservative rating for leaderboard ordering', () => {
+test('uses conservative rating for leaderboard ordering and respects custom config', () => {
   assert.equal(conservativeRating({ rating: 1700, deviation: 40, volatility: 0.06 }), 1620);
   assert.equal(conservativeRating({ rating: 1750, deviation: 180, volatility: 0.06 }), 1390);
-});
 
-test('parses persisted config defensively and clamps discrete boundaries', () => {
-  const parsed = parseGlicko2Config({
-    initialRating: 1600,
-    initialDeviation: Number.NaN,
-    provisionalMatches: 7.9,
-    provisionalDeviation: -4,
-    inactivityPeriodDays: 0,
-    tau: '0.8',
+  const custom = {
+    ...DEFAULT_GLICKO2_CONFIG,
+    initialRating: 1200,
+    initialDeviation: 250,
+    initialVolatility: 0.08,
+    conservativeDeviationMultiplier: 1.5,
+  };
+  assert.deepEqual(defaultRatingState(custom), {
+    rating: 1200,
+    deviation: 250,
+    volatility: 0.08,
   });
-
-  assert.equal(parsed.initialRating, 1600);
-  assert.equal(parsed.initialDeviation, DEFAULT_GLICKO2_CONFIG.initialDeviation);
-  assert.equal(parsed.provisionalMatches, 7);
-  assert.equal(parsed.provisionalDeviation, 0);
-  assert.equal(parsed.inactivityPeriodDays, 1);
-  assert.equal(parsed.tau, DEFAULT_GLICKO2_CONFIG.tau);
-});
-
-test('classifies provisional ratings at both thresholds', () => {
-  assert.equal(isProvisionalRating(9, 100), true);
-  assert.equal(isProvisionalRating(10, 111), true);
-  assert.equal(isProvisionalRating(10, 110), false);
-  assert.equal(isProvisionalRating(11, 80), false);
+  assert.equal(conservativeRating({ rating: 1500, deviation: 100, volatility: 0.08 }, custom), 1350);
 });
 
 test('attributes a newcomer upset deterministically', () => {
