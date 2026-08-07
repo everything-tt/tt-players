@@ -6,7 +6,33 @@ const PORT = Number(process.env['PORT']) || 4003;
 const HOST = process.env['HOST'] || '0.0.0.0';
 const SHUTDOWN_TIMEOUT_MS = Number(process.env['API_SHUTDOWN_TIMEOUT_MS']) || 10_000;
 
+function redactDatabaseUrl(url: string | undefined): string {
+    if (!url) return '(unset)';
+    try {
+        const parsed = new URL(url);
+        return `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
+    } catch {
+        return '(invalid)';
+    }
+}
+
 const app = await buildApp(db);
+
+app.log.info({
+    nodeEnv: process.env['NODE_ENV'] ?? 'development',
+    port: PORT,
+    host: HOST,
+    logLevel: process.env['LOG_LEVEL'] ?? 'info',
+    allowedOrigins: (process.env['ALLOWED_ORIGIN'] || 'http://localhost:7373')
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+    supabaseConfigured: Boolean(
+        process.env['SUPABASE_URL'] && process.env['SUPABASE_PUBLISHABLE_KEY'],
+    ),
+    databaseHost: redactDatabaseUrl(process.env['DATABASE_URL']),
+}, 'API configuration');
+
 let shuttingDown = false;
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {

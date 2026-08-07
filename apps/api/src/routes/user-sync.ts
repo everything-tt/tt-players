@@ -147,9 +147,23 @@ export function userSyncRoutes(db: Kysely<Database>): FastifyPluginAsync {
     };
 }
 
+function normalizeStoredSnapshot(raw: unknown): SyncSnapshot {
+    const candidate = (raw ?? {}) as { version?: unknown; entries?: Record<string, unknown> };
+    const rawEntries = candidate.entries ?? {};
+    const entries: Record<string, string> = {};
+    if (rawEntries && typeof rawEntries === 'object') {
+        for (const [key, value] of Object.entries(rawEntries)) {
+            if (ALLOWED_SYNC_KEYS.has(key) && typeof value === 'string') {
+                entries[key] = value;
+            }
+        }
+    }
+    return SyncSnapshotSchema.parse({ version: 1, entries }) as SyncSnapshot;
+}
+
 function presentState(row: SyncStateRow, source: 'local' | 'server') {
     return {
-        data: SyncSnapshotSchema.parse(row.data) as SyncSnapshot,
+        data: normalizeStoredSnapshot(row.data),
         updated_at: row.updated_at.toISOString(),
         source,
     };

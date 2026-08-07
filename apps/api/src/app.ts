@@ -102,6 +102,9 @@ export async function buildApp(db: Kysely<Database>) {
     ];
 
     app.addHook('onSend', async (request, reply) => {
+        if (!reply.getHeader('x-request-id')) {
+            reply.header('x-request-id', request.id);
+        }
         if (reply.statusCode < 200 || reply.statusCode >= 300) return;
         if (reply.getHeader('Cache-Control')) return;
 
@@ -135,10 +138,20 @@ export async function buildApp(db: Kysely<Database>) {
             ? candidateStatus
             : 500;
 
+        const requestContext = {
+            statusCode,
+            method: request.method,
+            url: request.url,
+            reqId: request.id,
+        };
+
         if (statusCode >= 500) {
-            request.log.error({ err: error, statusCode }, 'request failed');
+            request.log.error({ ...requestContext, err: error }, 'request failed');
+        } else if (statusCode >= 400) {
+            request.log.warn({ ...requestContext, err: error }, 'request rejected');
         }
 
+        reply.header('x-request-id', request.id);
         reply.status(statusCode).send({
             error: statusCode >= 500
                 ? 'Internal Server Error'

@@ -225,4 +225,35 @@ describe('authenticated sync state', () => {
         expect(fetch).not.toHaveBeenCalled();
         expect(await db.selectFrom('user_sync_states').selectAll().execute()).toEqual([]);
     });
+
+    it('drops legacy stored keys that are no longer allowed on bootstrap read-back', async () => {
+        await db.insertInto('user_sync_states').values({
+            user_id: USER_ID,
+            version: 1,
+            data: {
+                version: 1,
+                entries: {
+                    tt_players_selected_league_ids: '["league-legacy"]',
+                    tt_players_tournament_filters: '{"version":1}',
+                    unsupported_legacy_key: 'value',
+                },
+                known_keys: ['tt_players_selected_league_ids'],
+            } as never,
+        }).execute();
+
+        const response = await authenticatedRequest(
+            'POST',
+            '/api/me/sync-state/bootstrap',
+            localSnapshot,
+        );
+
+        expect(response.statusCode).toBe(200);
+        const body = response.json();
+        expect(body.source).toBe('server');
+        expect(body.data.entries).toEqual({
+            tt_players_selected_league_ids: '["league-legacy"]',
+        });
+        expect(body.data.entries).not.toHaveProperty('tt_players_tournament_filters');
+        expect(body.data.entries).not.toHaveProperty('unsupported_legacy_key');
+    });
 });
