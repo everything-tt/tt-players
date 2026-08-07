@@ -22,20 +22,27 @@ jobs:
       - name: Serialize categories as JSON for jsonb
         run: |
           python - <<'PY'
+          import re
           from pathlib import Path
+
           path = Path('apps/worker/src/entry-form-inspection.ts')
           text = path.read_text()
-          old = """        updates.categories = analysis.categories.map((category) => ({
-              name: category.name,
-              entry_fee: category.entry_fee,
-          }));"""
-          new = """        updates.categories = JSON.stringify(analysis.categories.map((category) => ({
-              name: category.name,
-              entry_fee: category.entry_fee,
-          })));"""
-          if old not in text:
-              raise SystemExit('expected category assignment not found')
-          path.write_text(text.replace(old, new, 1))
+          pattern = re.compile(
+              r"updates\.categories = analysis\.categories\.map\(\(category\) => \(\{\s*"
+              r"name: category\.name,\s*"
+              r"entry_fee: category\.entry_fee,\s*"
+              r"\}\)\);"
+          )
+          replacement = '\n'.join([
+              'updates.categories = JSON.stringify(analysis.categories.map((category) => ({',
+              '            name: category.name,',
+              '            entry_fee: category.entry_fee,',
+              '        })));',
+          ])
+          updated, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'expected one category assignment, found {count}')
+          path.write_text(updated)
           PY
 
       - name: Commit fix and remove one-shot workflow
