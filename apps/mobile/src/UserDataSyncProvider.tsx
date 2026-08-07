@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
 import { useAuth, type AuthState } from './lib/auth';
 import {
   applyUserDataSnapshot,
@@ -43,8 +43,17 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
   const lastSyncedSnapshot = useRef<UserDataSnapshot | null>(null);
   const [hydratedUserId, setHydratedUserId] = useState<string | null>(null);
   const [localOwnerUserId, setLocalOwnerUserId] = useState<string | null>(() => getLocalSyncOwner());
+  const [dataRevision, setDataRevision] = useState(0);
 
   sessionRef.current = auth.session;
+
+  const publishAppliedData = () => {
+    notifyUserDataApplied();
+    // Some root views still initialise localStorage-backed state only on mount.
+    // A revision key guarantees an authoritative server apply becomes visible
+    // everywhere without relying on a full page reload.
+    setDataRevision((current) => current + 1);
+  };
 
   useEffect(() => {
     if (auth.loading) return;
@@ -60,7 +69,7 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
       lastSyncedSnapshot.current = null;
       if (changed) {
         clearLocalDataBackup();
-        notifyUserDataApplied();
+        publishAppliedData();
       }
       return;
     }
@@ -77,7 +86,7 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
     if (previousOwner && previousOwner !== userId) {
       const changed = clearSyncedLocalData();
       setLocalOwnerUserId(null);
-      if (changed) notifyUserDataApplied();
+      if (changed) publishAppliedData();
     }
 
     setHydratedUserId((current) => current === userId ? current : null);
@@ -104,7 +113,7 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
 
         if (changed) {
           clearLocalDataBackup();
-          notifyUserDataApplied();
+          publishAppliedData();
         }
       } catch {
         if (cancelled) return;
@@ -160,7 +169,7 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
       const reconciled = reconcileServerSnapshot(response.data, observedLocal, latestLocal);
       const changed = applyUserDataSnapshot(reconciled, localStorage, userId);
       lastSyncedSnapshot.current = response.data;
-      if (changed) notifyUserDataApplied();
+      if (changed) publishAppliedData();
       requestRerunIfDirty();
     };
 
@@ -176,7 +185,7 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
       const reconciled = reconcileServerSnapshot(response.data, observedLocal, latestLocal);
       const changed = applyUserDataSnapshot(reconciled, localStorage, userId);
       lastSyncedSnapshot.current = response.data;
-      if (changed) notifyUserDataApplied();
+      if (changed) publishAppliedData();
       requestRerunIfDirty();
     };
 
@@ -236,7 +245,11 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
   const sessionUserId = auth.session?.user.id ?? null;
   if (!shouldRenderSyncedChildren(auth.loading, sessionUserId, hydratedUserId, localOwnerUserId)) return null;
 
-  return children;
+  return (
+    <Fragment key={`${sessionUserId ?? 'anonymous'}:${dataRevision}`}>
+      {children}
+    </Fragment>
+  );
 }
 
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit): Promise<Response> {
