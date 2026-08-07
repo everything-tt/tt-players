@@ -201,6 +201,10 @@ test('reviews player evidence and latest calculation run', async ({ page }, test
             opponent_name: 'Established Favourite',
             result: 'win',
             game_score: '3-2',
+            player_rating_before: 1500,
+            player_rating_deviation_before: 280,
+            opponent_rating_before: 2100,
+            opponent_rating_deviation_before: 55,
             expected_win_probability: 0.18,
             actual_score: 1,
             surprise: 0.82,
@@ -220,6 +224,10 @@ test('reviews player evidence and latest calculation run', async ({ page }, test
             opponent_name: 'Solid Opponent',
             result: 'win',
             game_score: '3-1',
+            player_rating_before: 1500,
+            player_rating_deviation_before: 280,
+            opponent_rating_before: 1680,
+            opponent_rating_deviation_before: 85,
             expected_win_probability: 0.44,
             actual_score: 1,
             surprise: 0.56,
@@ -250,7 +258,7 @@ test('reviews player evidence and latest calculation run', async ({ page }, test
   await expect(upsetRow).toBeVisible();
   await upsetRow.click();
   await expect(page.getByText(/18% chance/)).toBeVisible();
-  await expect(page.getByText(/same starting rating/)).toBeVisible();
+  await expect(page.getByText(/All 2 matches on this date use the same starting rating/)).toBeVisible();
   await expect(page.getByText(/Rating after 1,618/)).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, 'player-rating-evidence');
@@ -326,7 +334,7 @@ test('reviews player evidence and latest calculation run', async ({ page }, test
 
   await page.goto(`${previewUrl}/rating-audit`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Latest calculation run' })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText('12,382')).toBeVisible();
+  await expect(page.getByLabel('Calculation run summary').getByText('12,382', { exact: true })).toBeVisible();
   await expect(page.getByText('Fast Newcomer')).toBeVisible();
   await expect(page.getByText('Established Favourite')).toBeVisible();
   await expect(page.getByText(/Backtest metrics are not attached/)).toBeVisible();
