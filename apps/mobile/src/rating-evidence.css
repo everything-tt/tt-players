@@ -63,12 +63,6 @@
   letter-spacing: 0.02em;
 }
 
-.tt-rating-evidence-meta .tt-pill {
-  font-size: 9px;
-  min-height: 20px;
-  padding-inline: 7px;
-}
-
 .tt-rating-evidence-score {
   color: var(--ink-muted);
   font-size: 11px;
