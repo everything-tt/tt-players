@@ -30,6 +30,15 @@ function readStoredTheme(storageKey: string): boolean | null {
   return null;
 }
 
+function resolveTheme(storageKey: string, defaultDark: boolean): boolean {
+  const stored = readStoredTheme(storageKey);
+  if (stored !== null) return stored;
+  if (!canUseDOM()) return defaultDark;
+  if (document.body.classList.contains('theme-dark')) return true;
+  if (document.body.classList.contains('theme-light')) return false;
+  return defaultDark;
+}
+
 function persistTheme(storageKey: string, value: 'dark-mode' | 'light-mode') {
   if (!canUseDOM()) return;
   try {
@@ -64,12 +73,7 @@ export function ThemeProvider({
   storageKey = THEME_STORAGE_KEY,
   defaultDark = false,
 }: ThemeProviderProps) {
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    if (!canUseDOM()) return defaultDark;
-    return readStoredTheme(storageKey)
-      ?? document.body.classList.contains('theme-dark')
-      ?? defaultDark;
-  });
+  const [isDarkMode, setIsDarkMode] = useState(() => resolveTheme(storageKey, defaultDark));
 
   const applyTheme = (nextDarkMode: boolean, persist: boolean) => {
     if (!canUseDOM()) return;
@@ -95,10 +99,7 @@ export function ThemeProvider({
     if (!canUseDOM()) return;
 
     const syncFromStorage = () => {
-      const stored = readStoredTheme(storageKey);
-      const nextDarkMode = stored
-        ?? document.body.classList.contains('theme-dark')
-        ?? defaultDark;
+      const nextDarkMode = resolveTheme(storageKey, defaultDark);
       applyThemeClasses(nextDarkMode);
       setIsDarkMode(nextDarkMode);
     };
