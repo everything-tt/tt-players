@@ -15,6 +15,11 @@ describe('public HTTP guardrails', () => {
             .rejects.toMatchObject<Partial<PublicHttpError>>({ code: 'blocked_address' });
     });
 
+    it('rejects embedded credentials', async () => {
+        await expect(assertPublicHttpsUrl(new URL('https://user:secret@1.1.1.1/form')))
+            .rejects.toMatchObject<Partial<PublicHttpError>>({ code: 'invalid_url' });
+    });
+
     it('allows a public IP literal without DNS resolution', async () => {
         await expect(assertPublicHttpsUrl(new URL('https://1.1.1.1/form'))).resolves.toBeUndefined();
     });
