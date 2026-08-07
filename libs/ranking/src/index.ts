@@ -13,11 +13,6 @@ export type {
 } from './glicko2.js';
 
 export {
-    isProvisionalRating,
-    parseGlicko2Config,
-} from './config.js';
-
-export {
     calculateRatingMatchEvidence,
 } from './evidence.js';
 export type {
