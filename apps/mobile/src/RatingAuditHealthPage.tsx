@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { DetailHeader } from './components/DetailHeader';
+import { RatingCalculationRunOverview } from './components/RatingCalculationRunOverview';
 import { SkeletonList } from './components/Skeleton';
 import { getQueryError } from './player-shared';
 import {
@@ -113,6 +114,8 @@ function Overview({ audit }: { audit: RatingAuditSummaryResponse }) {
           <ListItem title="Processed rating periods" trailing={audit.model.processed_periods.toLocaleString('en-GB')} />
         </DesignList>
       </PageSection>
+
+      <RatingCalculationRunOverview />
 
       <PageSection
         surface="flat"
