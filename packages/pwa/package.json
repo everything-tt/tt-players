@@ -9,7 +9,8 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "pnpm run clean && tsc -p tsconfig.build.json && node ./scripts/prepare-package.mjs",
     "test": "vitest run",
-    "pack:check": "pnpm run build && npm pack ./dist --dry-run"
+    "pack:check": "pnpm run build && npm pack ./dist --dry-run",
+    "smoke:consumer": "node ./scripts/consumer-smoke.mjs"
   },
   "exports": {
     ".": "./src/index.ts",
