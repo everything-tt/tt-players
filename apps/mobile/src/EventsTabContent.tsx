@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FavouriteButton } from './components/FavouriteButton';
 import { useFavouriteTournaments } from './hooks/useFavouriteTournaments';
 import {
@@ -18,6 +18,10 @@ import {
   getTournamentDateValue,
   groupTournamentTimeline,
 } from './tournament-timeline';
+import {
+  readTournamentPreferences,
+  writeTournamentPreferences,
+} from './tournament-preferences';
 import {
   AppButton,
   AppSearchInput,
@@ -247,10 +251,11 @@ function TournamentResults({
 
 export function EventsTabContent() {
   const { navigateInActiveTab } = useTabNavigation();
-  const [status, setStatus] = useState<TournamentListStatus>('upcoming');
-  const [savedOnly, setSavedOnly] = useState(false);
+  const [initialPreferences] = useState(() => readTournamentPreferences());
+  const [status, setStatus] = useState<TournamentListStatus>(initialPreferences.status);
+  const [savedOnly, setSavedOnly] = useState(initialPreferences.savedOnly);
   const [categoryFiltersOpen, setCategoryFiltersOpen] = useState(false);
-  const [categories, setCategories] = useState<TournamentCategoryFilter[]>([]);
+  const [categories, setCategories] = useState<TournamentCategoryFilter[]>(initialPreferences.categories);
   const search = useSearch({ minLength: 0, resetOnDisable: false });
   const {
     items: favouriteTournaments,
@@ -263,6 +268,10 @@ export function EventsTabContent() {
   );
   const mayFetch = !(savedOnly && favouriteTournaments.length === 0);
   const categoryFilterActive = categories.length > 0;
+
+  useEffect(() => {
+    writeTournamentPreferences({ status, savedOnly, categories });
+  }, [categories, savedOnly, status]);
 
   const upcoming = useTournamentList({
     status: 'upcoming',

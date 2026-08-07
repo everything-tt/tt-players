@@ -67,7 +67,7 @@ export async function buildApp(db: Kysely<Database>) {
         .filter(Boolean);
     await app.register(cors, {
         origin: allowedOrigins,
-        methods: ['GET', 'POST', 'PUT', 'OPTIONS'],
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
     });
 
     await app.register(compress, { global: true, threshold: 1024 });
