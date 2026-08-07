@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useReducer,
   useState,
   type ReactNode,
 } from 'react';
@@ -15,6 +16,11 @@ import {
   isInstallPromptDue,
   isIOSUserAgent,
 } from './install-policy';
+import {
+  createInitialPWAUiState,
+  pwaUiReducer,
+  runPWAUpdate,
+} from './runtime-state';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -29,7 +35,7 @@ type NavigatorWithStandalone = Navigator & { standalone?: boolean };
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 export interface PWAInstallContextValue {
-  showAndroidSheet: boolean;
+  showInstallSheet: boolean;
   showIosSheet: boolean;
   showUpdateSheet: boolean;
   install: () => Promise<void>;
@@ -70,13 +76,33 @@ function isStandaloneMode(): boolean {
 
 function detectIOS(): boolean {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
-  return isIOSUserAgent(navigator.userAgent)
+  return isIOSUserAgent(navigator.userAgent, navigator.maxTouchPoints)
     && !(window as Window & { MSStream?: unknown }).MSStream;
 }
 
 function shouldPrompt(storage: StorageLike | null, key: string, cooldownMs: number): boolean {
   if (!storage) return true;
-  return isInstallPromptDue(storage.getItem(key), Date.now(), cooldownMs);
+  try {
+    return isInstallPromptDue(storage.getItem(key), Date.now(), cooldownMs);
+  } catch {
+    return true;
+  }
+}
+
+function recordPromptDismissal(storage: StorageLike | null, key: string): void {
+  try {
+    storage?.setItem(key, Date.now().toString());
+  } catch {
+    return;
+  }
+}
+
+function clearPromptDismissal(storage: StorageLike | null, key: string): void {
+  try {
+    storage?.removeItem(key);
+  } catch {
+    return;
+  }
 }
 
 export async function requestPersistentStorage(): Promise<boolean> {
@@ -98,25 +124,24 @@ export function PWAInstallProvider({
   onRegisterError,
 }: PWAInstallProviderProps) {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [showAndroidSheet, setShowAndroidSheet] = useState(false);
-  const [showIosSheet, setShowIosSheet] = useState(false);
-  const [showUpdateSheet, setShowUpdateSheet] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(isStandaloneMode);
+  const [uiState, dispatch] = useReducer(
+    pwaUiReducer,
+    undefined,
+    () => createInitialPWAUiState(isStandaloneMode()),
+  );
   const [isIOS] = useState(detectIOS);
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
   } = useRegisterSW({
-    onRegistered() {
-      // Registration succeeded; consumers only need state changes when an update is available.
-    },
+    onRegistered() {},
     onRegisterError(error) {
       onRegisterError?.(error);
     },
   });
 
   useEffect(() => {
-    if (needRefresh) setShowUpdateSheet(true);
+    if (needRefresh) dispatch({ type: 'update-available' });
   }, [needRefresh]);
 
   useEffect(() => {
@@ -126,72 +151,74 @@ export function PWAInstallProvider({
       event.preventDefault();
       setDeferredPrompt(event as BeforeInstallPromptEvent);
       if (shouldPrompt(storage, promptStorageKey, promptCooldownMs)) {
-        setShowAndroidSheet(true);
+        dispatch({ type: 'install-prompt-available' });
       }
     };
     const installedHandler = () => {
       setDeferredPrompt(null);
-      setShowAndroidSheet(false);
-      setShowIosSheet(false);
-      setIsStandalone(true);
+      dispatch({ type: 'app-installed' });
     };
 
     window.addEventListener('beforeinstallprompt', installPromptHandler);
     window.addEventListener('appinstalled', installedHandler);
 
-    if (isIOS && !isStandalone && shouldPrompt(storage, promptStorageKey, promptCooldownMs)) {
-      setShowIosSheet(true);
+    if (isIOS && !uiState.isStandalone && shouldPrompt(storage, promptStorageKey, promptCooldownMs)) {
+      dispatch({ type: 'ios-prompt-available' });
     }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', installPromptHandler);
       window.removeEventListener('appinstalled', installedHandler);
     };
-  }, [isIOS, isStandalone, promptCooldownMs, promptStorageKey]);
+  }, [isIOS, promptCooldownMs, promptStorageKey, uiState.isStandalone]);
 
   const install = useCallback(async () => {
     if (!deferredPrompt) return;
     await deferredPrompt.prompt();
     const choice = await deferredPrompt.userChoice;
     setDeferredPrompt(null);
-    setShowAndroidSheet(false);
-    if (choice.outcome === 'accepted') setIsStandalone(true);
-  }, [deferredPrompt]);
+    if (choice.outcome === 'dismissed') {
+      recordPromptDismissal(getLocalStorage(), promptStorageKey);
+    }
+    dispatch({ type: 'install-finished', accepted: choice.outcome === 'accepted' });
+  }, [deferredPrompt, promptStorageKey]);
 
   const dismiss = useCallback(() => {
-    getLocalStorage()?.setItem(promptStorageKey, Date.now().toString());
-    setShowAndroidSheet(false);
-    setShowIosSheet(false);
+    recordPromptDismissal(getLocalStorage(), promptStorageKey);
+    dispatch({ type: 'dismiss-install' });
   }, [promptStorageKey]);
 
   const triggerInstallPrompt = useCallback(() => {
-    if (isStandalone) return;
-    getLocalStorage()?.removeItem(promptStorageKey);
+    if (uiState.isStandalone) return;
+    clearPromptDismissal(getLocalStorage(), promptStorageKey);
     if (isIOS) {
-      setShowIosSheet(true);
+      dispatch({ type: 'ios-prompt-available' });
     } else if (deferredPrompt) {
-      setShowAndroidSheet(true);
+      dispatch({ type: 'install-prompt-available' });
     }
-  }, [deferredPrompt, isIOS, isStandalone, promptStorageKey]);
+  }, [deferredPrompt, isIOS, promptStorageKey, uiState.isStandalone]);
 
   const updateApp = useCallback(async () => {
-    await onBeforeUpdate?.();
-    if (persistStorageBeforeUpdate) await requestPersistentStorage();
-    await updateServiceWorker(true);
+    await runPWAUpdate({
+      onBeforeUpdate,
+      persistStorageBeforeUpdate,
+      requestPersistentStorage,
+      activateUpdate: () => updateServiceWorker(true),
+    });
   }, [onBeforeUpdate, persistStorageBeforeUpdate, updateServiceWorker]);
 
   const dismissUpdate = useCallback(() => {
-    setShowUpdateSheet(false);
+    dispatch({ type: 'dismiss-update' });
   }, []);
 
-  const canInstall = !isStandalone && (Boolean(deferredPrompt) || isIOS);
+  const canInstall = !uiState.isStandalone && (Boolean(deferredPrompt) || isIOS);
 
   return (
     <PWAInstallContext.Provider
       value={{
-        showAndroidSheet,
-        showIosSheet,
-        showUpdateSheet,
+        showInstallSheet: uiState.showInstallSheet,
+        showIosSheet: uiState.showIosSheet,
+        showUpdateSheet: uiState.showUpdateSheet,
         install,
         dismiss,
         triggerInstallPrompt,
