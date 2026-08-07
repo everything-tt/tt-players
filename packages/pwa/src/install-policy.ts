@@ -12,6 +12,11 @@ export function isInstallPromptDue(
   return now - timestamp > cooldownMs;
 }
 
-export function isIOSUserAgent(userAgent: string): boolean {
-  return /iPad|iPhone|iPod/.test(userAgent);
+export function isIOSUserAgent(userAgent: string, maxTouchPoints = 0): boolean {
+  if (/iPad|iPhone|iPod/.test(userAgent)) return true;
+
+  // Since iPadOS 13, Safari can identify an iPad as macOS when desktop-class
+  // browsing is enabled. A touch-capable Macintosh UA distinguishes those
+  // devices from ordinary Macs without relying on the deprecated platform API.
+  return /Macintosh/.test(userAgent) && maxTouchPoints > 1;
 }
