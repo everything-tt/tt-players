@@ -35,6 +35,8 @@ import * as m027 from '../../../../../packages/db/src/migrations/027_expand_feed
 import * as m036 from '../../../../../packages/db/src/migrations/036_create_tournament_sources.js';
 import * as m038 from '../../../../../packages/db/src/migrations/038_flatten_player_identity_chains.js';
 import * as m047 from '../../../../../packages/db/src/migrations/047_separate_tournament_lifecycles.js';
+import * as m050 from '../../../../../packages/db/src/migrations/050_add_competition_entry_fee.js';
+import * as m051 from '../../../../../packages/db/src/migrations/051_add_competition_categories.js';
 
 const { Pool } = pg;
 
@@ -75,6 +77,8 @@ class StaticMigrationProvider implements MigrationProvider {
             '036_create_tournament_sources': m036,
             '038_flatten_player_identity_chains': m038,
             '047_separate_tournament_lifecycles': m047,
+            '050_add_competition_entry_fee': m050,
+            '051_add_competition_categories': m051,
         };
     }
 }

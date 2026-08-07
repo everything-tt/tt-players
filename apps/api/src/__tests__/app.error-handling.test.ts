@@ -43,3 +43,34 @@ describe('API error handling', () => {
         expect(response.json().error).not.toBe('Internal Server Error');
     });
 });
+
+describe('API request correlation', () => {
+    it('returns a request id on error responses for log correlation', async () => {
+        const app = await buildApp({} as Kysely<Database>);
+        apps.push(app);
+
+        const response = await app.inject({
+            method: 'GET',
+            url: '/api/health/db',
+        });
+
+        expect(response.statusCode).toBe(500);
+        const requestId = response.headers['x-request-id'];
+        expect(typeof requestId).toBe('string');
+        expect(requestId.length).toBeGreaterThan(0);
+    });
+
+    it('returns a request id on validation failures', async () => {
+        const app = await buildApp({} as Kysely<Database>);
+        apps.push(app);
+
+        const response = await app.inject({
+            method: 'GET',
+            url: '/api/teams/not-a-uuid/summary',
+        });
+
+        expect(response.statusCode).toBe(400);
+        expect(typeof response.headers['x-request-id']).toBe('string');
+        expect((response.headers['x-request-id'] as string).length).toBeGreaterThan(0);
+    });
+});

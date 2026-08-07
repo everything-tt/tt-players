@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
     GoogleFormInspectionError,
     extractGoogleFormLoadData,
+    inspectGoogleForm,
     isGoogleFormUrl,
     normalizeGoogleFormUrl,
     parseGoogleFormHtml,
@@ -36,9 +37,26 @@ describe('Google Forms ingestion inspection', () => {
 
     it('rejects non-Google and non-public form paths', () => {
         expect(() => normalizeGoogleFormUrl('https://example.com/form')).toThrow(GoogleFormInspectionError);
-        expect(() => normalizeGoogleFormUrl('https://docs.google.com/forms/d/example/edit')).toThrow(
+        expect(() => normalizeGoogleFormUrl('https://docs.google.com/forms/d/example/not-a-form-path')).toThrow(
             'Only public Google Forms links are supported.',
         );
+    });
+
+    it('canonicalizes editor links to public view links before fetching', async () => {
+        const editUrl = 'https://docs.google.com/forms/d/13myTIRN8pp-N02pzlMhNO5V1QTF0Cpj8SmBYyrtgDBs/edit?edit_requested=true';
+        const viewUrl = 'https://docs.google.com/forms/d/13myTIRN8pp-N02pzlMhNO5V1QTF0Cpj8SmBYyrtgDBs/viewform';
+        expect(normalizeGoogleFormUrl(editUrl).toString()).toBe(viewUrl);
+        expect(isGoogleFormUrl(editUrl)).toBe(true);
+
+        const payload = [null, [null, [[101, 'Player name', null, 0, [[501, null, 1]]]]]];
+        const fetcher = vi.fn<typeof fetch>(async () => new Response(formHtml(payload), {
+            status: 200,
+            headers: { 'Content-Type': 'text/html' },
+        }));
+
+        const inspection = await inspectGoogleForm(editUrl, fetcher);
+        expect(String(fetcher.mock.calls[0]?.[0])).toBe(viewUrl);
+        expect(inspection.form_url).toBe(viewUrl);
     });
 
     it('extracts the balanced public data assignment', () => {

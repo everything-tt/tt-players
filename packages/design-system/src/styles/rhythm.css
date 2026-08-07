@@ -2,7 +2,9 @@
  * Product pages should compose PageSection rather than hand-tuning adjacent margins. */
 .tt-page-content > .tt-entity-hero + .tt-section,
 .tt-page-content > .tt-hero + .tt-section,
-.tt-page-content > .tt-section + .tt-section {
+.tt-page-content > .tt-player-profile-hero + .tt-section,
+.tt-page-content > .tt-section + .tt-section,
+.tt-page-content > * + .tt-section {
   margin-top: var(--tt-section-gap-standard);
 }
 

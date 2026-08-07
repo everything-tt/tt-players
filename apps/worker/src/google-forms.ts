@@ -58,7 +58,7 @@ function isAllowedGoogleFormHost(hostname: string): boolean {
 function isGoogleFormPath(url: URL): boolean {
     if (url.hostname === GOOGLE_SHORT_HOST) return url.pathname.length > 1;
     if (url.hostname !== GOOGLE_DOCS_HOST) return false;
-    return /^\/forms\/d\/(?:e\/)?[^/]+(?:\/viewform)?\/?$/.test(url.pathname);
+    return /^\/forms\/d\/(?:e\/)?[^/]+(?:\/(?:viewform|edit))?\/?$/.test(url.pathname);
 }
 
 export function normalizeGoogleFormUrl(input: string): URL {
@@ -77,6 +77,18 @@ export function normalizeGoogleFormUrl(input: string): URL {
     url.password = '';
     url.search = '';
     url.hash = '';
+
+    if (url.hostname === GOOGLE_DOCS_HOST) {
+        const path = url.pathname.replace(/\/$/, '');
+        if (path.endsWith('/edit')) {
+            url.pathname = `${path.slice(0, -'/edit'.length)}/viewform`;
+        } else if (!path.endsWith('/viewform')) {
+            url.pathname = `${path}/viewform`;
+        } else {
+            url.pathname = path;
+        }
+    }
+
     return url;
 }
 
@@ -91,13 +103,7 @@ export function isGoogleFormUrl(input: string | null | undefined): boolean {
 }
 
 function canonicalViewUrl(url: URL): URL {
-    const canonical = new URL(url.toString());
-    canonical.search = '';
-    canonical.hash = '';
-    if (canonical.hostname === GOOGLE_DOCS_HOST && !canonical.pathname.endsWith('/viewform')) {
-        canonical.pathname = `${canonical.pathname.replace(/\/$/, '')}/viewform`;
-    }
-    return canonical;
+    return normalizeGoogleFormUrl(url.toString());
 }
 
 function redirectLocation(response: Response, currentUrl: URL): URL | null {

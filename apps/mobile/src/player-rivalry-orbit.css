@@ -1,5 +1,6 @@
 .tt-rivalry-orbit-section {
   overflow: hidden;
+  margin-top: var(--tt-section-gap-standard, 24px);
 }
 
 .tt-rivalry-orbit-key {

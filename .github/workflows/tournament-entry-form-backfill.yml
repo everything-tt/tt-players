@@ -59,28 +59,28 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
-      - name: Configure DeepSeek form analysis
+      - name: Configure Ollama form analysis
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
         run: |
           set -euo pipefail
           test -n "$VPS_USER"
-          test -n "$DEEPSEEK_API_KEY"
-          key_b64=$(printf '%s' "$DEEPSEEK_API_KEY" | base64 -w 0)
+          test -n "$OLLAMA_API_KEY"
+          key_b64=$(printf '%s' "$OLLAMA_API_KEY" | base64 -w 0)
 
           ssh "$VPS_USER@$VPS_HOST" \
-            "DEEPSEEK_KEY_B64='$key_b64' bash -s" <<'REMOTE'
+            "OLLAMA_KEY_B64='$key_b64' bash -s" <<'REMOTE'
           set -euo pipefail
           env_file=/etc/ttp/worker.env
           temp_file=$(mktemp)
           if [[ -f "$env_file" ]]; then
-            grep -v -E '^(DEEPSEEK_API_KEY|ENTRY_FORM_LLM_(BASE_URL|MODEL|API_KEY))=' "$env_file" > "$temp_file" || true
+            grep -v -E '^(OLLAMA_API_KEY|DEEPSEEK_API_KEY|ENTRY_FORM_LLM_(BASE_URL|MODEL|API_KEY))=' "$env_file" > "$temp_file" || true
           fi
-          printf 'DEEPSEEK_API_KEY=%s\n' "$(printf '%s' "$DEEPSEEK_KEY_B64" | base64 -d)" >> "$temp_file"
-          printf 'ENTRY_FORM_LLM_BASE_URL=https://api.deepseek.com\n' >> "$temp_file"
-          printf 'ENTRY_FORM_LLM_MODEL=deepseek-v4-flash\n' >> "$temp_file"
+          printf 'OLLAMA_API_KEY=%s\n' "$(printf '%s' "$OLLAMA_KEY_B64" | base64 -d)" >> "$temp_file"
+          printf 'ENTRY_FORM_LLM_BASE_URL=https://api.ollama.com\n' >> "$temp_file"
+          printf 'ENTRY_FORM_LLM_MODEL=deepseek-v4-flash:0731\n' >> "$temp_file"
           install -m 600 "$temp_file" "$env_file"
           rm -f "$temp_file"
           REMOTE

@@ -26,7 +26,9 @@ describe('app-wide MatchRecordRow consumers', () => {
     const content = source('./H2HTabContent.tsx');
     expect(content).toContain('MatchRecordRow');
     expect(content).not.toContain('<OutcomeBadge result={encounter.isWin');
-    expect(content).toContain("playerMatchScore(encounter.result, encounter.isWin)");
+    expect(content).toContain('playerMatchScore(encounter.result, encounter.isWin)');
+    expect(content).toContain('defeated');
+    expect(content).toContain('lost to');
   });
 
   it('uses MatchRecordRow for tournament result rows with score fallback', () => {
