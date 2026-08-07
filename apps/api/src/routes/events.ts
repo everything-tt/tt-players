@@ -19,6 +19,10 @@ const EventItemSchema = z.object({
     status: z.string(),
     category: z.string().nullable(),
     entry_fee: z.string().nullable(),
+    categories: z.array(z.object({
+        name: z.string(),
+        entry_fee: z.string().nullable(),
+    })).nullable(),
     description: z.string().nullable(),
     venue_name: z.string().nullable(),
     venue_address: z.string().nullable(),
@@ -353,6 +357,7 @@ function eventSelection() {
         sql<string>`coalesce(c.status_override, c.event_status, case when c.event_date < current_date then 'completed' else 'upcoming' end)`.as('status'),
         sql<string | null>`coalesce(c.category, calendar.category)`.as('category'),
         sql<string | null>`c.entry_fee`.as('entry_fee'),
+        sql<unknown>`c.categories`.as('categories'),
         calendarPayloadField('description').as('description'),
         sql<string | null>`coalesce(c.venue_name, calendar.venue_name)`.as('venue_name'),
         sql<string | null>`coalesce(c.venue_address, calendar.venue_address)`.as('venue_address'),
@@ -400,6 +405,17 @@ function nullableNumber(value: unknown): number | null {
     return value === null || value === undefined ? null : Number(value);
 }
 
+function nullableCategories(value: unknown): Array<{ name: string; entry_fee: string | null }> | null {
+    if (!Array.isArray(value)) return null;
+    return value.map((item) => {
+        const record = item && typeof item === 'object' ? item as Record<string, unknown> : {};
+        return {
+            name: String(record.name ?? ''),
+            entry_fee: record.entry_fee == null ? null : String(record.entry_fee),
+        };
+    });
+}
+
 function mapEvent(event: Record<string, unknown>): EventItem {
     return {
         id: String(event.id),
@@ -413,6 +429,7 @@ function mapEvent(event: Record<string, unknown>): EventItem {
         status: String(event.status),
         category: nullableString(event.category),
         entry_fee: nullableString(event.entry_fee),
+        categories: nullableCategories(event.categories),
         description: nullableString(event.description),
         venue_name: nullableString(event.venue_name),
         venue_address: nullableString(event.venue_address),

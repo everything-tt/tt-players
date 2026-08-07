@@ -315,7 +315,7 @@ describe('Google Form semantic analysis', () => {
         expect(analysis).toMatchObject({
             status: 'ready',
             model: 'deepseek-v4-flash:0731',
-            prompt_version: '2026-08-07.3',
+            prompt_version: '2026-08-07.4',
             mappings: [],
             error_message: null,
         });
@@ -406,6 +406,39 @@ describe('Google Form semantic analysis', () => {
         expect(analysis).toMatchObject({ status: 'ready', error_message: null });
         expect(analysis?.event_details).toEqual([
             expect.objectContaining({ field: 'venue_name', value: 'Nottingham TTC', source_field_ids: [] }),
+        ]);
+    });
+
+    it('extracts structured categories with per-category entry fees', async () => {
+        const fetcher = vi.fn<typeof fetch>(async () => ollamaCompletion({
+            event_details: [],
+            categories: [
+                { name: 'U13 Mixed', entry_fee: '£10' },
+                { name: 'U15 Boys', entry_fee: '£12' },
+                { name: 'U19 Girls', entry_fee: null },
+            ],
+        }));
+
+        const analysis = await analyzeDocumentSemantics({
+            form_url: 'https://example.com/entry',
+            title: 'Limpsfield Open',
+            text: 'U13 Mixed £10. U15 Boys £12. U19 Girls.',
+        }, {}, {
+            configuration: {
+                baseUrl: 'https://api.ollama.com',
+                apiKey: 'ollama-key',
+                model: 'deepseek-v4-flash:0731',
+                timeoutMs: 5_000,
+            },
+            fetcher,
+            now: new Date('2026-08-07T00:00:00.000Z'),
+        });
+
+        expect(analysis).toMatchObject({ status: 'ready', error_message: null });
+        expect(analysis?.categories).toEqual([
+            { name: 'U13 Mixed', entry_fee: '£10' },
+            { name: 'U15 Boys', entry_fee: '£12' },
+            { name: 'U19 Girls', entry_fee: null },
         ]);
     });
 });

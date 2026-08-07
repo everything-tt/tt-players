@@ -318,6 +318,13 @@ async function applySemanticEventEnrichment(
         if (value) updates.entry_deadline = new Date(`${value}T23:59:59Z`);
     }
 
+    if (analysis.categories.length > 0) {
+        updates.categories = JSON.stringify(analysis.categories.map((category) => ({
+            name: category.name,
+            entry_fee: category.entry_fee,
+        })));
+    }
+
     if (Object.keys(updates).length > 0) {
         await db
             .updateTable('competitions')
