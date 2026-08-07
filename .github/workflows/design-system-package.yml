@@ -1,16 +1,18 @@
-name: Shared Frontend Packages
+name: Shared Packages
 
 on:
   pull_request:
     paths:
       - 'packages/design-system/**'
       - 'packages/pwa/**'
+      - 'libs/ranking/**'
       - '.github/workflows/design-system-package.yml'
   push:
     branches: [main]
     paths:
       - 'packages/design-system/**'
       - 'packages/pwa/**'
+      - 'libs/ranking/**'
       - '.github/workflows/design-system-package.yml'
 
 permissions:
@@ -18,7 +20,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: shared-frontend-packages-${{ github.ref }}
+  group: shared-packages-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -28,10 +30,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - workspace: '@tt-players/design-system'
-            directory: 'design-system'
-          - workspace: '@tt-players/pwa'
-            directory: 'pwa'
+          - kind: workspace
+            workspace: '@tt-players/design-system'
+            package_path: 'packages/design-system'
+          - kind: workspace
+            workspace: '@tt-players/pwa'
+            package_path: 'packages/pwa'
+          - kind: ranking
+            workspace: ''
+            package_path: 'libs/ranking'
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -55,36 +62,51 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Test PWA package
-        if: matrix.directory == 'pwa'
+        if: matrix.package_path == 'packages/pwa'
         run: pnpm --filter @tt-players/pwa test
 
-      - name: Build publishable package
+      - name: Build workspace package
+        if: matrix.kind == 'workspace'
         run: pnpm --filter "${{ matrix.workspace }}" build
 
+      - name: Build ranking package
+        if: matrix.kind == 'ranking'
+        run: |
+          pnpm --filter @tt-players/worker exec tsc -p ../../libs/ranking/tsconfig.build.json
+          node ./libs/ranking/scripts/prepare-package.mjs
+
+      - name: Test ranking package
+        if: matrix.kind == 'ranking'
+        run: node --test ./libs/ranking/tests/*.test.mjs
+
       - name: Inspect package contents
-        run: npm pack "./packages/${{ matrix.directory }}/dist" --dry-run
+        run: npm pack "./${{ matrix.package_path }}/dist" --dry-run
 
       - name: Test published PWA package as a consumer
-        if: matrix.directory == 'pwa'
+        if: matrix.package_path == 'packages/pwa'
         run: pnpm --filter @tt-players/pwa smoke:consumer
+
+      - name: Test published ranking package as a consumer
+        if: matrix.kind == 'ranking'
+        run: node ./libs/ranking/scripts/consumer-smoke.mjs
 
       - name: Publish to GitHub Packages
         if: github.event_name == 'push'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACKAGE_DIRECTORY: ${{ matrix.directory }}
+          PACKAGE_PATH: ${{ matrix.package_path }}
         shell: bash
         run: |
-          PACKAGE_ROOT="./packages/${PACKAGE_DIRECTORY}/dist"
+          PACKAGE_ROOT="./${PACKAGE_PATH}/dist"
           PACKAGE_NAME=$(node -p "require('${PACKAGE_ROOT}/package.json').name")
           PACKAGE_VERSION=$(node -p "require('${PACKAGE_ROOT}/package.json').version")
 
           if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
-            if git diff --quiet "${{ github.event.before }}" "${{ github.sha }}" -- "packages/${PACKAGE_DIRECTORY}"; then
+            if git diff --quiet "${{ github.event.before }}" "${{ github.sha }}" -- "${PACKAGE_PATH}"; then
               echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is already published and this package did not change; skipping."
               exit 0
             fi
-            echo "::error::${PACKAGE_NAME}@${PACKAGE_VERSION} already exists. Bump packages/${PACKAGE_DIRECTORY}/package.json before publishing another package change."
+            echo "::error::${PACKAGE_NAME}@${PACKAGE_VERSION} already exists. Bump ${PACKAGE_PATH}/package.json before publishing another package change."
             exit 1
           fi
 
