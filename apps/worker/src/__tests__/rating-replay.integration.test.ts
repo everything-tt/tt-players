@@ -13,18 +13,22 @@ import * as m028 from '@tt-players/db/src/migrations/028_create_calculated_ratin
 import * as m031History from '@tt-players/db/src/migrations/031_create_weekly_rating_history.js';
 import * as m032 from '@tt-players/db/src/migrations/032_create_rating_replay_checkpoints.js';
 import * as m033 from '@tt-players/db/src/migrations/033_capture_monthly_rating_checkpoints.js';
+import * as m042 from '@tt-players/db/src/migrations/042_create_rating_audit_foundation.js';
+import * as m049 from '@tt-players/db/src/migrations/049_create_rating_calculation_audit.js';
 import { calculateRatingsWithReplay } from '../ratings/calculate-ratings-with-replay.js';
 
 const { Pool } = pg;
 const TEST_DB_NAME = 'tt_players_rating_replay_test';
 const ADMIN_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/postgres';
 const TEST_DATABASE_URL = `postgres://postgres:postgres@localhost:5432/${TEST_DB_NAME}`;
+const TEST_COMMIT_SHA = 'test-rating-audit-sha';
 
 let db: Kysely<Database>;
 let playerAId: string;
 let playerBId: string;
 let januaryFixtureId: string;
 let februaryRubberId: string;
+let excludedRubberId: string;
 
 async function recreateDatabase(): Promise<void> {
     const admin = new Pool({ connectionString: ADMIN_DATABASE_URL });
@@ -49,6 +53,81 @@ async function dropDatabase(): Promise<void> {
 function dateOnly(value: string | Date | null): string | null {
     if (!value) return null;
     return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+}
+
+async function loadNormalizedAudit(runId: string): Promise<{
+    run: Record<string, unknown>;
+    periods: Record<string, unknown>[];
+    matches: Record<string, unknown>[];
+}> {
+    const run = await sql<Record<string, unknown>>`
+        SELECT
+            model_key,
+            model_version,
+            source_data_cutoff::text,
+            code_commit_sha,
+            algorithm_parameters,
+            input_hash,
+            run_status,
+            processed_periods,
+            processed_matches
+        FROM rating_calculation_runs
+        WHERE id = ${runId}::uuid
+    `.execute(db);
+    const periods = await sql<Record<string, unknown>>`
+        SELECT
+            rating_date::text,
+            player_id,
+            rating_before,
+            rating_deviation_before,
+            volatility_before,
+            ranking_score_before,
+            public_rank_before,
+            rating_after,
+            rating_deviation_after,
+            volatility_after,
+            ranking_score_after,
+            public_rank_after,
+            rated_matches_in_period,
+            total_rated_matches,
+            unique_opponent_count,
+            provisional_before,
+            provisional_after,
+            combined_rating_delta
+        FROM rating_period_audits
+        WHERE run_id = ${runId}::uuid
+        ORDER BY rating_date, player_id
+    `.execute(db);
+    const matches = await sql<Record<string, unknown>>`
+        SELECT
+            rating_date::text,
+            rubber_id,
+            side,
+            player_id,
+            opponent_id,
+            result,
+            game_score,
+            player_rating_before,
+            player_rating_deviation_before,
+            opponent_rating_before,
+            opponent_rating_deviation_before,
+            expected_win_probability,
+            actual_score,
+            surprise_value,
+            attributed_rating_delta,
+            information_contribution,
+            included,
+            exclusion_reason
+        FROM rating_match_audits
+        WHERE run_id = ${runId}::uuid
+        ORDER BY rating_date NULLS FIRST, rubber_id, side
+    `.execute(db);
+
+    return {
+        run: run.rows[0] ?? {},
+        periods: periods.rows,
+        matches: matches.rows,
+    };
 }
 
 async function seedMatch(
@@ -109,6 +188,8 @@ describe('incremental rating replay', () => {
         await m031History.up(db);
         await m032.up(db);
         await m033.up(db);
+        await m042.up(db);
+        await m049.up(db);
 
         const platform = await db
             .insertInto('platforms')
@@ -165,6 +246,25 @@ describe('incremental rating replay', () => {
             .set({ played_at: null })
             .where('id', '=', january.rubberId)
             .execute();
+
+        const excluded = await db
+            .insertInto('rubbers')
+            .values({
+                fixture_id: januaryFixtureId,
+                external_id: 'rubber-excluded-doubles',
+                home_player_1_id: playerAId,
+                away_player_1_id: playerBId,
+                home_games_won: 3,
+                away_games_won: 0,
+                outcome_type: 'normal',
+                score_source: 'games',
+                is_doubles: true,
+                played_at: new Date('2026-01-20T20:00:00.000Z'),
+            })
+            .returning('id')
+            .executeTakeFirstOrThrow();
+        excludedRubberId = excluded.id;
+
         const february = await seedMatch(
             competition.id,
             teams[0]!.id,
@@ -182,10 +282,60 @@ describe('incremental rating replay', () => {
     }, 15_000);
 
     it('restores the nearest checkpoint and replays only the corrected tail', async () => {
-        const initial = await calculateRatingsWithReplay(db, { maxPeriods: 20 });
+        const initial = await calculateRatingsWithReplay(db, {
+            maxPeriods: 20,
+            codeCommitSha: TEST_COMMIT_SHA,
+        });
         expect(initial.complete).toBe(true);
         expect(initial.processedPeriods).toBe(3);
         expect(initial.replayed).toBe(false);
+        expect(initial.auditRunId).toBeTruthy();
+
+        const initialAudit = await loadNormalizedAudit(initial.auditRunId!);
+        expect(initialAudit.run).toMatchObject({
+            model_key: 'global-singles-glicko2-v1',
+            model_version: 'v1',
+            source_data_cutoff: '2026-02-10',
+            code_commit_sha: TEST_COMMIT_SHA,
+            run_status: 'complete',
+            processed_periods: 3,
+        });
+        expect(Number(initialAudit.run['processed_matches'])).toBe(3);
+        expect(initialAudit.periods).toHaveLength(6);
+        expect(initialAudit.matches.filter((row) => row['included'] === true)).toHaveLength(6);
+        const excludedAuditRows = initialAudit.matches.filter(
+            (row) => row['rubber_id'] === excludedRubberId,
+        );
+        expect(excludedAuditRows).toHaveLength(2);
+        expect(excludedAuditRows.every(
+            (row) => row['included'] === false && row['exclusion_reason'] === 'doubles',
+        )).toBe(true);
+
+        const attributionChecks = await sql<{ attribution_error: number | string }>`
+            SELECT ABS(
+                SUM(match.attributed_rating_delta) - MAX(period.combined_rating_delta)
+            ) AS attribution_error
+            FROM rating_match_audits match
+            JOIN rating_period_audits period ON period.id = match.period_audit_id
+            WHERE match.run_id = ${initial.auditRunId}::uuid
+              AND match.included = true
+            GROUP BY period.id
+        `.execute(db);
+        expect(attributionChecks.rows).toHaveLength(6);
+        expect(attributionChecks.rows.every(
+            (row) => Number(row.attribution_error) < 1e-9,
+        )).toBe(true);
+
+        const repeated = await calculateRatingsWithReplay(db, {
+            maxPeriods: 20,
+            rebuild: true,
+            codeCommitSha: TEST_COMMIT_SHA,
+        });
+        expect(repeated.complete).toBe(true);
+        expect(repeated.processedPeriods).toBe(3);
+        expect(repeated.processedMatches).toBe(3);
+        expect(repeated.auditRunId).toBeTruthy();
+        expect(await loadNormalizedAudit(repeated.auditRunId!)).toEqual(initialAudit);
 
         const checkpointRows = await sql<{ checkpoint_date: string | Date }>`
             SELECT checkpoint_date
@@ -215,7 +365,10 @@ describe('incremental rating replay', () => {
         `.execute(db);
         expect(dateOnly(dirtyState.rows[0]?.dirty_from_date ?? null)).toBe('2026-02-10');
 
-        const replay = await calculateRatingsWithReplay(db, { maxPeriods: 20 });
+        const replay = await calculateRatingsWithReplay(db, {
+            maxPeriods: 20,
+            codeCommitSha: TEST_COMMIT_SHA,
+        });
         expect(replay.complete).toBe(true);
         expect(replay.replayed).toBe(true);
         expect(replay.dirtyFromDate).toBe('2026-02-10');

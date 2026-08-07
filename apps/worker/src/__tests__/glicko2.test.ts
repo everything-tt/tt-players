@@ -6,6 +6,7 @@ import {
     inflateDeviationForInactivity,
     updateRating,
 } from '../ratings/glicko2.js';
+import { calculateRatingMatchEvidence } from '../ratings/rating-audit-evidence.js';
 
 describe('Glicko-2', () => {
     it('uses the required initial state and convergence configuration', () => {
@@ -53,5 +54,62 @@ describe('Glicko-2', () => {
     it('uses a conservative score for leaderboard ordering', () => {
         expect(conservativeRating({ rating: 1700, deviation: 40, volatility: 0.06 })).toBe(1620);
         expect(conservativeRating({ rating: 1750, deviation: 180, volatility: 0.06 })).toBe(1390);
+    });
+
+    it('attributes a newcomer upset to the same deterministic Glicko evidence', () => {
+        const newcomer = defaultRatingState();
+        const established = { rating: 2300, deviation: 50, volatility: 0.06 };
+        const updated = updateRating(
+            newcomer,
+            [{ opponentRating: established.rating, opponentDeviation: established.deviation, score: 1 }],
+        );
+        const evidence = calculateRatingMatchEvidence(
+            newcomer,
+            established,
+            1,
+            updated.deviation,
+            DEFAULT_GLICKO2_CONFIG,
+        );
+
+        expect(evidence.expectedWinProbability).toBeLessThan(0.02);
+        expect(evidence.surpriseValue).toBeGreaterThan(0.98);
+        expect(evidence.attributedRatingDelta).toBeCloseTo(updated.rating - newcomer.rating, 10);
+        expect(evidence.informationContribution).toBeGreaterThan(0);
+        expect(calculateRatingMatchEvidence(
+            newcomer,
+            established,
+            1,
+            updated.deviation,
+            DEFAULT_GLICKO2_CONFIG,
+        )).toEqual(evidence);
+    });
+
+    it('attributes same-day matches without inventing an ordering', () => {
+        const player = { rating: 1600, deviation: 180, volatility: 0.06 };
+        const opponents = [
+            { rating: 1750, deviation: 60, volatility: 0.06, score: 1 as const },
+            { rating: 1450, deviation: 80, volatility: 0.06, score: 0 as const },
+            { rating: 1650, deviation: 100, volatility: 0.06, score: 1 as const },
+        ];
+        const updated = updateRating(
+            player,
+            opponents.map((opponent) => ({
+                opponentRating: opponent.rating,
+                opponentDeviation: opponent.deviation,
+                score: opponent.score,
+            })),
+        );
+        const contributions = opponents.map((opponent) =>
+            calculateRatingMatchEvidence(
+                player,
+                opponent,
+                opponent.score,
+                updated.deviation,
+                DEFAULT_GLICKO2_CONFIG,
+            ).attributedRatingDelta
+        );
+
+        expect(contributions.reduce((sum, contribution) => sum + contribution, 0))
+            .toBeCloseTo(updated.rating - player.rating, 10);
     });
 });

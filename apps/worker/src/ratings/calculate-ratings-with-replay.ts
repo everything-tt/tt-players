@@ -33,6 +33,7 @@ export async function calculateRatingsWithReplay(
                 lastProcessedDate: replay.checkpointDate,
                 complete: false,
                 busy: true,
+                auditRunId: null,
                 replayed: false,
                 dirtyFromDate: replay.dirtyFromDate,
                 checkpointDate: replay.checkpointDate,

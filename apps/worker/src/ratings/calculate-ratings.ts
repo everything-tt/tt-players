@@ -2,6 +2,7 @@ import { sql, type Kysely, type Transaction } from 'kysely';
 import type { Database } from '@tt-players/db';
 import {
     DEFAULT_GLICKO2_CONFIG,
+    conservativeRating,
     defaultRatingState,
     inflateDeviationForInactivity,
     updateRating,
@@ -9,6 +10,13 @@ import {
     type RatingObservation,
     type RatingState,
 } from './glicko2.js';
+import {
+    beginRatingCalculationAudit,
+    finishRatingCalculationAudit,
+    loadRatingAuditPublicRanks,
+    loadUniqueOpponentCounts,
+    recordRatingPeriodAudit,
+} from './rating-calculation-audit.js';
 
 const DEFAULT_MODEL_KEY = 'global-singles-glicko2-v1';
 const LOCK_KEY = 'tt-players:calculated-ratings';
@@ -69,6 +77,7 @@ export interface CalculateRatingsOptions {
     modelKey?: string;
     maxPeriods?: number;
     rebuild?: boolean;
+    codeCommitSha?: string;
 }
 
 export interface CalculateRatingsResult {
@@ -78,6 +87,7 @@ export interface CalculateRatingsResult {
     lastProcessedDate: string | null;
     complete: boolean;
     busy: boolean;
+    auditRunId: string | null;
 }
 
 export async function calculateRatings(
@@ -98,56 +108,104 @@ export async function calculateRatings(
                 lastProcessedDate: null,
                 complete: false,
                 busy: true,
+                auditRunId: null,
             };
         }
         log(`ratings: reset ${modelKey}`);
     }
 
+    const auditModel = await loadModelForAudit(db, modelKey);
+    const auditConfig = parseConfig(auditModel.config);
+    const auditRun = await beginRatingCalculationAudit(db, {
+        modelId: auditModel.id,
+        modelKey: auditModel.key,
+        modelVersion: modelVersionFromKey(auditModel.key),
+        parameters: auditConfig,
+        codeCommitSha: options.codeCommitSha,
+    });
+
     let processedPeriods = 0;
     let processedMatches = 0;
     let lastProcessedDate: string | null = null;
 
-    while (processedPeriods < maxPeriods) {
-        const period = await processNextPeriod(db, modelKey);
+    try {
+        while (processedPeriods < maxPeriods) {
+            const period = await processNextPeriod(db, modelKey, auditRun.id);
 
-        if (period.kind === 'busy') {
-            return {
-                modelKey,
-                processedPeriods,
-                processedMatches,
-                lastProcessedDate,
-                complete: false,
-                busy: true,
-            };
+            if (period.kind === 'busy') {
+                await finishRatingCalculationAudit(
+                    db,
+                    auditRun.id,
+                    'busy',
+                    processedPeriods,
+                    processedMatches,
+                );
+                return {
+                    modelKey,
+                    processedPeriods,
+                    processedMatches,
+                    lastProcessedDate,
+                    complete: false,
+                    busy: true,
+                    auditRunId: auditRun.id,
+                };
+            }
+
+            if (period.kind === 'complete') {
+                const completedLastDate = period.lastProcessedDate ?? lastProcessedDate;
+                await finishRatingCalculationAudit(
+                    db,
+                    auditRun.id,
+                    'complete',
+                    processedPeriods,
+                    processedMatches,
+                );
+                return {
+                    modelKey,
+                    processedPeriods,
+                    processedMatches,
+                    lastProcessedDate: completedLastDate,
+                    complete: true,
+                    busy: false,
+                    auditRunId: auditRun.id,
+                };
+            }
+
+            processedPeriods += 1;
+            processedMatches += period.matches;
+            lastProcessedDate = period.date;
+            log(
+                `ratings: ${period.date} — ${period.matches} matches, ${period.players} players`,
+            );
         }
 
-        if (period.kind === 'complete') {
-            return {
-                modelKey,
-                processedPeriods,
-                processedMatches,
-                lastProcessedDate: period.lastProcessedDate ?? lastProcessedDate,
-                complete: true,
-                busy: false,
-            };
-        }
-
-        processedPeriods += 1;
-        processedMatches += period.matches;
-        lastProcessedDate = period.date;
-        log(
-            `ratings: ${period.date} — ${period.matches} matches, ${period.players} players`,
+        await finishRatingCalculationAudit(
+            db,
+            auditRun.id,
+            'partial',
+            processedPeriods,
+            processedMatches,
         );
+        return {
+            modelKey,
+            processedPeriods,
+            processedMatches,
+            lastProcessedDate,
+            complete: false,
+            busy: false,
+            auditRunId: auditRun.id,
+        };
+    } catch (error) {
+        await finishRatingCalculationAudit(
+            db,
+            auditRun.id,
+            'failed',
+            processedPeriods,
+            processedMatches,
+            error instanceof Error ? error.message.slice(0, 2000) : String(error).slice(0, 2000),
+        ).catch(() => undefined);
+        throw error;
     }
-
-    return {
-        modelKey,
-        processedPeriods,
-        processedMatches,
-        lastProcessedDate,
-        complete: false,
-        busy: false,
-    };
 }
 
 async function resetModel(db: Kysely<Database>, modelKey: string): Promise<boolean> {
@@ -196,6 +254,7 @@ async function resetModel(db: Kysely<Database>, modelKey: string): Promise<boole
 async function processNextPeriod(
     db: Kysely<Database>,
     modelKey: string,
+    auditRunId: string,
 ): Promise<
     | { kind: 'busy' }
     | { kind: 'complete'; lastProcessedDate: string | null }
@@ -224,44 +283,10 @@ async function processNextPeriod(
         );
 
         const nextDateResult = await sql<NextDateRow>`
-            SELECT MIN(candidate_date) AS next_date
-            FROM (
-                (
-                    SELECT r.played_at::date AS candidate_date
-                    FROM rubbers r
-                    WHERE r.deleted_at IS NULL
-                      AND r.played_at IS NOT NULL
-                      AND r.played_at >= (COALESCE(${lastProcessedDate}::date, '-infinity'::date) + 1)::timestamp
-                      AND r.is_doubles = false
-                      AND r.outcome_type = 'normal'
-                      AND r.home_player_1_id IS NOT NULL
-                      AND r.away_player_1_id IS NOT NULL
-                      AND r.home_games_won <> r.away_games_won
-                    ORDER BY r.played_at ASC
-                    LIMIT 1
-                )
-                UNION ALL
-                (
-                    SELECT f.date_played AS candidate_date
-                    FROM fixtures f
-                    WHERE f.deleted_at IS NULL
-                      AND f.date_played > COALESCE(${lastProcessedDate}::date, '-infinity'::date)
-                      AND EXISTS (
-                          SELECT 1
-                          FROM rubbers r
-                          WHERE r.fixture_id = f.id
-                            AND r.deleted_at IS NULL
-                            AND r.played_at IS NULL
-                            AND r.is_doubles = false
-                            AND r.outcome_type = 'normal'
-                            AND r.home_player_1_id IS NOT NULL
-                            AND r.away_player_1_id IS NOT NULL
-                            AND r.home_games_won <> r.away_games_won
-                      )
-                    ORDER BY f.date_played ASC
-                    LIMIT 1
-                )
-            ) candidates
+            SELECT MIN(effective_date) AS next_date
+            FROM rating_rubber_classification
+            WHERE eligibility_reason = 'eligible'
+              AND effective_date > COALESCE(${lastProcessedDate}::date, '-infinity'::date)
         `.execute(trx);
         const nextDate = toDateString(nextDateResult.rows[0]?.next_date ?? null);
 
@@ -278,45 +303,16 @@ async function processNextPeriod(
         }
 
         const matchResult = await sql<MatchRow>`
-            WITH period_rubbers AS (
-                SELECT r.*
-                FROM rubbers r
-                WHERE r.deleted_at IS NULL
-                  AND r.played_at >= ${nextDate}::date
-                  AND r.played_at < (${nextDate}::date + 1)
-                  AND r.is_doubles = false
-                  AND r.outcome_type = 'normal'
-                  AND r.home_player_1_id IS NOT NULL
-                  AND r.away_player_1_id IS NOT NULL
-                  AND r.home_games_won <> r.away_games_won
-
-                UNION ALL
-
-                SELECT r.*
-                FROM fixtures f
-                JOIN rubbers r ON r.fixture_id = f.id
-                WHERE f.deleted_at IS NULL
-                  AND f.date_played = ${nextDate}::date
-                  AND r.deleted_at IS NULL
-                  AND r.played_at IS NULL
-                  AND r.is_doubles = false
-                  AND r.outcome_type = 'normal'
-                  AND r.home_player_1_id IS NOT NULL
-                  AND r.away_player_1_id IS NOT NULL
-                  AND r.home_games_won <> r.away_games_won
-            )
             SELECT
-                r.id AS rubber_id,
-                COALESCE(home_player.canonical_player_id, home_player.id) AS home_player_id,
-                COALESCE(away_player.canonical_player_id, away_player.id) AS away_player_id,
-                r.home_games_won,
-                r.away_games_won
-            FROM period_rubbers r
-            JOIN external_players home_player ON home_player.id = r.home_player_1_id
-            JOIN external_players away_player ON away_player.id = r.away_player_1_id
-            WHERE COALESCE(home_player.canonical_player_id, home_player.id)
-                    <> COALESCE(away_player.canonical_player_id, away_player.id)
-            ORDER BY r.id
+                rubber_id,
+                home_canonical_player_id AS home_player_id,
+                away_canonical_player_id AS away_player_id,
+                home_games_won,
+                away_games_won
+            FROM rating_rubber_classification
+            WHERE eligibility_reason = 'eligible'
+              AND effective_date = ${nextDate}::date
+            ORDER BY rubber_id
         `.execute(trx);
 
         const observations = new Map<string, Array<{ opponentId: string; score: 0 | 1 }>>();
@@ -331,6 +327,7 @@ async function processNextPeriod(
         }
 
         const playerIds = Array.from(observations.keys());
+        const ranksBefore = await loadRatingAuditPublicRanks(trx, model.id, playerIds);
         const storedResult = playerIds.length === 0
             ? { rows: [] as StoredState[] }
             : await sql<StoredState>`
@@ -411,9 +408,57 @@ async function processNextPeriod(
             });
         }
 
+        const uniqueOpponentCounts = await loadUniqueOpponentCounts(trx, playerIds, nextDate);
+
         for (let offset = 0; offset < updates.length; offset += config.batchSize) {
             await upsertBatch(trx, model.id, updates.slice(offset, offset + config.batchSize));
         }
+
+        const ranksAfter = await loadRatingAuditPublicRanks(trx, model.id, playerIds);
+        const updateByPlayer = new Map(updates.map((update) => [update.player_id, update]));
+
+        await recordRatingPeriodAudit(trx, {
+            runId: auditRunId,
+            modelId: model.id,
+            ratingDate: nextDate,
+            config,
+            players: playerIds.map((playerId) => {
+                const before = periodStates.get(playerId) ?? defaultRatingState(config);
+                const stored = storedByPlayer.get(playerId);
+                const afterUpdate = updateByPlayer.get(playerId);
+                if (!afterUpdate) {
+                    throw new Error(`Missing rating update for audited player ${playerId}`);
+                }
+                const priorRatedMatches = Number(stored?.rated_matches ?? 0);
+                return {
+                    playerId,
+                    before,
+                    beforeRankingScore: conservativeRating(before, config),
+                    beforePublicRank: ranksBefore.get(playerId) ?? null,
+                    after: {
+                        rating: afterUpdate.rating,
+                        deviation: afterUpdate.rating_deviation,
+                        volatility: afterUpdate.volatility,
+                    },
+                    afterRankingScore: afterUpdate.conservative_rating,
+                    afterPublicRank: ranksAfter.get(playerId) ?? null,
+                    ratedMatchesInPeriod: observations.get(playerId)?.length ?? 0,
+                    totalRatedMatches: afterUpdate.rated_matches,
+                    uniqueOpponentCount: uniqueOpponentCounts.get(playerId) ?? 0,
+                    provisionalBefore:
+                        priorRatedMatches < config.provisionalMatches
+                        || before.deviation > config.provisionalDeviation,
+                    provisionalAfter: afterUpdate.provisional,
+                };
+            }),
+            matches: matchResult.rows.map((match) => ({
+                rubberId: match.rubber_id,
+                homePlayerId: match.home_player_id,
+                awayPlayerId: match.away_player_id,
+                homeGamesWon: Number(match.home_games_won),
+                awayGamesWon: Number(match.away_games_won),
+            })),
+        });
 
         await sql`
             UPDATE rating_processing_state
@@ -453,6 +498,21 @@ async function loadModel(
         WHERE key = ${modelKey}
         LIMIT 1
     `.execute(trx);
+    const model = result.rows[0];
+    if (!model) throw new Error(`Unknown rating model: ${modelKey}`);
+    return model;
+}
+
+async function loadModelForAudit(
+    db: Kysely<Database>,
+    modelKey: string,
+): Promise<StoredModel> {
+    const result = await sql<StoredModel>`
+        SELECT id, key, config
+        FROM rating_models
+        WHERE key = ${modelKey}
+        LIMIT 1
+    `.execute(db);
     const model = result.rows[0];
     if (!model) throw new Error(`Unknown rating model: ${modelKey}`);
     return model;
@@ -544,6 +604,10 @@ function parseConfig(value: unknown): CalculationConfig {
             raw['provisionalDeviation'],
             DEFAULT_GLICKO2_CONFIG.provisionalDeviation,
         ),
+        inactivityPeriodDays: Math.max(
+            1,
+            asNumber(raw['inactivityPeriodDays'], DEFAULT_GLICKO2_CONFIG.inactivityPeriodDays),
+        ),
         batchSize: Math.max(25, Math.floor(asNumber(raw['batchSize'], 250))),
     };
 }
@@ -557,6 +621,10 @@ function addObservation(
     const existing = observations.get(playerId);
     if (existing) existing.push({ opponentId, score });
     else observations.set(playerId, [{ opponentId, score }]);
+}
+
+function modelVersionFromKey(modelKey: string): string {
+    return modelKey.match(/-(v\d+)$/)?.[1] ?? 'unversioned';
 }
 
 function toDateString(value: string | Date | null): string | null {
