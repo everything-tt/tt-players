@@ -1,28 +1,42 @@
-name: Design System Package
+name: Shared Frontend Packages
 
 on:
   pull_request:
     paths:
       - 'packages/design-system/**'
+      - 'packages/pwa/**'
+      - '.github/workflows/design-system-package.yml'
   push:
     branches: [main]
     paths:
       - 'packages/design-system/**'
+      - 'packages/pwa/**'
+      - '.github/workflows/design-system-package.yml'
 
 permissions:
   contents: read
   packages: write
 
 concurrency:
-  group: design-system-package-${{ github.ref }}
+  group: shared-frontend-packages-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   package:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - workspace: '@tt-players/design-system'
+            directory: 'design-system'
+          - workspace: '@tt-players/pwa'
+            directory: 'pwa'
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -40,24 +54,34 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Test PWA package
+        if: matrix.directory == 'pwa'
+        run: pnpm --filter @tt-players/pwa test
+
       - name: Build publishable package
-        run: pnpm --filter @tt-players/design-system build
+        run: pnpm --filter "${{ matrix.workspace }}" build
 
       - name: Inspect package contents
-        run: npm pack ./packages/design-system/dist --dry-run
+        run: npm pack "./packages/${{ matrix.directory }}/dist" --dry-run
 
       - name: Publish to GitHub Packages
         if: github.event_name == 'push'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE_DIRECTORY: ${{ matrix.directory }}
         shell: bash
         run: |
-          PACKAGE_NAME=$(node -p "require('./packages/design-system/dist/package.json').name")
-          PACKAGE_VERSION=$(node -p "require('./packages/design-system/dist/package.json').version")
+          PACKAGE_ROOT="./packages/${PACKAGE_DIRECTORY}/dist"
+          PACKAGE_NAME=$(node -p "require('${PACKAGE_ROOT}/package.json').name")
+          PACKAGE_VERSION=$(node -p "require('${PACKAGE_ROOT}/package.json').version")
 
           if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
-            echo "::error::${PACKAGE_NAME}@${PACKAGE_VERSION} already exists. Bump packages/design-system/package.json before publishing another package change."
+            if git diff --quiet "${{ github.event.before }}" "${{ github.sha }}" -- "packages/${PACKAGE_DIRECTORY}"; then
+              echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is already published and this package did not change; skipping."
+              exit 0
+            fi
+            echo "::error::${PACKAGE_NAME}@${PACKAGE_VERSION} already exists. Bump packages/${PACKAGE_DIRECTORY}/package.json before publishing another package change."
             exit 1
           fi
 
-          npm publish ./packages/design-system/dist --registry=https://npm.pkg.github.com
+          npm publish "${PACKAGE_ROOT}" --registry=https://npm.pkg.github.com

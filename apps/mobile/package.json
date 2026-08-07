@@ -13,10 +13,10 @@
     "@supabase/supabase-js": "^2.110.8",
     "@tanstack/react-query": "^5.67.2",
     "@tt-players/design-system": "workspace:*",
+    "@tt-players/pwa": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^7.2.0",
-    "workbox-window": "^7.4.0"
+    "react-router-dom": "^7.2.0"
   },
   "devDependencies": {
     "@playwright/test": "1.54.2",
@@ -26,7 +26,6 @@
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.7.3",
     "vite": "^6.2.0",
-    "vite-plugin-pwa": "^1.2.0",
     "vitest": "^3.2.4",
     "@tailwindcss/vite": "^4.1.11",
     "tailwindcss": "^4.1.11"
