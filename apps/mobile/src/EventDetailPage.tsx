@@ -342,34 +342,6 @@ export function EventDetailPage() {
               ) : undefined}
             />
 
-            {event.categories?.length ? (
-              <PageSection surface="flat" density="compact" title="Competitions">
-                <DesignList density="compact" divider="hairline" paginate={false}>
-                  {event.categories.map((category) => (
-                    <ListItem
-                      key={category.name}
-                      leading={<IconCircle iconClassName="fa fa-trophy" tone="accent" />}
-                      title={category.name}
-                      subtitle={category.entry_fee ? `Entry fee: ${category.entry_fee}` : 'Entry fee not stated'}
-                      hideChevron
-                    />
-                  ))}
-                </DesignList>
-              </PageSection>
-            ) : null}
-            {event.entry_fee && !event.categories?.some((category) => category.entry_fee) ? (
-              <PageSection surface="flat" density="compact" title="Entry fee">
-                <DesignList density="compact" divider="hairline" paginate={false}>
-                  <ListItem
-                    leading={<IconCircle iconClassName="fa fa-tag" />}
-                    title={event.entry_fee}
-                    subtitle="Entry fee"
-                    hideChevron
-                  />
-                </DesignList>
-              </PageSection>
-            ) : null}
-
             <PageSection
               surface="flat"
               density="compact"
@@ -457,6 +429,34 @@ export function EventDetailPage() {
                 ) : null}
               </DesignList>
             </PageSection>
+
+            {event.categories?.length ? (
+              <PageSection surface="flat" density="compact" title="Competitions">
+                <DesignList density="compact" divider="hairline" paginate={false}>
+                  {event.categories.map((category) => (
+                    <ListItem
+                      key={category.name}
+                      leading={<IconCircle iconClassName="fa fa-trophy" tone="accent" />}
+                      title={category.name}
+                      subtitle={category.entry_fee ? `Entry fee: ${category.entry_fee}` : 'Entry fee not stated'}
+                      hideChevron
+                    />
+                  ))}
+                </DesignList>
+              </PageSection>
+            ) : null}
+            {event.entry_fee && !event.categories?.some((category) => category.entry_fee) ? (
+              <PageSection surface="flat" density="compact" title="Entry fee">
+                <DesignList density="compact" divider="hairline" paginate={false}>
+                  <ListItem
+                    leading={<IconCircle iconClassName="fa fa-tag" />}
+                    title={event.entry_fee}
+                    subtitle="Entry fee"
+                    hideChevron
+                  />
+                </DesignList>
+              </PageSection>
+            ) : null}
 
             {event.description ? (
               <PageSection surface="flat" density="compact" title="About this event">
