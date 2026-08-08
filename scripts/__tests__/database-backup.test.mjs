@@ -36,11 +36,7 @@ if [[ "\${1:-}" == "--version" ]]; then
   exit 0
 fi
 if [[ ${dumpStatus} -ne 0 ]]; then exit ${dumpStatus}; fi
-for arg in "$@"; do
-  case "$arg" in
-    --file=*) printf 'fake-custom-archive' > "\${arg#--file=}" ;;
-  esac
-done
+printf 'fake-custom-archive'
 `);
 
   const pgRestore = await createExecutable(directory, 'pg_restore', `
