@@ -8,7 +8,6 @@ import {
   AppButton,
   FilterBar,
   PageSection,
-  Pill,
   SegmentedToggle,
 } from '../ui/appkit';
 import { SkeletonList } from './Skeleton';
@@ -34,7 +33,6 @@ export function RatingPulse({ onOpenPlayer }: RatingPulseProps) {
       surface="flat"
       density="compact"
       title="Rating pulse"
-      meta={<Pill size="xs" tone="neutral">Latest</Pill>}
       action={(
         <AppButton
           size="s"
