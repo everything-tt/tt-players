@@ -5,6 +5,8 @@ import { useTabNavigation } from './navigation/tab-navigation';
 import { type LeagueWithDivisions, TAB_METADATA, getQueryError } from './player-shared';
 import {
   useLeagueCollectionDashboardQuery,
+  useLeadersQuery,
+  usePlayerCountQuery,
   usePlayerProfileOverviewQuery,
 } from './queries';
 import {
@@ -15,6 +17,15 @@ import {
   useTopSiteRatingsQuery,
 } from './rating-queries';
 import {
+  HOME_VISIT_SNAPSHOT_STORAGE_KEY,
+  buildHomeScopeKey,
+  diffHomeVisit,
+  parseHomeVisitSnapshot,
+  rankHomeStories,
+  type HomeVisitChange,
+  type HomeVisitState,
+} from './home-activity';
+import {
   AppButton,
   DesignAvatar,
   EmptyState,
@@ -23,6 +34,7 @@ import {
   IconCircle,
   List,
   ListItem,
+  MetricGrid,
   Pill,
   RankBadge,
   SectionHeader,
@@ -43,8 +55,24 @@ interface HomeTabContentProps {
 
 type DashboardTabId = Exclude<AppTabId, 'home'>;
 type HomeRatingsScope = 'site' | 'selected';
+type HomeStoryTone = 'success' | 'accent' | 'neutral' | 'warning';
+type HomeStoryKind = 'personal-result' | 'result' | 'riser' | 'leader';
+
+type HomeStory = {
+  id: string;
+  kind: HomeStoryKind;
+  priority: number;
+  title: string;
+  subtitle: string;
+  trailing: string;
+  iconClassName: string;
+  tone: HomeStoryTone;
+  targetTab: DashboardTabId;
+  targetPath: string;
+};
 
 const HOME_RATINGS_LIMIT = 4;
+const HOME_STORY_LIMIT = 4;
 
 function formatDate(value: string | null): string {
   if (!value) return 'Date unavailable';
@@ -52,8 +80,19 @@ function formatDate(value: string | null): string {
     .format(new Date(`${value}T12:00:00`));
 }
 
-function formatFixtureTeams(home: string | null, away: string | null): string {
-  return `${home ?? 'Home'} vs ${away ?? 'Away'}`;
+function formatVisitDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'your previous visit';
+  return new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+    .format(date);
+}
+
+function formatCompactCount(value: number | null | undefined): string {
+  if (value == null) return '—';
+  return new Intl.NumberFormat('en-GB', {
+    notation: value >= 1000 ? 'compact' : 'standard',
+    maximumFractionDigits: 1,
+  }).format(value);
 }
 
 function initials(name: string): string {
@@ -79,6 +118,19 @@ function formatRatingMove(value: number | null): string {
   return `Latest rating move ${rounded > 0 ? '+' : ''}${rounded}`;
 }
 
+function iconForVisitChange(change: HomeVisitChange): { iconClassName: string; tone: HomeStoryTone; label: string } {
+  if (change.kind === 'personal-rating') {
+    return { iconClassName: 'fa fa-arrow-trend-up', tone: 'success', label: 'You' };
+  }
+  if (change.kind === 'new-results') {
+    return { iconClassName: 'fa fa-bolt', tone: 'accent', label: 'New' };
+  }
+  if (change.kind === 'leader-change') {
+    return { iconClassName: 'fa fa-crown', tone: 'warning', label: 'Changed' };
+  }
+  return { iconClassName: 'fa fa-chart-line', tone: 'success', label: 'Now' };
+}
+
 export function HomeTabContent({
   allLeagues,
   hasCompletedLeagueOnboarding,
@@ -89,6 +141,10 @@ export function HomeTabContent({
   const { navigateInTab } = useTabNavigation();
   const { player: myPlayer, setMyPlayer } = useMyPlayer();
   const [claimSheetOpen, setClaimSheetOpen] = useState(false);
+  const [previousVisitSnapshot] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    return parseHomeVisitSnapshot(window.localStorage.getItem(HOME_VISIT_SNAPSHOT_STORAGE_KEY));
+  });
   const hasLeagueScope = hasCompletedLeagueOnboarding && selectedLeagueIds.length > 0;
   const [ratingsScope, setRatingsScope] = useState<HomeRatingsScope>(hasLeagueScope ? 'selected' : 'site');
   const isSelectedRatingsScope = hasLeagueScope && ratingsScope === 'selected';
@@ -113,9 +169,17 @@ export function HomeTabContent({
   );
   const risersQuery = useLeagueRisersQuery(selectedLeagueIds, 1, 42, hasLeagueScope);
   const topSiteRatingsQuery = useTopSiteRatingsQuery(HOME_RATINGS_LIMIT, !isSelectedRatingsScope);
+  const playerCountQuery = usePlayerCountQuery();
+  const globalImproverQuery = useLeadersQuery({
+    mode: 'improving',
+    leagueIds: [],
+    limit: 1,
+    minPlayed: 10,
+    allLeaguesCount: allLeagues.length,
+    enabled: !hasLeagueScope,
+  });
 
   const topRiser = risersQuery.data?.data[0] ?? null;
-  const recentResults = dashboard?.recent_results.slice(0, 2) ?? [];
   const topTeam = dashboard?.top_teams[0] ?? null;
   const dashboardError = getQueryError(dashboardQuery.error);
   const highlightsError = getQueryError(risersQuery.error) ?? dashboardError;
@@ -139,6 +203,139 @@ export function HomeTabContent({
     (affiliation) => selectedLeagueIds.includes(affiliation.league_id),
   ) ?? profileQuery.data?.current_season_affiliations?.[0] ?? null;
   const heroPlayerName = profileQuery.data?.player_name ?? myPlayer?.name ?? '';
+  const personalTeamNames = new Set(
+    (profileQuery.data?.current_season_affiliations ?? [])
+      .filter((affiliation) => selectedLeagueIds.includes(affiliation.league_id))
+      .map((affiliation) => affiliation.team_name),
+  );
+
+  const storyCandidates: HomeStory[] = [];
+  if (topRiser) {
+    storyCandidates.push({
+      id: `riser:${topRiser.player_id}`,
+      kind: 'riser',
+      priority: 95,
+      title: `${topRiser.player_name} surged +${Math.round(topRiser.change)}`,
+      subtitle: `Biggest 6-week rating gain in your leagues · now #${topRiser.overall_rank} globally`,
+      trailing: 'On the rise',
+      iconClassName: 'fa fa-chart-line',
+      tone: 'success',
+      targetTab: 'players',
+      targetPath: `player/${topRiser.player_id}`,
+    });
+  }
+
+  for (const [index, result] of (dashboard?.recent_results ?? []).slice(0, 4).entries()) {
+    const homeName = result.home_team_name ?? 'Home';
+    const awayName = result.away_team_name ?? 'Away';
+    const personalTeam = personalTeamNames.has(homeName)
+      ? homeName
+      : personalTeamNames.has(awayName)
+        ? awayName
+        : null;
+    const isPersonal = Boolean(personalTeam);
+    const personalIsHome = personalTeam === homeName;
+    const ownScore = personalIsHome ? result.home_score : result.away_score;
+    const opponentScore = personalIsHome ? result.away_score : result.home_score;
+    const opponent = personalIsHome ? awayName : homeName;
+    const outcome = ownScore > opponentScore ? 'beat' : ownScore < opponentScore ? 'lost to' : 'drew with';
+
+    storyCandidates.push({
+      id: `result:${result.fixture_id}`,
+      kind: isPersonal ? 'personal-result' : 'result',
+      priority: (isPersonal ? 120 : 80) - index,
+      title: isPersonal
+        ? `${personalTeam} ${outcome} ${opponent} ${ownScore}–${opponentScore}`
+        : `${homeName} ${result.home_score}–${result.away_score} ${awayName}`,
+      subtitle: `${isPersonal ? 'Your team' : index === 0 ? 'Latest result' : 'Recent result'} · ${result.division_name} · ${formatDate(result.date_played)}`,
+      trailing: isPersonal ? 'Your team' : 'Result',
+      iconClassName: isPersonal ? 'fa fa-bolt' : 'fa fa-table-tennis',
+      tone: isPersonal ? 'accent' : 'neutral',
+      targetTab: 'leagues',
+      targetPath: `fixture/${result.fixture_id}`,
+    });
+  }
+
+  if (topTeam) {
+    const isPersonalLeader = personalTeamNames.has(topTeam.team_name);
+    storyCandidates.push({
+      id: `leader:${topTeam.team_id}`,
+      kind: 'leader',
+      priority: isPersonalLeader ? 90 : 70,
+      title: isPersonalLeader ? `${topTeam.team_name} set the pace` : `${topTeam.team_name} lead ${topTeam.division_name}`,
+      subtitle: `${isPersonalLeader ? 'Your team leads' : 'League leaders'} · ${topTeam.won}W ${topTeam.drawn}D ${topTeam.lost}L · ${Math.round(topTeam.win_rate)}% wins`,
+      trailing: 'Leaders',
+      iconClassName: 'fa fa-crown',
+      tone: 'warning',
+      targetTab: 'leagues',
+      targetPath: `team/${topTeam.team_id}`,
+    });
+  }
+
+  const leagueStories = rankHomeStories(storyCandidates, HOME_STORY_LIMIT);
+  const globalLeader = topSiteRatingsQuery.data?.data[0] ?? null;
+  const globalRunnerUp = topSiteRatingsQuery.data?.data[1] ?? null;
+  const globalLeadGap = globalLeader && globalRunnerUp
+    ? Math.max(0, Math.round(globalLeader.rating - globalRunnerUp.rating))
+    : null;
+  const globalImprover = globalImproverQuery.data?.data[0] ?? null;
+
+  const homeScopeKey = buildHomeScopeKey(myPlayer?.id ?? null, hasLeagueScope ? selectedLeagueIds : []);
+  const recentResultIds = (dashboard?.recent_results ?? []).slice(0, 5).map((result) => result.fixture_id);
+  const currentVisitState: HomeVisitState = {
+    scopeKey: homeScopeKey,
+    rating: playerRating?.rating ?? null,
+    rank: playerRating?.rank ?? null,
+    recentResultIds,
+    topTeamId: topTeam?.team_id ?? null,
+    topTeamName: topTeam?.team_name ?? null,
+    topRiserPlayerId: topRiser?.player_id ?? null,
+    topRiserName: topRiser?.player_name ?? null,
+  };
+  const activityReady = hasLeagueScope
+    && !dashboardQuery.isLoading
+    && !risersQuery.isLoading
+    && (!myPlayer || !ratingQuery.isLoading);
+  const sinceLastVisitChanges = activityReady
+    ? diffHomeVisit(previousVisitSnapshot, currentVisitState).slice(0, 4)
+    : [];
+  const recentResultIdsKey = recentResultIds.join('|');
+
+  useEffect(() => {
+    if (!activityReady || typeof window === 'undefined') return;
+    const snapshot: HomeVisitState = {
+      scopeKey: homeScopeKey,
+      rating: playerRating?.rating ?? null,
+      rank: playerRating?.rank ?? null,
+      recentResultIds: recentResultIdsKey ? recentResultIdsKey.split('|') : [],
+      topTeamId: topTeam?.team_id ?? null,
+      topTeamName: topTeam?.team_name ?? null,
+      topRiserPlayerId: topRiser?.player_id ?? null,
+      topRiserName: topRiser?.player_name ?? null,
+    };
+    window.localStorage.setItem(HOME_VISIT_SNAPSHOT_STORAGE_KEY, JSON.stringify({
+      ...snapshot,
+      seenAt: new Date().toISOString(),
+    }));
+  }, [
+    activityReady,
+    homeScopeKey,
+    playerRating?.rating,
+    playerRating?.rank,
+    recentResultIdsKey,
+    topTeam?.team_id,
+    topTeam?.team_name,
+    topRiser?.player_id,
+    topRiser?.player_name,
+  ]);
+
+  const divisionCount = allLeagues.reduce((total, league) => total + league.divisions.length, 0);
+  const pulseMetrics = [
+    { label: 'Players', value: formatCompactCount(playerCountQuery.data?.players) },
+    { label: 'Matches', value: formatCompactCount(playerCountQuery.data?.matches) },
+    { label: 'Leagues', value: formatCompactCount(allLeagues.length) },
+    { label: 'Divisions', value: formatCompactCount(divisionCount) },
+  ];
 
   return (
     <>
@@ -243,11 +440,41 @@ export function HomeTabContent({
         </Surface>
       </section>
 
+      {hasLeagueScope && sinceLastVisitChanges.length > 0 ? (
+        <section className="tt-home-section" aria-labelledby="tt-home-since-last-visit-title">
+          <SectionHeader
+            title={<span id="tt-home-since-last-visit-title">Since your last visit</span>}
+            note={previousVisitSnapshot ? `Last seen ${formatVisitDate(previousVisitSnapshot.seenAt)}` : undefined}
+          />
+          <List divider="hairline">
+            {sinceLastVisitChanges.map((change) => {
+              const meta = iconForVisitChange(change);
+              return (
+                <ListItem
+                  key={change.id}
+                  leading={<IconCircle iconClassName={meta.iconClassName} tone={meta.tone} />}
+                  title={change.title}
+                  subtitle={change.subtitle}
+                  trailing={<Pill size="xs">{meta.label}</Pill>}
+                  onClick={
+                    change.kind === 'personal-rating'
+                      ? () => navigateInTab('home', 'my-tt')
+                      : change.kind === 'riser-change' && topRiser
+                        ? () => navigateInTab('players', `player/${topRiser.player_id}`)
+                        : () => onOpenTab('leagues')
+                  }
+                />
+              );
+            })}
+          </List>
+        </section>
+      ) : null}
+
       {hasLeagueScope ? (
         <section className="tt-home-section" aria-labelledby="tt-home-highlights-title">
           <SectionHeader
             title={<span id="tt-home-highlights-title">Highlights</span>}
-            note="What is happening in your leagues"
+            note="Picked for relevance, not just recency"
             action={(
               <AppButton size="s" tone="ghost" onClick={() => onOpenTab('leagues')}>
                 View leagues
@@ -257,39 +484,23 @@ export function HomeTabContent({
           />
 
           {dashboardQuery.isLoading || risersQuery.isLoading ? (
-            <SkeletonList rows={4} />
-          ) : topRiser || recentResults.length > 0 || topTeam ? (
+            <SkeletonList rows={HOME_STORY_LIMIT} />
+          ) : leagueStories.length > 0 ? (
             <List divider="hairline">
-              {topRiser ? (
+              {leagueStories.map((story) => (
                 <ListItem
-                  leading={<IconCircle iconClassName="fa fa-chart-line" tone="success" />}
-                  title={`${topRiser.player_name} is moving up`}
-                  subtitle={`Biggest 6-week riser in your leagues · #${topRiser.overall_rank} overall`}
-                  trailing={<Pill tone="success">+{Math.round(topRiser.change)}</Pill>}
-                  onClick={() => navigateInTab('players', `player/${topRiser.player_id}`)}
-                />
-              ) : null}
-
-              {recentResults.map((result, index) => (
-                <ListItem
-                  key={result.fixture_id}
-                  leading={<IconCircle iconClassName="fa fa-table-tennis" tone={index === 0 ? 'accent' : 'neutral'} />}
-                  title={formatFixtureTeams(result.home_team_name, result.away_team_name)}
-                  subtitle={`${index === 0 ? 'Latest result' : 'Recent result'} · ${result.division_name} · ${formatDate(result.date_played)}`}
-                  trailing={<Pill>{result.home_score}–{result.away_score}</Pill>}
-                  onClick={() => navigateInTab('leagues', `fixture/${result.fixture_id}`)}
+                  key={story.id}
+                  leading={<IconCircle iconClassName={story.iconClassName} tone={story.tone} />}
+                  title={story.title}
+                  subtitle={story.subtitle}
+                  trailing={story.kind === 'riser'
+                    ? <Pill tone="success">{story.trailing}</Pill>
+                    : story.kind === 'personal-result'
+                      ? <Pill tone="accent">{story.trailing}</Pill>
+                      : <Pill>{story.trailing}</Pill>}
+                  onClick={() => navigateInTab(story.targetTab, story.targetPath)}
                 />
               ))}
-
-              {topTeam ? (
-                <ListItem
-                  leading={<IconCircle iconClassName="fa fa-shield-alt" tone="neutral" />}
-                  title={topTeam.team_name}
-                  subtitle={`Leading team · ${topTeam.division_name} · ${topTeam.won}W ${topTeam.drawn}D ${topTeam.lost}L`}
-                  trailing={<Pill>{Math.round(topTeam.win_rate)}%</Pill>}
-                  onClick={() => navigateInTab('leagues', `team/${topTeam.team_id}`)}
-                />
-              ) : null}
             </List>
           ) : highlightsError ? (
             <ErrorState message={highlightsError} />
@@ -297,11 +508,52 @@ export function HomeTabContent({
             <EmptyState
               iconClassName="fa fa-bolt"
               title="No highlights yet"
-              message="Rating movement, recent results and league leaders will appear here."
+              message="Noteworthy results, rating movement and league leaders will appear here."
             />
           )}
         </section>
-      ) : null}
+      ) : (
+        <section className="tt-home-section" aria-labelledby="tt-home-whats-happening-title">
+          <SectionHeader
+            title={<span id="tt-home-whats-happening-title">What&apos;s happening</span>}
+            note="A quick pulse before you personalise"
+          />
+          {topSiteRatingsQuery.isLoading || globalImproverQuery.isLoading ? (
+            <SkeletonList rows={2} />
+          ) : globalLeader || globalImprover ? (
+            <List divider="hairline">
+              {globalLeader ? (
+                <ListItem
+                  leading={<IconCircle iconClassName="fa fa-crown" tone="warning" />}
+                  title={globalLeadGap != null && globalLeadGap > 0
+                    ? `${globalLeader.player_name} leads by ${globalLeadGap} rating points`
+                    : `${globalLeader.player_name} sets the benchmark`}
+                  subtitle={`#1 globally · ${Math.round(globalLeader.rating).toLocaleString('en-GB')} rating · ${Math.round(globalLeader.win_rate * 100)}% wins`}
+                  trailing={<Pill tone="accent">#1</Pill>}
+                  onClick={() => navigateInTab('players', `player/${globalLeader.player_id}`)}
+                />
+              ) : null}
+              {globalImprover ? (
+                <ListItem
+                  leading={<IconCircle iconClassName="fa fa-fire" tone="success" />}
+                  title={`${globalImprover.player_name} is finding another gear`}
+                  subtitle={`Improving across the latest 10 singles · ${globalImprover.wins}W ${globalImprover.losses}L in the latest five`}
+                  trailing={globalImprover.score != null
+                    ? <Pill tone="success">+{Math.round(globalImprover.score)}</Pill>
+                    : undefined}
+                  onClick={() => navigateInTab('players', `player/${globalImprover.player_id}`)}
+                />
+              ) : null}
+            </List>
+          ) : (
+            <EmptyState
+              iconClassName="fa fa-bolt"
+              title="Activity is building"
+              message="Interesting player stories will appear here as more results arrive."
+            />
+          )}
+        </section>
+      )}
 
       <section className="tt-home-section" aria-labelledby="tt-home-top-players-title">
         <SectionHeader
@@ -363,6 +615,28 @@ export function HomeTabContent({
           />
         )}
       </section>
+
+      {!hasLeagueScope ? (
+        <section className="tt-home-section" aria-labelledby="tt-home-pulse-title">
+          <SectionHeader
+            title={<span id="tt-home-pulse-title">TT Players pulse</span>}
+            note="The network at a glance"
+          />
+          {playerCountQuery.isLoading ? (
+            <SkeletonList rows={1} />
+          ) : (
+            <MetricGrid
+              metrics={pulseMetrics}
+              columns={4}
+              density="compact"
+              separators
+              valueSize="prominent"
+              labelStyle="eyebrow"
+              ariaLabel="TT Players pulse"
+            />
+          )}
+        </section>
+      ) : null}
 
       {!hasLeagueScope ? (
         <section className="tt-home-section" aria-labelledby="tt-home-explore-title">
