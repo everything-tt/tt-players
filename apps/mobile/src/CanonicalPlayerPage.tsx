@@ -1,3 +1,4 @@
+import { PageSection } from '@tt-players/design-system';
 import { useParams } from 'react-router-dom';
 import { useSsrPlayerProfileOverviewQuery } from './player-profile-query';
 import { calcWinRate, getInitials } from './player-shared';
@@ -80,7 +81,7 @@ export function PlayerSsrProfile() {
         </div>
       </section>
 
-      <section className="tt-player-section" aria-labelledby="tt-player-current-season-title">
+      <PageSection className="tt-player-section" ariaLabelledby="tt-player-current-season-title">
         <div className="tt-player-section-header">
           <h2 id="tt-player-current-season-title" className="tt-player-section-title">Current season</h2>
           <span className="tt-player-section-note">
@@ -99,7 +100,7 @@ export function PlayerSsrProfile() {
             ))}
           </ul>
         )}
-      </section>
+      </PageSection>
     </main>
   );
 }
