@@ -152,19 +152,19 @@ export function pipelineBootstrapSql({ project, pipelineDataset }) {
   const watermarks = bqIdentifier(project, pipelineDataset, 'sync_watermarks');
   const runs = bqIdentifier(project, pipelineDataset, 'sync_runs');
   return `CREATE TABLE IF NOT EXISTS ${watermarks} (
-  table_name STRING NOT NULL,
+  table_name STRING,
   watermark TIMESTAMP,
   tie_breaker STRING,
-  updated_at TIMESTAMP NOT NULL
+  updated_at TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS ${runs} (
-  run_id STRING NOT NULL,
-  table_name STRING NOT NULL,
-  mode STRING NOT NULL,
-  source_rows INT64 NOT NULL,
-  started_at TIMESTAMP NOT NULL,
-  completed_at TIMESTAMP NOT NULL,
-  status STRING NOT NULL
+  run_id STRING,
+  table_name STRING,
+  mode STRING,
+  source_rows INT64,
+  started_at TIMESTAMP,
+  completed_at TIMESTAMP,
+  status STRING
 );`;
 }
 
