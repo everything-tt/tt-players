@@ -312,6 +312,34 @@ async function mockApi(page: Page) {
       return;
     }
 
+    if (path.endsWith(`/api/ratings/${playerId}/history`)) {
+      await route.fulfill({ json: {
+        player_id: playerId,
+        player_name: 'Wudong Liu',
+        model: 'glicko2',
+        range: '3m',
+        data: [{
+          week_start: '2026-08-03',
+          snapshot_date: '2026-08-08',
+          rating: 1912,
+          rating_deviation: 45,
+          conservative_rating: 1822,
+          rating_low: 1812,
+          rating_high: 2012,
+          rating_change: 34,
+          confidence: 'high',
+          rated_matches: 76,
+          rated_wins: 54,
+          rated_losses: 22,
+          week_matches: 4,
+          week_wins: 3,
+          week_losses: 1,
+          provisional: false,
+        }],
+      } });
+      return;
+    }
+
     if (path.endsWith(`/api/ratings/${playerId}`)) {
       await route.fulfill({ json: { data: rating(playerId, 'Wudong Liu', 126, 1912, 72) } });
       return;
@@ -326,24 +354,26 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('reviews a richer Home, in-place claiming, and player ranking scopes', async ({ page }, testInfo) => {
+test('reviews the adaptive hero, in-place claiming, and player ranking scopes', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
   await installState(page);
   await mockApi(page);
 
   await page.goto(`${previewUrl}/tabs/home`, { waitUntil: 'domcontentloaded' });
 
-  await expect(page.getByRole('heading', { name: 'Make Home yours' })).toBeVisible();
-  await expect(page.getByText('0 of 2 ready', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Make TT Players yours' })).toBeVisible();
+  await expect(page.getByText('Personal dashboard', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('0 of 2 setup steps complete')).toBeVisible();
   await expect(page.getByText('Claim my player', { exact: true })).toBeVisible();
-  await expect(page.getByText('Choose leagues to follow', { exact: true })).toBeVisible();
+  await expect(page.getByText('Choose leagues', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Next up' })).toBeVisible();
   await expect(page.getByText('Essex Junior 2★ Open', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Top players' })).toBeVisible();
   await expect(page.getByText('Jane Smith', { exact: true })).toBeVisible();
   await expect(page.getByText('Alex Morgan', { exact: true })).toBeVisible();
 
-  await capture(page, testInfo, 'home-new-user', {
+  await capture(page, testInfo, 'home-new-user-hero', {
+    adaptiveHeroState: 'setup',
     setupSteps: 2,
     upcomingTournament: true,
     globalRankingPreview: true,
@@ -366,19 +396,35 @@ test('reviews a richer Home, in-place claiming, and player ranking scopes', asyn
   await claimSheet.getByText('Wudong Liu', { exact: true }).click();
   await expect(claimSheet).toBeHidden();
   await expect(page).toHaveURL(/\/tabs\/home/);
-  await expect(page.getByRole('heading', { name: 'Your TT' })).toBeVisible();
-  await expect(page.getByText('Wudong Liu', { exact: true })).toBeVisible();
-  await expect(page.getByText(/18W · 7L · 25 played · Rating 1,912/)).toBeVisible();
-  await expect(page.getByText('1 of 2 ready', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Wudong Liu' })).toBeVisible();
+  await expect(page.getByText('1,912', { exact: true })).toBeVisible();
+  await expect(page.getByText('#126', { exact: true })).toBeVisible();
+  await expect(page.getByText('18–7', { exact: true })).toBeVisible();
+  await expect(page.getByText('Latest rating move +34', { exact: true })).toBeVisible();
+  await expect(page.getByText('Choose leagues to personalise fixtures, results and rankings.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your TT' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Make Home yours' })).toHaveCount(0);
   await expect(page.getByText('Claim my player', { exact: true })).toHaveCount(0);
-  await capture(page, testInfo, 'home-after-player-claim', {
+  await capture(page, testInfo, 'home-claimed-hero-needs-leagues', {
+    adaptiveHeroState: 'claimed-needs-leagues',
     drawerClosed: true,
-    homePersonalisedImmediately: true,
+    ratingMovement: 34,
     leagueSetupStillVisible: true,
   });
 
   await page.evaluate(() => sessionStorage.setItem('tt_review_home_configured', 'true'));
   await page.reload({ waitUntil: 'domcontentloaded' });
+
+  await expect(page.getByRole('heading', { name: 'Wudong Liu' })).toBeVisible();
+  await expect(page.getByText('Rowhedge K · Colchester & District League', { exact: true })).toBeVisible();
+  await expect(page.getByText('Personalised to your leagues', { exact: true })).toBeVisible();
+  await expect(page.getByText('Latest rating move +34', { exact: true })).toBeVisible();
+  await capture(page, testInfo, 'home-configured-personal-hero', {
+    adaptiveHeroState: 'configured',
+    rating: 1912,
+    globalRank: 126,
+    ratingMovement: 34,
+  });
 
   await expect(page.getByRole('heading', { name: 'Highlights' })).toBeVisible();
   await expect(page.getByText('Harrison Hill is moving up', { exact: true })).toBeVisible();
@@ -404,5 +450,6 @@ test('reviews a richer Home, in-place claiming, and player ranking scopes', asyn
     rows: 4,
   });
 
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
   writeReportIndex(previewUrl);
 });
