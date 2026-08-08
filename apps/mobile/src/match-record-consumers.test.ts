@@ -6,13 +6,18 @@ function source(path: string): string {
 }
 
 describe('app-wide MatchRecordRow consumers', () => {
-  it.each([
-    './HomeTabContent.tsx',
-    './LeaguesTabContent.tsx',
-  ])('%s uses the shared component instead of the legacy score badge', (path) => {
-    const content = source(path);
+  it('keeps the full league results feed on the shared MatchRecordRow component', () => {
+    const content = source('./LeaguesTabContent.tsx');
     expect(content).toContain('MatchRecordRow');
     expect(content).not.toContain('tt-score-badge');
+  });
+
+  it('keeps Home result information compact instead of recreating the league results feed', () => {
+    const content = source('./HomeTabContent.tsx');
+    expect(content).not.toContain('MatchRecordRow');
+    expect(content).not.toContain('tt-score-badge');
+    expect(content).toContain('Latest result');
+    expect(content).toContain('View leagues');
   });
 
   it('uses MatchRecordRow for completed team fixtures while retaining schedule rows', () => {
