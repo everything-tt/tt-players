@@ -34,7 +34,7 @@ export type RankedHomeStory = {
   priority: number;
 };
 
-export type PersonalHomeStoryKind = 'personal-form' | 'recent-rating-high';
+export type PersonalHomeStoryKind = 'personal-form' | 'rating-milestone' | 'recent-rating-high';
 
 export type PersonalHomeStory = RankedHomeStory & {
   kind: PersonalHomeStoryKind;
@@ -217,8 +217,19 @@ export function buildPersonalHomeStories({
       const roundedCurrent = Math.round(currentRating);
       const gainFromLow = Math.round(currentRating - recentLow);
       const isAtRecentHigh = Math.abs(currentRating - recentHigh) < 0.5;
+      const crossedRoundHundred = Math.floor(currentRating / 100) * 100;
+      const crossedMilestone = crossedRoundHundred > recentLow && crossedRoundHundred <= currentRating;
 
-      if (isAtRecentHigh && gainFromLow >= 25) {
+      if (isAtRecentHigh && gainFromLow >= 25 && crossedMilestone) {
+        stories.push({
+          id: `rating-milestone:${crossedRoundHundred}`,
+          kind: 'rating-milestone',
+          priority: 106,
+          title: `You crossed ${crossedRoundHundred.toLocaleString('en-GB')}`,
+          subtitle: `Now ${roundedCurrent.toLocaleString('en-GB')} · up ${gainFromLow} from your 3-month low`,
+          trailing: 'Milestone',
+        });
+      } else if (isAtRecentHigh && gainFromLow >= 25) {
         stories.push({
           id: 'recent-rating-high',
           kind: 'recent-rating-high',
