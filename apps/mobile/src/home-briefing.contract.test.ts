@@ -17,13 +17,15 @@ describe('Home briefing information architecture', () => {
     expect(source).not.toContain('Teams to watch');
   });
 
-  it('claims a player in-place from Home instead of sending onboarding into Players', () => {
+  it('lets a new user personalise and discover useful content without leaving Home', () => {
+    expect(source).toContain('Make Home yours');
+    expect(source).toContain('Claim my player');
+    expect(source).toContain('Choose leagues to follow');
+    expect(source).toContain('Discover');
+    expect(source).toContain('useTopSiteRatingsQuery');
+    expect(source).toContain('Browse players');
     expect(source).toContain('<PlayerSearchSheet');
-    expect(source).toContain("action={{ label: 'Claim my player', onClick: () => setClaimSheetOpen(true) }}");
-    expect(source).toContain('title="Claim your player"');
-    expect(source).toContain('resultHint="Tap to claim as you"');
-    expect(source).toContain('setMyPlayer({ id: player.id, name: player.name });');
-    expect(source).not.toContain("action={{ label: 'Find my player', onClick: () => onOpenTab('players') }}");
+    expect(source).toContain('setMyPlayer({ id: player.id, name: player.name })');
   });
 
   it('previews more than league data without embedding the Events browsing UI', () => {
