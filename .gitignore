@@ -5,6 +5,7 @@ dist/
 *.tsbuildinfo
 backups/
 artifacts/backend-*.json
+netlify/functions/player-template.mjs
 
 # Terraform
 .terraform/
