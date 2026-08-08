@@ -10,6 +10,7 @@
     "build": "pnpm run clean && tsc -p tsconfig.build.json && node ./scripts/prepare-package.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
+    "coverage": "pnpm run build && node --test --experimental-test-coverage --test-coverage-include=dist/*.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 scripts/coverage.test.mjs",
     "pack:check": "pnpm run build && npm pack ./dist --dry-run",
     "smoke:consumer": "node ./scripts/consumer-smoke.mjs"
   },
