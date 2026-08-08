@@ -250,10 +250,19 @@ test.beforeAll(() => {
 
 test('reviews cheap first-visit discovery and returning-user change stories', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
-  const globalLeaderAnalysisRequests: string[] = [];
+  const populationWideAnalysisRequests: string[] = [];
+  const activityFanOutRequests: string[] = [];
   page.on('request', (request) => {
-    const path = new URL(request.url()).pathname;
-    if (path.endsWith('/api/players/leaders')) globalLeaderAnalysisRequests.push(request.url());
+    const url = new URL(request.url());
+    const path = url.pathname;
+    if (path.endsWith('/api/players/leaders')) populationWideAnalysisRequests.push(request.url());
+    if (
+      /\/api\/teams\/[^/]+\/(?:form|fixtures)$/.test(path)
+      || /\/api\/leagues\/[^/]+\/dashboard$/.test(path)
+      || /\/api\/players\/[^/]+\/insights$/.test(path)
+    ) {
+      activityFanOutRequests.push(request.url());
+    }
   });
 
   await installNewUser(page);
@@ -270,12 +279,14 @@ test('reviews cheap first-visit discovery and returning-user change stories', as
   await expect(pulse.getByRole('heading', { name: 'TT Players pulse' })).toBeVisible();
   await expect(pulse.getByText('Players', { exact: true })).toBeVisible();
   await expect(pulse.getByText('Matches', { exact: true })).toBeVisible();
-  expect(globalLeaderAnalysisRequests).toEqual([]);
+  expect(populationWideAnalysisRequests).toEqual([]);
+  expect(activityFanOutRequests).toEqual([]);
 
   await capture(page, testInfo, 'home-new-user-discovery', {
     globalRankingPreview: true,
     networkPulse: true,
-    populationWideLeaderAnalysisRequests: globalLeaderAnalysisRequests.length,
+    populationWideAnalysisRequests: populationWideAnalysisRequests.length,
+    activityFanOutRequests: activityFanOutRequests.length,
   });
 
   await configureReturningUser(page);
@@ -316,7 +327,8 @@ test('reviews cheap first-visit discovery and returning-user change stories', as
     stories: 5,
   });
 
-  expect(globalLeaderAnalysisRequests).toEqual([]);
+  expect(populationWideAnalysisRequests).toEqual([]);
+  expect(activityFanOutRequests).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
   writeReportIndex(previewUrl);
 });
