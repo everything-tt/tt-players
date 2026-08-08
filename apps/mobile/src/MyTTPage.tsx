@@ -58,20 +58,25 @@ const POSITIONS = ['Close to table', 'Mid distance', 'Far from table'];
 interface AccessStateProps {
   player: MyPlayer | null;
   onFindPlayer: () => void;
+  onManageEntrants: () => void;
 }
 
-function AccessState({ player, onFindPlayer }: AccessStateProps) {
+function AccessState({ player, onFindPlayer, onManageEntrants }: AccessStateProps) {
   if (!player) {
     return (
       <Stack gap="sm" className="tt-my-tt-access">
         <EmptyState
           iconClassName="fa fa-id-badge"
           title="Claim your player from Home"
-          message="Claiming works without an account. Your player and My TT profile are saved on this device."
+          message="Claiming works without an account. You can still manage private tournament entry information for players you look after."
         />
         <AppButton full tone="primary" onClick={onFindPlayer}>
           <i className="fa fa-home" aria-hidden="true" />
           Go to Home
+        </AppButton>
+        <AppButton full tone="outline" onClick={onManageEntrants}>
+          <i className="fa fa-clipboard-list" aria-hidden="true" />
+          Manage tournament players
         </AppButton>
       </Stack>
     );
@@ -200,6 +205,7 @@ export function MyTTPage() {
             <AccessState
               player={player}
               onFindPlayer={() => navigateInTab('home')}
+              onManageEntrants={() => navigateInTab('home', 'entry-profiles')}
             />
           </PageSection>
         ) : activeProfile ? (
@@ -556,6 +562,7 @@ export function EditMyTTPage() {
             <AccessState
               player={player}
               onFindPlayer={() => navigateInTab('home')}
+              onManageEntrants={() => navigateInTab('home', 'entry-profiles')}
             />
           </PageSection>
         ) : (
