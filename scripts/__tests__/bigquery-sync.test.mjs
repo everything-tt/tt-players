@@ -57,6 +57,8 @@ test('incremental export uses overlap and tuple high watermark', () => {
   assert.match(sql, /updated_at.*INTERVAL '3600 seconds'/s);
   assert.match(sql, /\("updated_at", "id"\) <=/);
   assert.match(sql, /ORDER BY "updated_at", "id"/);
+  assert.match(sql, /COPY \(/);
+  assert.match(sql, /TO STDOUT WITH \(FORMAT csv/);
   assert.doesNotMatch(sql, /raw_payload/);
 });
 

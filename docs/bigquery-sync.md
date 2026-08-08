@@ -106,7 +106,10 @@ For each table the job:
 
 1. reads the last committed watermark from `tt_players_pipeline.sync_watermarks`;
 2. captures the source high-watermark;
-3. exports rows in the overlap window bounded by that high-watermark;
+3. exports rows in the overlap window bounded by that high-watermark using
+   PostgreSQL `COPY ... TO STDOUT`, so large results are not materialized in
+   the `psql` client; control-character CSV delimiters preserve one raw JSON
+   object per line;
 4. opens a resumable Cloud Storage JSON upload for one run-scoped NDJSON
    object and streams PostgreSQL output directly into it; only small 0600
    request/config files are local, and the job never lists the bucket;
