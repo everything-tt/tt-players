@@ -259,7 +259,7 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('reviews cheap first-visit discovery, returning-user stories, and My TT entrant access', async ({ page }, testInfo) => {
+test('reviews cheap first-visit discovery, returning-user stories, and My TT tools', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
   const populationWideAnalysisRequests: string[] = [];
   const activityFanOutRequests: string[] = [];
@@ -339,18 +339,31 @@ test('reviews cheap first-visit discovery, returning-user stories, and My TT ent
   });
 
   await page.goto(`${previewUrl}/tabs/home/my-tt`, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'My TT' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'My TT', exact: true })).toBeVisible();
+  await expect(page.getByText('Match journal', { exact: true })).toBeVisible();
+  await expect(page.getByText('Record match and training reflections, what worked, and what to focus on next.', { exact: true })).toBeVisible();
+  const openJournal = page.getByText('Open match journal', { exact: true });
+  await expect(openJournal).toBeVisible();
+
   await expect(page.getByText('Tournament entries', { exact: true })).toBeVisible();
   await expect(page.getByText('Save private entry details for yourself, children, or players you manage.', { exact: true })).toBeVisible();
   const manageEntrants = page.getByText('Manage tournament players', { exact: true });
   await expect(manageEntrants).toBeVisible();
   await manageEntrants.scrollIntoViewIfNeeded();
-  await capture(page, testInfo, 'my-tt-tournament-entries', {
+  await capture(page, testInfo, 'my-tt-player-tools', {
+    matchJournalVisible: true,
     tournamentEntrySectionVisible: true,
-    existingManagerReused: true,
+    existingToolsReused: true,
   });
 
-  await manageEntrants.click();
+  await openJournal.click();
+  await expect(page).toHaveURL(new RegExp(`/tabs/players/player/${playerId}/journal$`));
+  await expect(page.getByRole('heading', { name: 'Match Journal', exact: true })).toBeVisible();
+
+  await page.goto(`${previewUrl}/tabs/home/my-tt`, { waitUntil: 'domcontentloaded' });
+  const entrantsAfterJournal = page.getByText('Manage tournament players', { exact: true });
+  await expect(entrantsAfterJournal).toBeVisible();
+  await entrantsAfterJournal.click();
   await expect(page).toHaveURL(/\/tabs\/home\/entry-profiles$/);
   await expect(page.getByRole('heading', { name: 'Tournament entrants', exact: true })).toBeVisible();
 
