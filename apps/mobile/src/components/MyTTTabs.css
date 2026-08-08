@@ -1,0 +1,31 @@
+.tt-my-tt-tabs {
+  background: var(--tt-surface-raised);
+  border-bottom: 1px solid var(--tt-border);
+  padding: 0 var(--tt-gutter-flat, 12px);
+}
+
+.tt-my-tt-tabs .tt-segmented {
+  margin: 0;
+}
+
+.tt-my-tt-tabs .tt-segmented__btn {
+  box-sizing: border-box;
+  font-size: 12px;
+  line-height: 1.2;
+  min-height: 48px;
+  min-width: 0;
+  padding-inline: 6px;
+  white-space: normal;
+}
+
+.tt-my-tt-tabs[data-active-tab="profile"] ~ .tt-my-tt-page .tt-my-tt-flat-section:has(.fa-book-open),
+.tt-my-tt-tabs[data-active-tab="profile"] ~ .tt-my-tt-page .tt-my-tt-flat-section:has(.fa-clipboard-list) {
+  display: none;
+}
+
+@media (max-width: 370px) {
+  .tt-my-tt-tabs .tt-segmented__btn {
+    font-size: 11px;
+    padding-inline: 4px;
+  }
+}
