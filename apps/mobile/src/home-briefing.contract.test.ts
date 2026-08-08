@@ -50,20 +50,23 @@ describe('Home briefing information architecture', () => {
 
   it('keeps first-visit Home useful without population-wide analysis', () => {
     expect(source).toContain('TT Players pulse');
-    expect(source).toContain('usePlayerCountQuery');
+    expect(source).toContain('usePlayerCountQuery(!hasLeagueScope)');
     expect(source).toContain('<MetricGrid');
     expect(source).toContain('Top players');
     expect(source).not.toContain('useLeadersQuery');
+    expect(source).not.toContain('useLeagueRisersQuery');
     expect(source).not.toContain("mode: 'improving'");
     expect(source).not.toContain("What&apos;s happening");
     expect(source).not.toContain('finding another gear');
+    expect(source).not.toContain("kind: 'riser'");
   });
 
-  it('does not fan out Home into per-team or per-league activity requests', () => {
+  it('does not fan out Home into per-team, per-player, per-league, or historical mover analysis', () => {
     expect(source).not.toContain('useTeamFormQuery');
     expect(source).not.toContain('useTeamFixturesQuery');
     expect(source).not.toContain('useLeagueDashboardQuery');
     expect(source).not.toContain('usePlayerInsightsQuery');
+    expect(source).not.toContain('useLeagueRisersQuery');
   });
 
   it('keeps a compact player leaderboard on Home with global and league scopes', () => {
