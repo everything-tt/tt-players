@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // Home tab following favourite button review.
-  testMatch: 'zz-home-following-fav-button.pw.ts',
+  // Platform drawer, standalone feedback, and focused About review.
+  testMatch: 'zz-platform-menu-cleanup.pw.ts',
 
   timeout: 120_000,
   expect: {
