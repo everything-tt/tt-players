@@ -16,4 +16,11 @@ describe('Home briefing information architecture', () => {
     expect(source).not.toContain('Players to watch');
     expect(source).not.toContain('Teams to watch');
   });
+
+  it('previews more than league data without embedding the Events browsing UI', () => {
+    expect(source).toContain('useTournamentList');
+    expect(source).toContain("navigateInTab('events', `event/${nextTournament.id}`)");
+    expect(source).not.toContain('<SearchToolbar');
+    expect(source).not.toContain('Tournament category filters');
+  });
 });
