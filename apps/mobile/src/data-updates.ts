@@ -12,7 +12,6 @@ export interface DataUpdateStage {
   duration_ms: number | null;
   attempt_count: number;
   summary: Record<string, unknown>;
-  error_message: string | null;
   recorded_at: string;
 }
 
@@ -25,7 +24,6 @@ export interface DataUpdateRun {
   finished_at: string | null;
   duration_ms: number | null;
   attempt_count: number;
-  error_message: string | null;
   recorded_at: string;
   stages: DataUpdateStage[];
 }
