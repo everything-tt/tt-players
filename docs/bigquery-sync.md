@@ -129,7 +129,8 @@ Staging tables also get a 24-hour expiration, and GCS load objects have a 1-day 
 
 High-volume date-bearing tables are partitioned:
 
-- `fixtures`: native `date_played` (`DATE`) partitioning
+- `fixtures`: monthly `DATE_TRUNC(date_played, MONTH)` partitioning (the
+  historical source contains more than BigQuery's 4,000 daily partitions)
 - `rubbers`: `DATE(played_at)`
 - `source_event_result_rows`: `DATE(played_at)`
 - `raw_scrape_logs`: `DATE(scraped_at)` partitioning
