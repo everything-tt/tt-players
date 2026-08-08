@@ -129,8 +129,8 @@ test('partitioned destination DDL and replacement retain physical design', () =>
 
   const fixtures = tableManifest.find((entry) => entry.destinationTable === 'fixtures');
   const fixtureCreate = createDestinationSql({ project: 'proj', rawDataset: 'raw', table: fixtures });
-  assert.match(fixtureCreate, /PARTITION BY date_played/);
-  assert.doesNotMatch(fixtureCreate, /DATE\(date_played\)/);
+  assert.match(fixtureCreate, /PARTITION BY DATE_TRUNC\(date_played, MONTH\)/);
+  assert.equal(fixtures.partitionGranularity, 'MONTH');
 });
 
 test('MERGE deduplicates staging rows and updates by primary key without unsafe partition filtering', () => {

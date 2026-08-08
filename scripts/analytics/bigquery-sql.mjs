@@ -81,10 +81,15 @@ function destinationOptions(table) {
   const clauses = [];
   if (table.partitionColumn) {
     const partitionType = table.columns.find((column) => column.name === table.partitionColumn)?.type;
+    const partitionExpression = table.partitionGranularity === 'MONTH'
+      ? partitionType === 'DATE'
+        ? `DATE_TRUNC(${table.partitionColumn}, MONTH)`
+        : `DATE_TRUNC(DATE(${table.partitionColumn}), MONTH)`
+      : partitionType === 'DATE'
+        ? table.partitionColumn
+        : `DATE(${table.partitionColumn})`;
     clauses.push(
-      partitionType === 'DATE'
-        ? `PARTITION BY ${table.partitionColumn}`
-        : `PARTITION BY DATE(${table.partitionColumn})`,
+      `PARTITION BY ${partitionExpression}`,
     );
   }
   if (table.clusterColumns?.length) clauses.push(`CLUSTER BY ${table.clusterColumns.join(', ')}`);

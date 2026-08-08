@@ -135,6 +135,7 @@ export const tableManifest = [
     primaryKey: ['id'],
     watermark: { column: 'updated_at', tieBreaker: 'id', overlapSeconds: 3600 },
     partitionColumn: 'date_played',
+    partitionGranularity: 'MONTH',
     clusterColumns: ['competition_id', 'status'],
     columns: [
       column('id', 'STRING'), column('competition_id', 'STRING'), column('external_id', 'STRING'),
@@ -436,6 +437,9 @@ export function validateTableManifest(manifest = tableManifest) {
     }
     if (table.partitionColumn && !names.has(table.partitionColumn)) {
       throw new Error(`Missing partition column in ${table.destinationTable}`);
+    }
+    if (table.partitionGranularity && !['DAY', 'MONTH'].includes(table.partitionGranularity)) {
+      throw new Error(`Invalid partition granularity for ${table.destinationTable}`);
     }
     for (const clusterColumn of table.clusterColumns ?? []) {
       if (!names.has(clusterColumn)) throw new Error(`Missing cluster column in ${table.destinationTable}: ${clusterColumn}`);
