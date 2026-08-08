@@ -7,8 +7,6 @@ export type HomeVisitState = {
   recentResultIds: string[];
   topTeamId: string | null;
   topTeamName: string | null;
-  topRiserPlayerId: string | null;
-  topRiserName: string | null;
 };
 
 export type HomeVisitSnapshot = HomeVisitState & {
@@ -18,8 +16,7 @@ export type HomeVisitSnapshot = HomeVisitState & {
 export type HomeVisitChangeKind =
   | 'personal-rating'
   | 'new-results'
-  | 'leader-change'
-  | 'riser-change';
+  | 'leader-change';
 
 export type HomeVisitChange = {
   id: string;
@@ -81,8 +78,6 @@ export function parseHomeVisitSnapshot(raw: string | null): HomeVisitSnapshot | 
       recentResultIds: parsed.recentResultIds.filter((value): value is string => typeof value === 'string'),
       topTeamId: typeof parsed.topTeamId === 'string' ? parsed.topTeamId : null,
       topTeamName: typeof parsed.topTeamName === 'string' ? parsed.topTeamName : null,
-      topRiserPlayerId: typeof parsed.topRiserPlayerId === 'string' ? parsed.topRiserPlayerId : null,
-      topRiserName: typeof parsed.topRiserName === 'string' ? parsed.topRiserName : null,
     };
   } catch {
     return null;
@@ -96,29 +91,40 @@ export function diffHomeVisit(
   if (!previous || previous.scopeKey !== current.scopeKey) return [];
 
   const changes: HomeVisitChange[] = [];
+  const canCompareRating = previous.rating != null && current.rating != null;
+  const canCompareRank = previous.rank != null && current.rank != null;
+  const ratingDelta = canCompareRating
+    ? Math.round((current.rating as number) - (previous.rating as number))
+    : null;
+  const rankDelta = canCompareRank
+    ? (previous.rank as number) - (current.rank as number)
+    : null;
 
-  const ratingDelta = previous.rating != null && current.rating != null
-    ? Math.round(current.rating - previous.rating)
-    : 0;
-  const rankDelta = previous.rank != null && current.rank != null
-    ? previous.rank - current.rank
-    : 0;
+  if ((ratingDelta ?? 0) !== 0 || (rankDelta ?? 0) !== 0) {
+    const title = ratingDelta != null && ratingDelta !== 0
+      ? `Your rating moved ${ratingDelta > 0 ? '+' : ''}${ratingDelta}`
+      : `Your global rank moved ${rankDelta! > 0 ? 'up' : 'down'} ${Math.abs(rankDelta!)} ${Math.abs(rankDelta!) === 1 ? 'place' : 'places'}`;
 
-  if (ratingDelta !== 0 || rankDelta !== 0) {
-    const ratingPart = ratingDelta === 0
-      ? 'Your rating is unchanged'
-      : `Your rating moved ${ratingDelta > 0 ? '+' : ''}${ratingDelta}`;
-    const rankPart = current.rank == null
-      ? 'Global rank unavailable'
-      : rankDelta === 0
-        ? `Still #${current.rank} globally`
-        : `${rankDelta > 0 ? 'up' : 'down'} ${Math.abs(rankDelta)} ${Math.abs(rankDelta) === 1 ? 'place' : 'places'} to #${current.rank}`;
+    let subtitle: string;
+    if (ratingDelta != null && ratingDelta !== 0) {
+      subtitle = current.rank == null
+        ? 'Global rank unavailable'
+        : rankDelta == null
+          ? `Now #${current.rank} globally`
+          : rankDelta === 0
+            ? `Still #${current.rank} globally`
+            : `${rankDelta > 0 ? 'up' : 'down'} ${Math.abs(rankDelta)} ${Math.abs(rankDelta) === 1 ? 'place' : 'places'} to #${current.rank}`;
+    } else {
+      subtitle = current.rating == null
+        ? 'Rating unavailable'
+        : `Rating ${Math.round(current.rating).toLocaleString('en-GB')}`;
+    }
 
     changes.push({
       id: 'personal-rating',
       kind: 'personal-rating',
-      title: ratingPart,
-      subtitle: rankPart,
+      title,
+      subtitle,
       priority: 100,
     });
   }
@@ -144,26 +150,11 @@ export function diffHomeVisit(
     changes.push({
       id: 'leader-change',
       kind: 'leader-change',
-      title: `New league leader: ${current.topTeamName}`,
+      title: `Leading team changed: ${current.topTeamName}`,
       subtitle: previous.topTeamName
-        ? `${current.topTeamName} has moved ahead of ${previous.topTeamName}`
-        : 'The top of your selected leagues has changed',
+        ? `Previously ${previous.topTeamName} in your selected-league briefing`
+        : 'The leading-team signal in your selected leagues changed',
       priority: 80,
-    });
-  }
-
-  if (
-    previous.topRiserPlayerId
-    && current.topRiserPlayerId
-    && previous.topRiserPlayerId !== current.topRiserPlayerId
-    && current.topRiserName
-  ) {
-    changes.push({
-      id: 'riser-change',
-      kind: 'riser-change',
-      title: `${current.topRiserName} is now the biggest mover`,
-      subtitle: 'A new player leads the 6-week rating gains in your leagues',
-      priority: 70,
     });
   }
 
