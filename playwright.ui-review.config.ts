@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // Home tab following favourite button review.
-  testMatch: 'zz-home-following-fav-button.pw.ts',
+  // Concise cross-page Home briefing review.
+  testMatch: 'zz-home-briefing-dashboard.pw.ts',
 
   timeout: 120_000,
   expect: {
