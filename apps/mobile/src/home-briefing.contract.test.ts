@@ -26,7 +26,12 @@ describe('Home briefing information architecture', () => {
     expect(source).toContain('window.localStorage.setItem');
   });
 
-  it('ranks league stories by relevance instead of rendering a fixed activity recipe', () => {
+  it('ranks personal and league stories together instead of rendering a fixed activity recipe', () => {
+    expect(source).toContain('buildPersonalHomeStories');
+    expect(source).toContain("story.kind === 'personal-form'");
+    expect(source).toContain("story.kind === 'recent-rating-high'");
+    expect(source).toContain("targetTab: 'home'");
+    expect(source).toContain("targetPath: 'my-tt'");
     expect(source).toContain('rankHomeStories');
     expect(source).toContain("kind: isPersonal ? 'personal-result' : 'result'");
     expect(source).toContain('priority: (isPersonal ? 120 : 80) - index');
