@@ -16,8 +16,6 @@ function snapshot(overrides: Partial<HomeVisitSnapshot> = {}): HomeVisitSnapshot
     recentResultIds: ['old-result'],
     topTeamId: 'team-old',
     topTeamName: 'Hutton A',
-    topRiserPlayerId: 'riser-old',
-    topRiserName: 'Previous Riser',
     ...overrides,
   };
 }
@@ -29,7 +27,7 @@ describe('Home activity briefing', () => {
     expect(buildHomeScopeKey(null, [])).toBe('anonymous::all');
   });
 
-  it('summarises meaningful changes since the previous visit', () => {
+  it('summarises only supported changes since the previous visit', () => {
     const changes = diffHomeVisit(
       snapshot(),
       {
@@ -39,8 +37,6 @@ describe('Home activity briefing', () => {
         recentResultIds: ['result-1', 'result-2'],
         topTeamId: 'team-rowhedge',
         topTeamName: 'Rowhedge K',
-        topRiserPlayerId: 'riser-harrison',
-        topRiserName: 'Harrison Hill',
       },
     );
 
@@ -48,12 +44,12 @@ describe('Home activity briefing', () => {
       'personal-rating',
       'new-results',
       'leader-change',
-      'riser-change',
     ]);
     expect(changes[0]?.title).toBe('Your rating moved +18');
     expect(changes[0]?.subtitle).toContain('up 11 places to #126');
     expect(changes[1]?.title).toBe('2 new league results');
-    expect(changes[2]?.title).toBe('New league leader: Rowhedge K');
+    expect(changes[2]?.title).toBe('Leading team changed: Rowhedge K');
+    expect(changes[2]?.subtitle).toBe('Previously Hutton A in your selected-league briefing');
   });
 
   it('does not compare snapshots from a different personalisation scope', () => {
@@ -61,6 +57,50 @@ describe('Home activity briefing', () => {
       ...snapshot(),
       scopeKey: 'player-2::league-1',
     })).toEqual([]);
+  });
+
+  it('does not call an unknown previous rating unchanged when only rank can be compared', () => {
+    const changes = diffHomeVisit(
+      snapshot({ rating: null, rank: 137 }),
+      {
+        scopeKey: 'player-1::league-1',
+        rating: 1912,
+        rank: 126,
+        recentResultIds: ['old-result'],
+        topTeamId: 'team-old',
+        topTeamName: 'Hutton A',
+      },
+    );
+
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({
+      kind: 'personal-rating',
+      title: 'Your global rank moved up 11 places',
+      subtitle: 'Rating 1,912',
+    });
+    expect(changes[0]?.title).not.toContain('unchanged');
+  });
+
+  it('uses the current rank without claiming it stayed still when the previous rank is unknown', () => {
+    const changes = diffHomeVisit(
+      snapshot({ rating: 1894, rank: null }),
+      {
+        scopeKey: 'player-1::league-1',
+        rating: 1912,
+        rank: 126,
+        recentResultIds: ['old-result'],
+        topTeamId: 'team-old',
+        topTeamName: 'Hutton A',
+      },
+    );
+
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({
+      kind: 'personal-rating',
+      title: 'Your rating moved +18',
+      subtitle: 'Now #126 globally',
+    });
+    expect(changes[0]?.subtitle).not.toContain('Still');
   });
 
   it('turns a current winning streak into a high-priority personal story', () => {
@@ -152,7 +192,7 @@ describe('Home activity briefing', () => {
     })).toEqual([]);
   });
 
-  it('ranks personal and followed activity ahead of generic stories while preserving a broader signal', () => {
+  it('ranks personal and followed activity ahead of broader league signals without runtime mover analysis', () => {
     const ranked = rankHomeStories([
       { id: 'leader', priority: 90 },
       { id: 'generic-result', priority: 80 },
@@ -160,7 +200,6 @@ describe('Home activity briefing', () => {
       { id: 'followed-team-result', priority: 112 },
       { id: 'personal-form', priority: 108 },
       { id: 'rating-milestone', priority: 106 },
-      { id: 'riser', priority: 95 },
     ], 5);
 
     expect(ranked.map((story) => story.id)).toEqual([
@@ -168,7 +207,7 @@ describe('Home activity briefing', () => {
       'followed-team-result',
       'personal-form',
       'rating-milestone',
-      'riser',
+      'leader',
     ]);
   });
 });
