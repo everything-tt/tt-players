@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily TT Players BigQuery sync
+
+[Timer]
+OnCalendar=*-*-* 05:00:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+AccuracySec=1m
+Unit=ttp-bigquery-sync.service
+
+[Install]
+WantedBy=timers.target
