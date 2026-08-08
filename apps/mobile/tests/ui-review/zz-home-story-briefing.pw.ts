@@ -96,6 +96,27 @@ function rating(player_id: string, player_name: string, rank: number, value: num
   };
 }
 
+function historyPoint(snapshotDate: string, value: number, change: number | null) {
+  return {
+    week_start: snapshotDate,
+    snapshot_date: snapshotDate,
+    rating: value,
+    rating_deviation: 45,
+    conservative_rating: value - 90,
+    rating_low: value - 100,
+    rating_high: value + 100,
+    rating_change: change,
+    confidence: 'high',
+    rated_matches: 76,
+    rated_wins: 54,
+    rated_losses: 22,
+    week_matches: 4,
+    week_wins: 3,
+    week_losses: 1,
+    provisional: false,
+  };
+}
+
 async function mockApi(page: Page) {
   const globalRatings = [
     rating('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Jane Smith', 1, 2365, 0.74, 641),
@@ -168,8 +189,15 @@ async function mockApi(page: Page) {
 
     if (path.endsWith(`/api/ratings/${playerId}/history`)) {
       await route.fulfill({ json: {
-        player_id: playerId, player_name: 'Wudong Liu', model: 'glicko2', range: '3m',
-        data: [{ week_start: '2026-08-03', snapshot_date: '2026-08-08', rating: 1912, rating_deviation: 45, conservative_rating: 1822, rating_low: 1812, rating_high: 2012, rating_change: 34, confidence: 'high', rated_matches: 76, rated_wins: 54, rated_losses: 22, week_matches: 4, week_wins: 3, week_losses: 1, provisional: false }],
+        player_id: playerId,
+        player_name: 'Wudong Liu',
+        model: 'glicko2',
+        range: '3m',
+        data: [
+          historyPoint('2026-06-08', 1840, null),
+          historyPoint('2026-07-06', 1888, 48),
+          historyPoint('2026-08-03', 1912, 34),
+        ],
       } });
       return;
     }
@@ -266,13 +294,18 @@ test('reviews cheap first-visit discovery and returning-user change stories', as
 
   const highlights = page.locator('section[aria-labelledby="tt-home-highlights-title"]');
   await expect(highlights.getByText('Rowhedge K beat Halstead A 7–3', { exact: true })).toBeVisible();
+  await expect(highlights.getByText("You've won 4 of your last 5", { exact: true })).toBeVisible();
+  await expect(highlights.getByText("You're at a 3-month rating high", { exact: true })).toBeVisible();
+  await expect(highlights.getByText('1,912 rating · up 72 from the low in this period', { exact: true })).toBeVisible();
   await expect(highlights.getByText('Harrison Hill surged +103', { exact: true })).toBeVisible();
-  await expect(highlights.getByText('Rowhedge K set the pace', { exact: true })).toBeVisible();
-  await expect(highlights.getByText('Maldon C 4–6 Hutton A', { exact: true })).toBeVisible();
+  await expect(highlights.getByText('Rowhedge K set the pace', { exact: true })).toHaveCount(0);
+  await expect(highlights.getByText('Maldon C 4–6 Hutton A', { exact: true })).toHaveCount(0);
   await highlights.getByRole('heading', { name: 'Highlights' }).scrollIntoViewIfNeeded();
   await capture(page, testInfo, 'home-ranked-highlights', {
     personalResultFirst: true,
-    relevanceRanked: true,
+    personalFormIncluded: true,
+    recentRatingHighIncluded: true,
+    leagueRiserIncluded: true,
     stories: 4,
   });
 
