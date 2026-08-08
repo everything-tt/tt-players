@@ -1,24 +1,28 @@
-import { useState } from 'react';
 import type { AppTabId } from './navigation/tab-navigation';
-import { type LeagueWithDivisions, TAB_METADATA, formatNumber, getQueryError } from './player-shared';
-import { useLeagueCollectionDashboardQuery, useLeadersQuery, usePlayerCountQuery } from './queries';
+import { useMyPlayer } from './hooks/useMyPlayer';
 import { useTabNavigation } from './navigation/tab-navigation';
+import { type LeagueWithDivisions, TAB_METADATA, getQueryError } from './player-shared';
+import {
+  useLeagueCollectionDashboardQuery,
+  usePlayerProfileOverviewQuery,
+} from './queries';
+import {
+  useLeagueRisersQuery,
+  usePlayerRatingQuery,
+  useTopRatingsQuery,
+} from './rating-queries';
 import {
   AppButton,
+  Avatar,
   EmptyState,
   ErrorState,
+  IconCircle,
   List,
   ListItem,
-  MatchRecordRow,
-  MetricGrid,
   Pill,
-  RankBadge,
   SectionHeader,
-  SegmentedToggle,
 } from './ui/appkit';
 import { SkeletonList } from './components/Skeleton';
-import { MyTTSection } from './components/MyTTSection';
-import { TopRatingsSection } from './components/TopRatingsSection';
 
 interface HomeTabContentProps {
   allLeagues: LeagueWithDivisions[];
@@ -28,30 +32,33 @@ interface HomeTabContentProps {
   onOpenTab: (tabId: DashboardTabId) => void;
 }
 
-const WATCH_LIST_LIMIT = 5;
-const RECENT_RESULTS_LIMIT = 5;
-const LEADERS_MIN_PLAYED = 3;
-
 type DashboardTabId = Exclude<AppTabId, 'home'>;
-type WatchListMode = 'top' | 'active' | 'form' | 'improving' | 'new_faces' | 'teams';
-
-const WATCH_LIST_OPTIONS: Array<{ value: WatchListMode; label: string }> = [
-  { value: 'top', label: 'Top' },
-  { value: 'active', label: 'Active' },
-  { value: 'form', label: 'Form' },
-  { value: 'improving', label: 'Improving' },
-  { value: 'new_faces', label: 'New' },
-  { value: 'teams', label: 'Teams' },
-];
 
 function formatDate(value: string | null): string {
   if (!value) return 'Date unavailable';
-  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' })
+  return new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
     .format(new Date(`${value}T12:00:00`));
 }
 
 function formatFixtureTeams(home: string | null, away: string | null): string {
   return `${home ?? 'Home'} vs ${away ?? 'Away'}`;
+}
+
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
+
+function formatMomentum(momentum: 'hot' | 'steady' | 'cold' | 'new' | undefined): string {
+  if (momentum === 'hot') return 'In form';
+  if (momentum === 'cold') return 'Building';
+  if (momentum === 'new') return 'New';
+  return 'Steady';
 }
 
 export function HomeTabContent({
@@ -62,7 +69,7 @@ export function HomeTabContent({
   onOpenTab,
 }: HomeTabContentProps) {
   const { navigateInTab } = useTabNavigation();
-  const [watchListMode, setWatchListMode] = useState<WatchListMode>('top');
+  const { player: myPlayer } = useMyPlayer();
   const hasLeagueScope = hasCompletedLeagueOnboarding && selectedLeagueIds.length > 0;
   const isAllLeagueScope = hasLeagueScope
     && allLeagues.length > 0
@@ -71,122 +78,84 @@ export function HomeTabContent({
 
   const dashboardQuery = useLeagueCollectionDashboardQuery(scopedLeagueIds, hasLeagueScope);
   const dashboard = dashboardQuery.data ?? null;
+  const profileQuery = usePlayerProfileOverviewQuery(myPlayer?.id ?? '', Boolean(myPlayer));
+  const ratingQuery = usePlayerRatingQuery(myPlayer?.id ?? '', Boolean(myPlayer));
+  const topRatingsQuery = useTopRatingsQuery(selectedLeagueIds, 1, hasLeagueScope);
+  const risersQuery = useLeagueRisersQuery(selectedLeagueIds, 1, 42, hasLeagueScope);
 
-  const leadersQuery = useLeadersQuery({
-    mode:
-      watchListMode === 'active' ? 'most_played' :
-      watchListMode === 'form' ? 'form' :
-      watchListMode === 'improving' ? 'improving' :
-      watchListMode === 'new_faces' ? 'new_faces' :
-      'combined',
-    leagueIds: scopedLeagueIds,
-    limit: WATCH_LIST_LIMIT,
-    minPlayed: watchListMode === 'form' ? 5 : watchListMode === 'new_faces' ? 1 : LEADERS_MIN_PLAYED,
-    enabled: hasLeagueScope && watchListMode !== 'teams',
-  });
-  const currentList = leadersQuery.data?.data ?? [];
-  const isListLoading = leadersQuery.isLoading;
-  const leadersError = leadersQuery.error;
+  const personalTeamNames = new Set(
+    (profileQuery.data?.current_season_affiliations ?? [])
+      .filter((affiliation) => selectedLeagueIds.includes(affiliation.league_id))
+      .map((affiliation) => affiliation.team_name),
+  );
+  const upcomingFixtures = [...(dashboard?.upcoming_fixtures ?? [])]
+    .sort((left, right) => (left.date_played ?? '').localeCompare(right.date_played ?? ''));
+  const personalNextFixture = upcomingFixtures.find((fixture) =>
+    Boolean(
+      (fixture.home_team_name && personalTeamNames.has(fixture.home_team_name))
+      || (fixture.away_team_name && personalTeamNames.has(fixture.away_team_name)),
+    ));
+  const nextFixture = personalNextFixture ?? upcomingFixtures[0] ?? null;
+  const nextFixtureIsPersonal = Boolean(personalNextFixture && nextFixture?.fixture_id === personalNextFixture.fixture_id);
 
-  const countQuery = usePlayerCountQuery();
-  const isCountLoading = countQuery.isLoading;
-  const playerCount = countQuery.data?.players ?? null;
-  const matchCount = countQuery.data?.matches ?? null;
-  const leagueCount = allLeagues.length;
-  const divisionCount = allLeagues.reduce((sum, league) => sum + league.divisions.length, 0);
-
-  const formatCount = (value: number | null | undefined, loading = false) => loading ? '…' : formatNumber(value);
-
-  const scopeLabel = isAllLeagueScope
-    ? `All ${leagueCount} leagues`
-    : !hasLeagueScope
-      ? 'Choose your leagues'
-      : `${selectedLeagueIds.length} of ${leagueCount} leagues`;
-  const summaryLabel = hasLeagueScope
-    ? `${scopeLabel} · ${formatCount(playerCount, isCountLoading)} indexed players`
-    : `${formatCount(playerCount, isCountLoading)} indexed players · ${formatCount(matchCount, isCountLoading)} recorded matches`;
-  const summaryLoading = hasLeagueScope && dashboardQuery.isLoading;
-  const summaryStats = hasLeagueScope
-    ? [
-        { label: 'Leagues', value: dashboard?.totals.leagues ?? (isAllLeagueScope ? leagueCount : selectedLeagueIds.length) },
-        { label: 'Divisions', value: dashboard?.totals.divisions ?? null },
-        { label: 'Teams', value: dashboard?.totals.teams ?? null },
-        { label: 'Matches', value: dashboard?.totals.matches_played ?? null },
-      ]
-    : [
-        { label: 'Players', value: playerCount },
-        { label: 'Leagues', value: leagueCount },
-        { label: 'Divisions', value: divisionCount },
-        { label: 'Matches', value: matchCount },
-      ];
-  const summaryMetrics = summaryStats.map((stat) => ({
-    label: stat.label,
-    value: formatCount(stat.value, summaryLoading || (!hasLeagueScope && isCountLoading)),
-  }));
-  const recentResults = dashboard?.recent_results.slice(0, RECENT_RESULTS_LIMIT) ?? [];
+  const topRated = topRatingsQuery.data?.data[0] ?? null;
+  const topRiser = risersQuery.data?.data[0] ?? null;
+  const latestResult = dashboard?.recent_results[0] ?? null;
+  const topTeam = dashboard?.top_teams[0] ?? null;
   const dashboardError = getQueryError(dashboardQuery.error);
+  const scopeLabel = isAllLeagueScope
+    ? `All ${allLeagues.length} leagues`
+    : `${selectedLeagueIds.length} selected league${selectedLeagueIds.length === 1 ? '' : 's'}`;
   const navItems: DashboardTabId[] = ['players', 'leagues', 'h2h', 'events'];
-  const watchListNote =
-    watchListMode === 'top' ? 'Season strength' :
-    watchListMode === 'active' ? 'Most singles played' :
-    watchListMode === 'form' ? 'Latest 10 singles' :
-    watchListMode === 'improving' ? 'Latest 5 vs previous 5' :
-    watchListMode === 'new_faces' ? 'Newest season debuts' :
-    'By team win rate';
-  const playerListEmptyMessage =
-    watchListMode === 'form' ? 'No players have five recent singles in the selected leagues.' :
-    watchListMode === 'improving' ? 'No improving players have two complete five-match windows yet.' :
-    watchListMode === 'new_faces' ? 'No active-season player appearances are available in the selected leagues.' :
-    'Not enough singles have been played in the selected leagues.';
 
   return (
     <>
-      <section className="tt-home-summary" aria-labelledby="tt-home-summary-title">
-        <div className="tt-home-summary-header">
-          <div>
-            <p className="tt-home-summary-kicker">Active season</p>
-            <h2 id="tt-home-summary-title" className="tt-home-summary-title">Your leagues. Your game.</h2>
-            <p className="tt-home-summary-sub">{summaryLabel}</p>
-          </div>
-          <AppButton
-            size="s"
-            rounded="full"
-            tone="primary"
-            onClick={onOpenLeagueSelector}
-          >
-            {hasLeagueScope ? 'Edit' : 'Select'}
-          </AppButton>
-        </div>
-
-        <MetricGrid
-          className="tt-home-summary-metrics"
-          metrics={summaryMetrics}
-          columns={4}
-          density="compact"
-          separators
-          valueSize="prominent"
-          labelStyle="eyebrow"
-          ariaLabel="Active season totals"
+      <section className="tt-home-section" aria-labelledby="tt-home-your-tt-title">
+        <SectionHeader
+          title={<span id="tt-home-your-tt-title">Your TT</span>}
+          note={myPlayer ? 'Your quick snapshot' : 'Make Home personal'}
+          action={myPlayer ? (
+            <AppButton size="s" tone="ghost" onClick={() => navigateInTab('home', 'my-tt')}>
+              Open My TT
+              <i className="fa fa-angle-right" aria-hidden="true" />
+            </AppButton>
+          ) : undefined}
         />
+
+        {!myPlayer ? (
+          <EmptyState
+            iconClassName="fa fa-id-badge"
+            title="Make TT Players yours"
+            message="Claim your player to put your form, rating and next team fixture on Home."
+            action={{ label: 'Find my player', onClick: () => onOpenTab('players') }}
+          />
+        ) : profileQuery.isLoading ? (
+          <SkeletonList rows={1} />
+        ) : (
+          <List divider="none" size="lg">
+            <ListItem
+              leading={<Avatar text={initials(profileQuery.data?.player_name ?? myPlayer.name)} />}
+              title={profileQuery.data?.player_name ?? myPlayer.name}
+              subtitle={profileQuery.data
+                ? `${profileQuery.data.wins}W · ${profileQuery.data.losses}L · ${profileQuery.data.total} played${ratingQuery.data?.data ? ` · Rating ${Math.round(ratingQuery.data.data.rating).toLocaleString('en-GB')}` : ''}`
+                : 'Your claimed player profile'}
+              trailing={<Pill tone="accent">{formatMomentum(profileQuery.data?.form.momentum)}</Pill>}
+              onClick={() => navigateInTab('home', 'my-tt')}
+            />
+          </List>
+        )}
       </section>
-
-      <MyTTSection onOpenPlayer={(playerId) => navigateInTab('players', `player/${playerId}`)} />
-
-      <TopRatingsSection
-        leagueIds={hasLeagueScope ? selectedLeagueIds : []}
-        onOpenPlayer={(playerId) => navigateInTab('players', `player/${playerId}`)}
-      />
 
       {!hasLeagueScope ? (
         <>
           <section className="tt-home-section">
             <div className="tt-home-onboarding">
               <div className="tt-home-onboarding-icon">
-                <i className="fa fa-filter" />
+                <i className="fa fa-filter" aria-hidden="true" />
               </div>
-              <h2 className="tt-home-onboarding-title">Choose leagues first</h2>
+              <h2 className="tt-home-onboarding-title">Choose leagues to follow</h2>
               <p className="tt-home-onboarding-copy">
-                Pick the leagues you follow, then Home will show active-season results and players for that scope.
+                Home will then surface only the next fixture and a few useful highlights. Full tables, results and rankings stay in Leagues.
               </p>
               <AppButton size="m" rounded="m" full onClick={onOpenLeagueSelector}>
                 Select leagues
@@ -198,8 +167,8 @@ export function HomeTabContent({
             {navItems.map((tabId) => {
               const meta = TAB_METADATA[tabId];
               const description =
-                tabId === 'players' ? `Search across ${formatCount(playerCount, isCountLoading)} players` :
-                tabId === 'leagues' ? `${leagueCount} leagues, ${divisionCount} divisions` :
+                tabId === 'players' ? 'Search players, profiles and ratings' :
+                tabId === 'leagues' ? `${allLeagues.length} available leagues` :
                 meta.description;
 
               return (
@@ -210,13 +179,13 @@ export function HomeTabContent({
                   onClick={() => onOpenTab(tabId)}
                 >
                   <div className="tt-home-nav-icon">
-                    <i className={meta.icon} />
+                    <i className={meta.icon} aria-hidden="true" />
                   </div>
                   <div className="tt-home-nav-copy">
                     <span className="tt-home-nav-title">{meta.label}</span>
                     <span className="tt-home-nav-desc">{description}</span>
                   </div>
-                  <i className="fa fa-angle-right tt-home-nav-chevron" />
+                  <i className="fa fa-angle-right tt-home-nav-chevron" aria-hidden="true" />
                 </button>
               );
             })}
@@ -224,101 +193,104 @@ export function HomeTabContent({
         </>
       ) : (
         <>
-          <section className="tt-home-section">
-            <SectionHeader title="Latest results" note={scopeLabel} />
+          <section className="tt-home-section" aria-labelledby="tt-home-next-up-title">
+            <SectionHeader
+              title={<span id="tt-home-next-up-title">Next up</span>}
+              note={nextFixtureIsPersonal ? 'Your team' : scopeLabel}
+              action={(
+                <AppButton size="s" tone="ghost" onClick={() => onOpenTab('leagues')}>
+                  Fixtures
+                  <i className="fa fa-angle-right" aria-hidden="true" />
+                </AppButton>
+              )}
+            />
+
             {dashboardQuery.isLoading ? (
-              <SkeletonList rows={RECENT_RESULTS_LIMIT} />
+              <SkeletonList rows={1} />
             ) : dashboardError ? (
               <ErrorState message={dashboardError} />
-            ) : recentResults.length > 0 ? (
-              <List divider="hairline">
-                {recentResults.map((result) => {
-                  const homeName = result.home_team_name ?? 'Home';
-                  const awayName = result.away_team_name ?? 'Away';
-                  return (
-                    <MatchRecordRow
-                      key={result.fixture_id}
-                      score={{
-                        value: `${result.home_score}–${result.away_score}`,
-                        outcome: 'neutral',
-                        ariaLabel: `${homeName} ${result.home_score}, ${awayName} ${result.away_score}`,
-                      }}
-                      title={formatFixtureTeams(result.home_team_name, result.away_team_name)}
-                      metadata={[result.league_name, result.division_name, formatDate(result.date_played)]}
-                      onClick={() => navigateInTab('leagues', `fixture/${result.fixture_id}`)}
-                    />
-                  );
-                })}
+            ) : nextFixture ? (
+              <List divider="none" size="lg">
+                <ListItem
+                  leading={<IconCircle iconClassName="fa fa-calendar-alt" tone={nextFixtureIsPersonal ? 'success' : 'accent'} />}
+                  title={formatFixtureTeams(nextFixture.home_team_name, nextFixture.away_team_name)}
+                  subtitle={`${formatDate(nextFixture.date_played)} · ${nextFixture.division_name} · ${nextFixture.league_name}`}
+                  trailing={nextFixtureIsPersonal ? <Pill size="xs" tone="success">Your team</Pill> : undefined}
+                  onClick={() => navigateInTab('leagues', `fixture/${nextFixture.fixture_id}`)}
+                />
               </List>
             ) : (
-              <EmptyState iconClassName="fa fa-table-tennis" title="No results yet" message="Completed matches from the selected leagues will appear here." />
+              <EmptyState
+                iconClassName="fa fa-calendar"
+                title="Nothing scheduled"
+                message="The next fixture from your selected leagues will appear here."
+              />
             )}
           </section>
 
-          <section className="tt-home-section">
+          <section className="tt-home-section" aria-labelledby="tt-home-highlights-title">
             <SectionHeader
-              title={watchListMode === 'teams' ? 'Teams to watch' : 'Players to watch'}
-              note={watchListNote}
-            />
-            <div className="tt-home-leaders-header tt-home-watchlist-tabs">
-              <SegmentedToggle
-                ariaLabel="Choose watchlist mode"
-                value={watchListMode}
-                onChange={setWatchListMode}
-                options={WATCH_LIST_OPTIONS}
-              />
-            </div>
-            <div aria-live="polite">
-              {watchListMode === 'teams' ? (
-                dashboardQuery.isLoading ? (
-                  <SkeletonList rows={WATCH_LIST_LIMIT} />
-                ) : dashboard && dashboard.top_teams.length > 0 ? (
-                  <List divider="hairline">
-                    {dashboard.top_teams.slice(0, WATCH_LIST_LIMIT).map((team, index) => (
-                      <ListItem
-                        key={team.team_id}
-                        leading={<RankBadge>{index + 1}</RankBadge>}
-                        title={team.team_name}
-                        subtitle={`${team.league_name} · ${team.division_name} · ${team.won}W ${team.drawn}D ${team.lost}L`}
-                        trailing={<Pill tone="accent">{Math.round(team.win_rate)}%</Pill>}
-                        onClick={() => navigateInTab('leagues', `team/${team.team_id}`)}
-                      />
-                    ))}
-                  </List>
-                ) : (
-                  <EmptyState iconClassName="fa fa-shield-alt" title="No team performance" message="Team standings are not available in the selected scope." />
-                )
-              ) : isListLoading ? (
-                <SkeletonList rows={WATCH_LIST_LIMIT} />
-              ) : leadersError ? (
-                <ErrorState message={getQueryError(leadersError) || 'Please try again later.'} />
-              ) : currentList.length === 0 ? (
-                <EmptyState iconClassName="fa fa-chart-line" title="No player data yet" message={playerListEmptyMessage} />
-              ) : (
-                <List divider="hairline">
-                  {currentList.map((player, index) => (
-                    <ListItem
-                      key={player.player_id}
-                      leading={<RankBadge>{index + 1}</RankBadge>}
-                      title={player.player_name}
-                      subtitle={
-                        watchListMode === 'form' ? `${player.wins}W · ${player.losses}L · Last ${player.played}` :
-                        watchListMode === 'improving' ? `${player.wins}W · ${player.losses}L · Latest 5` :
-                        `${player.wins}W · ${player.losses}L · ${player.played} played`
-                      }
-                      trailing={
-                        watchListMode === 'improving'
-                          ? <Pill tone="accent">+{Math.round(player.score ?? 0)} pts</Pill>
-                          : watchListMode === 'new_faces'
-                            ? <Pill>{formatDate(player.first_match_date)}</Pill>
-                            : <Pill tone="accent">{Math.round(player.win_rate)}%</Pill>
-                      }
-                      onClick={() => navigateInTab('players', `player/${player.player_id}`)}
-                    />
-                  ))}
-                </List>
+              title={<span id="tt-home-highlights-title">Highlights</span>}
+              note="Worth a quick look"
+              action={(
+                <AppButton size="s" tone="ghost" onClick={() => onOpenTab('leagues')}>
+                  View leagues
+                  <i className="fa fa-angle-right" aria-hidden="true" />
+                </AppButton>
               )}
-            </div>
+            />
+
+            {dashboardQuery.isLoading && topRatingsQuery.isLoading && risersQuery.isLoading ? (
+              <SkeletonList rows={3} />
+            ) : topRiser || topRated || latestResult || topTeam ? (
+              <List divider="hairline">
+                {topRiser ? (
+                  <ListItem
+                    leading={<IconCircle iconClassName="fa fa-chart-line" tone="success" />}
+                    title={`${topRiser.player_name} is moving up`}
+                    subtitle={`Biggest 6-week riser in your leagues · #${topRiser.overall_rank} overall`}
+                    trailing={<Pill tone="success">+{Math.round(topRiser.change)}</Pill>}
+                    onClick={() => navigateInTab('players', `player/${topRiser.player_id}`)}
+                  />
+                ) : null}
+
+                {topRated ? (
+                  <ListItem
+                    leading={<IconCircle iconClassName="fa fa-star" tone="accent" />}
+                    title={`Top rated · ${topRated.player_name}`}
+                    subtitle={`#${topRated.overall_rank} overall · ${topRated.rated_matches} rated matches`}
+                    trailing={<Pill tone="accent">{Math.round(topRated.rating).toLocaleString('en-GB')}</Pill>}
+                    onClick={() => navigateInTab('players', `player/${topRated.player_id}`)}
+                  />
+                ) : null}
+
+                {latestResult ? (
+                  <ListItem
+                    leading={<IconCircle iconClassName="fa fa-table-tennis" tone="neutral" />}
+                    title={formatFixtureTeams(latestResult.home_team_name, latestResult.away_team_name)}
+                    subtitle={`Latest result · ${latestResult.division_name} · ${formatDate(latestResult.date_played)}`}
+                    trailing={<Pill>{latestResult.home_score}–{latestResult.away_score}</Pill>}
+                    onClick={() => navigateInTab('leagues', `fixture/${latestResult.fixture_id}`)}
+                  />
+                ) : null}
+
+                {!latestResult && topTeam ? (
+                  <ListItem
+                    leading={<IconCircle iconClassName="fa fa-shield-alt" tone="neutral" />}
+                    title={topTeam.team_name}
+                    subtitle={`Leading team · ${topTeam.division_name} · ${topTeam.won}W ${topTeam.drawn}D ${topTeam.lost}L`}
+                    trailing={<Pill>{Math.round(topTeam.win_rate)}%</Pill>}
+                    onClick={() => navigateInTab('leagues', `team/${topTeam.team_id}`)}
+                  />
+                ) : null}
+              </List>
+            ) : (
+              <EmptyState
+                iconClassName="fa fa-bolt"
+                title="No highlights yet"
+                message="Notable rating movement and recent league activity will appear here."
+              />
+            )}
           </section>
         </>
       )}
