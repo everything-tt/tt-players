@@ -4,6 +4,7 @@ import {
   MY_PLAYER_UPDATED_EVENT,
   notifyUserDataChanged,
 } from '../local-persistence';
+import { useSsrHydration } from '../ssr/runtime-context';
 
 export interface MyPlayer {
   id: string;
@@ -31,17 +32,21 @@ function readMyPlayer(): MyPlayer | null {
 }
 
 export function useMyPlayer() {
-  const [player, setPlayerState] = useState<MyPlayer | null>(() => readMyPlayer());
+  const isSsrHydration = useSsrHydration();
+  const [player, setPlayerState] = useState<MyPlayer | null>(() => (
+    isSsrHydration ? null : readMyPlayer()
+  ));
 
   useEffect(() => {
     const sync = () => setPlayerState(readMyPlayer());
+    if (isSsrHydration) sync();
     window.addEventListener('storage', sync);
     window.addEventListener(MY_PLAYER_UPDATED_EVENT, sync);
     return () => {
       window.removeEventListener('storage', sync);
       window.removeEventListener(MY_PLAYER_UPDATED_EVENT, sync);
     };
-  }, []);
+  }, [isSsrHydration]);
 
   const persist = useCallback((next: MyPlayer | null) => {
     if (next) {
