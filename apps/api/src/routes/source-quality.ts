@@ -58,7 +58,6 @@ const DataUpdateStageSchema = z.object({
     duration_ms: z.number().int().nonnegative().nullable(),
     attempt_count: z.number().int().nonnegative(),
     summary: z.record(z.unknown()),
-    error_message: z.string().nullable(),
     recorded_at: z.string(),
 });
 
@@ -71,7 +70,6 @@ const DataUpdateRunSchema = z.object({
     finished_at: z.string().nullable(),
     duration_ms: z.number().int().nonnegative().nullable(),
     attempt_count: z.number().int().nonnegative(),
-    error_message: z.string().nullable(),
     recorded_at: z.string(),
     stages: z.array(DataUpdateStageSchema),
 });
@@ -97,7 +95,6 @@ interface PipelineRunRow {
     finished_at: Date | string | null;
     duration_ms: number | string | null;
     attempt_count: number | string;
-    error_message: string | null;
     updated_at: Date | string;
 }
 
@@ -109,7 +106,6 @@ interface PipelineStageRow {
     duration_ms: number | string | null;
     attempt_count: number | string;
     summary: unknown;
-    error_message: string | null;
     updated_at: Date | string;
 }
 
@@ -152,7 +148,6 @@ async function loadDataUpdatesSnapshot(db: Kysely<Database>) {
                 finished_at,
                 duration_ms,
                 attempt_count,
-                error_message,
                 updated_at
             FROM scraping_pipeline_runs
             ORDER BY started_at DESC
@@ -178,7 +173,6 @@ async function loadDataUpdatesSnapshot(db: Kysely<Database>) {
                 duration_ms,
                 attempt_count,
                 summary,
-                error_message,
                 updated_at
             FROM scraping_pipeline_run_stages
             WHERE run_key = ${run.run_key}
@@ -193,7 +187,6 @@ async function loadDataUpdatesSnapshot(db: Kysely<Database>) {
             duration_ms: stage.duration_ms === null ? null : numberValue(stage.duration_ms),
             attempt_count: numberValue(stage.attempt_count),
             summary: objectValue(stage.summary),
-            error_message: stage.error_message,
             recorded_at: isoValue(stage.updated_at)!,
         }));
         const runRecordedAt = isoValue(run.updated_at)!;
@@ -212,7 +205,6 @@ async function loadDataUpdatesSnapshot(db: Kysely<Database>) {
                 finished_at: isoValue(run.finished_at),
                 duration_ms: run.duration_ms === null ? null : numberValue(run.duration_ms),
                 attempt_count: numberValue(run.attempt_count),
-                error_message: run.error_message,
                 recorded_at: runRecordedAt,
                 stages,
             },
