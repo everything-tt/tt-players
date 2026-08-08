@@ -33,14 +33,17 @@ jobs:
           - workspace: '@tt-players/design-system'
             directory: 'design-system'
             test: false
+            coverage: false
             smoke: false
           - workspace: '@tt-players/pwa'
             directory: 'pwa'
             test: true
+            coverage: false
             smoke: true
           - workspace: '@tt-players/ranking'
             directory: 'ranking'
             test: true
+            coverage: true
             smoke: true
     steps:
       - name: Check out repository
@@ -67,6 +70,10 @@ jobs:
       - name: Test package
         if: matrix.test
         run: pnpm --filter "${{ matrix.workspace }}" test
+
+      - name: Enforce full code coverage
+        if: matrix.coverage
+        run: pnpm --filter "${{ matrix.workspace }}" coverage
 
       - name: Build publishable package
         run: pnpm --filter "${{ matrix.workspace }}" build
