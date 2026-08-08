@@ -81,6 +81,11 @@ fi
 
 install -m 0644 "$release_dir/infra/systemd/ttp-api.service" /etc/systemd/system/ttp-api.service
 install -m 0644 "$release_dir/infra/systemd/ttp-worker.service" /etc/systemd/system/ttp-worker.service
+install -m 0644 "$release_dir/infra/systemd/ttp-db-backup.service" /etc/systemd/system/ttp-db-backup.service
+install -m 0644 "$release_dir/infra/systemd/ttp-db-backup.timer" /etc/systemd/system/ttp-db-backup.timer
+systemd-analyze verify \
+  /etc/systemd/system/ttp-db-backup.service \
+  /etc/systemd/system/ttp-db-backup.timer
 systemctl daemon-reload
 
 # A database migration is a forward-only boundary. Stop both services before
@@ -131,3 +136,4 @@ done
 echo "Activated release $commit_sha"
 echo "Database changed: $database_changed"
 echo "Rollback allowed from this release: $rollback_allowed"
+echo "Database backup unit installed; timer activation remains an explicit post-restore step"

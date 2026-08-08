@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily TT Players PostgreSQL backup
+
+[Timer]
+OnCalendar=*-*-* 04:30:00 UTC
+Persistent=true
+RandomizedDelaySec=5m
+AccuracySec=1m
+Unit=ttp-db-backup.service
+
+[Install]
+WantedBy=timers.target
