@@ -125,8 +125,6 @@ export function useScrapingMonitorQuery(hours: number) {
     queryKey: ['scraping', 'monitor', hours],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
       apiFetch<ScrapingMonitorResponse>(`/scraping/monitor?hours=${hours}&limit=40`, signal),
-    staleTime: 5_000,
-    refetchInterval: 15_000,
-    refetchIntervalInBackground: false,
+    staleTime: 5 * 60 * 1000,
   });
 }
