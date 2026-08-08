@@ -257,7 +257,7 @@ export function sourceQualityRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 });
             }
 
-            reply.header('ETag', `W/\"source-quality-${version}\"`);
+            reply.header('ETag', `W/"source-quality-${version}"`);
             return reply.send(parsed.data);
         });
 
