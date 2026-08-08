@@ -18,11 +18,6 @@
   white-space: normal;
 }
 
-.tt-my-tt-tabs[data-active-tab="profile"] ~ .tt-my-tt-page .tt-my-tt-flat-section:has(.fa-book-open),
-.tt-my-tt-tabs[data-active-tab="profile"] ~ .tt-my-tt-page .tt-my-tt-flat-section:has(.fa-clipboard-list) {
-  display: none;
-}
-
 @media (max-width: 370px) {
   .tt-my-tt-tabs .tt-segmented__btn {
     font-size: 11px;
