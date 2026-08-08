@@ -15,7 +15,6 @@ import './h2h.css';
 import './tournament-timeline.css';
 import './tournament-filters.css';
 import { AppRouter } from './AppRouter';
-import { PlayerSsrHydrationBridge } from './PlayerSsrHydrationBridge';
 import { restoreLocalDataBackup } from './local-persistence';
 import { createMobileQueryClient } from './query-client';
 
@@ -45,16 +44,20 @@ if (stateElement?.textContent) {
   }
 }
 
-const shouldHydratePlayer = Boolean(stateElement && dehydratedState);
+const shouldHydratePlayer = Boolean(
+  stateElement
+  && dehydratedState
+  && rootElement.hasChildNodes(),
+);
 const queryClient = createMobileQueryClient();
-const content = shouldHydratePlayer
-  ? <PlayerSsrHydrationBridge />
-  : <AppRouter />;
 const app = (
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <HydrationBoundary state={dehydratedState}>
-        {content}
+        <AppRouter
+          siteOrigin={window.location.origin}
+          isSsrHydration={shouldHydratePlayer}
+        />
       </HydrationBoundary>
     </QueryClientProvider>
   </StrictMode>
