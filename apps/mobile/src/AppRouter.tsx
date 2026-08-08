@@ -16,6 +16,7 @@ import { PlayerTournamentsPage } from './PlayerTournamentsPage';
 import { PlayerPage } from './PlayerPage';
 import { RatingAuditHealthPage } from './RatingAuditHealthPage';
 import { RatingAuditPage } from './RatingAuditPage';
+import { RatingHighlightsPage } from './RatingHighlightsPage';
 import { RatingPlayerCoveragePage } from './RatingPlayerCoveragePage';
 import { RatingRankingQualityPage } from './RatingRankingQualityPage';
 import { RatingSourceQualityPage } from './RatingSourceQualityPage';
@@ -64,6 +65,7 @@ export function AppRouter() {
                 <Route path="/tabs/:tabId/entry-profiles" element={<EnsureValidTab><TournamentEntryProfilesPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/entry-prefill" element={<EnsureValidTab><TournamentEntryPrefillPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/ratings" element={<EnsureValidTab><TopRatingsPage /></EnsureValidTab>} />
+                <Route path="/tabs/:tabId/rating-highlights" element={<EnsureValidTab><RatingHighlightsPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/event/:eventId" element={<EnsureValidTab><EventDetailPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/player/:playerId" element={<EnsureValidTab><PlayerPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/player/:playerId/insights" element={<EnsureValidTab><PlayerInsightsPage /></EnsureValidTab>} />
