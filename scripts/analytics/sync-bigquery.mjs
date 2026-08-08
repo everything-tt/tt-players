@@ -116,7 +116,11 @@ async function syncTable(table, tempRoot) {
       if (!high) { console.log(`[${table.destinationTable}] no source rows; skipped`); return; }
     } else if (table.watermark) high = sourceHighWatermark(table);
 
-    ({ rows } = await psqlExport(exportSql(table, { lowerWatermark: prior?.timestamp ?? null, highWatermark: effectiveMode === 'incremental-merge' ? high : null }), dataPath));
+    ({ rows } = await psqlExport(exportSql(table, {
+      lowerWatermark: prior?.timestamp ?? null,
+      highWatermark: effectiveMode === 'incremental-merge' ? high : null,
+      includeOrder: !fullRefresh,
+    }), dataPath));
     await writeFile(schemaPath, `${JSON.stringify(bigQuerySchema(table), null, 2)}\n`, { mode: 0o600 });
     if (rows === 0 && effectiveMode === 'incremental-merge') { console.log(`[${table.destinationTable}] no changed rows; watermark remains ${prior?.timestamp ?? 'unset'}`); return; }
     if (rows === 0 && effectiveMode === 'full-replace') {
