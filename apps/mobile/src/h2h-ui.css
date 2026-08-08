@@ -99,9 +99,9 @@
 }
 
 .tt-h2h-rating-impact__player {
-  background: var(--surface-soft);
+  background: var(--surface-subtle);
   border: 1px solid var(--border-hairline);
-  border-radius: var(--tt-radius-md);
+  border-radius: var(--radius-md);
   display: grid;
   gap: 3px;
   min-width: 0;
