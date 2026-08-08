@@ -26,7 +26,6 @@ async function executable(directory, name, body) {
 async function runScenario({ invalidStage = false } = {}) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'ttp-bigquery-runtime-test-'));
   temporaryDirectories.push(directory);
-  const remoteDirectory = path.join(directory, 'remote');
   const commandLog = path.join(directory, 'commands.log');
   await writeFile(commandLog, '');
 
@@ -40,12 +39,12 @@ printf '%s\n' '{"id":"11111111-1111-1111-1111-111111111111","name":"Platform","b
 `);
   const gcloud = await executable(directory, 'gcloud', `
 printf 'gcloud %s\n' "$*" >> "$COMMAND_LOG"
-if [[ "\${1:-}" == "storage" && "\${2:-}" == "cp" ]]; then
-  mkdir -p "$REMOTE_DIRECTORY"
-  cp "$3" "$REMOTE_DIRECTORY/$(basename "$4")"
-elif [[ "\${1:-}" == "storage" && "\${2:-}" == "rm" ]]; then
-  rm -f "$REMOTE_DIRECTORY/$(basename "$3")"
+if [[ "\${1:-}" == "auth" && "\${2:-}" == "print-access-token" ]]; then
+  printf 'fake-access-token'
 fi
+`);
+  const curl = await executable(directory, 'curl', `
+printf 'curl %s\n' "$*" >> "$COMMAND_LOG"
 `);
   const bq = await executable(directory, 'bq', `
 printf 'bq %s\n' "$*" >> "$COMMAND_LOG"
@@ -76,8 +75,8 @@ fi
       PSQL_BIN: psql,
       GCLOUD_BIN: gcloud,
       BQ_BIN: bq,
+      CURL_BIN: curl,
       COMMAND_LOG: commandLog,
-      REMOTE_DIRECTORY: remoteDirectory,
       INVALID_STAGE: invalidStage ? '1' : '0',
       TMPDIR: directory,
     },
@@ -91,11 +90,13 @@ test('runtime moves a run-scoped object from GCS into BigQuery before publicatio
   const { result, commands } = await runScenario();
 
   assert.equal(result.status, 0, result.stderr);
-  assert.match(commands, /gcloud storage cp .*gs:\/\/test-bucket\/warehouse-loads\/.*\/platforms\.ndjson/);
+  assert.match(commands, /gcloud auth print-access-token/);
+  assert.match(commands, /curl .*upload\/storage\/v1\/b\/test-bucket\/o/);
+  assert.match(commands, /name=warehouse-loads%2F.*%2Fplatforms\.ndjson/);
   assert.match(commands, /bq load .*gs:\/\/test-bucket\/warehouse-loads\/.*\/platforms\.ndjson/);
   assert.match(commands, /CREATE OR REPLACE TABLE `test-project\.tt_players_raw\.platforms`/s);
   assert.match(commands, /INSERT INTO `test-project\.tt_players_pipeline\.validation_results`/s);
-  assert.match(commands, /gcloud storage rm .*gs:\/\/test-bucket\/warehouse-loads\/.*\/platforms\.ndjson/);
+  assert.match(commands, /curl .*storage\/v1\/b\/test-bucket\/o/);
 });
 
 test('runtime refuses to publish a staging table that fails key validation', async () => {
