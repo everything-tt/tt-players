@@ -40,7 +40,7 @@ function statusLabel(status: DataUpdateStageStatus | 'not-started'): string {
 
 function stageSubtitle(stage: DataUpdateStage | undefined): string {
   if (!stage) return 'Not started in this refresh yet';
-  if (stage.error_message) return stage.error_message;
+  if (stage.status === 'failed') return 'This stage did not complete. A later refresh will update this status.';
   if (stage.finished_at) return `Completed ${formatDate(stage.finished_at, { includeTime: true })}`;
   return `Last recorded ${formatDate(stage.recorded_at, { includeTime: true })}`;
 }
@@ -146,9 +146,11 @@ export function DataUpdatesPage() {
               </DesignList>
             </PageSection>
 
-            {run.error_message ? (
-              <PageSection surface="flat" density="compact" title="Latest recorded issue">
-                <p className="tt-about-description">{run.error_message}</p>
+            {run.status === 'failed' ? (
+              <PageSection surface="flat" density="compact" title="Refresh needs attention">
+                <p className="tt-about-description">
+                  A processing stage did not complete. The status here will update after the next recorded refresh attempt.
+                </p>
               </PageSection>
             ) : null}
           </>
