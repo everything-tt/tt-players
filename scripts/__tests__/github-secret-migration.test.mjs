@@ -99,6 +99,13 @@ test('pull-request paths cannot request production identity or credentials', () 
   assert.doesNotMatch(jobs.get('ui-screenshots'), /NETLIFY_AUTH_TOKEN|google-github-actions|id-token:\s*write/);
 });
 
+test('VPS runtime deployment uses the configured runtime reader service account', () => {
+  const source = readWorkflow('vps-deploy.yml');
+
+  assert.match(source, /service_account:\s*\$\{\{\s*vars\.TT_PLAYERS_RUNTIME_SERVICE_ACCOUNT\s*\}\}/);
+  assert.doesNotMatch(source, /TT_PLAYERS_RUNTIME_CONFIG_SERVICE_ACCOUNT/);
+});
+
 test('migrated workflows keep the documented same-repository preview exception as their only custom secret', () => {
   const references = [];
   for (const name of readdirSync(workflowDir).filter((file) => file.endsWith('.yml'))) {

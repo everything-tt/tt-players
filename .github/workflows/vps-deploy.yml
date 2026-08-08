@@ -91,7 +91,7 @@ jobs:
         with:
           project_id: wudong-agent-master
           workload_identity_provider: ${{ vars.TT_PLAYERS_RUNTIME_CONFIG_WIF_PROVIDER }}
-          service_account: ${{ vars.TT_PLAYERS_RUNTIME_CONFIG_SERVICE_ACCOUNT }}
+          service_account: ${{ vars.TT_PLAYERS_RUNTIME_SERVICE_ACCOUNT }}
 
       - name: Load runtime deployment credentials
         id: gcp-secrets
