@@ -339,9 +339,14 @@ Public repository Variables:
 Each production workload also has a WIF provider and reader service-account
 Variable documented in the [GCP WIF runbook](https://github.com/wudong/gcloud/blob/main/docs/tt-players-github-secrets.md).
 
-The only intentionally remaining GitHub-managed credential is
-`NETLIFY_AUTH_TOKEN` for same-repository pull-request previews. Production
-frontend, UI audit, SSH, runtime configuration, and backfill jobs use their
+The intentionally remaining GitHub-managed credentials are:
+
+- `NETLIFY_AUTH_TOKEN` for same-repository pull-request previews;
+- `UI_AUDIT_EMAIL`, `UI_AUDIT_PASSWORD`, `VITE_SUPABASE_URL`,
+  `VITE_SUPABASE_PUBLISHABLE_KEY`, and the Main UI Audit's Netlify credentials
+  for the existing audit workflow. Its Secret Manager migration is deferred.
+
+Production frontend, SSH, runtime configuration, and backfill jobs use their
 least-privilege Google Secret Manager readers instead.
 
 ## Google Cloud Secret Manager
@@ -354,8 +359,8 @@ tt-players-hetzner-db-password
 tt-players-hetzner-vps-deploy-key
 tt-players-netlify-auth-token
 tt-players-netlify-site-id   (legacy metadata; CI uses the `NETLIFY_SITE_ID` Variable)
-tt-players-ui-audit-email
-tt-players-ui-audit-password
+tt-players-ui-audit-email   (reserved for the deferred Main UI Audit migration)
+tt-players-ui-audit-password (reserved for the deferred Main UI Audit migration)
 cloudflare-account-id
 cloudflare-ai-api-token
 ollama-api-key

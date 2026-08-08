@@ -77,13 +77,12 @@ Operational rules:
 
 1. The audit is manual and independent of deployment. Its result must not reverse or block an already successful production deployment.
 2. The walkthrough captures representative anonymous root, static, player, tournament, league, team, fixture and H2H screens. Missing representative production data is recorded as skipped rather than aborting the remaining audit.
-3. Authenticated coverage uses a dedicated synthetic Supabase account. The
-   audit workflow loads `tt-players-ui-audit-email` and
-   `tt-players-ui-audit-password` from Google Secret Manager through its
-   workload-specific WIF identity; never use a personal account.
-4. Authentication uses the public repository Variables `VITE_SUPABASE_URL`
-   and `VITE_SUPABASE_PUBLISHABLE_KEY`. Never expose or pass a Supabase
-   service-role key to Playwright.
+3. Authenticated coverage uses a dedicated synthetic Supabase account. Configure
+   repository secrets `UI_AUDIT_EMAIL` and `UI_AUDIT_PASSWORD`; never use a
+   personal account.
+4. Authentication uses the public `VITE_SUPABASE_URL` and
+   `VITE_SUPABASE_PUBLISHABLE_KEY` repository secrets. Never expose or pass a
+   Supabase service-role key to Playwright.
 5. If either synthetic-user credential is absent, anonymous coverage still runs and authenticated coverage is skipped.
 6. Authentication state is in-memory browser cookie state only. Do not commit it or include it in artifacts, diagnostics or screenshots beyond the account email visibly rendered by the application.
 7. Browser traces remain disabled because authenticated traffic must not be retained.
@@ -102,5 +101,7 @@ and Google credential files in cleanup steps.
 
 Fork pull requests receive no GCP or Netlify credential. Same-repository PR
 previews retain the narrow GitHub-managed Netlify preview credential as the
-documented isolation-preserving exception. Never pass a secret as an SSH
-command-line argument or commit a value from an ignored environment file.
+documented isolation-preserving exception. The Main UI Audit remains on its
+existing GitHub-managed credentials until a separate migration. Never pass a
+secret as an SSH command-line argument or commit a value from an ignored
+environment file.

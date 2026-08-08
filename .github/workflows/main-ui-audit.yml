@@ -20,15 +20,14 @@ jobs:
   audit:
     runs-on: [self-hosted, Linux, ARM64, docker-ui-screenshot, playwright]
     timeout-minutes: 90
-    permissions:
-      contents: read
-      id-token: write
     env:
       PREVIEW_URL: ${{ inputs.target_url }}
       UI_REVIEW_REPORT_DIR: ${{ github.workspace }}/ui-review-report
       UI_AUDIT_MAX_INTERACTIONS_PER_PAGE: 6
-      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      UI_AUDIT_EMAIL: ${{ secrets.UI_AUDIT_EMAIL }}
+      UI_AUDIT_PASSWORD: ${{ secrets.UI_AUDIT_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -50,30 +49,6 @@ jobs:
 
       - name: Install Chromium
         run: pnpm --filter @tt-players/mobile exec playwright install chromium
-
-      # Audit credentials are optional. Authentication or secret availability
-      # failures are non-fatal so anonymous coverage and the artifact still
-      # complete; the Playwright test records authenticated coverage as
-      # skipped when these outputs are empty.
-      - name: Authenticate to Google Cloud for optional audit credentials
-        id: gcp-auth
-        continue-on-error: true
-        uses: google-github-actions/auth@v3
-        with:
-          project_id: wudong-agent-master
-          workload_identity_provider: ${{ vars.TT_PLAYERS_UI_AUDIT_WIF_PROVIDER }}
-          service_account: ${{ vars.TT_PLAYERS_UI_AUDIT_SERVICE_ACCOUNT }}
-
-      - name: Load optional Main UI Audit credentials
-        id: gcp-secrets
-        if: steps.gcp-auth.outcome == 'success'
-        continue-on-error: true
-        uses: google-github-actions/get-secretmanager-secrets@v3
-        with:
-          secrets: |-
-            ui_audit_email:wudong-agent-master/tt-players-ui-audit-email
-            ui_audit_password:wudong-agent-master/tt-players-ui-audit-password
-            netlify_auth_token:wudong-agent-master/tt-players-netlify-auth-token
 
       - name: Wait for target deployment
         run: |
@@ -104,9 +79,6 @@ jobs:
           } > ui-review-report/diagnostics/host-before.txt
 
       - name: Collect comprehensive UI screenshots
-        env:
-          UI_AUDIT_EMAIL: ${{ steps.gcp-secrets.outputs.ui_audit_email }}
-          UI_AUDIT_PASSWORD: ${{ steps.gcp-secrets.outputs.ui_audit_password }}
         run: pnpm --filter @tt-players/mobile exec playwright test --config=../../playwright.main-audit.config.ts
 
       - name: Record host resources after
@@ -132,15 +104,11 @@ jobs:
             test-results/main-audit/
 
       - name: Deploy main UI audit report to Netlify
-        if: >-
-          always() &&
-          hashFiles('ui-review-report/index.html') != '' &&
-          steps.gcp-auth.outcome == 'success' &&
-          steps.gcp-secrets.outcome == 'success'
+        if: always() && hashFiles('ui-review-report/index.html') != ''
         id: report
         env:
-          NETLIFY_AUTH_TOKEN: ${{ steps.gcp-secrets.outputs.netlify_auth_token }}
-          NETLIFY_SITE_ID: ${{ vars.NETLIFY_SITE_ID }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
           NETLIFY_ALIAS: main-ui-audit-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
@@ -237,8 +205,3 @@ jobs:
           ];
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
           NODE
-
-      - name: Clean temporary Google credentials
-        if: always()
-        run: |
-          find "${RUNNER_TEMP:-/tmp}" -maxdepth 1 -type f -name 'gha-creds-*.json' -delete 2>/dev/null || true

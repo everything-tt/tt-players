@@ -17,8 +17,9 @@ const productionWorkflows = [
   'tournament-entry-form-backfill.yml',
   'tte-calendar-sync.yml',
   'build.yml',
-  'main-ui-audit.yml',
 ];
+
+const deferredWorkflows = new Set(['main-ui-audit.yml']);
 
 const sshWorkflows = [
   'vps-deploy.yml',
@@ -51,10 +52,6 @@ function jobBlocks(source) {
     if (current) current.lines.push(line);
   }
   return new Map([...jobs].map(([name, job]) => [name, job.lines.join('\n')]));
-}
-
-function hasSecretExpression(source) {
-  return /\$\{\{\s*secrets\./.test(source);
 }
 
 test('production workflows use workload-specific Secret Manager loading', () => {
@@ -102,9 +99,10 @@ test('pull-request paths cannot request production identity or credentials', () 
   assert.doesNotMatch(jobs.get('ui-screenshots'), /NETLIFY_AUTH_TOKEN|google-github-actions|id-token:\s*write/);
 });
 
-test('only the documented same-repository preview exception uses a custom secret', () => {
+test('migrated workflows keep the documented same-repository preview exception as their only custom secret', () => {
   const references = [];
   for (const name of readdirSync(workflowDir).filter((file) => file.endsWith('.yml'))) {
+    if (deferredWorkflows.has(name)) continue;
     const source = readWorkflow(name);
     for (const match of source.matchAll(/\$\{\{\s*secrets\.([A-Z0-9_]+)\s*\}\}/g)) {
       references.push({ name, secret: match[1] });
@@ -120,6 +118,17 @@ test('only the documented same-repository preview exception uses a custom secret
   );
   assert.doesNotMatch(readWorkflow('design-system-package.yml'), /secrets\.GITHUB_TOKEN/);
   assert.match(readWorkflow('design-system-package.yml'), /github\.token/);
+});
+
+test('Main UI Audit remains on its existing credentials until separately migrated', () => {
+  const source = readWorkflow('main-ui-audit.yml');
+
+  assert.match(source, /secrets\.UI_AUDIT_EMAIL/);
+  assert.match(source, /secrets\.UI_AUDIT_PASSWORD/);
+  assert.match(source, /secrets\.VITE_SUPABASE_URL/);
+  assert.match(source, /secrets\.VITE_SUPABASE_PUBLISHABLE_KEY/);
+  assert.match(source, /secrets\.NETLIFY_AUTH_TOKEN/);
+  assert.doesNotMatch(source, /google-github-actions\/(auth|get-secretmanager-secrets)/);
 });
 
 test('SSH workflows use pinned host keys, Secret Manager keys, and cleanup', () => {

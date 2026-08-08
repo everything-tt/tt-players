@@ -307,7 +307,7 @@ jobs:
           while IFS= read -r -d '' path; do
             relative="${path#ui-review-report/}"
             case "$relative" in
-              index.html|manifest.json|coverage.json|diagnostics/*|screenshots/*) ;;
+              index.html|manifest.json|coverage.json|diagnostics/*|screenshots/*|playwright-report/*) ;;
               *) echo "Unexpected UI review artifact path: $relative" >&2; exit 1 ;;
             esac
           done < <(find ui-review-report -type f -print0)
