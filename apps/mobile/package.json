@@ -4,14 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node server/index.mjs",
-    "dev:spa": "vite --port ${VITE_PORT:-7474}",
-    "build": "tsc -b && pnpm run build:client && pnpm run build:server",
+    "dev": "vite --port ${VITE_PORT:-7474}",
+    "build": "tsc -b && pnpm run build:client && pnpm run build:ssr && pnpm run build:function-template",
     "build:client": "vite build",
-    "build:server": "vite build --ssr src/entry-server.tsx --outDir dist-ssr",
-    "preview": "NODE_ENV=production node server/index.mjs",
-    "preview:spa": "vite preview",
-    "preview:ssr": "NODE_ENV=production node server/index.mjs",
+    "build:ssr": "vite build --ssr src/ssr/render-player.tsx --outDir dist-ssr",
+    "build:function-template": "node scripts/write-netlify-ssr-template.mjs",
+    "preview": "vite preview",
     "test": "vitest run"
   },
   "dependencies": {
