@@ -107,13 +107,14 @@ describe('Home activity briefing', () => {
     });
 
     expect(stories).toContainEqual(expect.objectContaining({
-      kind: 'rating-milestone',
+      id: 'rating-milestone:1900',
+      kind: 'recent-rating-high',
       priority: 106,
       title: 'You crossed 1,900',
       subtitle: 'Now 1,912 · up 72 from your 3-month low',
       trailing: 'Milestone',
     }));
-    expect(stories.some((story) => story.kind === 'recent-rating-high')).toBe(false);
+    expect(stories.some((story) => story.id === 'recent-rating-high')).toBe(false);
   });
 
   it('falls back to a meaningful three-month rating high when no round threshold was crossed', () => {
@@ -128,6 +129,7 @@ describe('Home activity briefing', () => {
     });
 
     expect(stories).toContainEqual(expect.objectContaining({
+      id: 'recent-rating-high',
       kind: 'recent-rating-high',
       priority: 102,
       title: "You're at a 3-month rating high",
