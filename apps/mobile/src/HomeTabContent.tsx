@@ -247,7 +247,7 @@ export function HomeTabContent({
                 {!hasLeagueScope ? (
                   <div className="tt-home-personal-hero__league-prompt">
                     <span>
-                      <i className="fa fa-sparkles" aria-hidden="true" />
+                      <i className="fa fa-filter" aria-hidden="true" />
                       Choose leagues to personalise fixtures, results and rankings.
                     </span>
                     <AppButton size="s" tone="outline" onClick={onOpenLeagueSelector}>Choose leagues</AppButton>
