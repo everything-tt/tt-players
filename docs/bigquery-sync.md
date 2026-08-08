@@ -131,9 +131,9 @@ Then inspect the datasets with an administrator credential:
 ```bash
 bq --project_id=wudong-agent-master --location=us-central1 ls tt_players_raw
 bq --project_id=wudong-agent-master --location=us-central1 query --use_legacy_sql=false '
-SELECT table_name, row_count
+SELECT table_id AS table_name, row_count
 FROM `wudong-agent-master.tt_players_raw.__TABLES__`
-ORDER BY table_name'
+ORDER BY table_id'
 ```
 
 Run the incremental service twice manually to prove idempotency:
