@@ -57,9 +57,9 @@ function writeReportIndex(previewUrl: string) {
 
   writeFileSync(join(reportDir, 'index.html'), `<!doctype html>
 <html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>TT Players Home Claim Review</title><style>
+<title>TT Players New User Home Review</title><style>
 body{margin:0;font-family:system-ui,sans-serif;background:#f7f8f7;color:#17211d}main{max-width:1100px;margin:0 auto;padding:24px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}article{background:#fff;border:1px solid #d9dfda;border-radius:10px;padding:14px}img{width:100%;height:auto;border:1px solid #d9dfda;border-radius:8px;display:block}a{color:#0f6655}
-</style></head><body><main><h1>TT Players Home Claim Review</h1><p>Preview: <a href="${escapeHtml(previewUrl)}">${escapeHtml(previewUrl)}</a></p><div class="grid">${cards}</div></main></body></html>\n`);
+</style></head><body><main><h1>TT Players New User Home Review</h1><p>Preview: <a href="${escapeHtml(previewUrl)}">${escapeHtml(previewUrl)}</a></p><div class="grid">${cards}</div></main></body></html>\n`);
 }
 
 async function capture(page: Page, testInfo: TestInfo, title: string, diagnostics: unknown) {
@@ -83,23 +83,94 @@ async function installState(page: Page) {
   });
 }
 
+function rating(player_id: string, player_name: string, rank: number, value: number, winRate: number) {
+  return {
+    rank,
+    player_id,
+    player_name,
+    rating: value,
+    rating_deviation: 45,
+    volatility: 0.06,
+    conservative_rating: value - 90,
+    rating_low: value - 100,
+    rating_high: value + 100,
+    confidence: 'high',
+    rated_matches: 52 - rank,
+    rated_wins: 35,
+    rated_losses: 16,
+    win_rate: winRate,
+    provisional: false,
+    first_rated_at: '2025-01-01',
+    last_rated_at: '2026-08-05',
+  };
+}
+
 async function mockApi(page: Page) {
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
 
     if (path.endsWith('/api/leagues')) {
-      await route.fulfill({ json: { data: [{
-        id: '10000000-0000-4000-8000-000000000001',
-        name: 'Colchester & District League',
-        season: '2026/27',
-        divisions: [{ id: 'd1', name: 'Division 3' }],
-      }] } });
+      await route.fulfill({ json: { data: [
+        {
+          id: '10000000-0000-4000-8000-000000000001',
+          name: 'Colchester & District League',
+          season: '2026/27',
+          divisions: [{ id: 'd1', name: 'Division 3' }],
+        },
+        {
+          id: '10000000-0000-4000-8000-000000000002',
+          name: 'Chelmsford Table Tennis League',
+          season: '2026/27',
+          divisions: [{ id: 'd2', name: 'Division 2' }],
+        },
+      ] } });
       return;
     }
 
     if (path.endsWith('/api/events')) {
-      await route.fulfill({ json: { data: [], total: 0, limit: 1, offset: 0, has_more: false } });
+      await route.fulfill({ json: {
+        data: [{
+          id: 'event-essex-open',
+          platform_id: 'sport80',
+          source: 'sport80',
+          external_id: 'essex-open-2026',
+          name: 'Essex Junior 2★ Open',
+          event_date: '2026-08-16',
+          start_date: '2026-08-16',
+          end_date: '2026-08-16',
+          category: 'Junior',
+          public_url: null,
+          platform_name: 'Table Tennis England',
+          match_count: 0,
+          status: 'entries_open',
+          venue_name: 'BATTS Table Tennis Club',
+          venue_town: 'Harlow',
+          venue_postcode: 'CM20 3AS',
+          entry_deadline: '2026-08-12',
+          entry_url: null,
+          information_url: null,
+          result_url: null,
+          source_count: 1,
+        }],
+        total: 1,
+        limit: 1,
+        offset: 0,
+        has_more: false,
+      } });
+      return;
+    }
+
+    if (path.endsWith('/api/ratings')) {
+      await route.fulfill({ json: {
+        data: [
+          rating('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Jane Smith', 1, 2114, 71),
+          rating('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'Alex Morgan', 2, 2048, 68),
+        ],
+        pagination: { page: 1, page_size: 2, total: 200, total_pages: 100 },
+        model: 'glicko2',
+        processing: null,
+      } });
       return;
     }
 
@@ -136,26 +207,7 @@ async function mockApi(page: Page) {
     }
 
     if (path.endsWith(`/api/ratings/${playerId}`)) {
-      await route.fulfill({ json: { data: {
-        rank: 126,
-        overall_rank: 126,
-        player_id: playerId,
-        player_name: 'Wudong Liu',
-        rating: 1742,
-        rating_deviation: 55,
-        volatility: 0.06,
-        conservative_rating: 1632,
-        rating_low: 1600,
-        rating_high: 1884,
-        confidence: 'high',
-        rated_matches: 25,
-        rated_wins: 18,
-        rated_losses: 7,
-        win_rate: 72,
-        provisional: false,
-        first_rated_at: '2025-01-01',
-        last_rated_at: '2026-08-05',
-      } } });
+      await route.fulfill({ json: { data: rating(playerId, 'Wudong Liu', 126, 1742, 72) } });
       return;
     }
 
@@ -168,23 +220,30 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('claims a player directly from Home without leaving the tab', async ({ page }, testInfo) => {
+test('reviews a useful new-user Home and claims a player without leaving the tab', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
   await installState(page);
   await mockApi(page);
 
   await page.goto(`${previewUrl}/tabs/home`, { waitUntil: 'domcontentloaded' });
 
-  await expect(page.getByRole('heading', { name: 'Your TT' })).toBeVisible();
-  await expect(page.getByText('Claim your player', { exact: true })).toBeVisible();
-  const claimButton = page.getByRole('button', { name: 'Claim my player' });
-  await expect(claimButton).toBeVisible();
-  await capture(page, testInfo, 'home-unclaimed-player', {
-    claimCallToActionVisible: true,
-    staysOnHome: true,
+  await expect(page.getByRole('heading', { name: 'Make Home yours' })).toBeVisible();
+  await expect(page.getByText('0 of 2 ready', { exact: true })).toBeVisible();
+  await expect(page.getByText('Claim my player', { exact: true })).toBeVisible();
+  await expect(page.getByText('Choose leagues to follow', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Next up' })).toBeVisible();
+  await expect(page.getByText('Essex Junior 2★ Open', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
+  await expect(page.getByText('#1 overall · Jane Smith', { exact: true })).toBeVisible();
+  await expect(page.getByText('#2 overall · Alex Morgan', { exact: true })).toBeVisible();
+
+  await capture(page, testInfo, 'home-new-user', {
+    setupSteps: 2,
+    upcomingTournament: true,
+    discoveryContent: 2,
   });
 
-  await claimButton.click();
+  await page.getByText('Claim my player', { exact: true }).click();
   const claimSheet = page.getByLabel('Claim your player');
   await expect(claimSheet).toBeVisible();
   await expect(claimSheet.getByText('Make Home personal', { exact: true })).toBeVisible();
@@ -201,13 +260,15 @@ test('claims a player directly from Home without leaving the tab', async ({ page
   await claimSheet.getByText('Wudong Liu', { exact: true }).click();
   await expect(claimSheet).toBeHidden();
   await expect(page).toHaveURL(/\/tabs\/home/);
+  await expect(page.getByRole('heading', { name: 'Your TT' })).toBeVisible();
   await expect(page.getByText('Wudong Liu', { exact: true })).toBeVisible();
   await expect(page.getByText(/18W · 7L · 25 played · Rating 1,742/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Claim my player' })).toHaveCount(0);
+  await expect(page.getByText('1 of 2 ready', { exact: true })).toBeVisible();
+  await expect(page.getByText('Claim my player', { exact: true })).toHaveCount(0);
   await capture(page, testInfo, 'home-after-player-claim', {
     drawerClosed: true,
     homePersonalisedImmediately: true,
-    navigationUnchanged: true,
+    leagueSetupStillVisible: true,
   });
 
   writeReportIndex(previewUrl);
