@@ -2,6 +2,7 @@ import type { Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
 import { bootstrap, type BootstrapOptions, type ScrapeTarget } from './bootstrap.js';
 import { bootstrapNationalTTLeagues } from './national-ttleagues.js';
+import { bootstrapTerritorySourceCatalog } from './territory-source-catalog.js';
 
 interface TargetLogger {
     info?: (message: string) => void;
@@ -16,6 +17,7 @@ export async function resolveAllScrapeTargets(
     db: Kysely<Database>,
     options: ResolveAllScrapeTargetsOptions = {},
 ): Promise<ScrapeTarget[]> {
+    await bootstrapTerritorySourceCatalog(db, { logger: options.logger });
     const configuredTargets = await bootstrap(db, options);
     const nationalTargets = await bootstrapNationalTTLeagues(db, {
         includeHistory: options.includeHistory,
