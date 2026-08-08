@@ -163,7 +163,7 @@ TTP_BQ_LOCATION=us-central1
 TTP_BQ_RAW_DATASET=tt_players_raw
 TTP_BQ_PIPELINE_DATASET=tt_players_pipeline
 TTP_GCS_WAREHOUSE_PREFIX=warehouse-loads
-TTP_BQ_MAX_BYTES_BILLED=5000000000
+TTP_BQ_MAX_BYTES_BILLED=20000000000
 GOOGLE_APPLICATION_CREDENTIALS=/etc/ttp/tt-players-warehouse-sync.json
 ```
 
@@ -260,4 +260,7 @@ If cleanup fails, the staging table expires after 24 hours and the GCS object ex
 - temporary load retention capped at one day;
 - project budget alerts are managed in `wudong/gcloud`.
 
-Increase `TTP_BQ_MAX_BYTES_BILLED` only after reviewing the job estimate and expected monthly query volume.
+The 20 GB default leaves room for the current `raw_scrape_logs` replacement,
+which scans just over 10 GB after JSON expansion. Increase
+`TTP_BQ_MAX_BYTES_BILLED` only after reviewing the job estimate and expected
+monthly query volume; a query that exceeds the cap fails before publication.
