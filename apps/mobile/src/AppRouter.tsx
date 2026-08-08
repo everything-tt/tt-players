@@ -65,6 +65,8 @@ export function AppRouter() {
                 <Route path="/tabs/:tabId" element={<EnsureValidTab><App /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/my-tt" element={<EnsureValidTab><MyTTPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/my-tt/edit" element={<EnsureValidTab><EditMyTTPage /></EnsureValidTab>} />
+                <Route path="/tabs/:tabId/my-tt/journal/:playerId" element={<EnsureValidTab><MatchJournalPage /></EnsureValidTab>} />
+                <Route path="/tabs/:tabId/my-tt/entries" element={<EnsureValidTab><TournamentEntryProfilesPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/entry-profiles" element={<EnsureValidTab><TournamentEntryProfilesPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/entry-prefill" element={<EnsureValidTab><TournamentEntryPrefillPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/ratings" element={<EnsureValidTab><TopRatingsPage /></EnsureValidTab>} />
