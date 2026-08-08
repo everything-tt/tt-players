@@ -51,6 +51,7 @@ beforeAll(async () => {
             current_stage,
             started_at,
             attempt_count,
+            error_message,
             updated_at
         ) VALUES (
             '2026-08-08',
@@ -59,6 +60,7 @@ beforeAll(async () => {
             'ratings',
             '2026-08-08T01:00:00Z',
             3,
+            'internal database detail that must stay private',
             '2026-08-08T01:30:00Z'
         )
     `.execute(db);
@@ -72,6 +74,7 @@ beforeAll(async () => {
             duration_ms,
             attempt_count,
             summary,
+            error_message,
             updated_at
         ) VALUES
         (
@@ -83,6 +86,7 @@ beforeAll(async () => {
             600000,
             2,
             '{"pending":0,"failed":0}'::jsonb,
+            NULL,
             '2026-08-08T01:10:00Z'
         ),
         (
@@ -94,6 +98,7 @@ beforeAll(async () => {
             600000,
             1,
             '{}'::jsonb,
+            NULL,
             '2026-08-08T01:20:00Z'
         ),
         (
@@ -105,6 +110,7 @@ beforeAll(async () => {
             NULL,
             3,
             '{"processed_periods":12,"processed_matches":450,"complete":false}'::jsonb,
+            'relation private_table does not exist',
             '2026-08-08T01:31:00Z'
         )
     `.execute(db);
@@ -119,7 +125,7 @@ afterAll(async () => {
 }, 15_000);
 
 describe('GET /api/sources/updates', () => {
-    it('returns only the latest persisted pipeline snapshot without live queue tables', async () => {
+    it('returns only the latest persisted pipeline snapshot without live queue tables or internal errors', async () => {
         const response = await request.get('/api/sources/updates').expect(200);
 
         expect(response.headers['cache-control']).toContain('max-age=30');
@@ -133,6 +139,7 @@ describe('GET /api/sources/updates', () => {
                 attempt_count: 3,
             },
         });
+        expect(response.body.run).not.toHaveProperty('error_message');
         expect(response.body.run.stages).toEqual([
             expect.objectContaining({
                 stage: 'wait-for-ingestion',
@@ -153,5 +160,8 @@ describe('GET /api/sources/updates', () => {
                 recorded_at: '2026-08-08T01:31:00.000Z',
             }),
         ]);
+        for (const stage of response.body.run.stages) {
+            expect(stage).not.toHaveProperty('error_message');
+        }
     });
 });
