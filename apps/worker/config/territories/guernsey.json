@@ -1,0 +1,137 @@
+{
+    "territory": "Guernsey",
+    "sources": [
+        {
+            "key": "gtta-tt365",
+            "name": "Guernsey Table Tennis Association Senior League",
+            "platformName": "TableTennis365",
+            "platformBaseUrl": "https://www.tabletennis365.com",
+            "baseUrl": "https://www.tabletennis365.com/gtta",
+            "adapterKey": "tt365",
+            "status": "active",
+            "notes": "GTTA explicitly publishes the four-division senior league's fixtures, results and match reports to TT365. British League links remain owned by the existing british.ttleagues.com ingestion.",
+            "config": {
+                "role": "domestic-league",
+                "excludedHosts": [
+                    "british.ttleagues.com"
+                ],
+                "excludedCompetitionFamilies": [
+                    "British Clubs Leagues"
+                ],
+                "tt365Scrape": {
+                    "leagueExternalId": "gtta-tt365",
+                    "seasonName": "2025-26",
+                    "seasonExtId": "2025-26",
+                    "regions": [
+                        "Guernsey"
+                    ],
+                    "divisions": [
+                        {
+                            "name": "Division 1",
+                            "season": "2025-26",
+                            "slug": "Division_1"
+                        },
+                        {
+                            "name": "Division 2",
+                            "season": "2025-26",
+                            "slug": "Division_2"
+                        },
+                        {
+                            "name": "Division 3",
+                            "season": "2025-26",
+                            "slug": "Division_3"
+                        },
+                        {
+                            "name": "Division 4",
+                            "season": "2025-26",
+                            "slug": "Division_4"
+                        }
+                    ]
+                }
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "guernsey-senior-league",
+                    "name": "Doric Insurance Senior League",
+                    "publicUrl": "https://www.gtta.org.uk/leagues/senior-league",
+                    "refreshPolicy": {
+                        "cadence": "daily"
+                    }
+                }
+            ]
+        },
+        {
+            "key": "gtta-tournaments",
+            "name": "Guernsey Table Tennis Association tournaments",
+            "platformName": "Guernsey Table Tennis Association",
+            "platformBaseUrl": "https://www.gtta.org.uk",
+            "baseUrl": "https://www.gtta.org.uk/tournaments/tournaments",
+            "adapterKey": "structured-tournament-discovery",
+            "status": "discovery",
+            "enabled": false,
+            "notes": "Official GTTA tournament catalogue with Results/Full Results links for divisional, Island, handicap and Top 12 events. Prefer a reusable structured-result adapter over event-specific scrapers.",
+            "config": {
+                "role": "island-tournaments",
+                "preserveHandicapSemantics": true,
+                "transportPreference": [
+                    "structured-html-json",
+                    "csv-xlsx-sheet",
+                    "structured-document"
+                ]
+            },
+            "resources": [
+                {
+                    "resourceType": "directory",
+                    "externalId": "guernsey-tournament-catalog",
+                    "name": "GTTA tournament catalogue",
+                    "publicUrl": "https://www.gtta.org.uk/tournaments/tournaments",
+                    "enabled": false
+                },
+                {
+                    "resourceType": "event-results",
+                    "externalId": "guernsey-island-championships",
+                    "name": "Guernsey Island Championships full results",
+                    "publicUrl": "https://www.gtta.org.uk/tournaments/island-championships",
+                    "enabled": false,
+                    "refreshPolicy": {
+                        "cadence": "event-window"
+                    }
+                }
+            ]
+        },
+        {
+            "key": "guernsey-channel-islands",
+            "name": "Guernsey-hosted Channel Islands competitions",
+            "platformName": "Guernsey Table Tennis Association",
+            "platformBaseUrl": "https://www.gtta.org.uk",
+            "baseUrl": "https://www.gtta.org.uk/tournaments/ci-championships",
+            "adapterKey": "channel-islands-discovery",
+            "status": "discovery",
+            "enabled": false,
+            "notes": "Uses the same canonical Channel Islands event namespace as Jersey. The host association's complete results own each edition; mirrored reports are provenance only.",
+            "config": {
+                "role": "shared-channel-islands-events",
+                "canonicalEventNamespace": "channel-islands",
+                "canonicalKeys": [
+                    "channel-islands:<season>:championships",
+                    "channel-islands:<season>:inter-insular",
+                    "channel-islands:<season>:top-12"
+                ],
+                "ownershipRule": "host-association-full-results"
+            },
+            "resources": [
+                {
+                    "resourceType": "event-results",
+                    "externalId": "channel-islands-championships",
+                    "name": "Channel Islands Championships",
+                    "publicUrl": "https://www.gtta.org.uk/tournaments/ci-championships",
+                    "enabled": false,
+                    "refreshPolicy": {
+                        "cadence": "event-window"
+                    }
+                }
+            ]
+        }
+    ]
+}
