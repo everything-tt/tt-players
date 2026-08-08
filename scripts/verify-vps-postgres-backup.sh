@@ -70,8 +70,7 @@ if [[ "$restore_test" == "--restore-test" ]]; then
   "$sudo_bin" -u postgres -- "$pg_restore_bin" \
     --no-owner \
     --no-acl \
-    --dbname="$restore_db" \
-    "$dump_file"
+    --dbname="$restore_db" < "$dump_file"
 
   table_count=$("$sudo_bin" -u postgres -- "$psql_bin" \
     "postgresql:///${restore_db}?host=/var/run/postgresql" \
