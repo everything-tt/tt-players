@@ -17,10 +17,13 @@ describe('Home briefing information architecture', () => {
     expect(source).not.toContain('tt-home-setup-title');
   });
 
-  it('keeps Home as a briefing without restoring the old multi-mode league dashboard', () => {
-    expect(source).toContain('Next up');
+  it('makes Highlights the league activity briefing instead of keeping a separate Next up section', () => {
     expect(source).toContain('Highlights');
     expect(source).toContain('View leagues');
+    expect(source).toContain('recentResults.map');
+    expect(source).toContain('Leading team');
+    expect(source).not.toContain('Next up');
+    expect(source).not.toContain('useTournamentList');
 
     expect(source).not.toContain('<TopRatingsSection');
     expect(source).not.toContain('title="Latest results"');
@@ -37,6 +40,7 @@ describe('Home briefing information architecture', () => {
     expect(source).toContain('useTopRatingsQuery');
     expect(source).toContain('View all rankings');
     expect(source).toContain("navigateInTab('players', `ratings?scope=${isSelectedRatingsScope ? 'selected' : 'site'}`)");
+    expect(source).toContain('Math.round(player.win_rate * 100)');
     expect(source).not.toContain('Top rated ·');
   });
 
@@ -45,12 +49,5 @@ describe('Home briefing information architecture', () => {
     expect(source).toContain('Choose leagues');
     expect(source).toContain('<PlayerSearchSheet');
     expect(source).toContain('setMyPlayer({ id: player.id, name: player.name })');
-  });
-
-  it('previews more than league data without embedding the Events browsing UI', () => {
-    expect(source).toContain('useTournamentList');
-    expect(source).toContain("navigateInTab('events', `event/${nextTournament.id}`)");
-    expect(source).not.toContain('<SearchToolbar');
-    expect(source).not.toContain('Tournament category filters');
   });
 });
