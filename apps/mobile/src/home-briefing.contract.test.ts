@@ -28,7 +28,7 @@ describe('Home briefing information architecture', () => {
 
   it('ranks league stories by relevance instead of rendering a fixed activity recipe', () => {
     expect(source).toContain('rankHomeStories');
-    expect(source).toContain("kind: 'personal-result'");
+    expect(source).toContain("kind: isPersonal ? 'personal-result' : 'result'");
     expect(source).toContain('priority: (isPersonal ? 120 : 80) - index');
     expect(source).toContain('Picked for relevance, not just recency');
     expect(source).toContain('set the pace');
