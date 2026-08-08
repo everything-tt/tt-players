@@ -71,14 +71,18 @@ describe('My TT identity behaviour', () => {
     expect(source).toContain('Saved on this device');
   });
 
-  it('exposes the claimed player match journal from the actual My TT page', () => {
+  it('moves journal and tournament entries out of Profile into My TT peer routes', () => {
     const source = read('../MyTTPage.tsx');
+    const tabsSource = read('./MyTTTabs.tsx');
     const routerSource = read('../AppRouter.tsx');
 
-    expect(source).toContain('Match journal');
-    expect(source).toContain('Open match journal');
-    expect(source).toContain("navigateInTab('players', `player/${player.id}/journal`)");
-    expect(source).toContain('Record match and training reflections, what worked, and what to focus on next.');
+    expect(source).not.toContain('title="Match journal"');
+    expect(source).not.toContain('title="Tournament entries"');
+    expect(tabsSource).toContain("{ value: 'profile', label: 'Profile' }");
+    expect(tabsSource).toContain("{ value: 'journal', label: 'Journal' }");
+    expect(tabsSource).toContain("{ value: 'entries', label: 'Tournament entries' }");
+    expect(routerSource).toContain('/tabs/:tabId/my-tt/journal/:playerId');
+    expect(routerSource).toContain('/tabs/:tabId/my-tt/entries');
     expect(routerSource).toContain('/tabs/:tabId/player/:playerId/journal');
   });
 
