@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { clearLocalDataBackup } from './local-persistence';
 import {
   AppButton,
@@ -11,8 +11,19 @@ import {
   PageSection,
 } from './ui/appkit';
 
+interface SavedDataLocationState {
+  from?: string;
+}
+
+function safeReturnPath(value: string | undefined): string {
+  return value?.startsWith('/') && !value.startsWith('//') ? value : '/tabs/home';
+}
+
 export function SavedDataPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const state = location.state as SavedDataLocationState | null;
+  const returnPath = safeReturnPath(state?.from);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const handleResetData = async () => {
@@ -34,7 +45,7 @@ export function SavedDataPage() {
         heading
         leftAction={{
           iconClassName: 'fas fa-chevron-left',
-          onClick: () => navigate(-1),
+          onClick: () => navigate(returnPath, { replace: true }),
           position: 1,
           ariaLabel: 'Back',
         }}
