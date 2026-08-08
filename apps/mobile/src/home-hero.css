@@ -267,6 +267,11 @@
 
   .tt-home-personal-hero__identity {
     grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 9px;
+  }
+
+  .tt-home-personal-hero__metric {
+    padding-inline: 7px;
   }
 
   .tt-home-personal-hero__footer,
