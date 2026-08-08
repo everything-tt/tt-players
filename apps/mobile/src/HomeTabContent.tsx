@@ -113,9 +113,6 @@ export function HomeTabContent({
   const latestResult = dashboard?.recent_results[0] ?? null;
   const topTeam = dashboard?.top_teams[0] ?? null;
   const dashboardError = getQueryError(dashboardQuery.error);
-  const scopeLabel = isAllLeagueScope
-    ? `All ${allLeagues.length} leagues`
-    : `${selectedLeagueIds.length} selected league${selectedLeagueIds.length === 1 ? '' : 's'}`;
   const navItems: DashboardTabId[] = ['players', 'leagues', 'h2h', 'events'];
 
   return (
