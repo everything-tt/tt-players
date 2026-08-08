@@ -1,4 +1,4 @@
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { TAB_METADATA } from '../player-shared';
 import type { AppTabId } from '../navigation/tab-navigation';
 import { AppDrawer, AppSwitch } from '../ui/appkit';
@@ -46,6 +46,7 @@ export function MainDrawer({
   const auth = useAuth();
   const location = useLocation();
   const { canUpdate, updateApp } = usePWAInstallContext();
+  const currentPath = `${location.pathname}${location.search}${location.hash}`;
 
   const selectTab = (tab: AppTabId) => {
     onClose();
@@ -107,17 +108,17 @@ export function MainDrawer({
           {PLATFORM_LINKS.map((item) => {
             const selected = platformLinkActive(item.path);
             return (
-              <a
+              <Link
                 key={item.path}
                 className={`tt-drawer__row${selected ? ' tt-drawer__row--active' : ''}`}
-                href={item.path}
+                to={item.path}
                 aria-current={selected ? 'page' : undefined}
                 onClick={onClose}
               >
                 <i className={item.icon} aria-hidden="true" />
                 <span>{item.label}</span>
                 <i className="fa fa-angle-right" aria-hidden="true" />
-              </a>
+              </Link>
             );
           })}
         </nav>
@@ -148,11 +149,11 @@ export function MainDrawer({
               <i className="fa fa-angle-right" aria-hidden="true" />
             </button>
           ) : null}
-          <a className="tt-drawer__row" href="/settings/data" onClick={onClose}>
+          <Link className="tt-drawer__row" to="/settings/data" state={{ from: currentPath }} onClick={onClose}>
             <i className="fa fa-hard-drive" aria-hidden="true" />
             <span>Saved Data</span>
             <i className="fa fa-angle-right" aria-hidden="true" />
-          </a>
+          </Link>
         </div>
 
         {auth.isConfigured ? (
@@ -197,11 +198,11 @@ export function MainDrawer({
             <span>{TAB_METADATA.about.label}</span>
             <i className="fa fa-angle-right" aria-hidden="true" />
           </button>
-          <a className="tt-drawer__row" href="/feedback" onClick={onClose}>
+          <Link className="tt-drawer__row" to="/feedback" state={{ from: currentPath }} onClick={onClose}>
             <i className="fa fa-comment-dots" aria-hidden="true" />
             <span>Feedback</span>
             <i className="fa fa-angle-right" aria-hidden="true" />
-          </a>
+          </Link>
           {showShare ? (
             <button type="button" className="tt-drawer__row" onClick={() => { onClose(); onShare(); }}>
               <i className="fa fa-share-alt" aria-hidden="true" />
