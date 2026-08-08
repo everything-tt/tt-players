@@ -34,6 +34,25 @@ export type RankedHomeStory = {
   priority: number;
 };
 
+export type PersonalHomeStoryKind = 'personal-form' | 'recent-rating-high';
+
+export type PersonalHomeStory = RankedHomeStory & {
+  kind: PersonalHomeStoryKind;
+  title: string;
+  subtitle: string;
+  trailing: string;
+};
+
+type RatingHistoryLike = {
+  rating: number;
+};
+
+interface PersonalHomeStoryInput {
+  recentResults: string[];
+  currentRating: number | null;
+  ratingHistory: RatingHistoryLike[];
+}
+
 export function buildHomeScopeKey(playerId: string | null | undefined, leagueIds: string[]): string {
   const playerKey = playerId || 'anonymous';
   const leagueKey = [...new Set(leagueIds)].sort().join(',') || 'all';
@@ -147,6 +166,72 @@ export function diffHomeVisit(
   }
 
   return changes.sort((left, right) => right.priority - left.priority);
+}
+
+export function buildPersonalHomeStories({
+  recentResults,
+  currentRating,
+  ratingHistory,
+}: PersonalHomeStoryInput): PersonalHomeStory[] {
+  const stories: PersonalHomeStory[] = [];
+  const normalizedResults = recentResults.filter((result) => result === 'W' || result === 'L');
+  const latestFive = normalizedResults.slice(0, 5);
+  const latestFiveWins = latestFive.filter((result) => result === 'W').length;
+
+  let winningStreak = 0;
+  for (const result of normalizedResults) {
+    if (result !== 'W') break;
+    winningStreak += 1;
+  }
+
+  if (winningStreak >= 3) {
+    stories.push({
+      id: 'personal-form',
+      kind: 'personal-form',
+      priority: 118,
+      title: `You're on a ${winningStreak}-match winning streak`,
+      subtitle: latestFive.length > 0
+        ? `${latestFiveWins} wins in your last ${latestFive.length} singles`
+        : 'Strong recent singles form',
+      trailing: `${winningStreak} straight`,
+    });
+  } else if (latestFive.length === 5 && latestFiveWins >= 4) {
+    stories.push({
+      id: 'personal-form',
+      kind: 'personal-form',
+      priority: 108,
+      title: `You've won ${latestFiveWins} of your last 5`,
+      subtitle: 'Strong recent singles form',
+      trailing: 'In form',
+    });
+  }
+
+  if (currentRating != null && ratingHistory.length >= 2) {
+    const ratings = ratingHistory
+      .map((point) => point.rating)
+      .filter((rating) => Number.isFinite(rating));
+
+    if (ratings.length >= 2) {
+      const recentHigh = Math.max(...ratings);
+      const recentLow = Math.min(...ratings);
+      const roundedCurrent = Math.round(currentRating);
+      const gainFromLow = Math.round(currentRating - recentLow);
+      const isAtRecentHigh = Math.abs(currentRating - recentHigh) < 0.5;
+
+      if (isAtRecentHigh && gainFromLow >= 25) {
+        stories.push({
+          id: 'recent-rating-high',
+          kind: 'recent-rating-high',
+          priority: 102,
+          title: "You're at a 3-month rating high",
+          subtitle: `${roundedCurrent.toLocaleString('en-GB')} rating · up ${gainFromLow} from the low in this period`,
+          trailing: '3m high',
+        });
+      }
+    }
+  }
+
+  return stories.sort((left, right) => right.priority - left.priority);
 }
 
 export function rankHomeStories<T extends RankedHomeStory>(stories: T[], limit: number): T[] {
