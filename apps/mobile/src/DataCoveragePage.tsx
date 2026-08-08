@@ -30,33 +30,33 @@ export function DataCoveragePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as CoverageLocationState | null;
-  const returnPath = state?.from?.startsWith('/tabs/') || state?.from === '/about' ? state.from : '/about';
+  const returnPath = state?.from?.startsWith('/tabs/') ? state.from : '/tabs/home';
   const qualityQuery = useSourceQualityQuery();
   const data = qualityQuery.data;
 
   return (
     <AppShellPage className="tt-about-page">
       <AppHeader
-        title="Data Coverage"
+        title="Data Quality"
         heading
         leftAction={{ iconClassName: 'fas fa-chevron-left', onClick: () => navigate(returnPath, { replace: true }), position: 1, ariaLabel: 'Back' }}
       />
       <AppHeaderSpacer />
       <AppPageContent>
         {qualityQuery.isLoading ? (
-          <EmptyState iconClassName="fa fa-sync fa-spin" title="Checking data sources" message="Loading source health and coverage metrics." />
+          <EmptyState iconClassName="fa fa-sync fa-spin" title="Loading data quality" message="Loading the latest published source quality and coverage snapshot." />
         ) : qualityQuery.isError || !data ? (
           <PageSection surface="flat" density="compact">
             <EmptyState
               iconClassName="fa fa-exclamation-triangle"
-              title="Coverage unavailable"
+              title="Data quality unavailable"
               message={qualityQuery.error instanceof Error ? qualityQuery.error.message : 'The source quality report could not be loaded.'}
             />
             <AppButton full tone="primary" onClick={() => { void qualityQuery.refetch(); }}>Try Again</AppButton>
           </PageSection>
         ) : (
           <>
-            <PageSection surface="flat" density="compact" title="Coverage Summary" note={`${data.summary.providers} providers`}>
+            <PageSection surface="flat" density="compact" title="Quality Summary" note={`${data.summary.providers} providers`}>
               <DesignList density="compact" divider="hairline" paginate={false}>
                 <ListItem leading={<IconCircle iconClassName="fa fa-database" tone="accent" />} title={`${formatNumber(data.summary.leagues)} leagues · ${formatNumber(data.summary.competitions)} competitions`} subtitle={`${formatNumber(data.summary.canonical_players)} players · ${formatNumber(data.summary.rubbers)} singles and doubles results`} hideChevron />
                 <ListItem leading={<IconCircle iconClassName="fa fa-calendar-check" tone="success" />} title={`${data.summary.dated_rubbers_pct}% have a match date`} subtitle={`${data.summary.full_score_rubbers_pct}% include a full game score`} hideChevron />
@@ -87,7 +87,7 @@ export function DataCoveragePage() {
             })}
 
             <p className="tt-section-meta">
-              Report generated {formatDate(data.generated_at, { includeTime: true })}. Historical failures remain visible; a provider is marked degraded only when a registered resource has consecutive failures.
+              Snapshot generated {formatDate(data.generated_at, { includeTime: true })}. Historical failures remain visible; a provider is marked degraded only when a registered resource has consecutive failures.
             </p>
           </>
         )}

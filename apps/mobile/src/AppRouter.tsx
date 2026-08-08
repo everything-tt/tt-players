@@ -5,7 +5,9 @@ import './mobile-polish.css';
 import { AboutPage } from './AboutPage';
 import { CommonOpponentsPage } from './CommonOpponentsPage';
 import { DataCoveragePage } from './DataCoveragePage';
+import { DataUpdatesPage } from './DataUpdatesPage';
 import { DesignSystemPage } from './DesignSystemPage';
+import { FeedbackPage } from './FeedbackPage';
 import { FixturePage } from './FixturePage';
 import { isAppTab, TabNavigationProvider } from './navigation/tab-navigation';
 import { MatchJournalPage } from './MatchJournalPage';
@@ -20,6 +22,7 @@ import { RatingHighlightsPage } from './RatingHighlightsPage';
 import { RatingPlayerCoveragePage } from './RatingPlayerCoveragePage';
 import { RatingRankingQualityPage } from './RatingRankingQualityPage';
 import { RatingSourceQualityPage } from './RatingSourceQualityPage';
+import { SavedDataPage } from './SavedDataPage';
 import { ScrapingMonitorPage } from './ScrapingMonitorPage';
 import { TopRatingsPage } from './TopRatingsPage';
 import { TeamPage } from './TeamPage';
@@ -79,6 +82,11 @@ export function AppRouter() {
                 <Route path="/tabs/:tabId/*" element={<TabRootRedirect />} />
 
                 <Route path="/about" element={<AboutPage />} />
+                <Route path="/feedback" element={<FeedbackPage />} />
+                <Route path="/settings/data" element={<SavedDataPage />} />
+                <Route path="/platform/data-updates" element={<DataUpdatesPage />} />
+                <Route path="/platform/data-quality" element={<DataCoveragePage />} />
+                <Route path="/platform/audit" element={<RatingAuditHealthPage section="overview" />} />
                 <Route path="/data-coverage" element={<DataCoveragePage />} />
                 <Route path="/scraping-monitor" element={<ScrapingMonitorPage />} />
                 <Route path="/design-system" element={<DesignSystemPage />} />
