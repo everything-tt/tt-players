@@ -98,7 +98,7 @@ export function RatingPulse({ onOpenPlayer }: RatingPulseProps) {
       <DesignList density="compact" divider="hairline" paginate={false}>
         {mover ? (
           <ListItem
-            leading={<IconCircle iconClassName="fa fa-arrow-trend-up" tone="success" />}
+            leading={<IconCircle iconClassName="fa fa-chart-line" tone="success" />}
             title={mover.player_name}
             subtitle={moverSubtitle(
               mover,
