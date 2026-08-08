@@ -68,11 +68,55 @@ describe('shared rating domain', () => {
         expect(prediction.player1Probability + prediction.player2Probability).toBeCloseTo(1, 12);
         expect(prediction.player1Probability).toBeCloseTo(0.5, 4);
         expect(prediction.confidence).toBe('low');
-        expect(presentPredictionPlayer(player1, prediction.player1Probability)).toMatchObject({
+        expect(presentPredictionPlayer(
+            player1,
+            prediction.player1Probability,
+            prediction.player1WinProjection,
+        )).toMatchObject({
             player_id: player1.player_id,
             volatility: 0.059996,
             win_probability: 0.5,
+            projected_rating_if_win: expect.any(Number),
+            rating_change_if_win: expect.any(Number),
         });
+        expect(prediction.player1WinProjection.ratingChange).toBeGreaterThan(0);
+        expect(prediction.player2WinProjection.ratingChange).toBeGreaterThan(0);
+        expect(prediction.player1WinProjection.ratingChange).toBeCloseTo(
+            prediction.player2WinProjection.ratingChange,
+            10,
+        );
+    });
+
+    it('awards a larger projected gain for an upset than for the favourite winning', () => {
+        const favourite = ratingRow({
+            player_id: '00000000-0000-0000-0000-000000000010',
+            player_name: 'Favourite',
+            rating: '1900',
+            rating_deviation: '60',
+        });
+        const underdog = ratingRow({
+            player_id: '00000000-0000-0000-0000-000000000020',
+            player_name: 'Underdog',
+            rating: '1500',
+            rating_deviation: '60',
+        });
+
+        const prediction = predictMatch(favourite, underdog);
+
+        expect(prediction.player1Probability).toBeGreaterThan(0.5);
+        expect(prediction.player2Probability).toBeLessThan(0.5);
+        expect(prediction.player1WinProjection.ratingChange).toBeGreaterThan(0);
+        expect(prediction.player2WinProjection.ratingChange).toBeGreaterThan(
+            prediction.player1WinProjection.ratingChange,
+        );
+        expect(prediction.player1WinProjection.projectedRating).toBeCloseTo(
+            Number(favourite.rating) + prediction.player1WinProjection.ratingChange,
+            10,
+        );
+        expect(prediction.player2WinProjection.projectedRating).toBeCloseTo(
+            Number(underdog.rating) + prediction.player2WinProjection.ratingChange,
+            10,
+        );
     });
 });
 
