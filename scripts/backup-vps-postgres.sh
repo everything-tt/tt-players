@@ -38,6 +38,20 @@ dump_file="$tmp_dir/database.dump"
 checksum_file="$tmp_dir/database.sha256"
 metadata_file="$tmp_dir/metadata.json"
 
+credential_file="${GOOGLE_APPLICATION_CREDENTIALS:-}"
+if [[ "${TTP_GCLOUD_SKIP_AUTH:-0}" != "1" ]]; then
+  if [[ -z "$credential_file" || ! -r "$credential_file" ]]; then
+    echo "GOOGLE_APPLICATION_CREDENTIALS must point to a readable service-account key" >&2
+    exit 2
+  fi
+  export CLOUDSDK_CONFIG="$tmp_dir/gcloud-config"
+  mkdir -m 0700 "$CLOUDSDK_CONFIG"
+  "$gcloud_bin" auth activate-service-account \
+    --key-file="$credential_file" \
+    ${CLOUDSDK_CORE_PROJECT:+--project="$CLOUDSDK_CORE_PROJECT"} \
+    --quiet >/dev/null
+fi
+
 run_as_postgres() {
   if [[ "${TTP_BACKUP_SKIP_SUDO:-0}" == "1" ]]; then
     "$@"
