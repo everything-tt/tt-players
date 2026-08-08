@@ -13,7 +13,7 @@ const MY_TT_OPTIONS: Array<{ value: MyTTTab; label: string }> = [
 
 function activeTab(pathname: string): MyTTTab {
   if (/\/my-tt\/journal\//.test(pathname)) return 'journal';
-  if (/\/entry-profiles\/?$/.test(pathname)) return 'entries';
+  if (/\/my-tt\/entries\/?$/.test(pathname)) return 'entries';
   return 'profile';
 }
 
@@ -30,7 +30,7 @@ export function MyTTTabs() {
     }
 
     if (next === 'entries') {
-      navigateInTab('home', 'entry-profiles');
+      navigateInTab('home', 'my-tt/entries');
       return;
     }
 
