@@ -5,6 +5,7 @@ import './mobile-polish.css';
 import { AboutPage } from './AboutPage';
 import { CommonOpponentsPage } from './CommonOpponentsPage';
 import { DataCoveragePage } from './DataCoveragePage';
+import { DataUpdatesPage } from './DataUpdatesPage';
 import { DesignSystemPage } from './DesignSystemPage';
 import { FeedbackPage } from './FeedbackPage';
 import { FixturePage } from './FixturePage';
@@ -83,6 +84,9 @@ export function AppRouter() {
                 <Route path="/about" element={<AboutPage />} />
                 <Route path="/feedback" element={<FeedbackPage />} />
                 <Route path="/settings/data" element={<SavedDataPage />} />
+                <Route path="/platform/data-updates" element={<DataUpdatesPage />} />
+                <Route path="/platform/data-quality" element={<DataCoveragePage />} />
+                <Route path="/platform/audit" element={<RatingAuditHealthPage section="overview" />} />
                 <Route path="/data-coverage" element={<DataCoveragePage />} />
                 <Route path="/scraping-monitor" element={<ScrapingMonitorPage />} />
                 <Route path="/design-system" element={<DesignSystemPage />} />
