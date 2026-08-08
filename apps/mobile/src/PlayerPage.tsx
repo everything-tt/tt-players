@@ -31,8 +31,9 @@ import {
 import { DetailHeader } from './components/DetailHeader';
 import { buildPlayerShareTarget } from './share-target';
 import { buildQuickJournalPath } from './player-match-list';
+import { buildPlayerMeta } from './seo/player-meta';
+import { useBrowserReady, useSiteOrigin } from './ssr/runtime-context';
 
-const APP_NAME = 'TT Players';
 function setPageMeta(name: string, content: string): void {
   let tag = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
   if (!tag) {
@@ -127,6 +128,8 @@ export function PlayerPage() {
   const navigate = useNavigate();
   const { navigateInActiveTab, navigateInTab, switchTab } = useTabNavigation();
   const { playerId = '' } = useParams<{ playerId: string }>();
+  const siteOrigin = useSiteOrigin();
+  const browserReady = useBrowserReady();
 
   const { isFavourite: isFavouritePlayer, toggle: toggleFavouritePlayer } = useFavouritePlayers();
   const { isMyPlayer, clear: clearMyPlayer } = useMyPlayer();
@@ -136,13 +139,13 @@ export function PlayerPage() {
   const recentMatchesState = usePagedPlayerMatches({
     playerId,
     source: 'all',
-    enabled: Boolean(playerId),
+    enabled: browserReady && Boolean(playerId),
     pageSize: 20,
   });
   const tournamentsQuery = usePlayerTournamentSummariesQuery(
     playerId,
     5,
-    Boolean(playerId) && seasonPanelMode === 'tournaments',
+    browserReady && Boolean(playerId) && seasonPanelMode === 'tournaments',
   );
 
   const stats = overviewQuery.data ?? null;
@@ -169,33 +172,32 @@ export function PlayerPage() {
   const isCurrentUser = isMyPlayer(playerId);
   const recentResults = useMemo(() => (stats?.form.recent_results ?? []).slice(0, 10), [stats]);
   const shareTarget = useMemo(
-    () => stats ? buildPlayerShareTarget(window.location.origin, stats.player_id, stats.player_name) : null,
-    [stats],
+    () => stats && siteOrigin
+      ? buildPlayerShareTarget(siteOrigin, stats.player_id, stats.player_name)
+      : null,
+    [siteOrigin, stats],
   );
 
   useEffect(() => {
-    if (!stats || !shareTarget) return;
+    if (!stats || !siteOrigin) return;
 
-    const title = shareTarget.title;
-    const description = `${stats.player_name}: ${stats.total} matches, ${stats.wins} wins, ${winRate}% win rate.`;
-    const imageUrl = `${window.location.origin}/images/thumb-players.png`;
-
-    document.title = title;
-    setPageMeta('description', description);
+    const meta = buildPlayerMeta(siteOrigin, stats);
+    document.title = meta.title;
+    setPageMeta('description', meta.description);
     setPageMeta('robots', 'index,follow');
     setPageMeta('theme-color', '#0f172a');
-    setCanonicalLink(shareTarget.url);
+    setCanonicalLink(meta.canonicalUrl);
     setPropertyMeta('og:type', 'profile');
-    setPropertyMeta('og:site_name', APP_NAME);
-    setPropertyMeta('og:title', title);
-    setPropertyMeta('og:description', description);
-    setPropertyMeta('og:url', shareTarget.url);
-    setPropertyMeta('og:image', imageUrl);
-    setPropertyMeta('twitter:card', 'summary_large_image');
-    setPropertyMeta('twitter:title', title);
-    setPropertyMeta('twitter:description', description);
-    setPropertyMeta('twitter:image', imageUrl);
-  }, [shareTarget, stats, winRate]);
+    setPropertyMeta('og:site_name', 'TT Players');
+    setPropertyMeta('og:title', meta.title);
+    setPropertyMeta('og:description', meta.description);
+    setPropertyMeta('og:url', meta.canonicalUrl);
+    setPropertyMeta('og:image', meta.imageUrl);
+    setPageMeta('twitter:card', 'summary_large_image');
+    setPageMeta('twitter:title', meta.title);
+    setPageMeta('twitter:description', meta.description);
+    setPageMeta('twitter:image', meta.imageUrl);
+  }, [siteOrigin, stats]);
 
   const goHome = (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
@@ -256,6 +258,7 @@ export function PlayerPage() {
               recentResults={recentResults}
               formLoading={statsLoading}
               formError={false}
+              ratingEnabled={browserReady}
               onToggleFavourite={() => {
                 toggleFavouritePlayer({
                   id: stats.player_id,
@@ -269,12 +272,14 @@ export function PlayerPage() {
               onOpenRatingHistory={() => navigateInActiveTab(`player/${playerId}/insights#rating-history`)}
             />
 
-            <PlayerRivalryOrbit
-              playerId={stats.player_id}
-              playerName={stats.player_name}
-              recentMatches={recentMatchesState.matches}
-              onOpenPlayer={(opponentId) => navigate(`/h2h/${stats.player_id}/${opponentId}`)}
-            />
+            {browserReady ? (
+              <PlayerRivalryOrbit
+                playerId={stats.player_id}
+                playerName={stats.player_name}
+                recentMatches={recentMatchesState.matches}
+                onOpenPlayer={(opponentId) => navigate(`/h2h/${stats.player_id}/${opponentId}`)}
+              />
+            ) : null}
 
             <section className="tt-player-section" aria-label="Current season clubs and tournaments">
               <div className="tt-home-leaders-header">
