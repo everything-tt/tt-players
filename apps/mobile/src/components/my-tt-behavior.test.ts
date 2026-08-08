@@ -71,6 +71,17 @@ describe('My TT identity behaviour', () => {
     expect(source).toContain('Saved on this device');
   });
 
+  it('exposes the claimed player match journal from the actual My TT page', () => {
+    const source = read('../MyTTPage.tsx');
+    const routerSource = read('../AppRouter.tsx');
+
+    expect(source).toContain('Match journal');
+    expect(source).toContain('Open match journal');
+    expect(source).toContain("navigateInTab('players', `player/${player.id}/journal`)");
+    expect(source).toContain('Record match and training reflections, what worked, and what to focus on next.');
+    expect(routerSource).toContain('/tabs/:tabId/player/:playerId/journal');
+  });
+
   it('returns to My TT after saving the editor', () => {
     const source = read('../MyTTPage.tsx');
 
