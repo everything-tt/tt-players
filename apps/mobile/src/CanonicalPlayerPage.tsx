@@ -1,12 +1,10 @@
-import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { PlayerPage } from './PlayerPage';
+import { useSsrPlayerProfileOverviewQuery } from './player-profile-query';
 import { calcWinRate, getInitials } from './player-shared';
-import { usePlayerProfileOverviewQuery } from './queries';
 
-function PlayerSsrProfile() {
+export function PlayerSsrProfile() {
   const { playerId = '' } = useParams<{ playerId: string }>();
-  const overviewQuery = usePlayerProfileOverviewQuery(playerId, Boolean(playerId));
+  const overviewQuery = useSsrPlayerProfileOverviewQuery(playerId, Boolean(playerId));
   const profile = overviewQuery.data ?? null;
 
   if (!profile) {
@@ -104,16 +102,4 @@ function PlayerSsrProfile() {
       </section>
     </main>
   );
-}
-
-export function CanonicalPlayerPage({ hydrateFromSsr = false }: { hydrateFromSsr?: boolean }) {
-  const [showSsrProfile, setShowSsrProfile] = useState(hydrateFromSsr);
-
-  useEffect(() => {
-    if (hydrateFromSsr) {
-      setShowSsrProfile(false);
-    }
-  }, [hydrateFromSsr]);
-
-  return showSsrProfile ? <PlayerSsrProfile /> : <PlayerPage />;
 }
