@@ -301,6 +301,7 @@ function App() {
                 <HomeTabContent
                   allLeagues={allLeagues}
                   hasCompletedLeagueOnboarding={hasCompletedLeagueOnboarding}
+                  isLeagueSelectionReady={isLeagueSelectionReady}
                   selectedLeagueIds={selectedLeagueIds}
                   onOpenLeagueSelector={openLeagueSelector}
                   onOpenTab={(tabId) => switchTab(tabId, 'root')}

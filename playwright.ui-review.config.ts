@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // Platform drawer, standalone feedback, and focused About review.
-  testMatch: 'zz-platform-menu-cleanup.pw.ts',
+  // First-visit discovery and returning-user story briefing review.
+  testMatch: 'zz-home-story-briefing.pw.ts',
 
   timeout: 120_000,
   expect: {

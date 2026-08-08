@@ -1,0 +1,92 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+
+const source = readFileSync(new URL('./HomeTabContent.tsx', import.meta.url), 'utf8');
+
+describe('Home briefing information architecture', () => {
+  it('uses one adaptive personal hero instead of stacked identity and setup sections', () => {
+    expect(source).toContain('tt-home-personal-hero');
+    expect(source).toContain('Personal dashboard');
+    expect(source).toContain('Make TT Players yours');
+    expect(source).toContain('Open My TT');
+    expect(source).toContain('usePlayerRatingHistoryQuery');
+    expect(source).toContain('Latest rating move');
+    expect(source).toContain('Global rank');
+    expect(source).toContain('Record');
+    expect(source).not.toContain('tt-home-your-tt-title');
+    expect(source).not.toContain('tt-home-setup-title');
+  });
+
+  it('turns returning Home into a change briefing backed by a local visit snapshot', () => {
+    expect(source).toContain('Since your last visit');
+    expect(source).toContain('HOME_VISIT_SNAPSHOT_STORAGE_KEY');
+    expect(source).toContain('buildHomeScopeKey');
+    expect(source).toContain('diffHomeVisit');
+    expect(source).toContain('previousVisitSnapshot');
+    expect(source).toContain('window.localStorage.setItem');
+  });
+
+  it('ranks personal, followed-team, and league stories together instead of rendering a fixed recipe', () => {
+    expect(source).toContain('buildPersonalHomeStories');
+    expect(source).toContain('useFavouriteTeams');
+    expect(source).toContain("'followed-team-result'");
+    expect(source).toContain('Following');
+    expect(source).toContain('const HOME_STORY_LIMIT = 5');
+    expect(source).toContain("story.kind === 'personal-form'");
+    expect(source).toContain("story.kind === 'recent-rating-high'");
+    expect(source).toContain("targetTab: 'home'");
+    expect(source).toContain("targetPath: 'my-tt'");
+    expect(source).toContain('rankHomeStories');
+    expect(source).toContain("kind: isPersonal ? 'personal-result' : isFollowed ? 'followed-team-result' : 'result'");
+    expect(source).toContain('Picked for relevance, not just recency');
+    expect(source).not.toContain('Next up');
+    expect(source).not.toContain('useTournamentList');
+
+    expect(source).not.toContain('<TopRatingsSection');
+    expect(source).not.toContain('title="Latest results"');
+    expect(source).not.toContain('Players to watch');
+    expect(source).not.toContain('Teams to watch');
+  });
+
+  it('keeps first-visit Home useful without population-wide analysis', () => {
+    expect(source).toContain('TT Players pulse');
+    expect(source).toContain('function TTPlayersPulse');
+    expect(source).toContain('<TTPlayersPulse allLeagues={allLeagues} />');
+    expect(source).toContain('<MetricGrid');
+    expect(source).toContain('Top players');
+    expect(source).not.toContain('useLeadersQuery');
+    expect(source).not.toContain('useLeagueRisersQuery');
+    expect(source).not.toContain("mode: 'improving'");
+    expect(source).not.toContain("What&apos;s happening");
+    expect(source).not.toContain('finding another gear');
+    expect(source).not.toContain("kind: 'riser'");
+  });
+
+  it('does not fan out Home into per-team, per-player, per-league, or historical mover analysis', () => {
+    expect(source).not.toContain('useTeamFormQuery');
+    expect(source).not.toContain('useTeamFixturesQuery');
+    expect(source).not.toContain('useLeagueDashboardQuery');
+    expect(source).not.toContain('usePlayerInsightsQuery');
+    expect(source).not.toContain('useLeagueRisersQuery');
+  });
+
+  it('keeps a compact player leaderboard on Home with global and league scopes', () => {
+    expect(source).toContain('Top players');
+    expect(source).toContain('<SegmentedToggle');
+    expect(source).toContain("{ value: 'site', label: 'Global' }");
+    expect(source).toContain("{ value: 'selected', label: 'Your leagues' }");
+    expect(source).toContain('useTopSiteRatingsQuery');
+    expect(source).toContain('useTopRatingsQuery');
+    expect(source).toContain('View all rankings');
+    expect(source).toContain("navigateInTab('players', `ratings?scope=${isSelectedRatingsScope ? 'selected' : 'site'}`)");
+    expect(source).toContain('Math.round(player.win_rate * 100)');
+    expect(source).not.toContain('Top rated ·');
+  });
+
+  it('lets a new user personalise the hero without leaving Home', () => {
+    expect(source).toContain('Claim my player');
+    expect(source).toContain('Choose leagues');
+    expect(source).toContain('<PlayerSearchSheet');
+    expect(source).toContain('setMyPlayer({ id: player.id, name: player.name })');
+  });
+});
