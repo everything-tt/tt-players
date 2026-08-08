@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { VitePWA } from 'vite-plugin-pwa';
+import tailwindcss from '@tailwindcss/vite';
+import { createPWAPlugin } from '@tt-players/pwa/vite';
 import { execSync } from 'node:child_process';
 
 function getGitCommit(): string {
@@ -20,10 +21,9 @@ export default defineConfig({
     'import.meta.env.VITE_APP_COMMIT': JSON.stringify(appCommit),
   },
   plugins: [
+    tailwindcss(),
     react(),
-    VitePWA({
-      registerType: 'prompt',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+    createPWAPlugin({
       manifest: {
         name: 'TT Players',
         short_name: 'TTPlayers',
@@ -45,9 +45,6 @@ export default defineConfig({
             purpose: 'any maskable',
           },
         ],
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
       },
     }),
   ],

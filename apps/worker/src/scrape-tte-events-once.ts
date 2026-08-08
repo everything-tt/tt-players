@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { db } from '@tt-players/db';
+import { inspectPendingTournamentEntryForms } from './entry-form-inspection.js';
 import {
     defaultTteCalendarWindow,
     syncTteCalendarEvents,
@@ -27,6 +28,9 @@ async function main(): Promise<void> {
         concurrency,
     });
     console.log(JSON.stringify(summary, null, 2));
+
+    const entryForms = await inspectPendingTournamentEntryForms(db);
+    console.log(JSON.stringify({ entryForms }, null, 2));
 }
 
 main()

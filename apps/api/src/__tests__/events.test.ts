@@ -35,6 +35,7 @@ describe('Events API', () => {
             total: 0,
             limit: 20,
             offset: 0,
+            has_more: false,
         });
     });
 
@@ -207,6 +208,7 @@ describe('Events API', () => {
                 entry_url: 'https://entries.example.com/later',
                 information_url: 'https://www.tabletennisengland.co.uk/event/later-open/',
                 event_status: 'entries_open',
+                record_kind: 'calendar',
                 category: '2* event, Senior',
                 type: 'individual',
                 source: 'tte-calendar',
@@ -228,6 +230,7 @@ describe('Events API', () => {
                 venue_name: 'Sooner Arena',
                 venue_town: 'York',
                 event_status: 'upcoming',
+                record_kind: 'calendar',
                 category: '1* event, Junior',
                 type: 'individual',
                 source: 'tte-calendar',

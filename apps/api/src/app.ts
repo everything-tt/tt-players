@@ -19,11 +19,18 @@ import { h2hAnalysisRoutes } from './routes/h2h-analysis.js';
 import { h2hCommonOpponentRoutes } from './routes/h2h-common-opponents.js';
 import { fixturesRoutes } from './routes/fixtures.js';
 import { eventsRoutes } from './routes/events.js';
+import { eventEntryFormsRoutes } from './routes/event-entry-forms.js';
 import { feedbackRoutes } from './routes/feedback.js';
 import { leagueRatingsRoutes } from './routes/league-ratings.js';
+import { ratingAuditRoutes } from './routes/rating-audit.js';
+import { ratingCalculationAuditRoutes } from './routes/rating-calculation-audit.js';
+import { ratingPlayerCoverageRoutes } from './routes/rating-player-coverage.js';
+import { ratingRankingQualityRoutes } from './routes/rating-ranking-quality.js';
+import { ratingSourceQualityRoutes } from './routes/rating-source-quality.js';
 import { ratingHistoryRoutes } from './routes/rating-history.js';
 import { ratingsRoutes } from './routes/ratings.js';
 import { sourceQualityRoutes } from './routes/source-quality.js';
+import { scrapingMonitorRoutes } from './routes/scraping-monitor.js';
 import { userSyncRoutes } from './routes/user-sync.js';
 
 function envInteger(name: string, fallback: number): number {
@@ -60,7 +67,7 @@ export async function buildApp(db: Kysely<Database>) {
         .filter(Boolean);
     await app.register(cors, {
         origin: allowedOrigins,
-        methods: ['GET', 'POST', 'PUT', 'OPTIONS'],
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
     });
 
     await app.register(compress, { global: true, threshold: 1024 });
@@ -90,11 +97,15 @@ export async function buildApp(db: Kysely<Database>) {
         [/^\/api\/teams\/[\w-]+\/(summary|roster|form)(\/|$)/, CACHE_STATIC],
         [/^\/api\/fixtures\/[\w-]+\/rubbers(\/|$)/, CACHE_DYNAMIC],
         [/^\/api\/sources\/quality(\/|$)/, CACHE_STATIC],
+        [/^\/api\/scraping\/monitor(\/|$)/, 'private, no-store'],
         [/^\/api\/me(\/|$)/, 'private, no-store'],
         [/^\/api\/health(\/|$)/, 'no-cache'],
     ];
 
     app.addHook('onSend', async (request, reply) => {
+        if (!reply.getHeader('x-request-id')) {
+            reply.header('x-request-id', request.id);
+        }
         if (reply.statusCode < 200 || reply.statusCode >= 300) return;
         if (reply.getHeader('Cache-Control')) return;
 
@@ -128,10 +139,20 @@ export async function buildApp(db: Kysely<Database>) {
             ? candidateStatus
             : 500;
 
+        const requestContext = {
+            statusCode,
+            method: request.method,
+            url: request.url,
+            reqId: request.id,
+        };
+
         if (statusCode >= 500) {
-            request.log.error({ err: error, statusCode }, 'request failed');
+            request.log.error({ ...requestContext, err: error }, 'request failed');
+        } else if (statusCode >= 400) {
+            request.log.warn({ ...requestContext, err: error }, 'request rejected');
         }
 
+        reply.header('x-request-id', request.id);
         reply.status(statusCode).send({
             error: statusCode >= 500
                 ? 'Internal Server Error'
@@ -164,10 +185,17 @@ export async function buildApp(db: Kysely<Database>) {
     await app.register(h2hCommonOpponentRoutes(db), { prefix: '/api/players' });
     await app.register(fixturesRoutes(db), { prefix: '/api/fixtures' });
     await app.register(eventsRoutes(db), { prefix: '/api/events' });
+    await app.register(eventEntryFormsRoutes(db), { prefix: '/api/events' });
     await app.register(leagueRatingsRoutes(db), { prefix: '/api/ratings' });
+    await app.register(ratingAuditRoutes(db), { prefix: '/api/ratings' });
+    await app.register(ratingCalculationAuditRoutes(db), { prefix: '/api/ratings' });
+    await app.register(ratingPlayerCoverageRoutes(db), { prefix: '/api/ratings' });
+    await app.register(ratingRankingQualityRoutes(db), { prefix: '/api/ratings' });
+    await app.register(ratingSourceQualityRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingHistoryRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingsRoutes(db), { prefix: '/api/ratings' });
     await app.register(sourceQualityRoutes(db), { prefix: '/api/sources' });
+    await app.register(scrapingMonitorRoutes(db), { prefix: '/api/scraping' });
     await app.register(userSyncRoutes(db), { prefix: '/api/me' });
     await app.register(feedbackRoutes(), { prefix: '/api/feedback' });
 

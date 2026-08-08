@@ -1,0 +1,108 @@
+name: Shared Packages
+
+on:
+  pull_request:
+    paths:
+      - 'packages/design-system/**'
+      - 'packages/pwa/**'
+      - 'packages/ranking/**'
+      - '.github/workflows/design-system-package.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'packages/design-system/**'
+      - 'packages/pwa/**'
+      - 'packages/ranking/**'
+      - '.github/workflows/design-system-package.yml'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: shared-packages-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - workspace: '@tt-players/design-system'
+            directory: 'design-system'
+            test: false
+            coverage: false
+            smoke: false
+          - workspace: '@tt-players/pwa'
+            directory: 'pwa'
+            test: true
+            coverage: false
+            smoke: true
+          - workspace: '@tt-players/ranking'
+            directory: 'ranking'
+            test: true
+            coverage: true
+            smoke: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.24.0
+
+      - name: Set up Node.js and GitHub Packages
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@wudong'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test package
+        if: matrix.test
+        run: pnpm --filter "${{ matrix.workspace }}" test
+
+      - name: Enforce full code coverage
+        if: matrix.coverage
+        run: pnpm --filter "${{ matrix.workspace }}" coverage
+
+      - name: Build publishable package
+        run: pnpm --filter "${{ matrix.workspace }}" build
+
+      - name: Inspect package contents
+        run: npm pack "./packages/${{ matrix.directory }}/dist" --dry-run
+
+      - name: Test packed package as a consumer
+        if: matrix.smoke
+        run: pnpm --filter "${{ matrix.workspace }}" smoke:consumer
+
+      - name: Publish to GitHub Packages
+        if: github.event_name == 'push'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE_DIRECTORY: ${{ matrix.directory }}
+        shell: bash
+        run: |
+          PACKAGE_ROOT="./packages/${PACKAGE_DIRECTORY}/dist"
+          PACKAGE_NAME=$(node -p "require('${PACKAGE_ROOT}/package.json').name")
+          PACKAGE_VERSION=$(node -p "require('${PACKAGE_ROOT}/package.json').version")
+
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
+            if git diff --quiet "${{ github.event.before }}" "${{ github.sha }}" -- "packages/${PACKAGE_DIRECTORY}"; then
+              echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is already published and this package did not change; skipping."
+              exit 0
+            fi
+            echo "::error::${PACKAGE_NAME}@${PACKAGE_VERSION} already exists. Bump packages/${PACKAGE_DIRECTORY}/package.json before publishing another package change."
+            exit 1
+          fi
+
+          npm publish "${PACKAGE_ROOT}" --registry=https://npm.pkg.github.com

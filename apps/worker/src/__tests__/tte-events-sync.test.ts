@@ -68,10 +68,10 @@ describe('deriveCalendarEventStatus', () => {
         }, now)).toBe('postponed');
     });
 
-    it('derives completed, in-progress, entries-open and entries-closed states', () => {
+    it('derives awaiting-results, in-progress, entries-open and entries-closed states', () => {
         expect(deriveCalendarEventStatus({
             publishedStatus: 'confirmed', startDate: '2026-08-01', endDate: '2026-08-02', entryDeadline: null,
-        }, now)).toBe('completed');
+        }, now)).toBe('awaiting_results');
         expect(deriveCalendarEventStatus({
             publishedStatus: 'confirmed', startDate: '2026-08-10', endDate: '2026-08-11', entryDeadline: null,
         }, now)).toBe('in_progress');

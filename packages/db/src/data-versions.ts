@@ -1,7 +1,7 @@
 import { sql, type Kysely } from 'kysely';
 import type { Database } from './identity-resolution-types.js';
 
-export type DataVersionKey = 'player-results' | 'ratings' | 'source-quality';
+export type DataVersionKey = 'player-results' | 'ratings' | 'source-quality' | 'rating-audit';
 
 export async function readDataVersion(
     db: Kysely<Database>,

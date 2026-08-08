@@ -1,5 +1,5 @@
 /* Native-mobile interaction and accessibility hardening.
- * Loaded after the legacy AppKit CSS and the shared design tokens.
+ * Shared component geometry belongs to the design-system package.
  */
 
 body,
@@ -16,13 +16,9 @@ h6 {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif !important;
 }
 
-/* Keep all common actions at or above the platform-recommended 44px target. */
+/* App-specific controls that are not shared design-system primitives. */
 .header .header-icon,
 .app-shell-page .page-title-icon,
-#footer-bar > button,
-#footer-bar > a,
-.tt-segmented__btn,
-.tt-sheet__close,
 .tt-external-link,
 .tt-search-input__clear,
 .tt-league-scope__clear-search,
@@ -39,147 +35,10 @@ h6 {
   right: 80px !important;
 }
 
-/* Semantic footer buttons replace the legacy fake links. */
-#footer-bar {
-  align-items: stretch;
-  display: flex;
-  height: auto;
-  min-height: 60px;
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-#footer-bar > button,
-#footer-bar > a {
-  align-items: center;
-  appearance: none;
-  background: transparent;
-  border: 0;
-  color: var(--ink);
-  cursor: pointer;
-  display: flex;
-  flex: 1 1 20%;
-  flex-direction: column;
-  font: inherit;
-  gap: 2px;
-  justify-content: center;
-  margin: 0;
-  padding: 7px 4px 5px;
-  text-align: center;
-  text-decoration: none;
-}
-
-#footer-bar > button i,
-#footer-bar > a i {
-  font-size: 18px;
-  line-height: 1;
-}
-
-#footer-bar > button span,
-#footer-bar > a span {
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-/* Long segmented controls remain usable on narrow phones. */
-.tt-segmented {
-  max-width: 100%;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.tt-segmented::-webkit-scrollbar {
-  display: none;
-}
-
-.tt-segmented__btn {
-  flex-shrink: 0;
-}
-
-.tt-segmented--full .tt-segmented__btn {
-  min-width: 0;
-}
-
-/* Modal sheets render in a portal outside the inert application root. */
-.tt-modal-layer {
-  inset: 0;
-  position: fixed;
-  z-index: var(--z-backdrop);
-}
-
-button.tt-backdrop {
-  appearance: none;
-  border: 0;
-  cursor: default;
-  margin: 0;
-  padding: 0;
-}
-
-.tt-sheet {
-  animation: tt-sheet-enter 180ms cubic-bezier(0.22, 1, 0.36, 1);
-  padding-bottom: env(safe-area-inset-bottom);
-  transform-origin: bottom center;
-}
-
-.tt-sheet__handle {
-  background: var(--border-hairline);
-  border-radius: var(--radius-pill);
-  flex: 0 0 auto;
-  height: 5px;
-  margin: 8px auto 0;
-  width: 36px;
-}
-
-.tt-sheet__heading {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.tt-sheet__description {
-  color: var(--ink-muted);
-  font-size: 14px;
-  line-height: 1.45;
-  margin: 8px 0 0;
-  max-width: 48rem;
-}
-
-.tt-sheet__body {
-  min-height: 0;
-  overscroll-behavior: contain;
-}
-
-.tt-sheet__footer {
-  background: var(--surface-strong);
-  border-top: 1px solid var(--border-hairline);
-  flex: 0 0 auto;
-  padding: 12px var(--space-card-pad) max(12px, env(safe-area-inset-bottom));
-}
-
-/* Information-dense workflows use the same modal mechanics in a page presentation. */
-.tt-sheet--page {
-  animation: tt-page-modal-enter 160ms ease-out;
-  border-radius: 0;
-  height: 100dvh;
-  inset: 0;
-  max-height: 100dvh;
-  padding-bottom: 0;
-  transform-origin: center;
-  width: 100vw;
-}
-
-.tt-sheet--page .tt-sheet__top {
-  padding-top: max(18px, calc(env(safe-area-inset-top) + 12px));
-}
-
-.tt-sheet--page .tt-sheet__body {
-  overflow-y: auto;
-  padding: 0;
-}
-
 /* Full-page league scope: fixed controls and completion action around one scroll region. */
 .tt-league-scope__controls {
+  --tt-segmented-margin-top: 10px;
+
   background: var(--surface-strong);
   border-bottom: 1px solid var(--border-hairline);
   padding: 12px var(--space-card-pad);
@@ -233,20 +92,13 @@ button.tt-backdrop {
   color: var(--ink);
 }
 
-.tt-league-scope__controls .tt-segmented {
-  margin-top: 10px;
-  width: 100%;
-}
-
 .tt-league-scope__content {
   padding: 16px var(--space-card-pad) 24px;
 }
 
-.tt-league-scope__content .tt-section-header {
-  margin-bottom: 10px;
-}
-
 .tt-league-scope__footer {
+  --tt-btn-min-width: 112px;
+
   align-items: center;
   display: flex;
   gap: 12px;
@@ -264,21 +116,13 @@ button.tt-backdrop {
   min-width: 0;
 }
 
-.tt-league-scope__footer .tt-btn {
-  flex: 0 0 auto;
-  min-width: 112px;
-}
-
 /* PWA prompts grow to fit their content while remaining usable on short screens. */
 .tt-pwa-sheet {
+  --tt-sheet-body-overflow-y: auto;
+
   display: flex;
   flex-direction: column;
   max-height: min(560px, calc(100dvh - max(16px, env(safe-area-inset-top))));
-}
-
-.tt-pwa-sheet .tt-sheet__body {
-  min-height: 0;
-  overflow-y: auto;
 }
 
 .tt-pwa-sheet__content {
@@ -358,70 +202,15 @@ button.tt-backdrop {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-@keyframes tt-sheet-enter {
-  from {
-    opacity: 0;
-    transform: translateY(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes tt-page-modal-enter {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* Preserve useful context instead of truncating every data row to one line. */
-.tt-list-item__title,
-.tt-list-item__subtitle {
-  display: -webkit-box;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: normal;
-  -webkit-box-orient: vertical;
-}
-
-.tt-list-item__title {
-  -webkit-line-clamp: 2;
-}
-
-.tt-list-item__subtitle {
-  -webkit-line-clamp: 2;
-}
-
-@media (min-width: 720px) {
-  .tt-sheet--page {
-    border-radius: var(--radius-xl);
-    height: min(900px, calc(100dvh - 32px));
-    inset: 50% auto auto 50%;
-    max-height: calc(100dvh - 32px);
-    transform: translate(-50%, -50%);
-    width: min(720px, calc(100vw - 32px));
-  }
-
-  .tt-sheet--page .tt-sheet__top {
-    padding-top: 20px;
-  }
-}
-
 @media (max-width: 380px) {
   .tt-league-scope__footer {
-    gap: 8px;
-  }
+    --tt-btn-min-width: 96px;
 
-  .tt-league-scope__footer .tt-btn {
-    min-width: 96px;
+    gap: 8px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tt-sheet {
-    animation: none;
-  }
-
   .tt-drawer-switch .custom-control-label,
   .tt-drawer-switch .custom-control-label::before {
     transition: none;

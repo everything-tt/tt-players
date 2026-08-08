@@ -1,6 +1,6 @@
-export const DEFAULT_RATING_MODEL_KEY = 'global-singles-glicko2-v1';
+import { expectedScore } from './ranking-algorithm.js';
 
-const GLICKO2_SCALE = 173.7178;
+export const DEFAULT_RATING_MODEL_KEY = 'global-singles-glicko2-v1';
 
 export type RatingConfidence = 'high' | 'medium' | 'low';
 
@@ -9,6 +9,7 @@ export interface RatingRow {
     player_name: string;
     rating: number | string;
     rating_deviation: number | string;
+    volatility: number | string;
     conservative_rating: number | string;
     rated_matches: number | string;
     rated_wins: number | string;
@@ -36,6 +37,7 @@ export function presentRating(row: RatingRow, rank: number | null) {
         player_name: row.player_name,
         rating,
         rating_deviation: deviation,
+        volatility: Number(row.volatility),
         conservative_rating: Number(row.conservative_rating),
         rating_low: round(rating - 2 * deviation, 2),
         rating_high: round(rating + 2 * deviation, 2),
@@ -80,6 +82,7 @@ export function presentPredictionPlayer(row: RatingRow, probability: number) {
         player_name: row.player_name,
         rating: Number(row.rating),
         rating_deviation: Number(row.rating_deviation),
+        volatility: Number(row.volatility),
         provisional: row.provisional,
         win_probability: round(clampProbability(probability), 4),
     };
@@ -101,15 +104,6 @@ export function toDateString(value: string | Date | null): string | null {
     return value instanceof Date
         ? value.toISOString().slice(0, 10)
         : String(value).slice(0, 10);
-}
-
-function expectedScore(player: RatingRow, opponent: RatingRow): number {
-    const playerMu = (Number(player.rating) - 1500) / GLICKO2_SCALE;
-    const opponentMu = (Number(opponent.rating) - 1500) / GLICKO2_SCALE;
-    const opponentPhi = Number(opponent.rating_deviation) / GLICKO2_SCALE;
-    const g = 1 / Math.sqrt(1 + (3 * opponentPhi * opponentPhi) / (Math.PI * Math.PI));
-    const exponent = Math.max(-35, Math.min(35, -g * (playerMu - opponentMu)));
-    return 1 / (1 + Math.exp(exponent));
 }
 
 function predictionConfidence(player1: RatingRow, player2: RatingRow): RatingConfidence {

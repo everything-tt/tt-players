@@ -11,10 +11,15 @@ export const MY_PLAYER_STORAGE_KEY = 'tt_players_my_player';
 export const MY_PLAYER_UPDATED_EVENT = 'tt-players:my-player-updated';
 export const MY_TT_PROFILE_STORAGE_KEY = 'tt_players_my_tt_profile';
 export const MY_TT_PROFILE_UPDATED_EVENT = 'tt-players:my-tt-profile-updated';
+export const TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY = 'tt_players_tournament_entry_profiles';
+export const TOURNAMENT_ENTRY_PROFILES_UPDATED_EVENT = 'tt-players:tournament-entry-profiles-updated';
+export const TOURNAMENT_FILTERS_STORAGE_KEY = 'tt_players_tournament_filters';
 export const MATCH_JOURNAL_STORAGE_KEY = 'tt_players_match_journal';
 export const MATCH_JOURNAL_UPDATED_EVENT = 'tt-players:match-journal-updated';
 export const THEME_STORAGE_KEY = 'TTPlayers-Theme';
 export const LOCAL_DATA_BACKUP_KEY = 'tt_players_local_data_backup_v1';
+export const SYNC_OWNER_STORAGE_KEY = 'tt_players_sync_owner_user_id';
+export const USER_DATA_CHANGED_EVENT = 'tt-players:user-data-changed';
 
 export const SYNCED_LOCAL_DATA_KEYS = [
   LEAGUES_STORAGE_KEY,
@@ -26,11 +31,13 @@ export const SYNCED_LOCAL_DATA_KEYS = [
   THEME_STORAGE_KEY,
   MY_PLAYER_STORAGE_KEY,
   MY_TT_PROFILE_STORAGE_KEY,
+  TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY,
+  TOURNAMENT_FILTERS_STORAGE_KEY,
   MATCH_JOURNAL_STORAGE_KEY,
 ] as const;
 
 const LOCAL_DATA_KEYS = [
-  ...SYNCED_LOCAL_DATA_KEYS,
+  ...SYNCED_LOCAL_DATA_KEYS.filter((key) => key !== TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY),
   'tt_players_h2h_active_player_a',
   'tt_players_h2h_active_player_b',
 ] as const;
@@ -39,8 +46,16 @@ type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 export interface UserDataSnapshot {
   version: 1;
+  /**
+   * Keys understood by the client that produced this snapshot. This lets the
+   * server distinguish an intentionally-cleared value from a preference key
+   * that did not exist when an older snapshot was written.
+   */
+  known_keys?: string[];
   entries: Record<string, string>;
 }
+
+export type UserDataChanges = Record<string, string | null>;
 
 export interface LocalDataBackup {
   version: 1;
@@ -48,18 +63,49 @@ export interface LocalDataBackup {
   entries: Record<string, string>;
 }
 
-export function createUserDataSnapshot(local: StorageLike = localStorage): UserDataSnapshot {
+function isOwnedTournamentEntryProfiles(value: string, userId: string): boolean {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== 'object') return false;
+    const store = parsed as Record<string, unknown>;
+    return store.version === 1
+      && store.ownerUserId === userId
+      && Array.isArray(store.profiles);
+  } catch {
+    return false;
+  }
+}
+
+function snapshotValue(snapshot: UserDataSnapshot, key: string): string | null {
+  return Object.prototype.hasOwnProperty.call(snapshot.entries, key)
+    ? snapshot.entries[key] ?? null
+    : null;
+}
+
+export function createUserDataSnapshot(
+  local: StorageLike = localStorage,
+  userId?: string,
+): UserDataSnapshot {
   const entries: Record<string, string> = {};
   for (const key of SYNCED_LOCAL_DATA_KEYS) {
     const value = local.getItem(key);
-    if (value !== null) entries[key] = value;
+    if (value === null) continue;
+    if (key === TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY) {
+      if (!userId || !isOwnedTournamentEntryProfiles(value, userId)) continue;
+    }
+    entries[key] = value;
   }
-  return { version: 1, entries };
+  return {
+    version: 1,
+    known_keys: [...SYNCED_LOCAL_DATA_KEYS],
+    entries,
+  };
 }
 
 export function applyUserDataSnapshot(
   snapshot: UserDataSnapshot,
   local: StorageLike = localStorage,
+  userId?: string,
 ): boolean {
   if (snapshot.version !== 1 || !snapshot.entries || typeof snapshot.entries !== 'object') {
     return false;
@@ -68,7 +114,10 @@ export function applyUserDataSnapshot(
   let changed = false;
   for (const key of SYNCED_LOCAL_DATA_KEYS) {
     const current = local.getItem(key);
-    const next = snapshot.entries[key] ?? null;
+    let next: string | null = snapshotValue(snapshot, key);
+    if (key === TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY) {
+      if (!userId || !next || !isOwnedTournamentEntryProfiles(next, userId)) next = null;
+    }
     if (current === next) continue;
 
     changed = true;
@@ -78,13 +127,96 @@ export function applyUserDataSnapshot(
   return changed;
 }
 
+/** Return only preference keys whose values changed since the server baseline. */
+export function diffUserDataSnapshots(
+  base: UserDataSnapshot,
+  current: UserDataSnapshot,
+): UserDataChanges {
+  const changes: UserDataChanges = {};
+  for (const key of SYNCED_LOCAL_DATA_KEYS) {
+    const previous = snapshotValue(base, key);
+    const next = snapshotValue(current, key);
+    if (previous !== next) changes[key] = next;
+  }
+  return changes;
+}
+
+/**
+ * Reconcile a server response without losing edits made locally while the
+ * network request was in flight. Server values win only for keys that have not
+ * changed locally since `observedLocal` was captured.
+ */
+export function reconcileServerSnapshot(
+  server: UserDataSnapshot,
+  observedLocal: UserDataSnapshot,
+  latestLocal: UserDataSnapshot,
+): UserDataSnapshot {
+  const entries: Record<string, string> = {};
+  for (const key of SYNCED_LOCAL_DATA_KEYS) {
+    const observed = snapshotValue(observedLocal, key);
+    const latest = snapshotValue(latestLocal, key);
+    const serverValue = snapshotValue(server, key);
+    const next = latest !== observed ? latest : serverValue;
+    if (next !== null) entries[key] = next;
+  }
+  return {
+    version: 1,
+    known_keys: [...SYNCED_LOCAL_DATA_KEYS],
+    entries,
+  };
+}
+
 export function serializeUserDataSnapshot(snapshot: UserDataSnapshot): string {
   const orderedEntries: Record<string, string> = {};
   for (const key of SYNCED_LOCAL_DATA_KEYS) {
     const value = snapshot.entries[key];
     if (value !== undefined) orderedEntries[key] = value;
   }
-  return JSON.stringify({ version: 1, entries: orderedEntries });
+  return JSON.stringify({
+    version: 1,
+    known_keys: [...SYNCED_LOCAL_DATA_KEYS],
+    entries: orderedEntries,
+  });
+}
+
+export function getLocalSyncOwner(local: Pick<Storage, 'getItem'> = localStorage): string | null {
+  const value = local.getItem(SYNC_OWNER_STORAGE_KEY);
+  return value && value.trim().length > 0 ? value : null;
+}
+
+export function setLocalSyncOwner(
+  userId: string | null,
+  local: Pick<Storage, 'setItem' | 'removeItem'> = localStorage,
+): void {
+  if (userId) local.setItem(SYNC_OWNER_STORAGE_KEY, userId);
+  else local.removeItem(SYNC_OWNER_STORAGE_KEY);
+}
+
+/** Clear account-synced cache so one signed-in account cannot leak into another. */
+export function clearSyncedLocalData(local: StorageLike = localStorage): boolean {
+  let changed = false;
+  for (const key of SYNCED_LOCAL_DATA_KEYS) {
+    if (local.getItem(key) === null) continue;
+    local.removeItem(key);
+    changed = true;
+  }
+  if (local.getItem(SYNC_OWNER_STORAGE_KEY) !== null) {
+    local.removeItem(SYNC_OWNER_STORAGE_KEY);
+    changed = true;
+  }
+  return changed;
+}
+
+/** Tell the sync bridge that a same-tab localStorage write should be pushed now. */
+export function notifyUserDataChanged(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(USER_DATA_CHANGED_EVENT));
+}
+
+/** Re-run localStorage-backed hooks after an authoritative server value is applied. */
+export function notifyUserDataApplied(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event('storage'));
 }
 
 export function backupLocalData(local: StorageLike = localStorage, session: StorageLike = sessionStorage): LocalDataBackup {

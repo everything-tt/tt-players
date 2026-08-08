@@ -18,6 +18,11 @@ const EventItemSchema = z.object({
     end_date: z.string().nullable(),
     status: z.string(),
     category: z.string().nullable(),
+    entry_fee: z.string().nullable(),
+    categories: z.array(z.object({
+        name: z.string(),
+        entry_fee: z.string().nullable(),
+    })).nullable(),
     description: z.string().nullable(),
     venue_name: z.string().nullable(),
     venue_address: z.string().nullable(),
@@ -49,9 +54,10 @@ const TournamentSourceSchema = z.object({
 
 const ListResponseSchema = z.object({
     data: z.array(EventItemSchema),
-    total: z.number().int(),
+    total: z.number().int().nullable(),
     limit: z.number().int(),
     offset: z.number().int(),
+    has_more: z.boolean(),
 });
 
 const EventResultRowSchema = z.object({
@@ -111,6 +117,8 @@ const QuerySchema = z.object({
         'cancelled',
         'postponed',
         'unpublished',
+        'awaiting_results',
+        'processed',
         'all',
     ]).optional(),
     from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -118,6 +126,9 @@ const QuerySchema = z.object({
     category: z.string().optional(),
     categories: CategoriesSchema.optional(),
     saved_ids: SavedIdsSchema.optional(),
+    include_total: z.enum(['true', 'false'])
+        .optional()
+        .transform((value) => value !== 'false'),
     limit: z.coerce.number().int().min(1).max(100).default(20),
     offset: z.coerce.number().int().min(0).default(0),
 });
@@ -165,7 +176,10 @@ function parseCategories(value: string | undefined): TournamentCategory[] {
         .filter((category): category is TournamentCategory => TournamentCategorySchema.safeParse(category).success);
 }
 
-function applyEventFilters<T>(builder: T, query: EventQuery): T {
+function applyEventFilters<T>(
+    builder: T,
+    query: EventQuery,
+): T {
     let filtered = builder as any;
     filtered = filtered
         .where('c.type', '=', 'individual')
@@ -189,24 +203,19 @@ function applyEventFilters<T>(builder: T, query: EventQuery): T {
 
     if (query.status && query.status !== 'all') {
         if (query.status === 'upcoming') {
-            filtered = filtered.where('c.event_status', 'in', [
-                'upcoming',
-                'entries_open',
-                'entries_closed',
-            ]);
+            filtered = filtered
+                .where('c.record_kind', '=', 'calendar')
+                .where('c.processed_at', 'is', null)
+                .where('c.event_status', 'in', [
+                    'upcoming',
+                    'entries_open',
+                    'entries_closed',
+                    'in_progress',
+                ]);
+        } else if (query.status === 'completed') {
+            filtered = filtered.where('c.record_kind', '=', 'result');
         } else {
             filtered = filtered.where('c.event_status', '=', query.status);
-        }
-
-        if (query.status === 'completed') {
-            filtered = filtered.where(sql<boolean>`exists (
-                select 1
-                from rubbers r
-                join fixtures f on f.id = r.fixture_id
-                where f.competition_id = c.id
-                  and r.deleted_at is null
-                  and r.is_doubles = false
-            )`);
         }
     }
 
@@ -238,11 +247,96 @@ function applyEventFilters<T>(builder: T, query: EventQuery): T {
     return filtered as T;
 }
 
+function applyEventOrdering<T>(builder: T, query: EventQuery): T {
+    let ordered = builder as any;
+    if (query.status === 'upcoming' || query.status === 'in_progress') {
+        ordered = ordered
+            .orderBy(sql`coalesce(c.start_date, c.event_date)`, 'asc')
+            .orderBy(sql`coalesce(c.display_name, c.name)`, 'asc')
+            .orderBy('c.id', 'asc');
+    } else {
+        ordered = ordered
+            .orderBy(sql`coalesce(c.start_date, c.event_date)`, 'desc')
+            .orderBy(sql`coalesce(c.display_name, c.name)`, 'asc')
+            .orderBy('c.id', 'asc');
+    }
+    return ordered as T;
+}
+
+interface EventPage {
+    pageIds: string[];
+    total: number | null;
+    hasMore: boolean;
+}
+
+async function fetchExactEventPage(
+    db: Kysely<any>,
+    query: EventQuery,
+): Promise<EventPage> {
+    let pageBuilder = db
+        .selectFrom('competitions as c')
+        .select([
+            'c.id',
+            sql<number>`count(*) over()`.as('total'),
+        ]);
+    pageBuilder = applyEventFilters(pageBuilder, query);
+    pageBuilder = applyEventOrdering(pageBuilder, query);
+
+    const pageRows = await pageBuilder
+        .limit(query.limit)
+        .offset(query.offset)
+        .execute();
+    const pageIds = pageRows.map((row: { id: string }) => row.id);
+
+    let total = pageRows.length > 0
+        ? Number((pageRows[0] as { total: number | string }).total)
+        : 0;
+
+    if (pageRows.length === 0 && query.offset > 0) {
+        let countBuilder = db
+            .selectFrom('competitions as c')
+            .select(db.fn.countAll().as('count'));
+        countBuilder = applyEventFilters(countBuilder, query);
+        const countRes = await countBuilder.executeTakeFirst();
+        total = Number(countRes?.count ?? 0);
+    }
+
+    return {
+        pageIds,
+        total,
+        hasMore: query.offset + pageIds.length < total,
+    };
+}
+
+async function fetchFastEventPage(
+    db: Kysely<any>,
+    query: EventQuery,
+): Promise<EventPage> {
+    let pageBuilder = db
+        .selectFrom('competitions as c')
+        .select('c.id');
+    pageBuilder = applyEventFilters(pageBuilder, query);
+    pageBuilder = applyEventOrdering(pageBuilder, query);
+
+    const pageRows = await pageBuilder
+        .limit(query.limit + 1)
+        .offset(query.offset)
+        .execute();
+
+    return {
+        pageIds: pageRows
+            .slice(0, query.limit)
+            .map((row: { id: string }) => row.id),
+        total: null,
+        hasMore: pageRows.length > query.limit,
+    };
+}
+
 function calendarPayloadField(field: string) {
     return sql<string | null>`(
         select nullif(ts.raw_payload ->> ${field}, '')
         from tournament_sources ts
-        where ts.competition_id = c.id
+        where ts.competition_id = coalesce(c.matched_calendar_competition_id, c.id)
           and ts.source_type = 'calendar'
         order by ts.last_seen_at desc
         limit 1
@@ -252,26 +346,29 @@ function calendarPayloadField(field: string) {
 function eventSelection() {
     return [
         'c.id',
+        'c.matched_calendar_competition_id',
         'p.id as platform_id',
         sql<string>`coalesce(c.source, 'canonical')`.as('source'),
         'c.external_id',
         sql<string>`coalesce(c.display_name, c.name)`.as('name'),
-        sql<string | null>`c.event_date::text`.as('event_date'),
-        sql<string | null>`coalesce(c.start_date, c.event_date)::text`.as('start_date'),
-        sql<string | null>`c.end_date::text`.as('end_date'),
+        sql<string | null>`coalesce(c.event_date, calendar.event_date)::text`.as('event_date'),
+        sql<string | null>`coalesce(c.start_date, c.event_date, calendar.start_date, calendar.event_date)::text`.as('start_date'),
+        sql<string | null>`coalesce(c.end_date, calendar.end_date)::text`.as('end_date'),
         sql<string>`coalesce(c.status_override, c.event_status, case when c.event_date < current_date then 'completed' else 'upcoming' end)`.as('status'),
-        'c.category',
+        sql<string | null>`coalesce(c.category, calendar.category)`.as('category'),
+        sql<string | null>`c.entry_fee`.as('entry_fee'),
+        sql<unknown>`c.categories`.as('categories'),
         calendarPayloadField('description').as('description'),
-        'c.venue_name',
-        'c.venue_address',
-        'c.venue_town',
-        'c.venue_postcode',
+        sql<string | null>`coalesce(c.venue_name, calendar.venue_name)`.as('venue_name'),
+        sql<string | null>`coalesce(c.venue_address, calendar.venue_address)`.as('venue_address'),
+        sql<string | null>`coalesce(c.venue_town, calendar.venue_town)`.as('venue_town'),
+        sql<string | null>`coalesce(c.venue_postcode, calendar.venue_postcode)`.as('venue_postcode'),
         calendarPayloadField('venueUrl').as('venue_url'),
         calendarPayloadField('organizerName').as('organizer_name'),
         calendarPayloadField('organizerUrl').as('organizer_url'),
-        sql<string | null>`c.entry_deadline::text`.as('entry_deadline'),
-        'c.entry_url',
-        'c.information_url',
+        sql<string | null>`coalesce(c.entry_deadline, calendar.entry_deadline)::text`.as('entry_deadline'),
+        sql<string | null>`coalesce(c.entry_url, calendar.entry_url)`.as('entry_url'),
+        sql<string | null>`coalesce(c.information_url, calendar.information_url)`.as('information_url'),
         sql<string | null>`(
             select ts.source_url
             from tournament_sources ts
@@ -280,13 +377,14 @@ function eventSelection() {
             order by ts.last_seen_at desc
             limit 1
         )`.as('result_url'),
-        sql<string | null>`coalesce(c.information_url, c.source_url)`.as('public_url'),
+        sql<string | null>`coalesce(c.information_url, c.source_url, calendar.information_url, calendar.source_url)`.as('public_url'),
         'p.name as platform_name',
         sql<number>`(
             select count(*)
-            from rubbers r
-            join fixtures f on f.id = r.fixture_id
+            from fixtures f
+            join rubbers r on r.fixture_id = f.id
             where f.competition_id = c.id
+              and f.deleted_at is null
               and r.deleted_at is null
               and r.is_doubles = false
         )`.as('match_count'),
@@ -294,6 +392,7 @@ function eventSelection() {
             select count(*)
             from tournament_sources ts
             where ts.competition_id = c.id
+               or ts.competition_id = c.matched_calendar_competition_id
         )`.as('source_count'),
     ] as const;
 }
@@ -304,6 +403,17 @@ function nullableString(value: unknown): string | null {
 
 function nullableNumber(value: unknown): number | null {
     return value === null || value === undefined ? null : Number(value);
+}
+
+function nullableCategories(value: unknown): Array<{ name: string; entry_fee: string | null }> | null {
+    if (!Array.isArray(value)) return null;
+    return value.map((item) => {
+        const record = item && typeof item === 'object' ? item as Record<string, unknown> : {};
+        return {
+            name: String(record.name ?? ''),
+            entry_fee: record.entry_fee == null ? null : String(record.entry_fee),
+        };
+    });
 }
 
 function mapEvent(event: Record<string, unknown>): EventItem {
@@ -318,6 +428,8 @@ function mapEvent(event: Record<string, unknown>): EventItem {
         end_date: nullableString(event.end_date),
         status: String(event.status),
         category: nullableString(event.category),
+        entry_fee: nullableString(event.entry_fee),
+        categories: nullableCategories(event.categories),
         description: nullableString(event.description),
         venue_name: nullableString(event.venue_name),
         venue_address: nullableString(event.venue_address),
@@ -394,42 +506,45 @@ export function eventsRoutes(db: Kysely<any>): FastifyPluginAsync {
             },
             async (request) => {
                 const query = request.query;
-                let countBuilder = db
-                    .selectFrom('competitions as c')
-                    .select(db.fn.countAll().as('count'));
-                countBuilder = applyEventFilters(countBuilder, query);
 
-                const countRes = await countBuilder.executeTakeFirst();
-                const total = Number(countRes?.count ?? 0);
+                const page = query.include_total
+                    ? await fetchExactEventPage(db, query)
+                    : await fetchFastEventPage(db, query);
+                const { pageIds, total, hasMore } = page;
 
-                let queryBuilder = db
+                if (pageIds.length === 0) {
+                    return {
+                        data: [],
+                        total,
+                        limit: query.limit,
+                        offset: query.offset,
+                        has_more: hasMore,
+                    };
+                }
+
+                const enrichedRows = await db
                     .selectFrom('competitions as c')
                     .innerJoin('seasons as s', 's.id', 'c.season_id')
                     .innerJoin('leagues as l', 'l.id', 's.league_id')
                     .innerJoin('platforms as p', 'p.id', 'l.platform_id')
-                    .select(eventSelection());
-                queryBuilder = applyEventFilters(queryBuilder, query);
-
-                if (query.status === 'upcoming' || query.status === 'in_progress') {
-                    queryBuilder = queryBuilder
-                        .orderBy(sql`coalesce(c.start_date, c.event_date)`, 'asc')
-                        .orderBy(sql`coalesce(c.display_name, c.name)`, 'asc');
-                } else {
-                    queryBuilder = queryBuilder
-                        .orderBy(sql`coalesce(c.start_date, c.event_date)`, 'desc')
-                        .orderBy(sql`coalesce(c.display_name, c.name)`, 'asc');
-                }
-
-                const events = await queryBuilder
-                    .limit(query.limit)
-                    .offset(query.offset)
+                    .leftJoin('competitions as calendar', 'calendar.id', 'c.matched_calendar_competition_id')
+                    .select(eventSelection())
+                    .where('c.id', 'in', pageIds)
                     .execute();
 
+                const enrichedById = new Map(
+                    enrichedRows.map((event: Record<string, unknown>) => [String(event.id), event]),
+                );
+                const events = pageIds
+                    .map((id) => enrichedById.get(id))
+                    .filter((event): event is Record<string, unknown> => event !== undefined);
+
                 return {
-                    data: events.map((event: Record<string, unknown>) => mapEvent(event)),
+                    data: events.map((event) => mapEvent(event)),
                     total,
                     limit: query.limit,
                     offset: query.offset,
+                    has_more: hasMore,
                 };
             },
         );
@@ -453,6 +568,7 @@ export function eventsRoutes(db: Kysely<any>): FastifyPluginAsync {
                     .innerJoin('seasons as s', 's.id', 'c.season_id')
                     .innerJoin('leagues as l', 'l.id', 's.league_id')
                     .innerJoin('platforms as p', 'p.id', 'l.platform_id')
+                    .leftJoin('competitions as calendar', 'calendar.id', 'c.matched_calendar_competition_id')
                     .select(eventSelection())
                     .where('c.id', '=', id)
                     .where('c.type', '=', 'individual')
@@ -465,6 +581,11 @@ export function eventsRoutes(db: Kysely<any>): FastifyPluginAsync {
                         statusCode: 404,
                     });
                 }
+
+                const sourceCompetitionIds = [
+                    id,
+                    (event as { matched_calendar_competition_id?: string | null }).matched_calendar_competition_id,
+                ].filter((value): value is string => Boolean(value));
 
                 const [sources, results] = await Promise.all([
                     db
@@ -479,7 +600,7 @@ export function eventsRoutes(db: Kysely<any>): FastifyPluginAsync {
                             sql<string>`first_seen_at::text`.as('first_seen_at'),
                             sql<string>`last_seen_at::text`.as('last_seen_at'),
                         ])
-                        .where('competition_id', '=', id)
+                        .where('competition_id', 'in', sourceCompetitionIds)
                         .orderBy('source_type', 'asc')
                         .orderBy('provider', 'asc')
                         .execute(),

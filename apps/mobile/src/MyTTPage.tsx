@@ -222,7 +222,7 @@ export function MyTTPage() {
 
   return (
     <TabShellPage>
-      <DetailHeader title="My TT" backFallback="" />
+      <DetailHeader title="My TT" backFallback="" heading />
       <AppPageContent className="tt-my-tt-page">
         {!auth.user || !player ? (
           <PageSection surface="hero" density="compact" ariaLabelledby={undefined}>
@@ -236,6 +236,7 @@ export function MyTTPage() {
           <>
             <EntityHero
               className="tt-my-tt-hero"
+              headingLevel={2}
               eyebrow="My player"
               leading={<DesignAvatar text={initials(player.name)} size="hero" />}
               title={(
@@ -551,7 +552,7 @@ export function EditMyTTPage() {
 
   return (
     <TabShellPage>
-      <DetailHeader title="Edit My TT" backFallback="my-tt" onBack={handleBack} />
+      <DetailHeader title="Edit My TT" backFallback="my-tt" onBack={handleBack} heading />
       <AppPageContent className="tt-my-tt-page tt-my-tt-edit-page">
         {!auth.user || !player || !draft ? (
           <PageSection surface="hero" density="compact" ariaLabelledby={undefined}>

@@ -2,12 +2,16 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const source = readFileSync(new URL('./LeagueSelectionPage.tsx', import.meta.url), 'utf8');
-const css = readFileSync(new URL('./native-mobile.css', import.meta.url), 'utf8');
+const appCss = readFileSync(new URL('./native-mobile.css', import.meta.url), 'utf8');
+const designSystemCss = readFileSync(
+  new URL('../../../packages/design-system/src/styles/app-shell.css', import.meta.url),
+  'utf8',
+);
 
-function cssRule(selector: string): string {
+function cssRule(css: string, selector: string, owner: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
-  expect(match, `Missing CSS rule for ${selector}`).not.toBeNull();
+  expect(match, `Missing CSS rule for ${selector} in ${owner}`).not.toBeNull();
   return match?.[1] ?? '';
 }
 
@@ -43,19 +47,27 @@ describe('LeagueSelectionPage full-page scope experience', () => {
     expect(source).toContain('DesignList,');
     expect(source.match(/<DesignList density="compact" divider="hairline">/g)).toHaveLength(3);
     expect(source).not.toContain('<List className="tt-league-scope__list"');
-    expect(css).not.toContain('.tt-league-scope__list');
+    expect(appCss).not.toContain('.tt-league-scope__list');
   });
 
-  it('keeps page controls and completion action visible around a scrollable body', () => {
-    const page = cssRule('.tt-sheet--page');
-    const controls = cssRule('.tt-league-scope__controls');
-    const footer = cssRule('.tt-league-scope__footer');
+  it('keeps package-owned sheet mechanics separate from app-owned scope composition', () => {
+    const page = cssRule(designSystemCss, '.tt-sheet--page', 'design-system app-shell.css');
+    const body = cssRule(designSystemCss, '.tt-sheet__body', 'design-system app-shell.css');
+    const footerSurface = cssRule(designSystemCss, '.tt-sheet__footer', 'design-system app-shell.css');
+    const controls = cssRule(appCss, '.tt-league-scope__controls', 'native-mobile.css');
+    const footerComposition = cssRule(appCss, '.tt-league-scope__footer', 'native-mobile.css');
 
     expect(page).toContain('height: 100dvh;');
     expect(page).toContain('max-height: 100dvh;');
+    expect(body).toContain('min-height: 0;');
+    expect(footerSurface).toContain('flex: 0 0 auto;');
     expect(controls).toContain('position: sticky;');
     expect(controls).toContain('top: 0;');
-    expect(footer).toContain('align-items: center;');
-    expect(footer).toContain('display: flex;');
+    expect(footerComposition).toContain('align-items: center;');
+    expect(footerComposition).toContain('display: flex;');
+
+    expect(appCss).not.toContain('.tt-sheet--page');
+    expect(appCss).not.toContain('.tt-sheet__body');
+    expect(appCss).not.toContain('.tt-sheet__footer');
   });
 });

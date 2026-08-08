@@ -1,6 +1,7 @@
 import type { MouseEvent as ReactMouseEvent, MouseEventHandler, ReactNode } from 'react';
 import { AppButton } from './AppButton';
-import { cx } from '../utils/cx';
+import { cn } from '../lib/utils';
+import { Card, CardContent } from './ui/card';
 
 export interface AppCardProps {
   children: ReactNode;
@@ -34,19 +35,19 @@ export interface AppMessageCardProps {
 
 export function AppCard({ children, className, cardHeight }: AppCardProps) {
   return (
-    <div className={cx('card card-style', 'tt-card', className)} data-card-height={cardHeight}>
+    <Card unstyled className={cn('card card-style', 'tt-card', className)} data-card-height={cardHeight}>
       {children}
-    </div>
+    </Card>
   );
 }
 
 export function AppCardContent({ children, className }: AppCardContentProps) {
-  return <div className={cx('content', 'tt-card__content', className)}>{children}</div>;
+  return <CardContent className={cn('content', 'tt-card__content', className)}>{children}</CardContent>;
 }
 
 export function AppLoadingCard({ message, className }: AppLoadingCardProps) {
   return (
-    <AppCard className={cx('app-loading-card', 'tt-card--loading', className)}>
+    <AppCard className={cn('app-loading-card', 'tt-card--loading', className)}>
       <AppCardContent>
         <div className="app-loading-card-body" role="status" aria-live="polite">
           <span className="app-loading-dot" aria-hidden="true" />
@@ -64,10 +65,10 @@ export function AppLoadingCard({ message, className }: AppLoadingCardProps) {
 
 export function AppMessageCard({ title, message, tone = 'neutral', action, className }: AppMessageCardProps) {
   return (
-    <AppCard className={cx('tt-card--message', tone === 'danger' && 'tt-card--danger', className)}>
+    <AppCard className={cn('tt-card--message', tone === 'danger' && 'tt-card--danger', className)}>
       <AppCardContent>
         {title ? <h4 className="mb-2">{title}</h4> : null}
-        <p className={cx('mb-3', tone === 'danger' && 'color-red-dark')}>{message}</p>
+        <p className={cn('mb-3', tone === 'danger' && 'color-red-dark')}>{message}</p>
         {action ? (
           <AppButton
             onClick={(event) => action.onClick(event as unknown as ReactMouseEvent<HTMLAnchorElement>)}

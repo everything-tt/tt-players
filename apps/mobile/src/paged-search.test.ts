@@ -37,7 +37,7 @@ describe('paged search helpers', () => {
       categories: ['women', 'junior'],
       limit: 10,
       offset: 10,
-    })).toBe('/events?status=completed&q=Birmingham&saved_ids=00000000-0000-0000-0000-000000000004&categories=junior%2Cwomen&limit=10&offset=10');
+    })).toBe('/events?status=completed&q=Birmingham&saved_ids=00000000-0000-0000-0000-000000000004&categories=junior%2Cwomen&include_total=false&limit=10&offset=10');
   });
 
   it('omits inactive tournament filters', () => {
@@ -48,7 +48,7 @@ describe('paged search helpers', () => {
       categories: [],
       limit: 10,
       offset: 0,
-    })).toBe('/events?status=upcoming&limit=10&offset=0');
+    })).toBe('/events?status=upcoming&include_total=false&limit=10&offset=0');
   });
 
   it('normalizes the current paginated response envelope', () => {

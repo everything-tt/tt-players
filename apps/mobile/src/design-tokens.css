@@ -30,9 +30,9 @@
   --surface-subtle-strong: oklch(21% 0.034 158 / 0.06);
   --accent-tap-ripple: oklch(53% 0.18 30 / 0.16);
 
-  /* Button heights */
-  --btn-h-sm: 36px;
-  --btn-h-md: 42px;
+  /* Button heights (min 44px touch targets per --tt-control-height) */
+  --btn-h-sm: 44px;
+  --btn-h-md: 44px;
   --btn-h-lg: 48px;
 }
 
@@ -166,8 +166,8 @@ body.theme-dark {
   font-size: 13px;
   font-weight: 600;
   line-height: 1;
-  min-height: 32px;
-  padding: 7px 14px;
+  min-height: var(--tt-control-height, 44px);
+  padding: 0 14px;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 .tt-segmented__btn--active {
@@ -401,8 +401,10 @@ body.theme-dark .tt-hero { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04)
 .tt-pill--neutral { background: var(--surface-subtle); color: var(--ink-muted); border: 1px solid var(--border-hairline); }
 .tt-pill--success { background: var(--state-success-soft); color: var(--state-success); }
 .tt-pill--danger { background: var(--state-danger-soft); color: var(--state-danger); }
-.tt-pill--warning { background: var(--state-warning-soft); color: var(--state-warning-text); }
+.tt-pill--warning { background: var(--state-warning-soft); color: color-mix(in oklch, var(--state-warning-text), var(--ink) 30%); }
 .tt-pill--active { background: var(--accent); color: var(--on-accent); }
+
+.tt-section-meta { color: var(--ink-muted); font-size: 12px; line-height: 1.3; margin: 4px 0 0; }
 
 .tt-check {
   align-items: center;
@@ -614,6 +616,8 @@ body.theme-dark .tt-search-panel { box-shadow: inset 0 0 0 1px rgba(255, 255, 25
    ============================================================================ */
 .tt-favourite-button { flex: 0 0 auto; }
 .tt-favourite-button i { font-size: 14px; }
+.tt-favourite-button--saved.tt-btn--ghost i,
+.tt-favourite-button--saved.tt-btn--outline i { color: var(--accent); }
 
 /* ============================================================================
    External link — single external affordance.

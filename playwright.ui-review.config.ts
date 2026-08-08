@@ -20,18 +20,18 @@
  * 1. Create one focused `*.pw.ts` scenario under
  *    `apps/mobile/tests/ui-review/` for that PR.
  * 2. Exercise all materially changed UI flows in that scenario. Wait for the
- *    relevant API response or stable rendered state; do not rely on fixed sleeps
- *    as the main readiness signal.
+ *   relevant API response or stable rendered state; do not rely on fixed sleeps
+ *   as the main readiness signal.
  * 3. Assert the important behaviour and responsive layout before taking each
- *    screenshot. The test is a functional review flow, not just a page capture.
+ *   screenshot. The test is a functional review flow, not just a page capture.
  * 4. Capture only screenshots relevant to the PR and add them to the existing
- *    UI-review manifest/report.
+ *   UI-review manifest/report.
  * 5. Replace `testMatch` below with the new scenario filename. Remove the
- *    previous PR's filename from this config so CI runs only the current PR test.
+ *   previous PR's filename from this config so CI runs only the current PR test.
  * 6. Do NOT delete the previous scenario file merely because it is removed from
- *    `testMatch`; keep it for reference and optional manual regression testing.
+ *   `testMatch`; keep it for reference and optional manual regression testing.
  * 7. Never change `testMatch` back to a wildcard such as `**\/*.pw.ts` for the
- *    pull-request pipeline. A broad/full-app audit must be invoked separately.
+ *   pull-request pipeline. A broad/full-app audit must be invoked separately.
  *
  * The GitHub Actions screenshot job uses this config directly, so `testMatch` is
  * the single explicit selector for the scenario that will gate and document the
@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // Icon filters, category combinations, and results-only completed events.
-  testMatch: 'zz-tournament-filters-results.pw.ts',
+  // Home tab following favourite button review.
+  testMatch: 'zz-home-following-fav-button.pw.ts',
 
   timeout: 120_000,
   expect: {

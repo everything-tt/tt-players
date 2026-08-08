@@ -1,0 +1,59 @@
+/* Tailwind v4 is intentionally loaded without Preflight. TT apps already own
+ * platform normalisation, while shadcn primitives only need theme/utilities. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@source "../**/*.{ts,tsx}";
+@source "../../../../apps/*/src/**/*.{ts,tsx}";
+
+/*
+ * TT applies its active palette on the body (`theme-light` / `theme-dark`).
+ * Define shadcn's semantic aliases on the body as well as :root so the alias
+ * values are computed in the same cascade scope as the active TT palette.
+ * Keeping them on :root alone would freeze inherited aliases to light values.
+ */
+:root,
+body {
+  --background: var(--canvas-parchment);
+  --foreground: var(--ink);
+  --card: var(--surface-strong);
+  --card-foreground: var(--ink);
+  --popover: var(--surface-strong);
+  --popover-foreground: var(--ink);
+  --primary: var(--accent);
+  --primary-foreground: var(--on-accent);
+  --secondary: var(--surface-subtle-strong);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-subtle);
+  --muted-foreground: var(--ink-muted);
+  --destructive: var(--state-danger);
+  --border: var(--border-hairline);
+  --input: var(--border-hairline);
+  --ring: var(--accent-ring);
+  --radius: var(--tt-radius-md);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent-subtle);
+  --color-accent-foreground: var(--ink);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}

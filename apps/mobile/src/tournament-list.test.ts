@@ -28,3 +28,17 @@ describe('mergeTournamentPage', () => {
     ]);
   });
 });
+
+describe('tournament filter persistence', () => {
+  it('registers TOURNAMENT_FILTERS_STORAGE_KEY and uses the preferences module in EventsTabContent', () => {
+    const { readFileSync } = require('node:fs');
+    const persistence = readFileSync(new URL('./local-persistence.ts', import.meta.url), 'utf8');
+    const eventsTab = readFileSync(new URL('./EventsTabContent.tsx', import.meta.url), 'utf8');
+    const preferences = readFileSync(new URL('./tournament-preferences.ts', import.meta.url), 'utf8');
+
+    expect(persistence).toContain("TOURNAMENT_FILTERS_STORAGE_KEY = 'tt_players_tournament_filters'");
+    expect(preferences).toContain('TOURNAMENT_FILTERS_STORAGE_KEY');
+    expect(eventsTab).toContain('readTournamentPreferences');
+    expect(eventsTab).toContain('writeTournamentPreferences');
+  });
+});

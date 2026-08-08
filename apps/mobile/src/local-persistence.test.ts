@@ -3,13 +3,21 @@ import {
   applyUserDataSnapshot,
   backupLocalData,
   clearLocalDataBackup,
+  clearSyncedLocalData,
   createUserDataSnapshot,
+  diffUserDataSnapshots,
+  getLocalSyncOwner,
   LEAGUES_STORAGE_KEY,
   LOCAL_DATA_BACKUP_KEY,
   MATCH_JOURNAL_STORAGE_KEY,
   MY_PLAYER_STORAGE_KEY,
+  reconcileServerSnapshot,
   restoreLocalDataBackup,
+  setLocalSyncOwner,
+  SYNCED_LOCAL_DATA_KEYS,
   THEME_STORAGE_KEY,
+  TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY,
+  TOURNAMENT_FILTERS_STORAGE_KEY,
 } from './local-persistence';
 import { FAVOURITES_STORAGE_KEY } from './player-shared';
 
@@ -62,21 +70,44 @@ describe('local data persistence backup', () => {
 
     expect(session.getItem(LOCAL_DATA_BACKUP_KEY)).toBeNull();
   });
+
+  it('does not copy account-scoped tournament entry details into a generic backup', () => {
+    const local = createStorage();
+    const session = createStorage();
+    local.setItem(TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      ownerUserId: 'user-a',
+      profiles: [],
+    }));
+
+    const backup = backupLocalData(local, session);
+
+    expect(backup.entries[TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY]).toBeUndefined();
+  });
 });
 
 describe('account data snapshots', () => {
   it('captures preferences and private user data but excludes temporary picker state', () => {
     const local = createStorage();
+    const tournamentFilters = JSON.stringify({
+      version: 1,
+      status: 'completed',
+      savedOnly: true,
+      categories: ['junior'],
+    });
     local.setItem(LEAGUES_STORAGE_KEY, JSON.stringify(['league-1']));
     local.setItem(MY_PLAYER_STORAGE_KEY, JSON.stringify({ id: 'p1', name: 'Alice' }));
     local.setItem(THEME_STORAGE_KEY, 'dark-mode');
+    local.setItem(TOURNAMENT_FILTERS_STORAGE_KEY, tournamentFilters);
     local.setItem('tt_players_h2h_active_player_a', JSON.stringify({ id: 'p2' }));
 
     const snapshot = createUserDataSnapshot(local);
 
+    expect(snapshot.known_keys).toEqual([...SYNCED_LOCAL_DATA_KEYS]);
     expect(snapshot.entries[LEAGUES_STORAGE_KEY]).toBe(JSON.stringify(['league-1']));
     expect(snapshot.entries[MY_PLAYER_STORAGE_KEY]).toBe(JSON.stringify({ id: 'p1', name: 'Alice' }));
     expect(snapshot.entries[THEME_STORAGE_KEY]).toBe('dark-mode');
+    expect(snapshot.entries[TOURNAMENT_FILTERS_STORAGE_KEY]).toBe(tournamentFilters);
     expect(snapshot.entries.tt_players_h2h_active_player_a).toBeUndefined();
   });
 
@@ -98,5 +129,93 @@ describe('account data snapshots', () => {
     expect(local.getItem(LEAGUES_STORAGE_KEY)).toBe(JSON.stringify(['server-league']));
     expect(local.getItem(THEME_STORAGE_KEY)).toBe('dark-mode');
     expect(local.getItem(FAVOURITES_STORAGE_KEY)).toBeNull();
+  });
+
+  it('syncs tournament entry profiles only for the active account owner', () => {
+    const local = createStorage();
+    const userAStore = JSON.stringify({
+      version: 1,
+      ownerUserId: 'user-a',
+      profiles: [],
+    });
+    local.setItem(TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY, userAStore);
+
+    expect(createUserDataSnapshot(local, 'user-a').entries[TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY])
+      .toBe(userAStore);
+    expect(createUserDataSnapshot(local, 'user-b').entries[TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY])
+      .toBeUndefined();
+
+    const changed = applyUserDataSnapshot({
+      version: 1,
+      entries: {
+        [TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY]: userAStore,
+      },
+    }, local, 'user-b');
+
+    expect(changed).toBe(true);
+    expect(local.getItem(TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY)).toBeNull();
+  });
+
+  it('tracks cache ownership and clears signed-in account data on account boundaries', () => {
+    const local = createStorage();
+    local.setItem(MY_PLAYER_STORAGE_KEY, JSON.stringify({ id: 'p1', name: 'Alice' }));
+    local.setItem(FAVOURITES_STORAGE_KEY, JSON.stringify([{ id: 'p2' }]));
+    setLocalSyncOwner('user-a', local);
+
+    expect(getLocalSyncOwner(local)).toBe('user-a');
+    expect(clearSyncedLocalData(local)).toBe(true);
+    expect(getLocalSyncOwner(local)).toBeNull();
+    expect(local.getItem(MY_PLAYER_STORAGE_KEY)).toBeNull();
+    expect(local.getItem(FAVOURITES_STORAGE_KEY)).toBeNull();
+  });
+
+  it('diffs only changed keys so one device does not overwrite unrelated server preferences', () => {
+    const base = {
+      version: 1 as const,
+      entries: {
+        [THEME_STORAGE_KEY]: 'light-mode',
+        [MY_PLAYER_STORAGE_KEY]: JSON.stringify({ id: 'p1', name: 'Alice' }),
+      },
+    };
+    const current = {
+      version: 1 as const,
+      entries: {
+        [THEME_STORAGE_KEY]: 'dark-mode',
+        [MY_PLAYER_STORAGE_KEY]: JSON.stringify({ id: 'p1', name: 'Alice' }),
+      },
+    };
+
+    expect(diffUserDataSnapshots(base, current)).toEqual({
+      [THEME_STORAGE_KEY]: 'dark-mode',
+    });
+  });
+
+  it('preserves edits made while a server request is in flight while accepting unrelated remote changes', () => {
+    const observed = {
+      version: 1 as const,
+      entries: {
+        [THEME_STORAGE_KEY]: 'light-mode',
+        [LEAGUES_STORAGE_KEY]: JSON.stringify(['league-a']),
+      },
+    };
+    const latest = {
+      version: 1 as const,
+      entries: {
+        [THEME_STORAGE_KEY]: 'dark-mode',
+        [LEAGUES_STORAGE_KEY]: JSON.stringify(['league-a']),
+      },
+    };
+    const server = {
+      version: 1 as const,
+      entries: {
+        [THEME_STORAGE_KEY]: 'light-mode',
+        [LEAGUES_STORAGE_KEY]: JSON.stringify(['league-b']),
+      },
+    };
+
+    const reconciled = reconcileServerSnapshot(server, observed, latest);
+
+    expect(reconciled.entries[THEME_STORAGE_KEY]).toBe('dark-mode');
+    expect(reconciled.entries[LEAGUES_STORAGE_KEY]).toBe(JSON.stringify(['league-b']));
   });
 });

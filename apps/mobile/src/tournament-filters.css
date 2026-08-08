@@ -1,22 +1,16 @@
+.tt-tournament-controls-panel {
+  box-sizing: border-box;
+  margin: 16px 0 0;
+  padding: 0;
+  overflow: visible;
+}
+
+.tt-tournament-status-toggle {
+  margin: 0 var(--tt-gutter-flat) 12px;
+}
+
 .tt-tournament-search-toolbar {
-  margin-bottom: var(--tt-space-2);
-}
-
-.tt-tournament-search-toolbar .tt-app-search-toolbar__actions {
-  gap: var(--tt-space-1);
-}
-
-.tt-tournament-toolbar-icon {
-  position: relative;
-  width: 52px;
-  min-width: 52px;
-  min-height: 52px;
-  padding: 0 !important;
-  border-radius: 16px;
-}
-
-.tt-tournament-toolbar-icon > span {
-  display: contents;
+  margin: 0 var(--tt-gutter-flat);
 }
 
 .tt-tournament-toolbar-icon__label {
@@ -25,15 +19,15 @@
 
 .tt-tournament-toolbar-icon__count {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 3px;
+  right: 3px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 17px;
   height: 17px;
   padding-inline: 4px;
-  border: 2px solid var(--tt-surface-raised);
+  border: 2px solid var(--canvas-parchment);
   border-radius: 999px;
   background: var(--accent);
   color: var(--on-accent, #fff);
@@ -46,41 +40,35 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: var(--tt-space-2);
+  gap: 8px;
   min-width: 0;
-  margin: 0 var(--tt-gutter-flat) var(--tt-space-3);
+  margin: 12px var(--tt-gutter-flat) 0;
 }
 
 .tt-tournament-category-filters__options {
   flex: 1 1 auto;
   min-width: 0;
-  min-height: 40px;
-  margin: 0;
-  padding-block: 1px;
-}
-
-.tt-tournament-category-filter {
   min-height: 38px;
-  padding-inline: 13px;
+  margin: 0;
+  padding-block: 0;
 }
 
 .tt-tournament-category-filters__clear {
   flex: 0 0 auto;
-  min-height: 38px;
-  padding-inline: 10px;
 }
 
 @media (max-width: 360px) {
-  .tt-tournament-toolbar-icon {
-    width: 48px;
-    min-width: 48px;
+  .tt-tournament-status-toggle,
+  .tt-tournament-search-toolbar,
+  .tt-tournament-category-filters {
+    margin-inline: 14px;
+  }
+
+  .tt-tournament-search-toolbar {
+    gap: 5px;
   }
 
   .tt-tournament-category-filters {
-    gap: var(--tt-space-1);
-  }
-
-  .tt-tournament-category-filter {
-    padding-inline: 11px;
+    gap: 6px;
   }
 }

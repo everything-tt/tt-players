@@ -20,6 +20,7 @@ export {
   type HeaderIconPosition,
 } from './components/AppShell';
 export { BrowsePage, DetailPage, type BrowsePageProps, type DetailPageProps } from './components/PageLayouts';
+export { BrowseHeader, type BrowseHeaderAction, type BrowseHeaderProps } from './components/BrowseHeader';
 
 export { Stack, Inline, type StackProps, type InlineProps, type LayoutGap } from './components/Layout';
 export { Surface, type SurfaceProps } from './components/Surface';
@@ -100,6 +101,7 @@ export {
 } from './components/States';
 
 export { BottomSheet, type BottomSheetProps } from './components/BottomSheet';
+export { AppDrawer, type AppDrawerProps } from './components/AppDrawer';
 export {
   ActionMenu,
   type ActionMenuItem,
@@ -117,4 +119,5 @@ export { AppSwitch, type AppSwitchProps } from './components/AppSwitch';
 export { AppBackdrop, type AppBackdropProps } from './components/AppBackdrop';
 
 // Utilities
+export { cn } from './lib/utils';
 export { cx } from './utils/cx';

@@ -3,6 +3,7 @@ import './player-insights.css';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PlayerCareerStory } from './components/PlayerCareerStory';
 import { PlayerInsightsSummary } from './components/PlayerInsightsSummary';
+import { PlayerRatingAuditEvidence } from './components/PlayerRatingAuditEvidence';
 import { PlayerRatingHistoryChart } from './components/PlayerRatingHistoryChart';
 import { PlayerRivalIntelligence } from './components/PlayerRivalIntelligence';
 import { SkeletonBlock } from './components/Skeleton';
@@ -79,6 +80,8 @@ export function PlayerInsightsPage() {
             <PlayerInsightsSummary stats={stats} insights={insights} />
 
             <PlayerRatingHistoryChart playerId={playerId} />
+
+            <PlayerRatingAuditEvidence playerId={playerId} />
 
             <PlayerRivalIntelligence
               data={rivalsQuery.data ?? null}

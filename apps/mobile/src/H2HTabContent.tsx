@@ -29,7 +29,6 @@ import { FavouriteButton } from './components/FavouriteButton';
 import { RatingPredictionPanel } from './components/RatingPredictionPanel';
 import { buildH2HShareTarget } from './share-target';
 import { useShareTarget } from './hooks/useShareTarget';
-import { buildLeagueSummaries } from './h2h-analysis';
 import type { H2HAnalysisResponse } from './h2h-analysis-types';
 import type { RatingPredictionResponse } from './rating-queries';
 import {
@@ -162,7 +161,6 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
   const encounterCount = h2h?.encounters.length ?? 0;
   const playerAWinPct = encounterCount > 0 && h2h ? Math.round((h2h.player1_wins / encounterCount) * 100) : 0;
   const playerBWinPct = encounterCount > 0 && h2h ? Math.round((h2h.player2_wins / encounterCount) * 100) : 0;
-  const leagueSummaries = useMemo(() => buildLeagueSummaries(h2h?.encounters ?? []), [h2h]);
 
   const isFavourite = playerA && playerB ? isFavouriteMatchup(playerA.id, playerB.id) : false;
   const shareTarget = useMemo(() => playerA && playerB ? buildH2HShareTarget(window.location.origin, playerA, playerB) : null, [playerA, playerB]);
@@ -325,33 +323,23 @@ export function H2HTabContent({ onOpenPlayer, initialPlayerIds }: H2HTabContentP
             </div>
           </PageSection>
 
-          {leagueSummaries.length > 0 ? (
-            <PageSection surface="flat" density="compact" title="By competition" description="Direct-record breakdown">
-              <DesignList density="compact" divider="hairline">
-                {leagueSummaries.map((summary) => (
-                  <ListItem
-                    key={summary.league}
-                    leading={<DesignAvatar size="compact" text={getInitials(summary.league)} />}
-                    title={summary.league}
-                    subtitle={`${summary.played} matches · ${summary.playerAWins}-${summary.playerBWins} · Latest ${formatMatchDate(summary.latestDate)}`}
-                    hideChevron
-                  />
-                ))}
-              </DesignList>
-            </PageSection>
-          ) : null}
-
           <PageSection surface="flat" density="compact" title="Meeting history" description="Most recent first">
             <DesignList density="compact" divider="hairline">
-              {h2h.encounters.map((encounter) => (
-                <MatchRecordRow
-                  key={encounter.id}
-                  score={playerMatchScore(encounter.result, encounter.isWin)}
-                  title={encounter.opponent}
-                  metadata={[formatMatchDate(encounter.date), encounter.league]}
-                  onClick={() => navigateInTab('leagues', `fixture/${encounter.fixture_id}`)}
-                />
-              ))}
+              {h2h.encounters.map((encounter) => {
+                const titleText = encounter.isWin
+                  ? `${playerA.name} defeated ${encounter.opponent}`
+                  : `${playerA.name} lost to ${encounter.opponent}`;
+
+                return (
+                  <MatchRecordRow
+                    key={encounter.id}
+                    score={playerMatchScore(encounter.result, encounter.isWin)}
+                    title={titleText}
+                    metadata={[formatMatchDate(encounter.date), encounter.league]}
+                    onClick={() => navigateInTab('leagues', `fixture/${encounter.fixture_id}`)}
+                  />
+                );
+              })}
             </DesignList>
           </PageSection>
         </>

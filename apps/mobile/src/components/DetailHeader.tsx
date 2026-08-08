@@ -25,6 +25,8 @@ interface DetailHeaderProps {
   showHome?: boolean;
   /** Stable target for screens that are meaningful to share. */
   shareTarget?: ShareTarget | null;
+  /** Render the header title as an <h1> so the route has a page landmark heading. */
+  heading?: boolean;
 }
 
 /**
@@ -40,6 +42,7 @@ export function DetailHeader({
   backFallback,
   showHome = false,
   shareTarget = null,
+  heading = false,
 }: DetailHeaderProps) {
   const { goBackInActiveTab, switchTab } = useTabNavigation();
   const { share, status } = useShareTarget(shareTarget);
@@ -71,6 +74,7 @@ export function DetailHeader({
     <>
       <AppHeader
         title={title ?? ''}
+        heading={heading && !showHome}
         onTitleClick={showHome ? handleHome : undefined}
         leftAction={{
           iconClassName: 'fas fa-chevron-left',

@@ -14,15 +14,24 @@ import { PlayerInsightsPage } from './PlayerInsightsPage';
 import { PlayerMatchesPage } from './PlayerMatchesPage';
 import { PlayerTournamentsPage } from './PlayerTournamentsPage';
 import { PlayerPage } from './PlayerPage';
+import { RatingAuditHealthPage } from './RatingAuditHealthPage';
+import { RatingAuditPage } from './RatingAuditPage';
+import { RatingPlayerCoveragePage } from './RatingPlayerCoveragePage';
+import { RatingRankingQualityPage } from './RatingRankingQualityPage';
+import { RatingSourceQualityPage } from './RatingSourceQualityPage';
+import { ScrapingMonitorPage } from './ScrapingMonitorPage';
 import { TopRatingsPage } from './TopRatingsPage';
 import { TeamPage } from './TeamPage';
 import { EventDetailPage } from './EventDetailPage';
+import { TournamentEntryProfilesPage } from './TournamentEntryProfilesPage';
+import { TournamentEntryPrefillPage } from './TournamentEntryPrefillPage';
 import { H2HPage } from './H2HPage';
 import { LeagueDetailPage } from './LeagueDetailPage';
 import PWAReloadPrompt from './PWAReloadPrompt';
 import PWAInstallSheet from './PWAInstallSheet';
 import { PWAInstallProvider } from './PWAInstallContext';
 import { UserDataSyncProvider } from './UserDataSyncProvider';
+import { GoogleFormsEntryInterceptor } from './components/GoogleFormsEntryInterceptor';
 import { ThemeProvider } from './ui/appkit';
 
 function TabRootRedirect() {
@@ -46,11 +55,14 @@ export function AppRouter() {
             <PWAReloadPrompt />
             <PWAInstallSheet />
             <TabNavigationProvider>
+              <GoogleFormsEntryInterceptor />
               <Routes>
                 <Route path="/" element={<Navigate to="/tabs/home" replace />} />
                 <Route path="/tabs/:tabId" element={<EnsureValidTab><App /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/my-tt" element={<EnsureValidTab><MyTTPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/my-tt/edit" element={<EnsureValidTab><EditMyTTPage /></EnsureValidTab>} />
+                <Route path="/tabs/:tabId/entry-profiles" element={<EnsureValidTab><TournamentEntryProfilesPage /></EnsureValidTab>} />
+                <Route path="/tabs/:tabId/entry-prefill" element={<EnsureValidTab><TournamentEntryPrefillPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/ratings" element={<EnsureValidTab><TopRatingsPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/event/:eventId" element={<EnsureValidTab><EventDetailPage /></EnsureValidTab>} />
                 <Route path="/tabs/:tabId/player/:playerId" element={<EnsureValidTab><PlayerPage /></EnsureValidTab>} />
@@ -66,7 +78,18 @@ export function AppRouter() {
 
                 <Route path="/about" element={<AboutPage />} />
                 <Route path="/data-coverage" element={<DataCoveragePage />} />
+                <Route path="/scraping-monitor" element={<ScrapingMonitorPage />} />
                 <Route path="/design-system" element={<DesignSystemPage />} />
+                <Route path="/rating-audit" element={<RatingAuditHealthPage section="overview" />} />
+                <Route path="/rating-audit/player" element={<RatingAuditPage />} />
+                <Route path="/rating-audit/player/:playerId" element={<RatingAuditPage />} />
+                <Route path="/rating-audit/coverage" element={<RatingPlayerCoveragePage />} />
+                <Route path="/rating-audit/sources" element={<RatingSourceQualityPage />} />
+                <Route path="/rating-audit/ranking" element={<RatingRankingQualityPage />} />
+                <Route path="/rating-audit/data" element={<RatingAuditHealthPage section="data" />} />
+                <Route path="/rating-audit/identities" element={<RatingAuditHealthPage section="identities" />} />
+                <Route path="/rating-audit/network" element={<RatingAuditHealthPage section="network" />} />
+                <Route path="/rating-audit/:playerId" element={<RatingAuditPage />} />
                 <Route path="/players/:playerId" element={<PlayerPage />} />
                 <Route path="/players/:playerId/insights" element={<PlayerInsightsPage />} />
                 <Route path="/players/:playerId/matches" element={<PlayerMatchesPage />} />

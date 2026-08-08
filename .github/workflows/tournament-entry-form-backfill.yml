@@ -1,0 +1,230 @@
+name: Backfill tournament entry forms
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: Maximum number of current tournaments to inspect (1-500)
+        required: true
+        default: '500'
+        type: string
+      force:
+        description: Re-inspect cached forms and rerun DeepSeek analysis
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tournament-entry-form-production-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Validate inputs
+        env:
+          BACKFILL_LIMIT: ${{ inputs.limit }}
+          BACKFILL_FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$BACKFILL_LIMIT" =~ ^[0-9]+$ ]]; then
+            echo "limit must be an integer" >&2
+            exit 64
+          fi
+          if (( BACKFILL_LIMIT < 1 || BACKFILL_LIMIT > 500 )); then
+            echo "limit must be between 1 and 500" >&2
+            exit 64
+          fi
+          if [[ "$BACKFILL_FORCE" != "true" && "$BACKFILL_FORCE" != "false" ]]; then
+            echo "force must be true or false" >&2
+            exit 64
+          fi
+
+      - name: Configure SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_SSH_KEY"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Configure Ollama form analysis
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_USER"
+          test -n "$OLLAMA_API_KEY"
+          key_b64=$(printf '%s' "$OLLAMA_API_KEY" | base64 -w 0)
+
+          ssh "$VPS_USER@$VPS_HOST" \
+            "OLLAMA_KEY_B64='$key_b64' bash -s" <<'REMOTE'
+          set -euo pipefail
+          env_file=/etc/ttp/worker.env
+          temp_file=$(mktemp)
+          if [[ -f "$env_file" ]]; then
+            grep -v -E '^(OLLAMA_API_KEY|DEEPSEEK_API_KEY|ENTRY_FORM_LLM_(BASE_URL|MODEL|API_KEY))=' "$env_file" > "$temp_file" || true
+          fi
+          printf 'OLLAMA_API_KEY=%s\n' "$(printf '%s' "$OLLAMA_KEY_B64" | base64 -d)" >> "$temp_file"
+          printf 'ENTRY_FORM_LLM_BASE_URL=https://api.ollama.com\n' >> "$temp_file"
+          printf 'ENTRY_FORM_LLM_MODEL=deepseek-v4-flash:0731\n' >> "$temp_file"
+          install -m 600 "$temp_file" "$env_file"
+          rm -f "$temp_file"
+          REMOTE
+
+      - name: Verify backfill command is deployed
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_USER"
+          ssh "$VPS_USER@$VPS_HOST" \
+            "test -f /opt/tt-players/current/apps/worker/src/backfill-tournament-entry-forms.ts && \
+             test -x /opt/tt-players/current/apps/worker/node_modules/.bin/tsx"
+
+      - name: Run tournament entry form backfill
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          BACKFILL_LIMIT: ${{ inputs.limit }}
+          BACKFILL_FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          force_arg=''
+          if [[ "$BACKFILL_FORCE" == "true" ]]; then
+            force_arg=' --force'
+          fi
+
+          ssh "$VPS_USER@$VPS_HOST" \
+            "systemd-run \
+              --quiet \
+              --wait \
+              --pipe \
+              --collect \
+              --unit=ttp-entry-form-backfill \
+              --uid=ttp \
+              --gid=ttp \
+              --property=EnvironmentFile=/etc/ttp/worker.env \
+              --property=WorkingDirectory=/opt/tt-players/current/apps/worker \
+              /opt/tt-players/current/apps/worker/node_modules/.bin/tsx \
+              src/backfill-tournament-entry-forms.ts \
+              --limit=$BACKFILL_LIMIT$force_arg" \
+            | tee backfill-output.txt
+
+      - name: Add workflow summary
+        if: always()
+        env:
+          BACKFILL_LIMIT: ${{ inputs.limit }}
+          BACKFILL_FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Tournament entry form backfill"
+            echo
+            echo "- Requested limit: \`$BACKFILL_LIMIT\`"
+            echo "- Force re-inspection: \`$BACKFILL_FORCE\`"
+            echo "- Model: \`deepseek-v4-flash\`"
+            if [[ "$BACKFILL_FORCE" == "true" ]]; then
+              echo "- Cache behavior: bypassed; eligible forms are downloaded and analysed again"
+            else
+              echo "- Cache behavior: matching URL, inspection version, prompt version, and model analyses are skipped"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ -f backfill-output.txt ]]; then
+            node <<'NODE'
+          const fs = require('node:fs');
+          const output = fs.readFileSync('backfill-output.txt', 'utf8');
+          const start = output.indexOf('{');
+          const end = output.lastIndexOf('}');
+          if (start < 0 || end <= start) {
+            throw new Error('Backfill output did not contain a JSON summary');
+          }
+
+          const summary = JSON.parse(output.slice(start, end + 1));
+          const diagnostics = Array.isArray(summary.diagnostics) ? summary.diagnostics : [];
+          const append = (value) => fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, value);
+          const cell = (value) => String(value ?? '')
+            .replace(/\r?\n/g, ' ')
+            .replace(/\|/g, '\\|')
+            .replace(/`/g, "'");
+
+          append(
+            `- Candidates checked: ${summary.candidates ?? 0}\n` +
+            `- Ready: ${summary.ready ?? 0}\n` +
+            `- Failed inspection pipeline: ${summary.failed ?? 0}\n` +
+            `- Unsupported links: ${summary.unsupported ?? 0}\n` +
+            `- Already inspected and skipped: ${summary.unchanged ?? 0}\n` +
+            `- Diagnostic records: ${diagnostics.length}\n`
+          );
+
+          if (summary.diagnostic_collection_error) {
+            append(`- Diagnostic collection error: \`${cell(summary.diagnostic_collection_error)}\`\n`);
+          }
+
+          if (diagnostics.length > 0) {
+            const grouped = new Map();
+            for (const diagnostic of diagnostics) {
+              const key = JSON.stringify([
+                diagnostic.stage,
+                diagnostic.model,
+                diagnostic.error_code,
+                diagnostic.error_message,
+              ]);
+              const current = grouped.get(key) ?? { ...diagnostic, count: 0 };
+              current.count += 1;
+              grouped.set(key, current);
+            }
+
+            append('\n### Failure reasons\n\n');
+            append('| Count | Stage | Model | Code | Message |\n');
+            append('| ---: | --- | --- | --- | --- |\n');
+            for (const diagnostic of grouped.values()) {
+              append(`| ${diagnostic.count} | ${cell(diagnostic.stage)} | ${cell(diagnostic.model)} | ${cell(diagnostic.error_code)} | ${cell(diagnostic.error_message)} |\n`);
+            }
+
+            const shown = diagnostics.slice(0, 100);
+            append('\n<details><summary>Per-form diagnostics</summary>\n\n');
+            append('| Competition | Stage | Model | Code | Message | Inspected | Form |\n');
+            append('| --- | --- | --- | --- | --- | --- | --- |\n');
+            for (const diagnostic of shown) {
+              const formLink = diagnostic.source_url
+                ? `[open](${diagnostic.source_url})`
+                : '';
+              append(`| ${cell(diagnostic.competition_name)} | ${cell(diagnostic.stage)} | ${cell(diagnostic.model)} | ${cell(diagnostic.error_code)} | ${cell(diagnostic.error_message)} | ${cell(diagnostic.inspected_at)} | ${formLink} |\n`);
+            }
+            if (diagnostics.length > shown.length) {
+              append(`\n${diagnostics.length - shown.length} additional diagnostic records are available in the command output.\n`);
+            }
+            append('\n</details>\n');
+          }
+
+          if ((summary.failed ?? 0) > 0 || diagnostics.length > 0 || summary.diagnostic_collection_error) {
+            console.log(`::warning title=Tournament entry form diagnostics::${summary.failed ?? 0} pipeline failures and ${diagnostics.length} diagnostic records were reported. See the workflow summary.`);
+          }
+          NODE
+
+            {
+              echo
+              echo "<details><summary>Command output</summary>"
+              echo
+              echo '```json'
+              sed -n '1,1800p' backfill-output.txt
+              echo '```'
+              echo "</details>"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

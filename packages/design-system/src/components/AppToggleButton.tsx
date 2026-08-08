@@ -6,6 +6,7 @@ export interface AppToggleButtonProps extends Omit<ButtonHTMLAttributes<HTMLButt
   pressed: boolean;
   iconClassName?: string;
   size?: 'sm' | 'md';
+  variant?: 'default' | 'icon' | 'filter';
 }
 
 /** Persistent on/off filter button with visible and semantic selected state. */
@@ -14,6 +15,7 @@ export function AppToggleButton({
   pressed,
   iconClassName,
   size = 'md',
+  variant = 'default',
   className,
   type = 'button',
   ...props
@@ -24,6 +26,7 @@ export function AppToggleButton({
       className={cx(
         'tt-toggle-button',
         `tt-toggle-button--${size}`,
+        `tt-toggle-button--variant-${variant}`,
         pressed && 'tt-toggle-button--pressed',
         className,
       )}

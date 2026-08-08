@@ -13,6 +13,9 @@ export interface MetricGridProps {
   items?: MetricItem[];
   density?: 'compact' | 'standard';
   columns?: 2 | 3 | 4;
+  separators?: boolean;
+  valueSize?: 'compact' | 'standard' | 'prominent';
+  labelStyle?: 'standard' | 'eyebrow';
   ariaLabel?: string;
   className?: string;
 }
@@ -22,6 +25,9 @@ export function MetricGrid({
   items,
   density = 'standard',
   columns,
+  separators = false,
+  valueSize = 'standard',
+  labelStyle = 'standard',
   ariaLabel = 'Key metrics',
   className,
 }: MetricGridProps) {
@@ -29,7 +35,15 @@ export function MetricGrid({
   const resolvedColumns = columns ?? Math.min(4, Math.max(2, resolvedMetrics.length)) as 2 | 3 | 4;
   return (
     <div
-      className={cx('tt-metric-grid', `tt-metric-grid--${density}`, `tt-metric-grid--cols-${resolvedColumns}`, className)}
+      className={cx(
+        'tt-metric-grid',
+        `tt-metric-grid--${density}`,
+        `tt-metric-grid--cols-${resolvedColumns}`,
+        separators && 'tt-metric-grid--separated',
+        `tt-metric-grid--value-${valueSize}`,
+        `tt-metric-grid--label-${labelStyle}`,
+        className,
+      )}
       aria-label={ariaLabel}
     >
       {resolvedMetrics.map((metric, index) => (

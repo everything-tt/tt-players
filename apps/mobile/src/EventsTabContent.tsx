@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FavouriteButton } from './components/FavouriteButton';
 import { useFavouriteTournaments } from './hooks/useFavouriteTournaments';
 import {
@@ -18,6 +18,10 @@ import {
   getTournamentDateValue,
   groupTournamentTimeline,
 } from './tournament-timeline';
+import {
+  readTournamentPreferences,
+  writeTournamentPreferences,
+} from './tournament-preferences';
 import {
   AppButton,
   AppSearchInput,
@@ -42,19 +46,26 @@ function formatVenue(event: TournamentEventItem): string | null {
   return event.venue_name ?? event.venue_town ?? event.venue_postcode;
 }
 
-function TournamentDateTile({ event }: { event: TournamentEventItem }) {
+function TournamentDateTile({
+  event,
+  status,
+}: {
+  event: TournamentEventItem;
+  status: TournamentListStatus;
+}) {
   const parts = getTournamentDateParts(getTournamentDateValue(event));
+  const className = `tt-tournament-date-tile${status === 'completed' ? ' tt-tournament-date-tile--completed' : ''}`;
 
   if (!parts) {
     return (
-      <span className="tt-tournament-date-tile tt-tournament-date-tile--unknown" aria-label="Date unavailable">
+      <span className={`${className} tt-tournament-date-tile--unknown`} aria-label="Date unavailable">
         <i className="fa fa-calendar" aria-hidden="true" />
       </span>
     );
   }
 
   return (
-    <span className="tt-tournament-date-tile" aria-label={parts.fullLabel} title={parts.fullLabel}>
+    <span className={className} aria-label={parts.fullLabel} title={parts.fullLabel}>
       <span className="tt-tournament-date-tile__month" aria-hidden="true">{parts.month}</span>
       <span className="tt-tournament-date-tile__day" aria-hidden="true">{parts.day}</span>
     </span>
@@ -76,14 +87,14 @@ function TournamentMetadata({
       : event.status === 'entries_closed'
         ? 'Entries closed'
         : 'Upcoming'
-    : 'Results available';
+    : 'Completed';
   const statusTone = isUpcoming
     ? event.status === 'entries_open'
       ? 'success'
       : event.status === 'entries_closed'
         ? 'neutral'
         : 'accent'
-    : 'success';
+    : 'neutral';
 
   return (
     <span className="tt-tournament-timeline-item__metadata">
@@ -172,15 +183,15 @@ function TournamentResults({
     <PageSection
       surface="flat"
       density="compact"
-      title={title}
-      meta={state ? undefined : `${list.items.length} of ${list.total}`}
-      className="tt-tournament-results-section"
+      className={`tt-tournament-results-section tt-tournament-results-section--${status}`}
     >
+      <h2 className="tt-visually-hidden">{title}</h2>
       {state ?? (
         <>
           <div className="tt-tournament-timeline-groups">
             {groups.map((group) => {
               const headingId = `tournament-${status}-${group.key.replace(/[^a-z0-9-]/gi, '-')}`;
+              const groupCount = group.items.length;
               return (
                 <section
                   key={group.key}
@@ -189,12 +200,15 @@ function TournamentResults({
                 >
                   <SectionHeader
                     title={<span id={headingId}>{group.label}</span>}
+                    meta={`${groupCount} ${groupCount === 1 ? 'tournament' : 'tournaments'}`}
                     density="compact"
-                    emphasis="secondary"
+                    emphasis="standard"
                     className="tt-tournament-timeline-group__header"
                   />
                   <DesignList
-                    density="comfortable"
+                    density="editorial"
+                    surface="grouped"
+                    textWrap="multiline"
                     divider="none"
                     paginate={false}
                     className="tt-tournament-timeline-list"
@@ -202,8 +216,7 @@ function TournamentResults({
                     {group.items.map((event) => (
                       <ListItem
                         key={event.id}
-                        className="tt-tournament-timeline-item"
-                        leading={<TournamentDateTile event={event} />}
+                        leading={<TournamentDateTile event={event} status={status} />}
                         title={event.name}
                         subtitle={<TournamentMetadata event={event} status={status} />}
                         onClick={() => onOpen(event.id)}
@@ -238,10 +251,11 @@ function TournamentResults({
 
 export function EventsTabContent() {
   const { navigateInActiveTab } = useTabNavigation();
-  const [status, setStatus] = useState<TournamentListStatus>('upcoming');
-  const [savedOnly, setSavedOnly] = useState(false);
+  const [initialPreferences] = useState(() => readTournamentPreferences());
+  const [status, setStatus] = useState<TournamentListStatus>(initialPreferences.status);
+  const [savedOnly, setSavedOnly] = useState(initialPreferences.savedOnly);
   const [categoryFiltersOpen, setCategoryFiltersOpen] = useState(false);
-  const [categories, setCategories] = useState<TournamentCategoryFilter[]>([]);
+  const [categories, setCategories] = useState<TournamentCategoryFilter[]>(initialPreferences.categories);
   const search = useSearch({ minLength: 0, resetOnDisable: false });
   const {
     items: favouriteTournaments,
@@ -254,6 +268,10 @@ export function EventsTabContent() {
   );
   const mayFetch = !(savedOnly && favouriteTournaments.length === 0);
   const categoryFilterActive = categories.length > 0;
+
+  useEffect(() => {
+    writeTournamentPreferences({ status, savedOnly, categories });
+  }, [categories, savedOnly, status]);
 
   const upcoming = useTournamentList({
     status: 'upcoming',
@@ -274,92 +292,97 @@ export function EventsTabContent() {
 
   return (
     <>
-      <div className="tt-browse-controls">
-        <SegmentedToggle
-          full
-          ariaLabel="Tournament status"
-          value={status}
-          onChange={setStatus}
-          options={[
-            { value: 'upcoming', label: 'Upcoming' },
-            { value: 'completed', label: 'Completed' },
-          ]}
-        />
-      </div>
-
-      <SearchToolbar
-        ariaLabel={`Search ${status} tournaments`}
-        className="tt-tournament-search-toolbar"
-        actions={(
-          <>
-            <AppToggleButton
-              pressed={savedOnly}
-              iconClassName={savedOnly ? 'fa fa-heart' : 'fa fa-heart-o'}
-              className="tt-tournament-toolbar-icon"
-              onClick={() => setSavedOnly((current) => !current)}
-              aria-label={savedOnly ? 'Show all tournaments' : 'Show saved tournaments only'}
-              title={savedOnly ? 'Show all tournaments' : 'Show saved tournaments only'}
-            >
-              <span className="tt-tournament-toolbar-icon__label">Saved</span>
-            </AppToggleButton>
-            <AppToggleButton
-              pressed={categoryFiltersOpen || categoryFilterActive}
-              iconClassName="fa fa-filter"
-              className="tt-tournament-toolbar-icon"
-              onClick={() => setCategoryFiltersOpen((current) => !current)}
-              aria-label={categoryFiltersOpen ? 'Hide tournament category filters' : 'Show tournament category filters'}
-              aria-expanded={categoryFiltersOpen}
-              aria-controls="tournament-category-filters"
-              title={categoryFiltersOpen ? 'Hide category filters' : 'Show category filters'}
-            >
-              <span className="tt-tournament-toolbar-icon__label">Categories</span>
-              {categoryFilterActive ? (
-                <span className="tt-tournament-toolbar-icon__count" aria-hidden="true">
-                  {categories.length}
-                </span>
-              ) : null}
-            </AppToggleButton>
-          </>
-        )}
-      >
-        <AppSearchInput
-          inputMode="search"
-          enterKeyHint="search"
-          autoComplete="off"
-          placeholder={`Search ${status} tournaments…`}
-          aria-label={`Search ${status} tournaments`}
-          value={search.query}
-          onChange={(event) => search.setQuery(event.target.value)}
-        />
-      </SearchToolbar>
-
-      {categoryFiltersOpen ? (
-        <div id="tournament-category-filters" className="tt-tournament-category-filters">
-          <FilterBar ariaLabel="Tournament category filters" className="tt-tournament-category-filters__options">
-            {TOURNAMENT_CATEGORY_OPTIONS.map((option) => (
-              <AppToggleButton
-                key={option.value}
-                pressed={categories.includes(option.value)}
-                size="sm"
-                className="tt-tournament-category-filter"
-                onClick={() => setCategories((current) => toggleTournamentCategory(current, option.value))}
-              >
-                {option.label}
-              </AppToggleButton>
-            ))}
-          </FilterBar>
-          {categoryFilterActive ? (
-            <AppButton
-              tone="ghost"
-              size="s"
-              className="tt-tournament-category-filters__clear"
-              onClick={() => setCategories([])}
-            >
-              Clear
-            </AppButton>
-          ) : null}
+      <div className="tt-tournament-controls-panel">
+        <div className="tt-browse-controls tt-tournament-status-toggle">
+          <SegmentedToggle
+            full
+            ariaLabel="Tournament status"
+            value={status}
+            onChange={setStatus}
+            options={[
+              { value: 'upcoming', label: 'Upcoming' },
+              { value: 'completed', label: 'Completed' },
+            ]}
+          />
         </div>
-      ) : null}
+
+        <SearchToolbar
+          ariaLabel={`Search ${status} tournaments`}
+          className="tt-tournament-search-toolbar"
+          actions={(
+            <>
+              <AppToggleButton
+                pressed={savedOnly}
+                variant="icon"
+                iconClassName={savedOnly ? 'fa fa-heart' : 'fa fa-heart-o'}
+                className="tt-tournament-toolbar-icon"
+                onClick={() => setSavedOnly((current) => !current)}
+                aria-label={savedOnly ? 'Show all tournaments' : 'Show saved tournaments only'}
+                title={savedOnly ? 'Show all tournaments' : 'Show saved tournaments only'}
+              >
+                <span className="tt-tournament-toolbar-icon__label">Saved</span>
+              </AppToggleButton>
+              <AppToggleButton
+                pressed={categoryFiltersOpen || categoryFilterActive}
+                variant="icon"
+                iconClassName="fa fa-filter"
+                className="tt-tournament-toolbar-icon"
+                onClick={() => setCategoryFiltersOpen((current) => !current)}
+                aria-label={categoryFiltersOpen ? 'Hide tournament category filters' : 'Show tournament category filters'}
+                aria-expanded={categoryFiltersOpen}
+                aria-controls="tournament-category-filters"
+                title={categoryFiltersOpen ? 'Hide category filters' : 'Show category filters'}
+              >
+                <span className="tt-tournament-toolbar-icon__label">Categories</span>
+                {categoryFilterActive ? (
+                  <span className="tt-tournament-toolbar-icon__count" aria-hidden="true">
+                    {categories.length}
+                  </span>
+                ) : null}
+              </AppToggleButton>
+            </>
+          )}
+        >
+          <AppSearchInput
+            inputMode="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            placeholder={`Search ${status} tournaments…`}
+            aria-label={`Search ${status} tournaments`}
+            value={search.query}
+            onChange={(event) => search.setQuery(event.target.value)}
+          />
+        </SearchToolbar>
+
+        {categoryFiltersOpen ? (
+          <div id="tournament-category-filters" className="tt-tournament-category-filters">
+            <FilterBar ariaLabel="Tournament category filters" className="tt-tournament-category-filters__options">
+              {TOURNAMENT_CATEGORY_OPTIONS.map((option) => (
+                <AppToggleButton
+                  key={option.value}
+                  pressed={categories.includes(option.value)}
+                  size="sm"
+                  variant="filter"
+                  className="tt-tournament-category-filter"
+                  onClick={() => setCategories((current) => toggleTournamentCategory(current, option.value))}
+                >
+                  {option.label}
+                </AppToggleButton>
+              ))}
+            </FilterBar>
+            {categoryFilterActive ? (
+              <AppButton
+                tone="ghost"
+                size="s"
+                className="tt-tournament-category-filters__clear"
+                onClick={() => setCategories([])}
+              >
+                Clear
+              </AppButton>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
 
       <TournamentResults
         status={status}

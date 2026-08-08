@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTabNavigation } from '../navigation/tab-navigation';
 import { ratingConfidenceLabel, usePlayerRatingQuery } from '../rating-queries';
 import { AppButtonLink, MetricGrid, PageSection, Surface } from '../ui/appkit';
@@ -9,7 +10,12 @@ interface PlayerRatingPanelProps {
   playerId: string;
 }
 
+function formatVolatility(value: number): string {
+  return Number.isFinite(value) ? value.toFixed(4) : '—';
+}
+
 export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
+  const navigate = useNavigate();
   const { navigateInActiveTab } = useTabNavigation();
   const [isRangeOpen, setIsRangeOpen] = useState(false);
   const ratingQuery = usePlayerRatingQuery(playerId, Boolean(playerId));
@@ -18,6 +24,8 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
   const metrics = rating ? [
     { label: 'Rating', value: Math.round(rating.rating) },
     ...(rating.rank != null ? [{ label: 'Global Rank', value: `#${rating.rank}` }] : []),
+    { label: 'RD', value: rating.rating_deviation.toFixed(1) },
+    { label: 'Volatility', value: formatVolatility(rating.volatility) },
     { label: 'Confidence', value: ratingConfidenceLabel(rating.confidence) },
   ] : [];
 
@@ -36,6 +44,8 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
           metrics={[
             { label: 'Rating', value: <SkeletonBlock className="tt-skeleton-stat" /> },
             { label: 'Rank', value: <SkeletonBlock className="tt-skeleton-stat" /> },
+            { label: 'RD', value: <SkeletonBlock className="tt-skeleton-stat" /> },
+            { label: 'Volatility', value: <SkeletonBlock className="tt-skeleton-stat" /> },
             { label: 'Confidence', value: <SkeletonBlock className="tt-skeleton-stat" /> },
           ]}
         />
@@ -73,8 +83,23 @@ export function PlayerRatingPanel({ playerId }: PlayerRatingPanelProps) {
           </Surface>
 
           {rating.provisional ? (
-            <p className="tt-rating-note">Provisional rating: a global rank will appear once the rating confidence is high enough.</p>
+            <p className="tt-rating-note">Provisional rating: a global rank appears after enough rated match history and confidence are established.</p>
           ) : null}
+
+          <AppButtonLink
+            href={`/rating-audit/player/${playerId}`}
+            full
+            size="sm"
+            tone="primary"
+            className="tt-rating-history-link"
+            onClick={(event) => {
+              event.preventDefault();
+              navigate(`/rating-audit/player/${playerId}`);
+            }}
+          >
+            <i className="fa fa-search" aria-hidden="true" />
+            Why This Rating?
+          </AppButtonLink>
 
           <AppButtonLink
             full

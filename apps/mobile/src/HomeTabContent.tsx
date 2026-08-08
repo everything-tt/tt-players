@@ -4,11 +4,13 @@ import { type LeagueWithDivisions, TAB_METADATA, formatNumber, getQueryError } f
 import { useLeagueCollectionDashboardQuery, useLeadersQuery, usePlayerCountQuery } from './queries';
 import { useTabNavigation } from './navigation/tab-navigation';
 import {
+  AppButton,
   EmptyState,
   ErrorState,
   List,
   ListItem,
   MatchRecordRow,
+  MetricGrid,
   Pill,
   RankBadge,
   SectionHeader,
@@ -117,6 +119,10 @@ export function HomeTabContent({
         { label: 'Divisions', value: divisionCount },
         { label: 'Matches', value: matchCount },
       ];
+  const summaryMetrics = summaryStats.map((stat) => ({
+    label: stat.label,
+    value: formatCount(stat.value, summaryLoading || (!hasLeagueScope && isCountLoading)),
+  }));
   const recentResults = dashboard?.recent_results.slice(0, RECENT_RESULTS_LIMIT) ?? [];
   const dashboardError = getQueryError(dashboardQuery.error);
   const navItems: DashboardTabId[] = ['players', 'leagues', 'h2h', 'events'];
@@ -142,31 +148,34 @@ export function HomeTabContent({
             <h2 id="tt-home-summary-title" className="tt-home-summary-title">Your leagues. Your game.</h2>
             <p className="tt-home-summary-sub">{summaryLabel}</p>
           </div>
-          <button type="button" className="tt-home-summary-action" onClick={onOpenLeagueSelector}>
+          <AppButton
+            size="s"
+            rounded="full"
+            tone="primary"
+            onClick={onOpenLeagueSelector}
+          >
             {hasLeagueScope ? 'Edit' : 'Select'}
-          </button>
+          </AppButton>
         </div>
 
-        <div className="tt-home-summary-stats">
-          {summaryStats.map((stat) => (
-            <div key={stat.label} className="tt-home-summary-stat">
-              <span className="tt-home-summary-stat-value">
-                {formatCount(stat.value, summaryLoading || (!hasLeagueScope && isCountLoading))}
-              </span>
-              <span className="tt-home-summary-stat-label">{stat.label}</span>
-            </div>
-          ))}
-        </div>
+        <MetricGrid
+          className="tt-home-summary-metrics"
+          metrics={summaryMetrics}
+          columns={4}
+          density="compact"
+          separators
+          valueSize="prominent"
+          labelStyle="eyebrow"
+          ariaLabel="Active season totals"
+        />
       </section>
 
       <MyTTSection onOpenPlayer={(playerId) => navigateInTab('players', `player/${playerId}`)} />
 
-      {hasLeagueScope ? (
-        <TopRatingsSection
-          leagueIds={selectedLeagueIds}
-          onOpenPlayer={(playerId) => navigateInTab('players', `player/${playerId}`)}
-        />
-      ) : null}
+      <TopRatingsSection
+        leagueIds={hasLeagueScope ? selectedLeagueIds : []}
+        onOpenPlayer={(playerId) => navigateInTab('players', `player/${playerId}`)}
+      />
 
       {!hasLeagueScope ? (
         <>
@@ -179,9 +188,9 @@ export function HomeTabContent({
               <p className="tt-home-onboarding-copy">
                 Pick the leagues you follow, then Home will show active-season results and players for that scope.
               </p>
-              <button type="button" className="tt-home-onboarding-button" onClick={onOpenLeagueSelector}>
+              <AppButton size="m" rounded="m" full onClick={onOpenLeagueSelector}>
                 Select leagues
-              </button>
+              </AppButton>
             </div>
           </section>
 

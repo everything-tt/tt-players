@@ -1,0 +1,100 @@
+/* System-owned page rhythm and type hierarchy.
+ * Product pages should compose PageSection rather than hand-tuning adjacent margins. */
+.tt-page-content > .tt-entity-hero + .tt-section,
+.tt-page-content > .tt-hero + .tt-section,
+.tt-page-content > .tt-player-profile-hero + .tt-section,
+.tt-page-content > .tt-section + .tt-section,
+.tt-page-content > * + .tt-section {
+  margin-top: var(--tt-section-gap-standard);
+}
+
+.tt-page-content > .tt-section--compact + .tt-section--compact {
+  margin-top: var(--tt-section-gap-compact);
+}
+
+.tt-page-content > .tt-section--editorial + .tt-section,
+.tt-page-content > .tt-section + .tt-section--editorial {
+  margin-top: var(--tt-section-gap-editorial);
+}
+
+.tt-section-header__title {
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.tt-section-header--emphasis-primary .tt-section-header__title {
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.tt-section-header--emphasis-standard .tt-section-header__title {
+  font-size: 19px;
+}
+
+.tt-section-header--emphasis-secondary .tt-section-header__title {
+  font-size: 17px;
+  font-weight: 550;
+}
+
+.tt-section-header__description,
+.tt-section-header__note {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.tt-section-header__meta {
+  font-weight: 550;
+}
+
+.tt-entity-hero__title {
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.tt-list-item__title {
+  font-weight: var(--tt-list-item-title-weight, 550);
+}
+
+.tt-segmented__btn,
+.tt-btn-weight--semibold {
+  font-weight: 550;
+}
+
+/* Tailwind v4 implements translate utilities with the CSS `translate`
+ * longhand. Reset it here so the TT switch contract owns one movement model. */
+.tt-switch[data-slot='switch'] {
+  box-sizing: border-box;
+  justify-content: flex-start;
+  width: 52px !important;
+  min-width: 52px !important;
+  max-width: 52px;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 2px !important;
+}
+
+.tt-switch > [data-slot='switch-thumb'] {
+  box-sizing: border-box;
+  flex: 0 0 26px;
+  width: 26px !important;
+  height: 26px !important;
+  translate: 0 0 !important;
+  transform: translateX(0) !important;
+}
+
+.tt-switch[data-state='checked'] > [data-slot='switch-thumb'] {
+  translate: 0 0 !important;
+  transform: translateX(20px) !important;
+}
+
+@media (max-width: 420px) {
+  .tt-section-header--emphasis-primary .tt-section-header__title {
+    font-size: 21px;
+  }
+
+  .tt-section-header--emphasis-secondary .tt-section-header__title {
+    font-size: 17px;
+  }
+}

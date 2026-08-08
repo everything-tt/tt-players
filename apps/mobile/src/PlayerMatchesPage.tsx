@@ -54,6 +54,7 @@ export function PlayerMatchesPage() {
       <DetailHeader
         title={statsLoading ? 'Match History' : stats?.player_name ?? 'Match History'}
         backFallback={playerId ? `player/${playerId}` : ''}
+        heading
       />
       <div className="page-content app-shell-content">
         <PageSection surface="flat" density="compact" title="Player Matches" note="Full match list">

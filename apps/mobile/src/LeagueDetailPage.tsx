@@ -106,17 +106,22 @@ export function LeagueDetailPage() {
 
             <PageSection surface="flat" density="compact" title="Season history" note="Division winners">
               <FilterBar ariaLabel="Choose historical season">
-                {dashboard.history.map((season) => (
-                  <button
-                    key={season.season_id}
-                    type="button"
-                    className={`tt-season-picker__button${season.season_id === selectedSeason?.season_id ? ' active' : ''}`}
-                    aria-pressed={season.season_id === selectedSeason?.season_id}
-                    onClick={() => setHistorySeasonId(season.season_id)}
-                  >
-                    {season.season}
-                  </button>
-                ))}
+                {dashboard.history.map((season) => {
+                  const shortSeason = season.season.startsWith(league.name)
+                    ? season.season.slice(league.name.length).trim() || season.season
+                    : season.season;
+                  return (
+                    <button
+                      key={season.season_id}
+                      type="button"
+                      className={`tt-season-picker__button${season.season_id === selectedSeason?.season_id ? ' active' : ''}`}
+                      aria-pressed={season.season_id === selectedSeason?.season_id}
+                      onClick={() => setHistorySeasonId(season.season_id)}
+                    >
+                      {shortSeason}
+                    </button>
+                  );
+                })}
               </FilterBar>
               {selectedSeason ? (
                 <div className="tt-league-history">
