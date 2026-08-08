@@ -14,6 +14,11 @@ interface TabShellPageProps {
   children: ReactNode;
 }
 
+type DetailHeaderProps = {
+  title?: string;
+  backFallback?: string;
+};
+
 function myTTSection(pathname: string): MyTTTab | null {
   if (/^\/tabs\/[^/]+\/my-tt\/?$/.test(pathname)) return 'profile';
   if (/^\/tabs\/[^/]+\/my-tt\/journal\/[^/]+\/?$/.test(pathname)) return 'journal';
@@ -27,10 +32,16 @@ export function TabShellPage({ children }: TabShellPageProps) {
   const childList = Children.toArray(children);
   const firstChild = childList[0];
   const remainingChildren = childList.slice(1);
+  const headerProps = isValidElement(firstChild)
+    ? (firstChild as ReactElement<DetailHeaderProps>).props
+    : null;
+  const editingTournamentEntrant = section === 'entries'
+    && headerProps?.title !== 'Tournament entrants';
+  const showMyTTTabs = Boolean(section) && !editingTournamentEntrant;
 
-  const header = section && isValidElement(firstChild)
+  const header = showMyTTTabs && section && isValidElement(firstChild)
     ? cloneElement(
-      firstChild as ReactElement<{ title?: string; backFallback?: string }>,
+      firstChild as ReactElement<DetailHeaderProps>,
       section === 'profile'
         ? { title: 'My TT' }
         : { title: 'My TT', backFallback: 'my-tt' },
@@ -40,7 +51,7 @@ export function TabShellPage({ children }: TabShellPageProps) {
   return (
     <DetailPage footer={<TabFooterBar reselectBehavior="root" />}>
       {header}
-      {section ? <MyTTTabs /> : null}
+      {showMyTTTabs ? <MyTTTabs /> : null}
       {remainingChildren}
     </DetailPage>
   );
