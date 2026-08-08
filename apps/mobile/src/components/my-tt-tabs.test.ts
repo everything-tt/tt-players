@@ -20,14 +20,15 @@ describe('My TT tab navigation', () => {
     expect(routerSource).toContain('/tabs/:tabId/my-tt/entries');
   });
 
-  it('renders the tabs under the My TT header and removes profile cross-links visually', () => {
+  it('renders the tabs under the shared My TT header and keeps Profile profile-only', () => {
     const shellSource = read('../TabShellPage.tsx');
+    const profileSource = read('../MyTTPage.tsx');
     const styles = read('./MyTTTabs.css');
 
     expect(shellSource).toContain("section ? <MyTTTabs /> : null");
     expect(shellSource).toContain("title: 'My TT'");
-    expect(styles).toContain('[data-active-tab="profile"]');
-    expect(styles).toContain(':has(.fa-book-open)');
-    expect(styles).toContain(':has(.fa-clipboard-list)');
+    expect(profileSource).not.toContain('title="Match journal"');
+    expect(profileSource).not.toContain('title="Tournament entries"');
+    expect(styles).toContain('min-height: 48px');
   });
 });
