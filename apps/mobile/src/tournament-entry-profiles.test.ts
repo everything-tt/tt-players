@@ -44,12 +44,12 @@ describe('private tournament entry profiles', () => {
     expect(persistence).toContain('isOwnedTournamentEntryProfiles');
   });
 
-  it('exposes the manager from the home account area and registers its route', () => {
+  it('exposes the entrant manager from My TT and registers its route', () => {
     const section = read('./components/MyTTSection.tsx');
     const router = read('./AppRouter.tsx');
 
     expect(section).toContain("navigateInTab('home', 'entry-profiles')");
-    expect(section).toContain('You do not need to be a player yourself');
+    expect(section).toContain('Manage tournament entrants');
     expect(router).toContain('/tabs/:tabId/entry-profiles');
   });
 
