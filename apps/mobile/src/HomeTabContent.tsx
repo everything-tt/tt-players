@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AppTabId } from './navigation/tab-navigation';
 import { useMyPlayer } from './hooks/useMyPlayer';
 import { useTournamentList } from './hooks/useTournamentList';
@@ -19,11 +19,14 @@ import {
   Avatar,
   EmptyState,
   ErrorState,
+  FilterBar,
   IconCircle,
   List,
   ListItem,
   Pill,
+  RankBadge,
   SectionHeader,
+  SegmentedToggle,
 } from './ui/appkit';
 import { SkeletonList } from './components/Skeleton';
 import { PlayerSearchSheet } from './PlayerSearchSheet';
@@ -37,6 +40,9 @@ interface HomeTabContentProps {
 }
 
 type DashboardTabId = Exclude<AppTabId, 'home'>;
+type HomeRatingsScope = 'site' | 'selected';
+
+const HOME_RATINGS_LIMIT = 4;
 
 function formatDate(value: string | null): string {
   if (!value) return 'Date unavailable';
@@ -76,18 +82,28 @@ export function HomeTabContent({
   const { player: myPlayer, setMyPlayer } = useMyPlayer();
   const [claimSheetOpen, setClaimSheetOpen] = useState(false);
   const hasLeagueScope = hasCompletedLeagueOnboarding && selectedLeagueIds.length > 0;
+  const [ratingsScope, setRatingsScope] = useState<HomeRatingsScope>(hasLeagueScope ? 'selected' : 'site');
+  const isSelectedRatingsScope = hasLeagueScope && ratingsScope === 'selected';
   const isAllLeagueScope = hasLeagueScope
     && allLeagues.length > 0
     && selectedLeagueIds.length === allLeagues.length;
   const scopedLeagueIds = isAllLeagueScope ? [] : selectedLeagueIds;
 
+  useEffect(() => {
+    setRatingsScope(hasLeagueScope ? 'selected' : 'site');
+  }, [hasLeagueScope]);
+
   const dashboardQuery = useLeagueCollectionDashboardQuery(scopedLeagueIds, hasLeagueScope);
   const dashboard = dashboardQuery.data ?? null;
   const profileQuery = usePlayerProfileOverviewQuery(myPlayer?.id ?? '', Boolean(myPlayer));
   const ratingQuery = usePlayerRatingQuery(myPlayer?.id ?? '', Boolean(myPlayer));
-  const topRatingsQuery = useTopRatingsQuery(selectedLeagueIds, 1, hasLeagueScope);
+  const topRatingsQuery = useTopRatingsQuery(
+    selectedLeagueIds,
+    HOME_RATINGS_LIMIT,
+    isSelectedRatingsScope,
+  );
   const risersQuery = useLeagueRisersQuery(selectedLeagueIds, 1, 42, hasLeagueScope);
-  const topSiteRatingsQuery = useTopSiteRatingsQuery(2, !hasLeagueScope);
+  const topSiteRatingsQuery = useTopSiteRatingsQuery(HOME_RATINGS_LIMIT, !isSelectedRatingsScope);
   const upcomingTournaments = useTournamentList({
     status: 'upcoming',
     search: '',
@@ -113,13 +129,20 @@ export function HomeTabContent({
     ? nextTournament.venue_name ?? nextTournament.venue_town ?? nextTournament.venue_postcode
     : null;
 
-  const topRated = topRatingsQuery.data?.data[0] ?? null;
   const topRiser = risersQuery.data?.data[0] ?? null;
-  const siteTopRatings = topSiteRatingsQuery.data?.data.slice(0, 2) ?? [];
   const latestResult = dashboard?.recent_results[0] ?? null;
   const topTeam = dashboard?.top_teams[0] ?? null;
   const dashboardError = getQueryError(dashboardQuery.error);
   const nextUpError = upcomingTournaments.error ?? (hasLeagueScope ? dashboardError : null);
+  const rankings = isSelectedRatingsScope
+    ? topRatingsQuery.data?.data ?? []
+    : topSiteRatingsQuery.data?.data ?? [];
+  const rankingsLoading = isSelectedRatingsScope
+    ? topRatingsQuery.isLoading
+    : topSiteRatingsQuery.isLoading;
+  const rankingsError = getQueryError(isSelectedRatingsScope
+    ? topRatingsQuery.error
+    : topSiteRatingsQuery.error);
   const setupReadyCount = Number(Boolean(myPlayer)) + Number(hasLeagueScope);
   const navItems: DashboardTabId[] = ['players', 'leagues', 'h2h', 'events'];
 
@@ -247,9 +270,9 @@ export function HomeTabContent({
             )}
           />
 
-          {dashboardQuery.isLoading && topRatingsQuery.isLoading && risersQuery.isLoading ? (
-            <SkeletonList rows={3} />
-          ) : topRiser || topRated || latestResult || topTeam ? (
+          {dashboardQuery.isLoading && risersQuery.isLoading ? (
+            <SkeletonList rows={2} />
+          ) : topRiser || latestResult || topTeam ? (
             <List divider="hairline">
               {topRiser ? (
                 <ListItem
@@ -258,16 +281,6 @@ export function HomeTabContent({
                   subtitle={`Biggest 6-week riser in your leagues · #${topRiser.overall_rank} overall`}
                   trailing={<Pill tone="success">+{Math.round(topRiser.change)}</Pill>}
                   onClick={() => navigateInTab('players', `player/${topRiser.player_id}`)}
-                />
-              ) : null}
-
-              {topRated ? (
-                <ListItem
-                  leading={<IconCircle iconClassName="fa fa-star" tone="accent" />}
-                  title={`Top rated · ${topRated.player_name}`}
-                  subtitle={`#${topRated.overall_rank} overall · ${topRated.rated_matches} rated matches`}
-                  trailing={<Pill tone="accent">{Math.round(topRated.rating).toLocaleString('en-GB')}</Pill>}
-                  onClick={() => navigateInTab('players', `player/${topRated.player_id}`)}
                 />
               ) : null}
 
@@ -299,79 +312,104 @@ export function HomeTabContent({
             />
           )}
         </section>
-      ) : (
-        <>
-          <section className="tt-home-section" aria-labelledby="tt-home-discover-title">
-            <SectionHeader
-              title={<span id="tt-home-discover-title">Discover</span>}
-              note="A little to explore right now"
-              action={(
-                <AppButton size="s" tone="ghost" onClick={() => onOpenTab('players')}>
-                  Browse players
-                  <i className="fa fa-angle-right" aria-hidden="true" />
-                </AppButton>
-              )}
-            />
+      ) : null}
 
-            {topSiteRatingsQuery.isLoading ? (
-              <SkeletonList rows={2} />
-            ) : siteTopRatings.length > 0 ? (
-              <List divider="hairline">
-                {siteTopRatings.map((player, index) => (
-                  <ListItem
-                    key={player.player_id}
-                    leading={<IconCircle iconClassName={index === 0 ? 'fa fa-star' : 'fa fa-chart-line'} tone={index === 0 ? 'accent' : 'neutral'} />}
-                    title={`${player.rank != null ? `#${player.rank}` : `Top ${index + 1}`} overall · ${player.player_name}`}
-                    subtitle={`${player.rated_matches} rated matches · ${Math.round(player.win_rate)}% win rate`}
-                    trailing={<Pill tone={index === 0 ? 'accent' : 'neutral'}>{Math.round(player.rating).toLocaleString('en-GB')}</Pill>}
-                    onClick={() => navigateInTab('players', `player/${player.player_id}`)}
-                  />
-                ))}
-              </List>
-            ) : (
-              <EmptyState
-                iconClassName="fa fa-star"
-                title="Ratings are getting ready"
-                message="Top players will appear here as rating data becomes available."
+      <section className="tt-home-section" aria-labelledby="tt-home-top-players-title">
+        <SectionHeader
+          title={<span id="tt-home-top-players-title">Top players</span>}
+          note={isSelectedRatingsScope ? 'Leading your leagues' : 'Across TT Players'}
+          action={(
+            <AppButton
+              size="s"
+              tone="ghost"
+              onClick={() => navigateInTab('players', `ratings?scope=${isSelectedRatingsScope ? 'selected' : 'site'}`)}
+            >
+              View all rankings
+              <i className="fa fa-angle-right" aria-hidden="true" />
+            </AppButton>
+          )}
+        />
+
+        {hasLeagueScope ? (
+          <FilterBar ariaLabel="Home player ranking scope">
+            <SegmentedToggle
+              ariaLabel="Choose Home player ranking scope"
+              value={ratingsScope}
+              onChange={setRatingsScope}
+              options={[
+                { value: 'site', label: 'Global' },
+                { value: 'selected', label: 'Your leagues' },
+              ]}
+            />
+          </FilterBar>
+        ) : null}
+
+        {rankingsLoading ? (
+          <SkeletonList rows={HOME_RATINGS_LIMIT} />
+        ) : rankingsError ? (
+          <ErrorState
+            message={rankingsError}
+            onRetry={() => void (isSelectedRatingsScope ? topRatingsQuery.refetch() : topSiteRatingsQuery.refetch())}
+          />
+        ) : rankings.length > 0 ? (
+          <List divider="hairline">
+            {rankings.map((player, index) => (
+              <ListItem
+                key={player.player_id}
+                leading={<RankBadge>{player.rank ?? index + 1}</RankBadge>}
+                title={player.player_name}
+                subtitle={`${player.rated_matches} rated matches · ${Math.round(player.win_rate)}% win rate`}
+                trailing={<Pill tone="accent">{Math.round(player.rating).toLocaleString('en-GB')}</Pill>}
+                onClick={() => navigateInTab('players', `player/${player.player_id}`)}
               />
-            )}
-          </section>
+            ))}
+          </List>
+        ) : (
+          <EmptyState
+            iconClassName="fa fa-ranking-star"
+            title="No established ratings yet"
+            message={isSelectedRatingsScope
+              ? 'Established players from your selected leagues will appear here.'
+              : 'Established players will appear here as rating data becomes available.'}
+          />
+        )}
+      </section>
 
-          <section className="tt-home-section" aria-labelledby="tt-home-explore-title">
-            <SectionHeader
-              title={<span id="tt-home-explore-title">Explore</span>}
-              note="Jump into TT Players"
-            />
-            <nav className="tt-home-nav" aria-label="Explore TT Players">
-              {navItems.map((tabId) => {
-                const meta = TAB_METADATA[tabId];
-                const description =
-                  tabId === 'players' ? 'Search players, profiles and ratings' :
-                  tabId === 'leagues' ? `${allLeagues.length} available leagues` :
-                  meta.description;
+      {!hasLeagueScope ? (
+        <section className="tt-home-section" aria-labelledby="tt-home-explore-title">
+          <SectionHeader
+            title={<span id="tt-home-explore-title">Explore</span>}
+            note="Jump into TT Players"
+          />
+          <nav className="tt-home-nav" aria-label="Explore TT Players">
+            {navItems.map((tabId) => {
+              const meta = TAB_METADATA[tabId];
+              const description =
+                tabId === 'players' ? 'Search players, profiles and ratings' :
+                tabId === 'leagues' ? `${allLeagues.length} available leagues` :
+                meta.description;
 
-                return (
-                  <button
-                    key={tabId}
-                    type="button"
-                    className="tt-home-nav-row"
-                    onClick={() => onOpenTab(tabId)}
-                  >
-                    <div className="tt-home-nav-icon">
-                      <i className={meta.icon} aria-hidden="true" />
-                    </div>
-                    <div className="tt-home-nav-copy">
-                      <span className="tt-home-nav-title">{meta.label}</span>
-                      <span className="tt-home-nav-desc">{description}</span>
-                    </div>
-                    <i className="fa fa-angle-right tt-home-nav-chevron" aria-hidden="true" />
-                  </button>
-                );
-              })}
-            </nav>
-          </section>
-        </>
-      )}
+              return (
+                <button
+                  key={tabId}
+                  type="button"
+                  className="tt-home-nav-row"
+                  onClick={() => onOpenTab(tabId)}
+                >
+                  <div className="tt-home-nav-icon">
+                    <i className={meta.icon} aria-hidden="true" />
+                  </div>
+                  <div className="tt-home-nav-copy">
+                    <span className="tt-home-nav-title">{meta.label}</span>
+                    <span className="tt-home-nav-desc">{description}</span>
+                  </div>
+                  <i className="fa fa-angle-right tt-home-nav-chevron" aria-hidden="true" />
+                </button>
+              );
+            })}
+          </nav>
+        </section>
+      ) : null}
 
       <PlayerSearchSheet
         isOpen={claimSheetOpen}
