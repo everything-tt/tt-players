@@ -34,6 +34,8 @@ export type RankedHomeStory = {
   priority: number;
 };
 
+// Rating progress is deliberately bounded to the already-loaded 3-month history.
+// A milestone/high here must never be described as an all-time personal best.
 export type PersonalHomeStoryKind = 'personal-form' | 'recent-rating-high';
 
 export type PersonalHomeStory = RankedHomeStory & {
