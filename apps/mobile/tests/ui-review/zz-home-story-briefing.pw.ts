@@ -147,6 +147,17 @@ async function mockApi(page: Page) {
       return;
     }
 
+    if (path.endsWith(`/api/players/${playerId}/stats/extended`)) {
+      await route.fulfill({ json: {
+        player_id: playerId,
+        player_name: 'Wudong Liu',
+        wins: 18,
+        losses: 7,
+        total: 25,
+      } });
+      return;
+    }
+
     if (path.endsWith('/api/leagues/dashboard')) {
       await route.fulfill({ json: {
         totals: { leagues: 1, divisions: 5, teams: 34, matches_played: 820, upcoming_fixtures: 18 },
@@ -248,7 +259,7 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('reviews cheap first-visit discovery and returning-user change stories', async ({ page }, testInfo) => {
+test('reviews cheap first-visit discovery, returning-user stories, and My TT entrant access', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
   const populationWideAnalysisRequests: string[] = [];
   const activityFanOutRequests: string[] = [];
@@ -326,6 +337,22 @@ test('reviews cheap first-visit discovery and returning-user change stories', as
     leagueRiserIncluded: true,
     stories: 5,
   });
+
+  await page.goto(`${previewUrl}/tabs/home/my-tt`, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'My TT' })).toBeVisible();
+  await expect(page.getByText('Tournament entries', { exact: true })).toBeVisible();
+  await expect(page.getByText('Save private entry details for yourself, children, or players you manage.', { exact: true })).toBeVisible();
+  const manageEntrants = page.getByText('Manage tournament players', { exact: true });
+  await expect(manageEntrants).toBeVisible();
+  await manageEntrants.scrollIntoViewIfNeeded();
+  await capture(page, testInfo, 'my-tt-tournament-entries', {
+    tournamentEntrySectionVisible: true,
+    existingManagerReused: true,
+  });
+
+  await manageEntrants.click();
+  await expect(page).toHaveURL(/\/tabs\/home\/entry-profiles$/);
+  await expect(page.getByRole('heading', { name: 'Tournament entrants' })).toBeVisible();
 
   expect(populationWideAnalysisRequests).toEqual([]);
   expect(activityFanOutRequests).toEqual([]);
