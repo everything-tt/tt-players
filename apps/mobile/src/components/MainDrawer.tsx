@@ -7,9 +7,9 @@ import { usePWAInstallContext } from '../PWAInstallContext';
 
 const DRAWER_TABS: AppTabId[] = ['home', 'players', 'leagues', 'events', 'h2h'];
 const PLATFORM_LINKS = [
-  { label: 'Data Updates', path: '/scraping-monitor', icon: 'fa fa-wave-square' },
-  { label: 'Data Quality', path: '/data-coverage', icon: 'fa fa-database' },
-  { label: 'Rating Audit', path: '/rating-audit', icon: 'fa fa-chart-line' },
+  { label: 'Data Updates', path: '/platform/data-updates', icon: 'fa fa-wave-square' },
+  { label: 'Data Quality', path: '/platform/data-quality', icon: 'fa fa-database' },
+  { label: 'Rating Audit', path: '/platform/audit', icon: 'fa fa-chart-line' },
 ] as const;
 
 interface MainDrawerProps {
@@ -58,7 +58,12 @@ export function MainDrawer({
   };
 
   const platformLinkActive = (path: string) => {
-    if (path === '/rating-audit') return location.pathname.startsWith('/rating-audit');
+    if (path === '/platform/audit') {
+      return location.pathname.startsWith('/platform/audit') || location.pathname.startsWith('/rating-audit');
+    }
+    if (path === '/platform/data-quality') {
+      return location.pathname === path || location.pathname === '/data-coverage';
+    }
     return location.pathname === path;
   };
 
