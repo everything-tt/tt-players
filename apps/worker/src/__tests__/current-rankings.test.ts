@@ -14,6 +14,7 @@ import * as m040 from '@tt-players/db/src/migrations/040_create_rating_audit_sna
 import * as m042 from '@tt-players/db/src/migrations/042_create_rating_audit_foundation.js';
 import * as m043 from '@tt-players/db/src/migrations/043_create_rating_player_coverage.js';
 import * as m045 from '@tt-players/db/src/migrations/045_create_current_rating_rankings.js';
+import { rankCurrentPlayers } from '@tt-players/ranking';
 import { refreshCurrentRankings } from '../ratings/current-rankings.js';
 
 const { Pool } = pg;
@@ -64,7 +65,7 @@ afterAll(async () => {
 }, 15_000);
 
 describe('current rating rankings', () => {
-    it('separates active rank from historical rating and inflates inactivity uncertainty', async () => {
+    it('separates active rank from historical rating and matches the shared ranking contract', async () => {
         const platform = await db.insertInto('platforms').values({
             name: 'Ranking Platform',
             base_url: 'https://ranking.example',
@@ -81,6 +82,7 @@ describe('current rating rankings', () => {
             .where('key', '=', 'global-singles-glicko2-v1')
             .executeTakeFirstOrThrow();
         const calculatedAt = new Date('2026-08-06T05:17:00.000Z');
+        const calculatedDate = calculatedAt.toISOString().slice(0, 10);
 
         const ratingRows = [
             { externalId: 'active', rating: 1800, rd: 70, matches: 40, last: '2026-07-20', opponents: 20 },
@@ -144,5 +146,42 @@ describe('current rating rankings', () => {
         expect(byPlayer.get(byExternalId.get('sparse')!)?.eligibility_reason).toBe('insufficient_opponents');
         expect(byPlayer.get(byExternalId.get('uncertain')!)?.eligibility_reason).toBe('high_uncertainty');
         expect(byPlayer.get(byExternalId.get('inactive')!)?.historical_rank).toBe(1);
+
+        const expectedRankings = rankCurrentPlayers(
+            ratingRows.map((row) => ({
+                playerId: byExternalId.get(row.externalId)!,
+                state: {
+                    rating: row.rating,
+                    deviation: row.rd,
+                    volatility: 0.06,
+                },
+                ratedMatches: row.matches,
+                uniqueOpponents: row.opponents,
+                daysInactive: daysBetween(row.last, calculatedDate),
+            })),
+        );
+
+        for (const expected of expectedRankings) {
+            const persisted = byPlayer.get(expected.playerId);
+            expect(persisted).toBeDefined();
+            expect(persisted.eligibility_reason).toBe(expected.eligibilityReason);
+            expect(persisted.eligible).toBe(expected.eligible);
+            expect(Number(persisted.effective_deviation)).toBeCloseTo(
+                expected.effectiveDeviation,
+                10,
+            );
+            expect(Number(persisted.effective_conservative_rating)).toBeCloseTo(
+                expected.effectiveConservativeRating,
+                10,
+            );
+            expect(persisted.current_rank).toBe(expected.currentRank);
+            expect(persisted.historical_rank).toBe(expected.historicalRank);
+        }
     });
 });
+
+function daysBetween(from: string, to: string): number {
+    const fromMs = Date.parse(`${from}T00:00:00Z`);
+    const toMs = Date.parse(`${to}T00:00:00Z`);
+    return Math.max(0, Math.floor((toMs - fromMs) / 86_400_000));
+}
