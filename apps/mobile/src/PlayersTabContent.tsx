@@ -177,8 +177,6 @@ export function PlayersTabContent({ onOpenPlayer }: PlayersTabContentProps) {
         </PageSection>
       ) : null}
 
-      {mode === 'following' ? <RatingPulse onOpenPlayer={onOpenPlayer} /> : null}
-
       {mode === 'following' ? (
         <PageSection
           surface="flat"
@@ -189,6 +187,8 @@ export function PlayersTabContent({ onOpenPlayer }: PlayersTabContentProps) {
           {renderFollowing()}
         </PageSection>
       ) : null}
+
+      {mode === 'following' ? <RatingPulse onOpenPlayer={onOpenPlayer} /> : null}
 
       {mode === 'short-query' ? (
         <PageSection surface="flat" density="compact" title="Search players">
