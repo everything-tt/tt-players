@@ -182,6 +182,22 @@ async function mockApi(page: Page) {
       return;
     }
 
+    if (path.endsWith('/api/players/search')) {
+      await route.fulfill({ json: {
+        data: [{
+          id: playerId,
+          name: 'Wudong Liu',
+          played: 25,
+          wins: 18,
+          losses: 7,
+          win_rate: 72,
+          leagues: ['Colchester & District League'],
+          teams: ['Rowhedge K'],
+        }],
+      } });
+      return;
+    }
+
     if (path.endsWith(`/api/players/${playerId}/profile-overview`)) {
       await route.fulfill({ json: {
         player_id: playerId,
@@ -296,7 +312,7 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('reviews Home as a concise cross-page briefing', async ({ page }, testInfo) => {
+test('reviews Home as a concise cross-page briefing with in-place player claiming', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
   await installState(page);
   await mockApi(page);
@@ -334,6 +350,35 @@ test('reviews Home as a concise cross-page briefing', async ({ page }, testInfo)
   await capture(page, testInfo, 'home-briefing-highlights', {
     highlightCount: 3,
     noEmbeddedFilters: true,
+  });
+
+  await page.evaluate(() => {
+    localStorage.removeItem('tt_players_my_player');
+    window.dispatchEvent(new Event('tt-players:my-player-updated'));
+    window.scrollTo(0, 0);
+  });
+  await expect(page.getByText('Claim your player', { exact: true })).toBeVisible();
+  const claimButton = page.getByRole('button', { name: 'Claim my player' });
+  await expect(claimButton).toBeVisible();
+  await claimButton.click();
+
+  await expect(page.getByText('Make Home personal', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Claim your player' })).toBeVisible();
+  const searchInput = page.getByRole('textbox', { name: 'Search players' });
+  await searchInput.fill('Wudong');
+  await expect(page.getByText('Wudong Liu', { exact: true })).toBeVisible();
+  await expect(page.getByText('18W · 25 played · Tap to claim as you', { exact: true })).toBeVisible();
+  await capture(page, testInfo, 'home-claim-player-drawer', {
+    inPlaceSearch: true,
+    explicitClaimHint: true,
+  });
+
+  await page.getByText('Wudong Liu', { exact: true }).click();
+  await expect(page.getByText(/18W · 7L · 25 played · Rating 1,742/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Claim my player' })).toHaveCount(0);
+  await capture(page, testInfo, 'home-after-player-claim', {
+    drawerClosed: true,
+    homePersonalisedImmediately: true,
   });
 
   writeReportIndex(previewUrl);
