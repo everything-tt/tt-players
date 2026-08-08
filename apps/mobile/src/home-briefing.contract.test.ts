@@ -41,13 +41,15 @@ describe('Home briefing information architecture', () => {
     expect(source).not.toContain('Teams to watch');
   });
 
-  it('gives new users useful live context before they personalise', () => {
-    expect(source).toContain("What&apos;s happening");
-    expect(source).toContain('useLeadersQuery');
-    expect(source).toContain("mode: 'improving'");
+  it('keeps first-visit Home useful without population-wide analysis', () => {
     expect(source).toContain('TT Players pulse');
     expect(source).toContain('usePlayerCountQuery');
     expect(source).toContain('<MetricGrid');
+    expect(source).toContain('Top players');
+    expect(source).not.toContain('useLeadersQuery');
+    expect(source).not.toContain("mode: 'improving'");
+    expect(source).not.toContain("What&apos;s happening");
+    expect(source).not.toContain('finding another gear');
   });
 
   it('keeps a compact player leaderboard on Home with global and league scopes', () => {
