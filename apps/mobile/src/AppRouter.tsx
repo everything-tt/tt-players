@@ -32,6 +32,7 @@ import PWAInstallSheet from './PWAInstallSheet';
 import { PWAInstallProvider } from './PWAInstallContext';
 import { UserDataSyncProvider } from './UserDataSyncProvider';
 import { GoogleFormsEntryInterceptor } from './components/GoogleFormsEntryInterceptor';
+import { RuntimeProvider } from './ssr/runtime-context';
 import { ThemeProvider } from './ui/appkit';
 
 function TabRootRedirect() {
@@ -46,65 +47,83 @@ function EnsureValidTab({ children }: { children: JSX.Element }) {
   return children;
 }
 
-export function AppRouter() {
+/** Shared declarative route tree used by BrowserRouter and SSR StaticRouter. */
+export function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/tabs/home" replace />} />
+      <Route path="/tabs/:tabId" element={<EnsureValidTab><App /></EnsureValidTab>} />
+      <Route path="/tabs/:tabId/my-tt" element={<EnsureValidTab><MyTTPage /></EnsureValidTab>} />
+      <Route path="/tabs/:tabId/my-tt/edit" element={<EnsureValidTab><EditMyTTPage /></EnsureValidTab>} />
+      <Route path="/tabs/:tabId/entry-profiles" element={<EnsureValidTab><TournamentEntryProfilesPage /></EnsureValidTab>} />
+      <Route path="/tabs/:tabId/entry-prefill" element={<EnsureValidTab><TournamentEntryPrefillPage /></EnsureValidTab>} />
+      <Route path="/tabs/:tabId/ratings" element={<EnsureValidTab><TopRatingsPage /></EnsureValidTab>} />
+      <Route path="/tabs/:tabId/event/:eventId" element={<EnsureValidTab><EventDetailPage /></EnsureValidTab>} />
+      <Route path="/tabs/:tabId/player/:playerId" element={<EnsureValidTab><PlayerPage /></EnsureValidTab>} />
+      <Route path="/tabs/:tabId/player/:playerId/insights" element={<EnsureValidTab><PlayerInsightsPage /></EnsureValidTab>} />
+      <Route path="/tabs/:tabId/player/:playerId/matches" element={<EnsureValidTab><PlayerMatchesPage /></EnsureValidTab>} />
+      <Route path="/tabs/:tabId/player/:playerId/tournaments" element={<EnsureValidTab><PlayerTournamentsPage /></EnsureValidTab>} />
+      <Route path="/tabs/:tabId/player/:playerId/journal" element={<EnsureValidTab><MatchJournalPage /></EnsureValidTab>} />
+      <Route path="/tabs/:tabId/team/:teamId" element={<EnsureValidTab><TeamPage /></EnsureValidTab>} />
+      <Route path="/tabs/:tabId/league/:leagueId" element={<EnsureValidTab><LeagueDetailPage /></EnsureValidTab>} />
+      <Route path="/tabs/:tabId/fixture/:fixtureId" element={<EnsureValidTab><FixturePage /></EnsureValidTab>} />
+      <Route path="/tabs/:tabId/h2h/:playerAId/:playerBId/common-opponents" element={<EnsureValidTab><CommonOpponentsPage /></EnsureValidTab>} />
+      <Route path="/tabs/:tabId/*" element={<TabRootRedirect />} />
+
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/data-coverage" element={<DataCoveragePage />} />
+      <Route path="/scraping-monitor" element={<ScrapingMonitorPage />} />
+      <Route path="/design-system" element={<DesignSystemPage />} />
+      <Route path="/rating-audit" element={<RatingAuditHealthPage section="overview" />} />
+      <Route path="/rating-audit/player" element={<RatingAuditPage />} />
+      <Route path="/rating-audit/player/:playerId" element={<RatingAuditPage />} />
+      <Route path="/rating-audit/coverage" element={<RatingPlayerCoveragePage />} />
+      <Route path="/rating-audit/sources" element={<RatingSourceQualityPage />} />
+      <Route path="/rating-audit/ranking" element={<RatingRankingQualityPage />} />
+      <Route path="/rating-audit/data" element={<RatingAuditHealthPage section="data" />} />
+      <Route path="/rating-audit/identities" element={<RatingAuditHealthPage section="identities" />} />
+      <Route path="/rating-audit/network" element={<RatingAuditHealthPage section="network" />} />
+      <Route path="/rating-audit/:playerId" element={<RatingAuditPage />} />
+      <Route path="/players/:playerId" element={<PlayerPage />} />
+      <Route path="/players/:playerId/insights" element={<PlayerInsightsPage />} />
+      <Route path="/players/:playerId/matches" element={<PlayerMatchesPage />} />
+      <Route path="/players/:playerId/tournaments" element={<PlayerTournamentsPage />} />
+      <Route path="/players/:playerId/journal" element={<MatchJournalPage />} />
+      <Route path="/teams/:teamId" element={<TeamPage />} />
+      <Route path="/tournaments/:eventId" element={<EventDetailPage />} />
+      <Route path="/h2h/:playerAId/:playerBId/common-opponents" element={<CommonOpponentsPage />} />
+      <Route path="/h2h/:playerAId/:playerBId" element={<H2HPage />} />
+      <Route path="*" element={<Navigate to="/tabs/home" replace />} />
+    </Routes>
+  );
+}
+
+export function AppRouter({
+  siteOrigin,
+  isSsrHydration = false,
+}: {
+  siteOrigin?: string;
+  isSsrHydration?: boolean;
+} = {}) {
+  const resolvedOrigin = siteOrigin
+    ?? (typeof window === 'undefined' ? '' : window.location.origin);
+
   return (
     <BrowserRouter>
-      <UserDataSyncProvider>
-        <ThemeProvider>
-          <PWAInstallProvider>
-            <PWAReloadPrompt />
-            <PWAInstallSheet />
-            <TabNavigationProvider>
-              <GoogleFormsEntryInterceptor />
-              <Routes>
-                <Route path="/" element={<Navigate to="/tabs/home" replace />} />
-                <Route path="/tabs/:tabId" element={<EnsureValidTab><App /></EnsureValidTab>} />
-                <Route path="/tabs/:tabId/my-tt" element={<EnsureValidTab><MyTTPage /></EnsureValidTab>} />
-                <Route path="/tabs/:tabId/my-tt/edit" element={<EnsureValidTab><EditMyTTPage /></EnsureValidTab>} />
-                <Route path="/tabs/:tabId/entry-profiles" element={<EnsureValidTab><TournamentEntryProfilesPage /></EnsureValidTab>} />
-                <Route path="/tabs/:tabId/entry-prefill" element={<EnsureValidTab><TournamentEntryPrefillPage /></EnsureValidTab>} />
-                <Route path="/tabs/:tabId/ratings" element={<EnsureValidTab><TopRatingsPage /></EnsureValidTab>} />
-                <Route path="/tabs/:tabId/event/:eventId" element={<EnsureValidTab><EventDetailPage /></EnsureValidTab>} />
-                <Route path="/tabs/:tabId/player/:playerId" element={<EnsureValidTab><PlayerPage /></EnsureValidTab>} />
-                <Route path="/tabs/:tabId/player/:playerId/insights" element={<EnsureValidTab><PlayerInsightsPage /></EnsureValidTab>} />
-                <Route path="/tabs/:tabId/player/:playerId/matches" element={<EnsureValidTab><PlayerMatchesPage /></EnsureValidTab>} />
-                <Route path="/tabs/:tabId/player/:playerId/tournaments" element={<EnsureValidTab><PlayerTournamentsPage /></EnsureValidTab>} />
-                <Route path="/tabs/:tabId/player/:playerId/journal" element={<EnsureValidTab><MatchJournalPage /></EnsureValidTab>} />
-                <Route path="/tabs/:tabId/team/:teamId" element={<EnsureValidTab><TeamPage /></EnsureValidTab>} />
-                <Route path="/tabs/:tabId/league/:leagueId" element={<EnsureValidTab><LeagueDetailPage /></EnsureValidTab>} />
-                <Route path="/tabs/:tabId/fixture/:fixtureId" element={<EnsureValidTab><FixturePage /></EnsureValidTab>} />
-                <Route path="/tabs/:tabId/h2h/:playerAId/:playerBId/common-opponents" element={<EnsureValidTab><CommonOpponentsPage /></EnsureValidTab>} />
-                <Route path="/tabs/:tabId/*" element={<TabRootRedirect />} />
-
-                <Route path="/about" element={<AboutPage />} />
-                <Route path="/data-coverage" element={<DataCoveragePage />} />
-                <Route path="/scraping-monitor" element={<ScrapingMonitorPage />} />
-                <Route path="/design-system" element={<DesignSystemPage />} />
-                <Route path="/rating-audit" element={<RatingAuditHealthPage section="overview" />} />
-                <Route path="/rating-audit/player" element={<RatingAuditPage />} />
-                <Route path="/rating-audit/player/:playerId" element={<RatingAuditPage />} />
-                <Route path="/rating-audit/coverage" element={<RatingPlayerCoveragePage />} />
-                <Route path="/rating-audit/sources" element={<RatingSourceQualityPage />} />
-                <Route path="/rating-audit/ranking" element={<RatingRankingQualityPage />} />
-                <Route path="/rating-audit/data" element={<RatingAuditHealthPage section="data" />} />
-                <Route path="/rating-audit/identities" element={<RatingAuditHealthPage section="identities" />} />
-                <Route path="/rating-audit/network" element={<RatingAuditHealthPage section="network" />} />
-                <Route path="/rating-audit/:playerId" element={<RatingAuditPage />} />
-                <Route path="/players/:playerId" element={<PlayerPage />} />
-                <Route path="/players/:playerId/insights" element={<PlayerInsightsPage />} />
-                <Route path="/players/:playerId/matches" element={<PlayerMatchesPage />} />
-                <Route path="/players/:playerId/tournaments" element={<PlayerTournamentsPage />} />
-                <Route path="/players/:playerId/journal" element={<MatchJournalPage />} />
-                <Route path="/teams/:teamId" element={<TeamPage />} />
-                <Route path="/tournaments/:eventId" element={<EventDetailPage />} />
-                <Route path="/h2h/:playerAId/:playerBId/common-opponents" element={<CommonOpponentsPage />} />
-                <Route path="/h2h/:playerAId/:playerBId" element={<H2HPage />} />
-                <Route path="*" element={<Navigate to="/tabs/home" replace />} />
-              </Routes>
-            </TabNavigationProvider>
-          </PWAInstallProvider>
-        </ThemeProvider>
-      </UserDataSyncProvider>
+      <RuntimeProvider siteOrigin={resolvedOrigin} isSsrHydration={isSsrHydration}>
+        <UserDataSyncProvider>
+          <ThemeProvider>
+            <PWAInstallProvider>
+              <PWAReloadPrompt />
+              <PWAInstallSheet />
+              <TabNavigationProvider>
+                <GoogleFormsEntryInterceptor />
+                <AppRoutes />
+              </TabNavigationProvider>
+            </PWAInstallProvider>
+          </ThemeProvider>
+        </UserDataSyncProvider>
+      </RuntimeProvider>
     </BrowserRouter>
   );
 }
