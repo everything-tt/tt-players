@@ -36,6 +36,9 @@ jobs:
   backtest:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write
     env:
       MODEL_KEY: ${{ inputs.model || 'global-singles-glicko2-v1' }}
       EVALUATION_DAYS: ${{ inputs.evaluation_days || '180' }}
@@ -73,23 +76,43 @@ jobs:
             exit 64
           fi
 
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: wudong-agent-master
+          workload_identity_provider: ${{ vars.TT_PLAYERS_SSH_WIF_PROVIDER }}
+          service_account: ${{ vars.TT_PLAYERS_SSH_SERVICE_ACCOUNT }}
+
+      - name: Load VPS deploy key
+        id: gcp-secrets
+        uses: google-github-actions/get-secretmanager-secrets@v3
+        with:
+          secrets: |-
+            vps_ssh_key:wudong-agent-master/tt-players-hetzner-vps-deploy-key
+
       - name: Configure SSH
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_HOST_KEY: ${{ vars.TT_PLAYERS_VPS_HOST_KEY }}
+          VPS_SSH_KEY: ${{ steps.gcp-secrets.outputs.vps_ssh_key }}
         run: |
           set -euo pipefail
           test -n "$VPS_HOST"
+          test -n "$VPS_HOST_KEY"
           test -n "$VPS_SSH_KEY"
           install -m 700 -d ~/.ssh
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          printf '%s %s\n' "$VPS_HOST" "$VPS_HOST_KEY" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Verify backtest command is deployed
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
         run: |
           set -euo pipefail
           test -n "$VPS_USER"
@@ -99,8 +122,8 @@ jobs:
 
       - name: Run chronological backtest
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
         run: |
           set -euo pipefail
 
@@ -136,8 +159,8 @@ jobs:
 
       - name: Download reports
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
         run: |
           set -euo pipefail
           mkdir -p rating-backtest-report
@@ -246,9 +269,15 @@ jobs:
       - name: Remove remote reports
         if: always()
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
         run: |
           if [[ -n "${VPS_HOST:-}" && -n "${VPS_USER:-}" ]]; then
             ssh "$VPS_USER@$VPS_HOST" "rm -rf '$REMOTE_OUTPUT_DIR'" || true
           fi
+
+      - name: Clean temporary SSH and Google credentials
+        if: always()
+        run: |
+          rm -f ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          find "${RUNNER_TEMP:-/tmp}" -maxdepth 1 -type f -name 'gha-creds-*.json' -delete 2>/dev/null || true

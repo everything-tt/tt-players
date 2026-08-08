@@ -25,6 +25,9 @@ jobs:
   backfill:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - name: Validate inputs
@@ -46,49 +49,76 @@ jobs:
             exit 64
           fi
 
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: wudong-agent-master
+          workload_identity_provider: ${{ vars.TT_PLAYERS_BACKFILL_WIF_PROVIDER }}
+          service_account: ${{ vars.TT_PLAYERS_BACKFILL_SERVICE_ACCOUNT }}
+
+      - name: Load backfill credentials
+        id: gcp-secrets
+        uses: google-github-actions/get-secretmanager-secrets@v3
+        with:
+          secrets: |-
+            vps_ssh_key:wudong-agent-master/tt-players-hetzner-vps-deploy-key
+            ollama_api_key:wudong-agent-master/ollama-api-key
+
       - name: Configure SSH
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_HOST_KEY: ${{ vars.TT_PLAYERS_VPS_HOST_KEY }}
+          VPS_SSH_KEY: ${{ steps.gcp-secrets.outputs.vps_ssh_key }}
         run: |
           set -euo pipefail
           test -n "$VPS_HOST"
+          test -n "$VPS_HOST_KEY"
           test -n "$VPS_SSH_KEY"
           install -m 700 -d ~/.ssh
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          printf '%s %s\n' "$VPS_HOST" "$VPS_HOST_KEY" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Configure Ollama form analysis
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
+          OLLAMA_API_KEY: ${{ steps.gcp-secrets.outputs.ollama_api_key }}
         run: |
           set -euo pipefail
           test -n "$VPS_USER"
           test -n "$OLLAMA_API_KEY"
-          key_b64=$(printf '%s' "$OLLAMA_API_KEY" | base64 -w 0)
+          umask 077
+          local_patch=$(mktemp)
+          remote_patch="/tmp/ttp-entry-form-ollama-${GITHUB_RUN_ID}"
+          trap 'rm -f "$local_patch"' EXIT
+          printf 'OLLAMA_API_KEY=%s\n' "$OLLAMA_API_KEY" > "$local_patch"
+          printf 'ENTRY_FORM_LLM_BASE_URL=https://api.ollama.com\n' >> "$local_patch"
+          printf 'ENTRY_FORM_LLM_MODEL=deepseek-v4-flash:0731\n' >> "$local_patch"
+          scp "$local_patch" "$VPS_USER@$VPS_HOST:$remote_patch"
 
           ssh "$VPS_USER@$VPS_HOST" \
-            "OLLAMA_KEY_B64='$key_b64' bash -s" <<'REMOTE'
+            "REMOTE_PATCH='$remote_patch' bash -s" <<'REMOTE'
           set -euo pipefail
           env_file=/etc/ttp/worker.env
+          patch_file="$REMOTE_PATCH"
           temp_file=$(mktemp)
+          trap 'rm -f "$temp_file" "$patch_file"' EXIT
           if [[ -f "$env_file" ]]; then
             grep -v -E '^(OLLAMA_API_KEY|DEEPSEEK_API_KEY|ENTRY_FORM_LLM_(BASE_URL|MODEL|API_KEY))=' "$env_file" > "$temp_file" || true
           fi
-          printf 'OLLAMA_API_KEY=%s\n' "$(printf '%s' "$OLLAMA_KEY_B64" | base64 -d)" >> "$temp_file"
-          printf 'ENTRY_FORM_LLM_BASE_URL=https://api.ollama.com\n' >> "$temp_file"
-          printf 'ENTRY_FORM_LLM_MODEL=deepseek-v4-flash:0731\n' >> "$temp_file"
+          cat "$patch_file" >> "$temp_file"
           install -m 600 "$temp_file" "$env_file"
-          rm -f "$temp_file"
           REMOTE
 
       - name: Verify backfill command is deployed
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
         run: |
           set -euo pipefail
           test -n "$VPS_USER"
@@ -98,8 +128,8 @@ jobs:
 
       - name: Run tournament entry form backfill
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
           BACKFILL_LIMIT: ${{ inputs.limit }}
           BACKFILL_FORCE: ${{ inputs.force }}
         run: |
@@ -228,3 +258,16 @@ jobs:
               echo "</details>"
             } >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Clean temporary SSH, remote patches, and Google credentials
+        if: always()
+        env:
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
+          REMOTE_PATCH: /tmp/ttp-entry-form-ollama-${{ github.run_id }}
+        run: |
+          if [[ -n "${VPS_HOST:-}" && -n "${VPS_USER:-}" ]]; then
+            ssh "$VPS_USER@$VPS_HOST" "rm -f '$REMOTE_PATCH'" || true
+          fi
+          rm -f ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          find "${RUNNER_TEMP:-/tmp}" -maxdepth 1 -type f -name 'gha-creds-*.json' -delete 2>/dev/null || true

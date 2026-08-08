@@ -50,6 +50,10 @@ echo 123456
 `);
 
   const gcloud = await createExecutable(directory, 'gcloud', `
+exit 0
+`);
+
+  const curl = await createExecutable(directory, 'curl', `
 count=0
 if [[ -f "$UPLOAD_LOG" ]]; then count=$(wc -l < "$UPLOAD_LOG"); fi
 count=$((count + 1))
@@ -73,6 +77,8 @@ fi
       PG_RESTORE_BIN: pgRestore,
       PSQL_BIN: psql,
       GCLOUD_BIN: gcloud,
+      CURL_BIN: curl,
+      TTP_GCS_ACCESS_TOKEN: 'test-access-token',
       UPLOAD_LOG: uploadLog,
       FAIL_UPLOAD_AT: String(uploadFailureAt),
     },
@@ -188,9 +194,9 @@ test('uploads dump, checksum, then metadata success marker', async () => {
 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(uploads.length, 3);
-  assert.match(uploads[0], /database\.dump .*\/database\.dump --quiet$/);
-  assert.match(uploads[1], /database\.sha256 .*\/database\.sha256 --quiet$/);
-  assert.match(uploads[2], /metadata\.json .*\/metadata\.json --quiet$/);
+  assert.match(uploads[0], /--upload-file .*database\.dump.*ifGenerationMatch=0/);
+  assert.match(uploads[1], /--upload-file .*database\.sha256.*ifGenerationMatch=0/);
+  assert.match(uploads[2], /--upload-file .*metadata\.json.*ifGenerationMatch=0/);
   assert.deepEqual(leftovers, []);
 });
 

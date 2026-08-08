@@ -210,6 +210,7 @@ describe('GET /api/sources/quality', () => {
         const response = await request.get('/api/sources/quality').expect(200);
 
         expect(response.headers['cache-control']).toContain('max-age=300');
+        expect(response.headers.etag).toMatch(/^W\/"source-quality-[^"]+"$/);
         expect(response.body.summary).toMatchObject({
             providers: 1,
             healthy: 0,
