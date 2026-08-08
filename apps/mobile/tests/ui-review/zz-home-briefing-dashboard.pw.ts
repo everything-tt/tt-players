@@ -16,6 +16,7 @@ const screenshotsDir = join(reportDir, 'screenshots');
 const diagnosticsDir = join(reportDir, 'diagnostics');
 const manifestPath = join(reportDir, 'manifest.json');
 const playerId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const leagueId = '10000000-0000-4000-8000-000000000001';
 
 function requirePreviewUrl(): string {
   const previewUrl = process.env.PREVIEW_URL;
@@ -57,9 +58,9 @@ function writeReportIndex(previewUrl: string) {
 
   writeFileSync(join(reportDir, 'index.html'), `<!doctype html>
 <html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>TT Players New User Home Review</title><style>
+<title>TT Players Home Review</title><style>
 body{margin:0;font-family:system-ui,sans-serif;background:#f7f8f7;color:#17211d}main{max-width:1100px;margin:0 auto;padding:24px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}article{background:#fff;border:1px solid #d9dfda;border-radius:10px;padding:14px}img{width:100%;height:auto;border:1px solid #d9dfda;border-radius:8px;display:block}a{color:#0f6655}
-</style></head><body><main><h1>TT Players New User Home Review</h1><p>Preview: <a href="${escapeHtml(previewUrl)}">${escapeHtml(previewUrl)}</a></p><div class="grid">${cards}</div></main></body></html>\n`);
+</style></head><body><main><h1>TT Players Home Review</h1><p>Preview: <a href="${escapeHtml(previewUrl)}">${escapeHtml(previewUrl)}</a></p><div class="grid">${cards}</div></main></body></html>\n`);
 }
 
 async function capture(page: Page, testInfo: TestInfo, title: string, diagnostics: unknown) {
@@ -74,13 +75,20 @@ async function capture(page: Page, testInfo: TestInfo, title: string, diagnostic
 }
 
 async function installState(page: Page) {
-  await page.addInitScript(() => {
-    localStorage.removeItem('tt_players_my_player');
-    localStorage.removeItem('tt_players_selected_league_ids');
-    localStorage.removeItem('tt_players_league_onboarding_complete');
+  await page.addInitScript(({ claimedPlayerId, selectedLeagueId }) => {
+    const configured = sessionStorage.getItem('tt_review_home_configured') === 'true';
+    if (configured) {
+      localStorage.setItem('tt_players_my_player', JSON.stringify({ id: claimedPlayerId, name: 'Wudong Liu' }));
+      localStorage.setItem('tt_players_selected_league_ids', JSON.stringify([selectedLeagueId]));
+      localStorage.setItem('tt_players_league_onboarding_complete', 'true');
+    } else {
+      localStorage.removeItem('tt_players_my_player');
+      localStorage.removeItem('tt_players_selected_league_ids');
+      localStorage.removeItem('tt_players_league_onboarding_complete');
+    }
     localStorage.setItem('TTPlayers-Theme', 'light-mode');
     localStorage.setItem('pwa-install-dismissed', Date.now().toString());
-  });
+  }, { claimedPlayerId: playerId, selectedLeagueId: leagueId });
 }
 
 function rating(player_id: string, player_name: string, rank: number, value: number, winRate: number) {
@@ -95,9 +103,9 @@ function rating(player_id: string, player_name: string, rank: number, value: num
     rating_low: value - 100,
     rating_high: value + 100,
     confidence: 'high',
-    rated_matches: 52 - rank,
-    rated_wins: 35,
-    rated_losses: 16,
+    rated_matches: 92 - rank * 6,
+    rated_wins: 58,
+    rated_losses: 22,
     win_rate: winRate,
     provisional: false,
     first_rated_at: '2025-01-01',
@@ -106,6 +114,19 @@ function rating(player_id: string, player_name: string, rank: number, value: num
 }
 
 async function mockApi(page: Page) {
+  const globalRatings = [
+    rating('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Jane Smith', 1, 2365, 74),
+    rating('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'Alex Morgan', 2, 2298, 71),
+    rating('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'Priya Patel', 3, 2254, 69),
+    rating('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'Daniel Green', 4, 2216, 67),
+  ];
+  const leagueRatings = [
+    { ...rating('f1111111-1111-4111-8111-111111111111', 'Harrison Hill', 1, 2365, 73), overall_rank: 164 },
+    { ...rating('f2222222-2222-4222-8222-222222222222', 'Sophie Carter', 2, 2182, 70), overall_rank: 301 },
+    { ...rating('f3333333-3333-4333-8333-333333333333', 'James Wilson', 3, 2118, 68), overall_rank: 412 },
+    { ...rating('f4444444-4444-4444-8444-444444444444', 'Emily Brown', 4, 2074, 66), overall_rank: 498 },
+  ];
+
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -113,7 +134,7 @@ async function mockApi(page: Page) {
     if (path.endsWith('/api/leagues')) {
       await route.fulfill({ json: { data: [
         {
-          id: '10000000-0000-4000-8000-000000000001',
+          id: leagueId,
           name: 'Colchester & District League',
           season: '2026/27',
           divisions: [{ id: 'd1', name: 'Division 3' }],
@@ -125,6 +146,50 @@ async function mockApi(page: Page) {
           divisions: [{ id: 'd2', name: 'Division 2' }],
         },
       ] } });
+      return;
+    }
+
+    if (path.endsWith('/api/leagues/dashboard')) {
+      await route.fulfill({ json: {
+        totals: { leagues: 1, divisions: 5, teams: 34, matches_played: 820, upcoming_fixtures: 18 },
+        upcoming_fixtures: [{
+          fixture_id: 'fixture-rowhedge-pegasus',
+          league_id: leagueId,
+          league_name: 'Colchester & District League',
+          competition_id: 'd1',
+          division_name: 'Division 3',
+          date_played: '2026-08-20',
+          home_team_name: 'Rowhedge K',
+          away_team_name: 'Pegasus E',
+        }],
+        recent_results: [{
+          fixture_id: 'fixture-maldon-hutton',
+          league_id: leagueId,
+          league_name: 'Colchester & District League',
+          competition_id: 'd1',
+          division_name: 'Division 3',
+          date_played: '2026-08-06',
+          home_team_name: 'Maldon C',
+          away_team_name: 'Hutton A',
+          home_score: 4,
+          away_score: 6,
+        }],
+        top_teams: [{
+          team_id: 'team-rowhedge-k',
+          team_name: 'Rowhedge K',
+          league_id: leagueId,
+          league_name: 'Colchester & District League',
+          competition_id: 'd1',
+          division_name: 'Division 3',
+          position: 1,
+          played: 12,
+          won: 10,
+          drawn: 1,
+          lost: 1,
+          points: 31,
+          win_rate: 83,
+        }],
+      } });
       return;
     }
 
@@ -161,13 +226,46 @@ async function mockApi(page: Page) {
       return;
     }
 
+    if (path.endsWith('/api/ratings/league/risers')) {
+      await route.fulfill({ json: {
+        data: [{
+          rank: 1,
+          overall_rank: 164,
+          player_id: leagueRatings[0].player_id,
+          player_name: leagueRatings[0].player_name,
+          rating_before: 2262,
+          rating_after: 2365,
+          change: 103,
+          rating_deviation_after: 45,
+          rated_matches: leagueRatings[0].rated_matches,
+          baseline_date: '2026-06-27',
+        }],
+        total: 1,
+        page: 1,
+        page_size: 1,
+        model: 'glicko2',
+        league_ids: [leagueId],
+        window_days: 42,
+      } });
+      return;
+    }
+
+    if (path.endsWith('/api/ratings/league')) {
+      await route.fulfill({ json: {
+        data: leagueRatings,
+        total: leagueRatings.length,
+        page: 1,
+        page_size: 4,
+        model: 'glicko2',
+        league_ids: [leagueId],
+      } });
+      return;
+    }
+
     if (path.endsWith('/api/ratings')) {
       await route.fulfill({ json: {
-        data: [
-          rating('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Jane Smith', 1, 2114, 71),
-          rating('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'Alex Morgan', 2, 2048, 68),
-        ],
-        pagination: { page: 1, page_size: 2, total: 200, total_pages: 100 },
+        data: globalRatings,
+        pagination: { page: 1, page_size: 4, total: 200, total_pages: 50 },
         model: 'glicko2',
         processing: null,
       } });
@@ -201,13 +299,21 @@ async function mockApi(page: Page) {
           momentum: 'hot',
           recent_results: ['W', 'W', 'L', 'W', 'W'],
         },
-        current_season_affiliations: [],
+        current_season_affiliations: [{
+          team_id: 'team-rowhedge-k',
+          team_name: 'Rowhedge K',
+          league_id: leagueId,
+          league_name: 'Colchester & District League',
+          season_id: 'season-2026',
+          season_name: '2026/27',
+          competition_name: 'Division 3',
+        }],
       } });
       return;
     }
 
     if (path.endsWith(`/api/ratings/${playerId}`)) {
-      await route.fulfill({ json: { data: rating(playerId, 'Wudong Liu', 126, 1742, 72) } });
+      await route.fulfill({ json: { data: rating(playerId, 'Wudong Liu', 126, 1912, 72) } });
       return;
     }
 
@@ -220,7 +326,7 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('reviews a useful new-user Home and claims a player without leaving the tab', async ({ page }, testInfo) => {
+test('reviews a richer Home, in-place claiming, and player ranking scopes', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
   await installState(page);
   await mockApi(page);
@@ -233,14 +339,14 @@ test('reviews a useful new-user Home and claims a player without leaving the tab
   await expect(page.getByText('Choose leagues to follow', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Next up' })).toBeVisible();
   await expect(page.getByText('Essex Junior 2★ Open', { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
-  await expect(page.getByText('#1 overall · Jane Smith', { exact: true })).toBeVisible();
-  await expect(page.getByText('#2 overall · Alex Morgan', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Top players' })).toBeVisible();
+  await expect(page.getByText('Jane Smith', { exact: true })).toBeVisible();
+  await expect(page.getByText('Alex Morgan', { exact: true })).toBeVisible();
 
   await capture(page, testInfo, 'home-new-user', {
     setupSteps: 2,
     upcomingTournament: true,
-    discoveryContent: 2,
+    globalRankingPreview: true,
   });
 
   await page.getByText('Claim my player', { exact: true }).click();
@@ -262,13 +368,40 @@ test('reviews a useful new-user Home and claims a player without leaving the tab
   await expect(page).toHaveURL(/\/tabs\/home/);
   await expect(page.getByRole('heading', { name: 'Your TT' })).toBeVisible();
   await expect(page.getByText('Wudong Liu', { exact: true })).toBeVisible();
-  await expect(page.getByText(/18W · 7L · 25 played · Rating 1,742/)).toBeVisible();
+  await expect(page.getByText(/18W · 7L · 25 played · Rating 1,912/)).toBeVisible();
   await expect(page.getByText('1 of 2 ready', { exact: true })).toBeVisible();
   await expect(page.getByText('Claim my player', { exact: true })).toHaveCount(0);
   await capture(page, testInfo, 'home-after-player-claim', {
     drawerClosed: true,
     homePersonalisedImmediately: true,
     leagueSetupStillVisible: true,
+  });
+
+  await page.evaluate(() => sessionStorage.setItem('tt_review_home_configured', 'true'));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+
+  await expect(page.getByRole('heading', { name: 'Highlights' })).toBeVisible();
+  await expect(page.getByText('Harrison Hill is moving up', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Top players' })).toBeVisible();
+  const leagueScope = page.getByRole('radio', { name: 'Your leagues' });
+  const globalScope = page.getByRole('radio', { name: 'Global' });
+  await expect(leagueScope).toBeChecked();
+  await expect(page.getByText('Harrison Hill', { exact: true })).toBeVisible();
+  await expect(page.getByText('Sophie Carter', { exact: true })).toBeVisible();
+  await page.getByRole('heading', { name: 'Top players' }).scrollIntoViewIfNeeded();
+  await capture(page, testInfo, 'home-top-players-your-leagues', {
+    defaultScope: 'selected',
+    rows: 4,
+    duplicateTopRatedHighlightRemoved: true,
+  });
+
+  await globalScope.click();
+  await expect(globalScope).toBeChecked();
+  await expect(page.getByText('Jane Smith', { exact: true })).toBeVisible();
+  await expect(page.getByText('Harrison Hill', { exact: true })).toHaveCount(0);
+  await capture(page, testInfo, 'home-top-players-global', {
+    switchedScope: 'site',
+    rows: 4,
   });
 
   writeReportIndex(previewUrl);
