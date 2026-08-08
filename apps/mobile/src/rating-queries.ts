@@ -42,13 +42,41 @@ export interface RatingsResponse {
   } | null;
 }
 
+export interface LeaguePlayerRating extends PlayerRating {
+  rank: number;
+  overall_rank: number;
+}
+
 export interface LeagueRatingsResponse {
-  data: PlayerRating[];
+  data: LeaguePlayerRating[];
   total: number;
   page: number;
   page_size: number;
   model: string;
   league_ids: string[];
+}
+
+export interface LeagueRatingRiser {
+  rank: number;
+  overall_rank: number;
+  player_id: string;
+  player_name: string;
+  rating_before: number;
+  rating_after: number;
+  change: number;
+  rating_deviation_after: number;
+  rated_matches: number;
+  baseline_date: string;
+}
+
+export interface LeagueRatingRisersResponse {
+  data: LeagueRatingRiser[];
+  total: number;
+  page: number;
+  page_size: number;
+  model: string;
+  league_ids: string[];
+  window_days: number;
 }
 
 export interface PlayerRatingResponse {
@@ -173,6 +201,20 @@ function buildLeagueRatingsParams(leagueIds: string[], page: number, pageSize: n
   });
 }
 
+function buildLeagueRisersParams(
+  leagueIds: string[],
+  page: number,
+  pageSize: number,
+  windowDays: number,
+) {
+  return new URLSearchParams({
+    league_ids: leagueIds.join(','),
+    page: String(page),
+    page_size: String(pageSize),
+    window_days: String(windowDays),
+  });
+}
+
 function buildSiteRatingsParams(page: number, pageSize: number) {
   return new URLSearchParams({
     page: String(page),
@@ -200,6 +242,24 @@ export function useTopRatingsQuery(leagueIds: string[], limit = 5, enabled = tru
     queryFn: ({ signal }: { signal: AbortSignal }) => {
       const params = buildLeagueRatingsParams(sortedLeagueIds, 1, limit);
       return apiFetch<LeagueRatingsResponse>(`/ratings/league?${params.toString()}`, signal);
+    },
+    enabled: enabled && sortedLeagueIds.length > 0,
+  });
+}
+
+export function useLeagueRisersQuery(
+  leagueIds: string[],
+  limit = 5,
+  windowDays = 42,
+  enabled = true,
+) {
+  const sortedLeagueIds = [...leagueIds].sort();
+
+  return useQuery({
+    queryKey: ['ratings', 'risers', 'leagues', sortedLeagueIds.join(','), limit, windowDays],
+    queryFn: ({ signal }: { signal: AbortSignal }) => {
+      const params = buildLeagueRisersParams(sortedLeagueIds, 1, limit, windowDays);
+      return apiFetch<LeagueRatingRisersResponse>(`/ratings/league/risers?${params.toString()}`, signal);
     },
     enabled: enabled && sortedLeagueIds.length > 0,
   });
