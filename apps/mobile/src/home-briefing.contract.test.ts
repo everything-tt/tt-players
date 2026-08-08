@@ -59,6 +59,13 @@ describe('Home briefing information architecture', () => {
     expect(source).not.toContain('finding another gear');
   });
 
+  it('does not fan out Home into per-team or per-league activity requests', () => {
+    expect(source).not.toContain('useTeamFormQuery');
+    expect(source).not.toContain('useTeamFixturesQuery');
+    expect(source).not.toContain('useLeagueDashboardQuery');
+    expect(source).not.toContain('usePlayerInsightsQuery');
+  });
+
   it('keeps a compact player leaderboard on Home with global and league scopes', () => {
     expect(source).toContain('Top players');
     expect(source).toContain('<SegmentedToggle');
