@@ -10,13 +10,14 @@ import {
 } from './queries';
 import {
   useLeagueRisersQuery,
+  usePlayerRatingHistoryQuery,
   usePlayerRatingQuery,
   useTopRatingsQuery,
   useTopSiteRatingsQuery,
 } from './rating-queries';
 import {
   AppButton,
-  Avatar,
+  DesignAvatar,
   EmptyState,
   ErrorState,
   FilterBar,
@@ -27,9 +28,11 @@ import {
   RankBadge,
   SectionHeader,
   SegmentedToggle,
+  Surface,
 } from './ui/appkit';
 import { SkeletonList } from './components/Skeleton';
 import { PlayerSearchSheet } from './PlayerSearchSheet';
+import './home-hero.css';
 
 interface HomeTabContentProps {
   allLeagues: LeagueWithDivisions[];
@@ -71,6 +74,12 @@ function formatMomentum(momentum: 'hot' | 'steady' | 'cold' | 'new' | undefined)
   return 'Steady';
 }
 
+function formatRatingMove(value: number | null): string {
+  if (value == null) return 'Latest rating move unavailable';
+  const rounded = Math.round(value);
+  return `Latest rating move ${rounded > 0 ? '+' : ''}${rounded}`;
+}
+
 export function HomeTabContent({
   allLeagues,
   hasCompletedLeagueOnboarding,
@@ -97,6 +106,7 @@ export function HomeTabContent({
   const dashboard = dashboardQuery.data ?? null;
   const profileQuery = usePlayerProfileOverviewQuery(myPlayer?.id ?? '', Boolean(myPlayer));
   const ratingQuery = usePlayerRatingQuery(myPlayer?.id ?? '', Boolean(myPlayer));
+  const ratingHistoryQuery = usePlayerRatingHistoryQuery(myPlayer?.id ?? '', '3m', Boolean(myPlayer));
   const topRatingsQuery = useTopRatingsQuery(
     selectedLeagueIds,
     HOME_RATINGS_LIMIT,
@@ -145,68 +155,118 @@ export function HomeTabContent({
     : topSiteRatingsQuery.error);
   const setupReadyCount = Number(Boolean(myPlayer)) + Number(hasLeagueScope);
   const navItems: DashboardTabId[] = ['players', 'leagues', 'h2h', 'events'];
+  const playerRating = ratingQuery.data?.data ?? null;
+  const ratingHistory = ratingHistoryQuery.data?.data ?? [];
+  const latestRatingMove = ratingHistory.length > 0
+    ? ratingHistory[ratingHistory.length - 1]?.rating_change ?? null
+    : null;
+  const primaryAffiliation = (profileQuery.data?.current_season_affiliations ?? []).find(
+    (affiliation) => selectedLeagueIds.includes(affiliation.league_id),
+  ) ?? profileQuery.data?.current_season_affiliations?.[0] ?? null;
+  const heroPlayerName = profileQuery.data?.player_name ?? myPlayer?.name ?? '';
 
   return (
     <>
-      {myPlayer ? (
-        <section className="tt-home-section" aria-labelledby="tt-home-your-tt-title">
-          <SectionHeader
-            title={<span id="tt-home-your-tt-title">Your TT</span>}
-            note="Your quick snapshot"
-            action={(
-              <AppButton size="s" tone="ghost" onClick={() => navigateInTab('home', 'my-tt')}>
-                Open My TT
-                <i className="fa fa-angle-right" aria-hidden="true" />
-              </AppButton>
-            )}
-          />
-
-          {profileQuery.isLoading ? (
-            <SkeletonList rows={1} />
+      <section className="tt-home-personal-hero-wrap" aria-labelledby="tt-home-personal-hero-title">
+        <Surface
+          tone="raised"
+          padding="none"
+          className={`tt-home-personal-hero ${myPlayer ? 'tt-home-personal-hero--claimed' : 'tt-home-personal-hero--setup'}`}
+        >
+          {!myPlayer ? (
+            <div className="tt-home-personal-hero__setup">
+              <div className="tt-home-personal-hero__eyebrow">Personal dashboard</div>
+              <div className="tt-home-personal-hero__setup-heading">
+                <div>
+                  <h2 id="tt-home-personal-hero-title">Make TT Players yours</h2>
+                  <p>Claim your player and choose the leagues you care about. Home will adapt around your table tennis.</p>
+                </div>
+                <div className="tt-home-personal-hero__setup-count" aria-label={`${setupReadyCount} of 2 setup steps complete`}>
+                  <strong>{setupReadyCount}</strong>
+                  <span>/ 2</span>
+                </div>
+              </div>
+              <div className="tt-home-personal-hero__progress" aria-hidden="true">
+                <span className={`tt-home-personal-hero__progress-fill tt-home-personal-hero__progress-fill--${setupReadyCount}`} />
+              </div>
+              <div className="tt-home-personal-hero__setup-actions">
+                <AppButton tone="primary" onClick={() => setClaimSheetOpen(true)}>
+                  <i className="fa fa-id-badge" aria-hidden="true" />
+                  Claim my player
+                </AppButton>
+                {!hasLeagueScope ? (
+                  <AppButton tone="outline" onClick={onOpenLeagueSelector}>
+                    <i className="fa fa-filter" aria-hidden="true" />
+                    Choose leagues
+                  </AppButton>
+                ) : (
+                  <span className="tt-home-personal-hero__ready-note">
+                    <i className="fa fa-check-circle" aria-hidden="true" />
+                    Leagues ready
+                  </span>
+                )}
+              </div>
+            </div>
           ) : (
-            <List divider="none" size="lg">
-              <ListItem
-                leading={<Avatar text={initials(profileQuery.data?.player_name ?? myPlayer.name)} />}
-                title={profileQuery.data?.player_name ?? myPlayer.name}
-                subtitle={profileQuery.data
-                  ? `${profileQuery.data.wins}W · ${profileQuery.data.losses}L · ${profileQuery.data.total} played${ratingQuery.data?.data ? ` · Rating ${Math.round(ratingQuery.data.data.rating).toLocaleString('en-GB')}` : ''}`
-                  : 'Your claimed player profile'}
-                trailing={<Pill tone="accent">{formatMomentum(profileQuery.data?.form.momentum)}</Pill>}
-                onClick={() => navigateInTab('home', 'my-tt')}
-              />
-            </List>
-          )}
-        </section>
-      ) : null}
+            <div className="tt-home-personal-hero__claimed">
+              <div className="tt-home-personal-hero__identity">
+                <DesignAvatar size="hero" text={initials(heroPlayerName)} />
+                <div className="tt-home-personal-hero__identity-copy">
+                  <span className="tt-home-personal-hero__eyebrow">Personal dashboard</span>
+                  <h2 id="tt-home-personal-hero-title">{heroPlayerName}</h2>
+                  <p>{primaryAffiliation
+                    ? `${primaryAffiliation.team_name} · ${primaryAffiliation.league_name}`
+                    : 'Your claimed player profile'}</p>
+                </div>
+                <Pill tone="accent">{formatMomentum(profileQuery.data?.form.momentum)}</Pill>
+              </div>
 
-      {!myPlayer || !hasLeagueScope ? (
-        <section className="tt-home-section" aria-labelledby="tt-home-setup-title">
-          <SectionHeader
-            title={<span id="tt-home-setup-title">Make Home yours</span>}
-            note={`${setupReadyCount} of 2 ready`}
-          />
-          <List divider="hairline" size="lg">
-            {!myPlayer ? (
-              <ListItem
-                leading={<IconCircle iconClassName="fa fa-id-badge" tone="accent" />}
-                title="Claim my player"
-                subtitle="Find your name to add your form, rating and team fixtures."
-                trailing={<Pill size="xs" tone="accent">Start</Pill>}
-                onClick={() => setClaimSheetOpen(true)}
-              />
-            ) : null}
-            {!hasLeagueScope ? (
-              <ListItem
-                leading={<IconCircle iconClassName="fa fa-filter" tone="neutral" />}
-                title="Choose leagues to follow"
-                subtitle="Add the leagues you care about so Home can prioritise their fixtures and results."
-                trailing={<Pill size="xs">Choose</Pill>}
-                onClick={onOpenLeagueSelector}
-              />
-            ) : null}
-          </List>
-        </section>
-      ) : null}
+              {profileQuery.isLoading || ratingQuery.isLoading ? (
+                <SkeletonList rows={1} />
+              ) : (
+                <div className="tt-home-personal-hero__metrics" aria-label="Your TT overview">
+                  <div className="tt-home-personal-hero__metric tt-home-personal-hero__metric--rating">
+                    <span>Rating</span>
+                    <strong>{playerRating ? Math.round(playerRating.rating).toLocaleString('en-GB') : '—'}</strong>
+                    <small>{formatRatingMove(latestRatingMove)}</small>
+                  </div>
+                  <div className="tt-home-personal-hero__metric">
+                    <span>Global rank</span>
+                    <strong>{playerRating?.rank ? `#${playerRating.rank}` : '—'}</strong>
+                    <small>{playerRating ? `${playerRating.rated_matches} rated matches` : 'Rating rank unavailable'}</small>
+                  </div>
+                  <div className="tt-home-personal-hero__metric">
+                    <span>Record</span>
+                    <strong>{profileQuery.data ? `${profileQuery.data.wins}–${profileQuery.data.losses}` : '—'}</strong>
+                    <small>{profileQuery.data ? `${profileQuery.data.total} played` : 'Match record unavailable'}</small>
+                  </div>
+                </div>
+              )}
+
+              <div className="tt-home-personal-hero__footer">
+                {!hasLeagueScope ? (
+                  <div className="tt-home-personal-hero__league-prompt">
+                    <span>
+                      <i className="fa fa-sparkles" aria-hidden="true" />
+                      Choose leagues to personalise fixtures, results and rankings.
+                    </span>
+                    <AppButton size="s" tone="outline" onClick={onOpenLeagueSelector}>Choose leagues</AppButton>
+                  </div>
+                ) : (
+                  <span className="tt-home-personal-hero__ready-note">
+                    <i className="fa fa-check-circle" aria-hidden="true" />
+                    Personalised to your leagues
+                  </span>
+                )}
+                <AppButton size="s" tone="primary" onClick={() => navigateInTab('home', 'my-tt')}>
+                  Open My TT
+                  <i className="fa fa-angle-right" aria-hidden="true" />
+                </AppButton>
+              </div>
+            </div>
+          )}
+        </Surface>
+      </section>
 
       <section className="tt-home-section" aria-labelledby="tt-home-next-up-title">
         <SectionHeader
