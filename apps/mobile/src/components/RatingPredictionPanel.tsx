@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useTabNavigation } from '../navigation/tab-navigation';
 import { ratingConfidenceLabel, useRatingPredictionQuery } from '../rating-queries';
+import { getRatingWinProjection, formatRatingPointChange } from '../rating-impact';
 import { usePlayerH2HQuery } from '../queries';
 import { useH2HAnalysisQuery } from '../h2h-analysis-query';
 import {
@@ -55,6 +56,8 @@ export function RatingPredictionPanel({
   const prediction = predictionQuery.data ?? null;
   const h2h = h2hQuery.data ?? null;
   const analysis = analysisQuery.data ?? null;
+  const playerAWinProjection = getRatingWinProjection(prediction?.player1);
+  const playerBWinProjection = getRatingWinProjection(prediction?.player2);
   const playerAProbability = prediction ? Math.round(prediction.player1.win_probability * 100) : 0;
   const playerBProbability = prediction ? 100 - playerAProbability : 0;
   const modelFavourite = !prediction || playerAProbability === playerBProbability
@@ -132,6 +135,31 @@ export function RatingPredictionPanel({
                 <div className="tt-rating-probability-a" style={{ flexGrow: playerAProbability }} />
                 <div className="tt-rating-probability-b" style={{ flexGrow: playerBProbability }} />
               </div>
+
+              {playerAWinProjection && playerBWinProjection ? (
+                <div className="tt-h2h-rating-impact">
+                  <span className="tt-h2h-rating-impact__eyebrow">If they played next</span>
+                  <div className="tt-h2h-rating-impact__grid">
+                    <div className="tt-h2h-rating-impact__player tt-h2h-rating-impact__player--a">
+                      <span>If {playerA.name} wins</span>
+                      <strong>{formatRatingPointChange(playerAWinProjection.ratingChange)} pts</strong>
+                      <small>
+                        Rating {Math.round(prediction.player1.rating)} → {Math.round(playerAWinProjection.projectedRating)}
+                      </small>
+                    </div>
+                    <div className="tt-h2h-rating-impact__player tt-h2h-rating-impact__player--b">
+                      <span>If {playerB.name} wins</span>
+                      <strong>{formatRatingPointChange(playerBWinProjection.ratingChange)} pts</strong>
+                      <small>
+                        Rating {Math.round(prediction.player2.rating)} → {Math.round(playerBWinProjection.projectedRating)}
+                      </small>
+                    </div>
+                  </div>
+                  <small className="tt-h2h-rating-impact__note">
+                    Single-match projection from the current rating and uncertainty. The final rating can differ if other results are processed in the same rating period.
+                  </small>
+                </div>
+              ) : null}
 
               <div className="tt-rating-prediction-meta">
                 <span>{ratingConfidenceLabel(prediction.confidence)} prediction confidence</span>
