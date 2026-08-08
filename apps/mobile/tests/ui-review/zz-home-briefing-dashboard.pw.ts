@@ -91,7 +91,15 @@ async function installState(page: Page) {
   }, { claimedPlayerId: playerId, selectedLeagueId: leagueId });
 }
 
-function rating(player_id: string, player_name: string, rank: number, value: number, winRate: number) {
+function rating(
+  player_id: string,
+  player_name: string,
+  rank: number,
+  value: number,
+  winRate: number,
+  ratedMatches = 100,
+) {
+  const ratedWins = Math.round(ratedMatches * winRate);
   return {
     rank,
     player_id,
@@ -103,9 +111,9 @@ function rating(player_id: string, player_name: string, rank: number, value: num
     rating_low: value - 100,
     rating_high: value + 100,
     confidence: 'high',
-    rated_matches: 92 - rank * 6,
-    rated_wins: 58,
-    rated_losses: 22,
+    rated_matches: ratedMatches,
+    rated_wins: ratedWins,
+    rated_losses: ratedMatches - ratedWins,
     win_rate: winRate,
     provisional: false,
     first_rated_at: '2025-01-01',
@@ -115,16 +123,16 @@ function rating(player_id: string, player_name: string, rank: number, value: num
 
 async function mockApi(page: Page) {
   const globalRatings = [
-    rating('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Jane Smith', 1, 2365, 74),
-    rating('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'Alex Morgan', 2, 2298, 71),
-    rating('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'Priya Patel', 3, 2254, 69),
-    rating('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'Daniel Green', 4, 2216, 67),
+    rating('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Jane Smith', 1, 2365, 0.74, 641),
+    rating('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'Alex Morgan', 2, 2298, 0.71, 426),
+    rating('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'Priya Patel', 3, 2254, 0.69, 587),
+    rating('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'Daniel Green', 4, 2216, 0.67, 316),
   ];
   const leagueRatings = [
-    { ...rating('f1111111-1111-4111-8111-111111111111', 'Harrison Hill', 1, 2365, 73), overall_rank: 164 },
-    { ...rating('f2222222-2222-4222-8222-222222222222', 'Sophie Carter', 2, 2182, 70), overall_rank: 301 },
-    { ...rating('f3333333-3333-4333-8333-333333333333', 'James Wilson', 3, 2118, 68), overall_rank: 412 },
-    { ...rating('f4444444-4444-4444-8444-444444444444', 'Emily Brown', 4, 2074, 66), overall_rank: 498 },
+    { ...rating('f1111111-1111-4111-8111-111111111111', 'Harrison Hill', 1, 2365, 0.73, 916), overall_rank: 164 },
+    { ...rating('f2222222-2222-4222-8222-222222222222', 'Sophie Carter', 2, 2182, 0.70, 388), overall_rank: 301 },
+    { ...rating('f3333333-3333-4333-8333-333333333333', 'James Wilson', 3, 2118, 0.68, 442), overall_rank: 412 },
+    { ...rating('f4444444-4444-4444-8444-444444444444', 'Emily Brown', 4, 2074, 0.66, 357), overall_rank: 498 },
   ];
 
   await page.route('**/api/**', async (route) => {
@@ -152,28 +160,33 @@ async function mockApi(page: Page) {
     if (path.endsWith('/api/leagues/dashboard')) {
       await route.fulfill({ json: {
         totals: { leagues: 1, divisions: 5, teams: 34, matches_played: 820, upcoming_fixtures: 18 },
-        upcoming_fixtures: [{
-          fixture_id: 'fixture-rowhedge-pegasus',
-          league_id: leagueId,
-          league_name: 'Colchester & District League',
-          competition_id: 'd1',
-          division_name: 'Division 3',
-          date_played: '2026-08-20',
-          home_team_name: 'Rowhedge K',
-          away_team_name: 'Pegasus E',
-        }],
-        recent_results: [{
-          fixture_id: 'fixture-maldon-hutton',
-          league_id: leagueId,
-          league_name: 'Colchester & District League',
-          competition_id: 'd1',
-          division_name: 'Division 3',
-          date_played: '2026-08-06',
-          home_team_name: 'Maldon C',
-          away_team_name: 'Hutton A',
-          home_score: 4,
-          away_score: 6,
-        }],
+        upcoming_fixtures: [],
+        recent_results: [
+          {
+            fixture_id: 'fixture-maldon-hutton',
+            league_id: leagueId,
+            league_name: 'Colchester & District League',
+            competition_id: 'd1',
+            division_name: 'Division 3',
+            date_played: '2026-08-06',
+            home_team_name: 'Maldon C',
+            away_team_name: 'Hutton A',
+            home_score: 4,
+            away_score: 6,
+          },
+          {
+            fixture_id: 'fixture-rowhedge-halstead',
+            league_id: leagueId,
+            league_name: 'Colchester & District League',
+            competition_id: 'd1',
+            division_name: 'Division 3',
+            date_played: '2026-08-04',
+            home_team_name: 'Rowhedge K',
+            away_team_name: 'Halstead A',
+            home_score: 7,
+            away_score: 3,
+          },
+        ],
         top_teams: [{
           team_id: 'team-rowhedge-k',
           team_name: 'Rowhedge K',
@@ -189,39 +202,6 @@ async function mockApi(page: Page) {
           points: 31,
           win_rate: 83,
         }],
-      } });
-      return;
-    }
-
-    if (path.endsWith('/api/events')) {
-      await route.fulfill({ json: {
-        data: [{
-          id: 'event-essex-open',
-          platform_id: 'sport80',
-          source: 'sport80',
-          external_id: 'essex-open-2026',
-          name: 'Essex Junior 2★ Open',
-          event_date: '2026-08-16',
-          start_date: '2026-08-16',
-          end_date: '2026-08-16',
-          category: 'Junior',
-          public_url: null,
-          platform_name: 'Table Tennis England',
-          match_count: 0,
-          status: 'entries_open',
-          venue_name: 'BATTS Table Tennis Club',
-          venue_town: 'Harlow',
-          venue_postcode: 'CM20 3AS',
-          entry_deadline: '2026-08-12',
-          entry_url: null,
-          information_url: null,
-          result_url: null,
-          source_count: 1,
-        }],
-        total: 1,
-        limit: 1,
-        offset: 0,
-        has_more: false,
       } });
       return;
     }
@@ -341,7 +321,7 @@ async function mockApi(page: Page) {
     }
 
     if (path.endsWith(`/api/ratings/${playerId}`)) {
-      await route.fulfill({ json: { data: rating(playerId, 'Wudong Liu', 126, 1912, 72) } });
+      await route.fulfill({ json: { data: rating(playerId, 'Wudong Liu', 126, 1912, 0.72, 76) } });
       return;
     }
 
@@ -354,7 +334,7 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('reviews the adaptive hero, in-place claiming, and player ranking scopes', async ({ page }, testInfo) => {
+test('reviews the adaptive hero, richer highlights, and player ranking scopes', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
   await installState(page);
   await mockApi(page);
@@ -366,17 +346,18 @@ test('reviews the adaptive hero, in-place claiming, and player ranking scopes', 
   await expect(page.getByLabel('0 of 2 setup steps complete')).toBeVisible();
   await expect(page.getByText('Claim my player', { exact: true })).toBeVisible();
   await expect(page.getByText('Choose leagues', { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Next up' })).toBeVisible();
-  await expect(page.getByText('Essex Junior 2★ Open', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Next up' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Top players' })).toBeVisible();
   await expect(page.getByText('Jane Smith', { exact: true })).toBeVisible();
-  await expect(page.getByText('Alex Morgan', { exact: true })).toBeVisible();
+  await expect(page.getByText('641 rated matches · 74% win rate', { exact: true })).toBeVisible();
+  await expect(page.getByText('426 rated matches · 71% win rate', { exact: true })).toBeVisible();
 
   await capture(page, testInfo, 'home-new-user-hero', {
     adaptiveHeroState: 'setup',
     setupSteps: 2,
-    upcomingTournament: true,
+    noNextUpSection: true,
     globalRankingPreview: true,
+    ratingWinRateUsesApiRatio: true,
   });
 
   await page.getByText('Claim my player', { exact: true }).click();
@@ -419,35 +400,52 @@ test('reviews the adaptive hero, in-place claiming, and player ranking scopes', 
   await expect(page.getByText('Rowhedge K · Colchester & District League', { exact: true })).toBeVisible();
   await expect(page.getByText('Personalised to your leagues', { exact: true })).toBeVisible();
   await expect(page.getByText('Latest rating move +34', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Next up' })).toHaveCount(0);
   await capture(page, testInfo, 'home-configured-personal-hero', {
     adaptiveHeroState: 'configured',
     rating: 1912,
     globalRank: 126,
     ratingMovement: 34,
+    noNextUpSection: true,
   });
 
-  await expect(page.getByRole('heading', { name: 'Highlights' })).toBeVisible();
-  await expect(page.getByText('Harrison Hill is moving up', { exact: true })).toBeVisible();
+  const highlights = page.locator('section[aria-labelledby="tt-home-highlights-title"]');
+  await expect(highlights.getByRole('heading', { name: 'Highlights' })).toBeVisible();
+  await expect(highlights.getByText('Harrison Hill is moving up', { exact: true })).toBeVisible();
+  await expect(highlights.getByText('Maldon C vs Hutton A', { exact: true })).toBeVisible();
+  await expect(highlights.getByText('Rowhedge K vs Halstead A', { exact: true })).toBeVisible();
+  await expect(highlights.getByText('Leading team · Division 3 · 10W 1D 1L', { exact: true })).toBeVisible();
+  await highlights.getByRole('heading', { name: 'Highlights' }).scrollIntoViewIfNeeded();
+  await capture(page, testInfo, 'home-expanded-highlights', {
+    rows: 4,
+    biggestRiser: true,
+    recentResults: 2,
+    leadingTeam: true,
+  });
+
   await expect(page.getByRole('heading', { name: 'Top players' })).toBeVisible();
   const leagueScope = page.getByRole('radio', { name: 'Your leagues' });
   const globalScope = page.getByRole('radio', { name: 'Global' });
   await expect(leagueScope).toBeChecked();
   await expect(page.getByText('Harrison Hill', { exact: true })).toBeVisible();
+  await expect(page.getByText('916 rated matches · 73% win rate', { exact: true })).toBeVisible();
   await expect(page.getByText('Sophie Carter', { exact: true })).toBeVisible();
   await page.getByRole('heading', { name: 'Top players' }).scrollIntoViewIfNeeded();
   await capture(page, testInfo, 'home-top-players-your-leagues', {
     defaultScope: 'selected',
     rows: 4,
-    duplicateTopRatedHighlightRemoved: true,
+    winRateUsesApiRatio: true,
   });
 
   await globalScope.click();
   await expect(globalScope).toBeChecked();
   await expect(page.getByText('Jane Smith', { exact: true })).toBeVisible();
+  await expect(page.getByText('641 rated matches · 74% win rate', { exact: true })).toBeVisible();
   await expect(page.getByText('Harrison Hill', { exact: true })).toHaveCount(0);
   await capture(page, testInfo, 'home-top-players-global', {
     switchedScope: 'site',
     rows: 4,
+    winRateUsesApiRatio: true,
   });
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
