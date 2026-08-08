@@ -129,10 +129,6 @@
   margin-top: 14px;
 }
 
-.tt-home-personal-hero__setup-actions .tt-app-button {
-  width: 100%;
-}
-
 .tt-home-personal-hero__identity {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -270,23 +266,13 @@
   }
 
   .tt-home-personal-hero__identity {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .tt-home-personal-hero__identity > .tt-pill {
-    grid-column: 2;
-    justify-self: start;
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
   .tt-home-personal-hero__footer,
   .tt-home-personal-hero__league-prompt {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .tt-home-personal-hero__footer > .tt-app-button,
-  .tt-home-personal-hero__league-prompt .tt-app-button {
-    width: 100%;
   }
 }
 
