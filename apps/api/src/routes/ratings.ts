@@ -298,10 +298,12 @@ export function ratingsRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     player1: presentPredictionPlayer(
                         player1,
                         prediction.player1Probability,
+                        prediction.player1WinProjection,
                     ),
                     player2: presentPredictionPlayer(
                         player2,
                         prediction.player2Probability,
+                        prediction.player2WinProjection,
                     ),
                 });
             },
