@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { FavouriteButton } from './components/FavouriteButton';
+import { RatingPulse } from './components/RatingPulse';
 import { useFavouritePlayers } from './hooks/useFavouritePlayers';
 import { useMyPlayer } from './hooks/useMyPlayer';
 import { usePlayerList } from './hooks/usePlayerList';
@@ -175,6 +176,8 @@ export function PlayersTabContent({ onOpenPlayer }: PlayersTabContentProps) {
           </DesignList>
         </PageSection>
       ) : null}
+
+      {mode === 'following' ? <RatingPulse onOpenPlayer={onOpenPlayer} /> : null}
 
       {mode === 'following' ? (
         <PageSection
