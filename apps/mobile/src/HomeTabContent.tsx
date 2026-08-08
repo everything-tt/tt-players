@@ -1,5 +1,6 @@
 import type { AppTabId } from './navigation/tab-navigation';
 import { useMyPlayer } from './hooks/useMyPlayer';
+import { useTournamentList } from './hooks/useTournamentList';
 import { useTabNavigation } from './navigation/tab-navigation';
 import { type LeagueWithDivisions, TAB_METADATA, getQueryError } from './player-shared';
 import {
@@ -82,6 +83,11 @@ export function HomeTabContent({
   const ratingQuery = usePlayerRatingQuery(myPlayer?.id ?? '', Boolean(myPlayer));
   const topRatingsQuery = useTopRatingsQuery(selectedLeagueIds, 1, hasLeagueScope);
   const risersQuery = useLeagueRisersQuery(selectedLeagueIds, 1, 42, hasLeagueScope);
+  const upcomingTournaments = useTournamentList({
+    status: 'upcoming',
+    search: '',
+    pageSize: 1,
+  });
 
   const personalTeamNames = new Set(
     (profileQuery.data?.current_season_affiliations ?? [])
@@ -97,6 +103,10 @@ export function HomeTabContent({
     ));
   const nextFixture = personalNextFixture ?? upcomingFixtures[0] ?? null;
   const nextFixtureIsPersonal = Boolean(personalNextFixture && nextFixture?.fixture_id === personalNextFixture.fixture_id);
+  const nextTournament = upcomingTournaments.items[0] ?? null;
+  const nextTournamentVenue = nextTournament
+    ? nextTournament.venue_name ?? nextTournament.venue_town ?? nextTournament.venue_postcode
+    : null;
 
   const topRated = topRatingsQuery.data?.data[0] ?? null;
   const topRiser = risersQuery.data?.data[0] ?? null;
@@ -196,34 +206,42 @@ export function HomeTabContent({
           <section className="tt-home-section" aria-labelledby="tt-home-next-up-title">
             <SectionHeader
               title={<span id="tt-home-next-up-title">Next up</span>}
-              note={nextFixtureIsPersonal ? 'Your team' : scopeLabel}
-              action={(
-                <AppButton size="s" tone="ghost" onClick={() => onOpenTab('leagues')}>
-                  Fixtures
-                  <i className="fa fa-angle-right" aria-hidden="true" />
-                </AppButton>
-              )}
+              note={nextFixtureIsPersonal ? 'Your team and tournaments' : 'Fixtures and tournaments'}
             />
 
-            {dashboardQuery.isLoading ? (
-              <SkeletonList rows={1} />
-            ) : dashboardError ? (
-              <ErrorState message={dashboardError} />
-            ) : nextFixture ? (
-              <List divider="none" size="lg">
-                <ListItem
-                  leading={<IconCircle iconClassName="fa fa-calendar-alt" tone={nextFixtureIsPersonal ? 'success' : 'accent'} />}
-                  title={formatFixtureTeams(nextFixture.home_team_name, nextFixture.away_team_name)}
-                  subtitle={`${formatDate(nextFixture.date_played)} · ${nextFixture.division_name} · ${nextFixture.league_name}`}
-                  trailing={nextFixtureIsPersonal ? <Pill size="xs" tone="success">Your team</Pill> : undefined}
-                  onClick={() => navigateInTab('leagues', `fixture/${nextFixture.fixture_id}`)}
-                />
+            {dashboardQuery.isLoading && upcomingTournaments.isLoadingInitial ? (
+              <SkeletonList rows={2} />
+            ) : nextFixture || nextTournament ? (
+              <List divider="hairline" size="lg">
+                {nextFixture ? (
+                  <ListItem
+                    leading={<IconCircle iconClassName="fa fa-calendar-alt" tone={nextFixtureIsPersonal ? 'success' : 'accent'} />}
+                    title={formatFixtureTeams(nextFixture.home_team_name, nextFixture.away_team_name)}
+                    subtitle={`${formatDate(nextFixture.date_played)} · ${nextFixture.division_name} · ${nextFixture.league_name}`}
+                    trailing={nextFixtureIsPersonal ? <Pill size="xs" tone="success">Your team</Pill> : undefined}
+                    onClick={() => navigateInTab('leagues', `fixture/${nextFixture.fixture_id}`)}
+                  />
+                ) : null}
+
+                {nextTournament ? (
+                  <ListItem
+                    leading={<IconCircle iconClassName="fa fa-trophy" tone="warning" />}
+                    title={nextTournament.name}
+                    subtitle={`${formatDate(nextTournament.start_date ?? nextTournament.event_date)} · ${nextTournament.category ?? 'Tournament'}${nextTournamentVenue ? ` · ${nextTournamentVenue}` : ''}`}
+                    trailing={nextTournament.status === 'entries_open'
+                      ? <Pill size="xs" tone="success">Entries open</Pill>
+                      : undefined}
+                    onClick={() => navigateInTab('events', `event/${nextTournament.id}`)}
+                  />
+                ) : null}
               </List>
+            ) : dashboardError || upcomingTournaments.error ? (
+              <ErrorState message={dashboardError ?? upcomingTournaments.error ?? 'Upcoming activity is unavailable.'} />
             ) : (
               <EmptyState
                 iconClassName="fa fa-calendar"
                 title="Nothing scheduled"
-                message="The next fixture from your selected leagues will appear here."
+                message="The next fixture or tournament will appear here."
               />
             )}
           </section>
