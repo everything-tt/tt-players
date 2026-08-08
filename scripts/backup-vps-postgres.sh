@@ -72,8 +72,7 @@ run_as_postgres "$pg_dump_bin" \
   --format=custom \
   --no-owner \
   --no-acl \
-  --compress=6 \
-  --file="$dump_file"
+  --compress=6 > "$dump_file"
 
 "$pg_restore_bin" --list "$dump_file" >/dev/null
 
