@@ -17,7 +17,7 @@ interface TabShellPageProps {
 function myTTSection(pathname: string): MyTTTab | null {
   if (/^\/tabs\/[^/]+\/my-tt\/?$/.test(pathname)) return 'profile';
   if (/^\/tabs\/[^/]+\/my-tt\/journal\/[^/]+\/?$/.test(pathname)) return 'journal';
-  if (/^\/tabs\/[^/]+\/entry-profiles\/?$/.test(pathname)) return 'entries';
+  if (/^\/tabs\/[^/]+\/my-tt\/entries\/?$/.test(pathname)) return 'entries';
   return null;
 }
 
