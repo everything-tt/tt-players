@@ -1,2 +1,3 @@
 /api/*  https://ttp-api.tourneypilot.com/api/:splat  200!
+/players/:playerId  /.netlify/functions/player-ssr?playerId=:playerId  200!
 /*      /index.html  200
