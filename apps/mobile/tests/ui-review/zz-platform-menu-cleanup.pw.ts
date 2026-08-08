@@ -16,6 +16,59 @@ const screenshotsDir = join(reportDir, 'screenshots');
 const diagnosticsDir = join(reportDir, 'diagnostics');
 const manifestPath = join(reportDir, 'manifest.json');
 
+const DATA_UPDATES_SNAPSHOT = {
+  generated_at: '2026-08-08T08:31:30.000Z',
+  available: true,
+  latest_recorded_at: '2026-08-08T08:31:00.000Z',
+  run: {
+    run_key: '2026-08-08',
+    status: 'running',
+    current_stage: 'ratings',
+    window_start: '2026-08-08T00:00:00.000Z',
+    started_at: '2026-08-08T08:00:00.000Z',
+    finished_at: null,
+    duration_ms: null,
+    attempt_count: 3,
+    error_message: null,
+    recorded_at: '2026-08-08T08:30:00.000Z',
+    stages: [
+      {
+        stage: 'wait-for-ingestion',
+        status: 'completed',
+        started_at: '2026-08-08T08:00:00.000Z',
+        finished_at: '2026-08-08T08:12:00.000Z',
+        duration_ms: 720000,
+        attempt_count: 2,
+        summary: { pending: 0, failed: 0 },
+        error_message: null,
+        recorded_at: '2026-08-08T08:12:00.000Z',
+      },
+      {
+        stage: 'reconcile',
+        status: 'completed',
+        started_at: '2026-08-08T08:12:00.000Z',
+        finished_at: '2026-08-08T08:20:00.000Z',
+        duration_ms: 480000,
+        attempt_count: 1,
+        summary: {},
+        error_message: null,
+        recorded_at: '2026-08-08T08:20:00.000Z',
+      },
+      {
+        stage: 'ratings',
+        status: 'waiting',
+        started_at: '2026-08-08T08:20:00.000Z',
+        finished_at: null,
+        duration_ms: null,
+        attempt_count: 3,
+        summary: { processed_periods: 18, processed_matches: 1240, complete: false },
+        error_message: null,
+        recorded_at: '2026-08-08T08:31:00.000Z',
+      },
+    ],
+  },
+};
+
 const SOURCE_QUALITY_SNAPSHOT = {
   generated_at: '2026-08-08T08:00:00.000Z',
   summary: {
@@ -131,6 +184,13 @@ test('groups snapshot-backed Platform pages and keeps About focused', async ({ p
   const previewUrl = requirePreviewUrl();
   let liveMonitorRequests = 0;
 
+  await page.route('**/sources/updates*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(DATA_UPDATES_SNAPSHOT),
+    });
+  });
   await page.route('**/sources/quality*', async (route) => {
     await route.fulfill({
       status: 200,
@@ -162,14 +222,18 @@ test('groups snapshot-backed Platform pages and keeps About focused', async ({ p
   await expect(ratingAuditLink).toHaveAttribute('href', '/platform/audit');
   await expect(page.getByRole('button', { name: /About/i })).toBeVisible();
   await expect(page.getByRole('link', { name: /Feedback/i })).toHaveAttribute('href', '/feedback');
+  await expect(page.getByRole('link', { name: /Saved Data/i })).toHaveAttribute('href', '/settings/data');
   await capture(page, testInfo, 'platform-drawer');
 
   await dataUpdatesLink.click();
   await expect(page).toHaveURL(/\/platform\/data-updates$/);
   await expect(page.getByRole('heading', { name: 'Data Updates' })).toBeVisible();
-  await expect(page.getByText('Latest published snapshot')).toBeVisible();
-  await expect(page.getByText(/rather than querying the live scraping queue/i)).toBeVisible();
-  await expect(page.getByText('Table Tennis 365', { exact: true })).toBeVisible();
+  await expect(page.getByText('Latest data refresh')).toBeVisible();
+  await expect(page.getByText(/Read-only progress from the latest persisted processing run/i)).toBeVisible();
+  await expect(page.getByText(/Collect source updates · Completed/i)).toBeVisible();
+  await expect(page.getByText(/Update ratings · Waiting/i)).toBeVisible();
+  await expect(page.getByText(/Publish app snapshots · Not started/i)).toBeVisible();
+  await expect(page.getByText(/Recorded 8 Aug 2026/i)).toBeVisible();
   await expect.poll(() => liveMonitorRequests).toBe(0);
   await capture(page, testInfo, 'snapshot-data-updates');
 
@@ -181,18 +245,36 @@ test('groups snapshot-backed Platform pages and keeps About focused', async ({ p
   await expect.poll(() => liveMonitorRequests).toBe(0);
   await capture(page, testInfo, 'snapshot-data-quality');
 
+  await page.goto(`${previewUrl}/platform/audit`, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'Rating Audit' })).toBeVisible();
+  await expect.poll(() => liveMonitorRequests).toBe(0);
+  await capture(page, testInfo, 'rating-audit');
+
   await page.goto(`${previewUrl}/about`, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'About' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'TT Players' })).toBeVisible();
   await expect(page.getByText('Data Coverage', { exact: true })).toHaveCount(0);
   await expect(page.getByText('Scraping Monitor', { exact: true })).toHaveCount(0);
   await expect(page.getByText('Send Feedback', { exact: true })).toHaveCount(0);
   await expect(page.getByText('Saved Data', { exact: true })).toHaveCount(0);
   await capture(page, testInfo, 'clean-about');
 
-  await page.goto(`${previewUrl}/feedback`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${previewUrl}/tabs/home`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'Open menu' }).click();
+  await page.getByRole('link', { name: /Feedback/i }).click();
+  await expect(page).toHaveURL(/\/feedback$/);
   await expect(page.getByRole('heading', { name: 'Feedback' })).toBeVisible();
   await expect(page.getByText(/Found a bug, noticed a data issue/i)).toBeVisible();
+  await expect(page.locator('input[name="page_path"]')).toHaveValue('/tabs/home');
   await capture(page, testInfo, 'feedback-page');
 
+  await page.goto(`${previewUrl}/tabs/home`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'Open menu' }).click();
+  await page.getByRole('link', { name: /Saved Data/i }).click();
+  await expect(page).toHaveURL(/\/settings\/data$/);
+  await expect(page.getByRole('heading', { name: 'Saved Data' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Clear Saved Data/i })).toBeVisible();
+  await capture(page, testInfo, 'saved-data');
+
+  await expect.poll(() => liveMonitorRequests).toBe(0);
   writeReportIndex(previewUrl);
 });
