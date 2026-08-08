@@ -1,0 +1,114 @@
+#!/usr/bin/env node
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import os from 'node:os';
+import path from 'node:path';
+import { run, runToFile } from './commands.mjs';
+import { validateTableManifest } from './table-manifest.mjs';
+import { bigQuerySchema, bqIdentifier, commitRunSql, createDestinationSql, exportSql, failureRunSql, highWatermarkSql, mergeSql, pipelineBootstrapSql, readWatermarkSql, replaceEmptySql, replaceSql, resetWatermarkSql, stageValidationSql, validationResultSql } from './bigquery-sql.mjs';
+
+const args = new Set(process.argv.slice(2));
+const fullRefresh = args.has('--full-refresh');
+const only = process.argv.find((value) => value.startsWith('--table='))?.split('=', 2)[1] ?? null;
+
+const config = {
+  project: process.env.TTP_GCP_PROJECT ?? '', bucket: process.env.TTP_GCS_BUCKET ?? '',
+  location: process.env.TTP_BQ_LOCATION ?? 'us-central1', rawDataset: process.env.TTP_BQ_RAW_DATASET ?? 'tt_players_raw',
+  pipelineDataset: process.env.TTP_BQ_PIPELINE_DATASET ?? 'tt_players_pipeline', loadPrefix: process.env.TTP_GCS_WAREHOUSE_PREFIX ?? 'warehouse-loads',
+  databaseUrl: process.env.DATABASE_URL ?? 'postgresql:///tt_players?host=/var/run/postgresql', maxBytesBilled: process.env.TTP_BQ_MAX_BYTES_BILLED ?? '5000000000',
+  psql: process.env.PSQL_BIN ?? 'psql', sudo: process.env.SUDO_BIN ?? 'sudo', gcloud: process.env.GCLOUD_BIN ?? 'gcloud', bq: process.env.BQ_BIN ?? 'bq',
+};
+
+for (const [key, value] of Object.entries({ project: config.project, bucket: config.bucket })) if (!value) throw new Error(`Missing required configuration: ${key}`);
+if (!/^\d+$/.test(config.maxBytesBilled)) throw new Error('TTP_BQ_MAX_BYTES_BILLED must be an integer');
+const manifest = validateTableManifest().filter((table) => !only || table.destinationTable === only);
+if (only && manifest.length !== 1) throw new Error(`Unknown table: ${only}`);
+
+function bqQuery(sql, { json = false } = {}) {
+  const commandArgs = ['query', `--project_id=${config.project}`, `--location=${config.location}`, '--use_legacy_sql=false', `--maximum_bytes_billed=${config.maxBytesBilled}`, '--quiet'];
+  if (json) commandArgs.push('--format=json');
+  commandArgs.push(sql);
+  return run(config.bq, commandArgs);
+}
+function psqlArgs(sql) { return ['-u','postgres','--',config.psql,config.databaseUrl,'-X','-q','-A','-t','--no-psqlrc','--set=ON_ERROR_STOP=1','--command',sql]; }
+function psqlScalar(sql) { return run(config.sudo, psqlArgs(sql)).stdout.trim(); }
+async function psqlExport(sql, file) { return runToFile(config.sudo, psqlArgs(sql), file); }
+function loadStage({ stagingTable, gcsUri, schemaPath }) {
+  run(config.bq, ['load',`--project_id=${config.project}`,`--location=${config.location}`,'--source_format=NEWLINE_DELIMITED_JSON','--replace','--quiet',`${config.rawDataset}.${stagingTable}`,gcsUri,schemaPath]);
+  run(config.bq, ['update',`--project_id=${config.project}`,`--location=${config.location}`,'--expiration=86400','--quiet',`${config.rawDataset}.${stagingTable}`]);
+}
+function validateStage(table, stagingTable, expectedRows, runId) {
+  const [row] = JSON.parse(bqQuery(stageValidationSql({ project: config.project, rawDataset: config.rawDataset, stagingTable, table }), { json: true }).stdout || '[]');
+  if (!row) throw new Error(`No validation result for ${table.destinationTable}`);
+  const actualRows = Number(row.row_count), nullKeys = Number(row.null_key_count), duplicateKeys = Number(row.duplicate_key_count);
+  const failure = actualRows !== expectedRows
+    ? `${table.destinationTable} row-count mismatch: source=${expectedRows}, staged=${actualRows}`
+    : nullKeys !== 0 || duplicateKeys !== 0
+      ? `${table.destinationTable} key validation failed: null=${nullKeys}, duplicates=${duplicateKeys}`
+      : null;
+  bqQuery(validationResultSql({
+    project: config.project,
+    pipelineDataset: config.pipelineDataset,
+    runId,
+    table,
+    sourceRows: expectedRows,
+    stagedRows: actualRows,
+    nullKeyCount: nullKeys,
+    duplicateKeyCount: duplicateKeys,
+    status: failure ? 'failed' : 'passed',
+  }));
+  if (failure) throw new Error(failure);
+}
+function parseWatermark(stdout) { const rows = JSON.parse(stdout || '[]'); return !rows.length || !rows[0].watermark ? null : { timestamp: rows[0].watermark, tieBreaker: rows[0].tie_breaker }; }
+function sourceHighWatermark(table) { const value = psqlScalar(highWatermarkSql(table)); if (!value) return null; const [timestamp,tieBreaker] = value.split('\t'); if (!timestamp || !tieBreaker) throw new Error(`Invalid source watermark for ${table.destinationTable}`); return { timestamp,tieBreaker }; }
+
+async function syncTable(table, tempRoot) {
+  const startedAt = new Date().toISOString();
+  const runToken = randomUUID().replaceAll('-', '');
+  const runId = `${startedAt.replaceAll(/[-:.TZ]/g, '')}-${runToken}-${table.destinationTable}`;
+  const stageTable = `_stage_${table.destinationTable}_${runToken}`;
+  const dataPath = path.join(tempRoot, `${table.destinationTable}.ndjson`), schemaPath = path.join(tempRoot, `${table.destinationTable}.schema.json`);
+  const gcsUri = `gs://${config.bucket}/${config.loadPrefix.replace(/\/+$/, '')}/${runId}/${table.destinationTable}.ndjson`;
+  let prior = null, high = null;
+  const effectiveMode = fullRefresh ? 'full-replace' : table.mode;
+  let remoteCreated = false;
+  let rows = 0;
+  try {
+    if (table.mode === 'incremental-merge' && !fullRefresh) {
+      prior = parseWatermark(bqQuery(readWatermarkSql({ project: config.project, pipelineDataset: config.pipelineDataset, tableName: table.destinationTable }), { json: true }).stdout);
+      high = sourceHighWatermark(table);
+      if (!high) { console.log(`[${table.destinationTable}] no source rows; skipped`); return; }
+    } else if (table.watermark) high = sourceHighWatermark(table);
+
+    ({ rows } = await psqlExport(exportSql(table, { lowerWatermark: prior?.timestamp ?? null, highWatermark: effectiveMode === 'incremental-merge' ? high : null }), dataPath));
+    await writeFile(schemaPath, `${JSON.stringify(bigQuerySchema(table), null, 2)}\n`, { mode: 0o600 });
+    if (rows === 0 && effectiveMode === 'incremental-merge') { console.log(`[${table.destinationTable}] no changed rows; watermark remains ${prior?.timestamp ?? 'unset'}`); return; }
+    if (rows === 0 && effectiveMode === 'full-replace') {
+      bqQuery(replaceEmptySql({ project: config.project, rawDataset: config.rawDataset, table }));
+      if (table.watermark && !high) bqQuery(resetWatermarkSql({ project: config.project, pipelineDataset: config.pipelineDataset, tableName: table.destinationTable }));
+      bqQuery(commitRunSql({ project: config.project, pipelineDataset: config.pipelineDataset, table, runId, startedAt, sourceRows: 0, highWatermark: high, mode: effectiveMode }));
+      console.log(`[${table.destinationTable}] replaced with an empty table`); return;
+    }
+
+    console.log(`[${table.destinationTable}] exporting ${rows} rows`);
+    run(config.gcloud, ['storage','cp',dataPath,gcsUri,'--quiet']); remoteCreated = true;
+    loadStage({ stagingTable: stageTable, gcsUri, schemaPath }); validateStage(table, stageTable, rows, runId);
+    if (effectiveMode === 'full-replace') bqQuery(replaceSql({ project: config.project, rawDataset: config.rawDataset, stagingTable: stageTable, table }));
+    else { bqQuery(createDestinationSql({ project: config.project, rawDataset: config.rawDataset, table })); bqQuery(mergeSql({ project: config.project, rawDataset: config.rawDataset, stagingTable: stageTable, table })); }
+    bqQuery(commitRunSql({ project: config.project, pipelineDataset: config.pipelineDataset, table, runId, startedAt, sourceRows: rows, highWatermark: high, mode: effectiveMode }));
+  } catch (error) {
+    try { bqQuery(failureRunSql({ project: config.project, pipelineDataset: config.pipelineDataset, table, runId, startedAt, sourceRows: rows, mode: effectiveMode })); } catch {}
+    throw error;
+  } finally {
+    try { bqQuery(`DROP TABLE IF EXISTS ${bqIdentifier(config.project, config.rawDataset, stageTable)};`); } catch { console.warn(`[${table.destinationTable}] staging table cleanup deferred to its 24h expiration`); }
+    if (remoteCreated) { const cleanup = run(config.gcloud, ['storage','rm',gcsUri,'--quiet'], { allowFailure: true }); if (cleanup.status !== 0) console.warn(`[${table.destinationTable}] GCS cleanup deferred to bucket lifecycle`); }
+  }
+  console.log(`[${table.destinationTable}] sync succeeded`);
+}
+
+const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'ttp-bigquery-sync-'));
+try {
+  bqQuery(pipelineBootstrapSql({ project: config.project, pipelineDataset: config.pipelineDataset }));
+  for (const table of manifest) await syncTable(table, tempRoot);
+  console.log(`BigQuery ${fullRefresh ? 'full refresh' : 'incremental sync'} completed`);
+} finally { await rm(tempRoot, { recursive: true, force: true }); }

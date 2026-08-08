@@ -158,6 +158,73 @@ order by query_start;
 Expected: no unexpectedly long-running API queries. Ratings or scrape jobs can
 show active queries while jobs are running.
 
+## Backup and BigQuery Checks
+
+The detailed procedures live in [`docs/database-backup.md`](./database-backup.md)
+and [`docs/bigquery-sync.md`](./bigquery-sync.md). The production deploy installs
+the units but intentionally leaves their timers disabled until the credential
+bootstrap, restore drill, initial warehouse refresh, and repeated incremental
+run have all been verified.
+
+```bash
+ssh tt-domain 'systemctl status ttp-db-backup.timer ttp-bigquery-sync.timer ttp-bigquery-reconcile.timer --no-pager'
+ssh tt-domain 'journalctl -u ttp-db-backup.service -u ttp-bigquery-sync.service -u ttp-bigquery-reconcile.service -n 200 --no-pager'
+```
+
+After the manual rollout gate is complete, inspect recent pipeline state with an
+administrator BigQuery credential:
+
+```bash
+bq --project_id=wudong-agent-master --location=us-central1 query --use_legacy_sql=false '
+SELECT table_name, mode, status, source_rows, completed_at
+FROM `wudong-agent-master.tt_players_pipeline.sync_runs`
+ORDER BY completed_at DESC
+LIMIT 40'
+```
+
+Expected: the latest successful run has current timestamps for the tables in the
+checked-in manifest, failed validation rows are investigated before timers are
+enabled, and the latest backup has a verified `metadata.json` success marker.
+
+The raw dataset contains both the canonical analytical tables and the scraper
+provenance mirror. Confirm that the source/staging portion is present after the
+first full refresh:
+
+```bash
+bq --project_id=wudong-agent-master --location=us-central1 query --use_legacy_sql=false '
+SELECT table_id AS table_name, row_count
+FROM `wudong-agent-master.tt_players_raw.__TABLES__`
+WHERE table_id IN (
+  "raw_scrape_logs", "source_instances", "source_resources",
+  "source_events", "source_event_result_rows", "tournament_sources",
+  "tournament_match_candidates", "scraping_pipeline_runs",
+  "scraping_pipeline_run_stages"
+)
+ORDER BY table_name'
+```
+
+Expected: all nine tables exist. `raw_scrape_logs`, `source_events`, and
+`source_event_result_rows` should have rows when the corresponding production
+staging tables have rows. The two pipeline-run tables can be empty until the
+daily pipeline has completed at least once.
+
+Check that raw payloads and status transitions are reaching the warehouse:
+
+```bash
+bq --project_id=wudong-agent-master --location=us-central1 query --use_legacy_sql=false '
+SELECT status, COUNT(*) AS rows, MAX(scraped_at) AS latest_scraped_at,
+       MAX(updated_at) AS latest_updated_at,
+       SUM(LENGTH(raw_payload)) AS payload_bytes
+FROM `wudong-agent-master.tt_players_raw.raw_scrape_logs`
+WHERE scraped_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 48 HOUR)
+GROUP BY status
+ORDER BY status'
+```
+
+Expected: payload bytes are non-zero, and `updated_at` advances when the
+worker changes a log from `pending` to `processed` or `failed`. Do not use the
+raw dataset as a public application API; it contains upstream response bodies.
+
 ## Graphile Worker Queue Checks
 
 ```bash
@@ -211,6 +278,11 @@ ssh tt-domain 'sudo -u postgres psql -d tt_players -P pager=off -x -c "
 select status, count(*) as rows, max(scraped_at) as latest_scraped_at
 from staging.raw_scrape_logs
 where scraped_at >= now() - interval '\''48 hours'\''
+group by status
+order by status;
+
+select status, count(*) as rows, max(updated_at) as latest_updated_at
+from staging.raw_scrape_logs
 group by status
 order by status;
 

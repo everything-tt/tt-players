@@ -283,7 +283,7 @@ export async function loadTTLeaguesData(
             if (scrapeLogIds.length > 0) {
                 await trx
                     .updateTable('staging.raw_scrape_logs')
-                    .set({ status: 'processed' })
+                    .set({ status: 'processed', updated_at: new Date() })
                     .where('id', 'in', scrapeLogIds)
                     .execute();
             }
@@ -293,7 +293,7 @@ export async function loadTTLeaguesData(
         if (scrapeLogIds.length > 0) {
             await db
                 .updateTable('staging.raw_scrape_logs')
-                .set({ status: 'failed' })
+                .set({ status: 'failed', updated_at: new Date() })
                 .where('id', 'in', scrapeLogIds)
                 .execute();
         }

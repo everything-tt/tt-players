@@ -14,8 +14,11 @@ on:
       - 'scripts/migrate-vps-postgres.sh'
       - 'scripts/backup-vps-postgres.sh'
       - 'scripts/verify-vps-postgres-backup.sh'
+      - 'scripts/analytics/**'
+      - 'scripts/run-bigquery-sync.sh'
       - 'scripts/deploy-vps-release.sh'
       - 'scripts/rollback-vps-release.sh'
+      - 'docs/bigquery-sync.md'
       - 'packages/db/**'
       - 'packages/ranking/**'
       - 'package.json'
@@ -80,8 +83,13 @@ jobs:
           bash -n scripts/lib/service-recovery.sh
           bash -n scripts/backup-vps-postgres.sh
           bash -n scripts/verify-vps-postgres-backup.sh
+          bash -n scripts/run-bigquery-sync.sh
           bash -n scripts/deploy-vps-release.sh
           bash -n scripts/rollback-vps-release.sh
+          node --check scripts/analytics/table-manifest.mjs
+          node --check scripts/analytics/bigquery-sql.mjs
+          node --check scripts/analytics/commands.mjs
+          node --check scripts/analytics/sync-bigquery.mjs
           systemd-analyze verify \
             infra/systemd/ttp-db-backup.service \
             infra/systemd/ttp-db-backup.timer

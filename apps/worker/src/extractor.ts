@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { sql, type Kysely } from 'kysely';
+import { type Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
 import { fetchWithTT365Policy } from './tt365-http.js';
 
@@ -10,6 +10,7 @@ export async function storeScrapePayload(
     db: Kysely<Database>,
 ): Promise<string> {
     const hash = createHash('sha256').update(body).digest('hex');
+    const now = new Date();
 
     const result = await db
         .insertInto('staging.raw_scrape_logs')
@@ -19,10 +20,13 @@ export async function storeScrapePayload(
             raw_payload: body,
             payload_hash: hash,
             status: 'pending',
+            scraped_at: now,
+            updated_at: now,
         })
         .onConflict((oc) =>
             oc.columns(['endpoint_url', 'payload_hash']).doUpdateSet({
-                scraped_at: sql`now()`,
+                scraped_at: now,
+                updated_at: now,
             }),
         )
         .returning('id')
@@ -36,7 +40,8 @@ export async function storeScrapePayload(
  * and upserts it into the `raw_scrape_logs` table.
  *
  * - On a new (endpoint_url, payload_hash) pair → INSERTs a new row.
- * - On a duplicate (endpoint_url, payload_hash) → UPDATEs `scraped_at` only.
+ * - On a duplicate (endpoint_url, payload_hash) → UPDATEs the extraction and
+ *   mutation timestamps without creating another payload row.
  * - On HTTP errors or network failures → throws so Graphile Worker can retry.
  */
 export async function extractAndStore(

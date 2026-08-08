@@ -38,6 +38,7 @@ import * as m031 from '../migrations/031_create_weekly_rating_history.js';
 import * as m032 from '../migrations/032_create_rating_replay_checkpoints.js';
 import * as m033 from '../migrations/033_capture_monthly_rating_checkpoints.js';
 import * as m034 from '../migrations/034_create_user_sync_states.js';
+import * as m052 from '../migrations/052_add_raw_scrape_log_updated_at.js';
 
 const { Pool } = pg;
 
@@ -89,6 +90,7 @@ class StaticMigrationProvider implements MigrationProvider {
             '032_create_rating_replay_checkpoints': m032,
             '033_capture_monthly_rating_checkpoints': m033,
             '034_create_user_sync_states': m034,
+            '052_add_raw_scrape_log_updated_at': m052,
         };
     }
 }
@@ -710,7 +712,7 @@ describe('Database Schema Integration Tests', () => {
                 expect.arrayContaining([
                     'id', 'platform_id', 'endpoint_url',
                     'raw_payload', 'payload_hash',
-                    'scraped_at', 'status',
+                    'scraped_at', 'status', 'updated_at',
                 ])
             );
         });

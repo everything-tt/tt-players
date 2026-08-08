@@ -26,6 +26,7 @@ import * as m018 from '@tt-players/db/src/migrations/018_add_competition_event_d
 import * as m019 from '@tt-players/db/src/migrations/019_add_competition_source_fields.js';
 import * as m020 from '@tt-players/db/src/migrations/020_create_staging_schema.js';
 import * as m021 from '@tt-players/db/src/migrations/021_create_feedback_table.js';
+import * as m052 from '@tt-players/db/src/migrations/052_add_raw_scrape_log_updated_at.js';
 
 import type { Database } from '@tt-players/db';
 
@@ -65,6 +66,7 @@ class StaticMigrationProvider implements MigrationProvider {
             '019_add_competition_source_fields': m019,
             '020_create_staging_schema': m020,
             '021_create_feedback_table': m021,
+            '052_add_raw_scrape_log_updated_at': m052,
         };
     }
 }
@@ -191,9 +193,9 @@ describe('Extractor: extractAndStore()', () => {
         expect(rows[0].status).toBe('pending');
     });
 
-    // ── Scenario 2: Same URL + same hash → UPDATE scraped_at only ────────────
+    // ── Scenario 2: Same URL + same hash → UPDATE extraction timestamps ───────
 
-    it('should UPDATE scraped_at (not duplicate) when the same URL returns the same data', async () => {
+    it('should UPDATE extraction timestamps (not duplicate) when the same URL returns the same data', async () => {
         // Arrange: mock fetch
         vi.stubGlobal(
             'fetch',
@@ -216,6 +218,7 @@ describe('Extractor: extractAndStore()', () => {
             .execute();
         expect(firstRows).toHaveLength(1);
         const firstScrapedAt = firstRows[0].scraped_at;
+        const firstUpdatedAt = firstRows[0].updated_at;
 
         // Small delay so timestamp can differ
         await new Promise((r) => setTimeout(r, 50));
@@ -233,6 +236,8 @@ describe('Extractor: extractAndStore()', () => {
         // The scraped_at should have been updated
         expect(new Date(secondRows[0].scraped_at).getTime())
             .toBeGreaterThanOrEqual(new Date(firstScrapedAt).getTime());
+        expect(new Date(secondRows[0].updated_at).getTime())
+            .toBeGreaterThanOrEqual(new Date(firstUpdatedAt).getTime());
 
         // Same data should be preserved
         expect(secondRows[0].endpoint_url).toBe(TEST_URL_1);

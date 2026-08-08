@@ -244,6 +244,7 @@ export interface RawScrapeLogsTable {
     payload_hash: string;
     scraped_at: Generated<Date>;
     status: ScrapeStatus;
+    updated_at: ColumnType<Date, Date | undefined, Date>;
 }
 
 export type RawScrapeLog = Selectable<RawScrapeLogsTable>;

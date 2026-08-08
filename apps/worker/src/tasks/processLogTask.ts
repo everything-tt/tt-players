@@ -239,7 +239,7 @@ async function processTT365Standings(
         helpers.logger.info(`processLogTask: TT365 log ${logId} has no standings, marking failed`);
         await db
             .updateTable('staging.raw_scrape_logs')
-            .set({ status: 'failed' })
+            .set({ status: 'failed', updated_at: new Date() })
             .where('id', '=', logId)
             .execute();
         return false;
@@ -355,7 +355,7 @@ async function processTT365Fixtures(
 
     await db
         .updateTable('staging.raw_scrape_logs')
-        .set({ status: 'processed' })
+        .set({ status: 'processed', updated_at: new Date() })
         .where('id', '=', logId)
         .execute();
 
@@ -690,7 +690,7 @@ async function processTT365MatchCard(
                 );
                 await db
                     .updateTable('staging.raw_scrape_logs')
-                    .set({ status: 'failed' })
+                    .set({ status: 'failed', updated_at: new Date() })
                     .where('id', '=', logId)
                     .execute();
                 return false;
@@ -723,7 +723,7 @@ async function processTT365MatchCard(
         );
         await db
             .updateTable('staging.raw_scrape_logs')
-            .set({ status: 'failed' })
+            .set({ status: 'failed', updated_at: new Date() })
             .where('id', '=', logId)
             .execute();
         return false;
@@ -765,7 +765,7 @@ async function processTT365PlayerStats(
 ): Promise<boolean> {
     await db
         .updateTable('staging.raw_scrape_logs')
-        .set({ status: 'processed' })
+        .set({ status: 'processed', updated_at: new Date() })
         .where('id', '=', logId)
         .execute();
 
