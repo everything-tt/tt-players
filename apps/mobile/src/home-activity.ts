@@ -34,7 +34,7 @@ export type RankedHomeStory = {
   priority: number;
 };
 
-export type PersonalHomeStoryKind = 'personal-form' | 'rating-milestone' | 'recent-rating-high';
+export type PersonalHomeStoryKind = 'personal-form' | 'recent-rating-high';
 
 export type PersonalHomeStory = RankedHomeStory & {
   kind: PersonalHomeStoryKind;
@@ -223,7 +223,7 @@ export function buildPersonalHomeStories({
       if (isAtRecentHigh && gainFromLow >= 25 && crossedMilestone) {
         stories.push({
           id: `rating-milestone:${crossedRoundHundred}`,
-          kind: 'rating-milestone',
+          kind: 'recent-rating-high',
           priority: 106,
           title: `You crossed ${crossedRoundHundred.toLocaleString('en-GB')}`,
           subtitle: `Now ${roundedCurrent.toLocaleString('en-GB')} · up ${gainFromLow} from your 3-month low`,
