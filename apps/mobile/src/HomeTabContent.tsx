@@ -18,6 +18,7 @@ import {
 import {
   HOME_VISIT_SNAPSHOT_STORAGE_KEY,
   buildHomeScopeKey,
+  buildPersonalHomeStories,
   diffHomeVisit,
   parseHomeVisitSnapshot,
   rankHomeStories,
@@ -55,7 +56,13 @@ interface HomeTabContentProps {
 type DashboardTabId = Exclude<AppTabId, 'home'>;
 type HomeRatingsScope = 'site' | 'selected';
 type HomeStoryTone = 'success' | 'accent' | 'neutral' | 'warning';
-type HomeStoryKind = 'personal-result' | 'result' | 'riser' | 'leader';
+type HomeStoryKind =
+  | 'personal-result'
+  | 'personal-form'
+  | 'recent-rating-high'
+  | 'result'
+  | 'riser'
+  | 'leader';
 
 type HomeStory = {
   id: string;
@@ -66,7 +73,7 @@ type HomeStory = {
   trailing: string;
   iconClassName: string;
   tone: HomeStoryTone;
-  targetTab: DashboardTabId;
+  targetTab: AppTabId;
   targetPath: string;
 };
 
@@ -201,6 +208,22 @@ export function HomeTabContent({
   );
 
   const storyCandidates: HomeStory[] = [];
+  if (myPlayer) {
+    for (const story of buildPersonalHomeStories({
+      recentResults: profileQuery.data?.form.recent_results ?? [],
+      currentRating: playerRating?.rating ?? null,
+      ratingHistory,
+    })) {
+      storyCandidates.push({
+        ...story,
+        iconClassName: story.kind === 'personal-form' ? 'fa fa-fire' : 'fa fa-arrow-trend-up',
+        tone: 'success',
+        targetTab: 'home',
+        targetPath: 'my-tt',
+      });
+    }
+  }
+
   if (topRiser) {
     storyCandidates.push({
       id: `riser:${topRiser.player_id}`,
@@ -263,7 +286,10 @@ export function HomeTabContent({
     });
   }
 
-  const leagueStories = rankHomeStories(storyCandidates, HOME_STORY_LIMIT);
+  const highlightStories = rankHomeStories(storyCandidates, HOME_STORY_LIMIT);
+  const highlightsLoading = dashboardQuery.isLoading
+    || risersQuery.isLoading
+    || Boolean(myPlayer && (profileQuery.isLoading || ratingQuery.isLoading || ratingHistoryQuery.isLoading));
 
   const homeScopeKey = buildHomeScopeKey(myPlayer?.id ?? null, hasLeagueScope ? selectedLeagueIds : []);
   const recentResultIds = (dashboard?.recent_results ?? []).slice(0, 5).map((result) => result.fixture_id);
@@ -468,17 +494,17 @@ export function HomeTabContent({
             )}
           />
 
-          {dashboardQuery.isLoading || risersQuery.isLoading ? (
+          {highlightsLoading ? (
             <SkeletonList rows={HOME_STORY_LIMIT} />
-          ) : leagueStories.length > 0 ? (
+          ) : highlightStories.length > 0 ? (
             <List divider="hairline">
-              {leagueStories.map((story) => (
+              {highlightStories.map((story) => (
                 <ListItem
                   key={story.id}
                   leading={<IconCircle iconClassName={story.iconClassName} tone={story.tone} />}
                   title={story.title}
                   subtitle={story.subtitle}
-                  trailing={story.kind === 'riser'
+                  trailing={story.kind === 'riser' || story.kind === 'personal-form' || story.kind === 'recent-rating-high'
                     ? <Pill tone="success">{story.trailing}</Pill>
                     : story.kind === 'personal-result'
                       ? <Pill tone="accent">{story.trailing}</Pill>
@@ -493,7 +519,7 @@ export function HomeTabContent({
             <EmptyState
               iconClassName="fa fa-bolt"
               title="No highlights yet"
-              message="Noteworthy results, rating movement and league leaders will appear here."
+              message="Personal form, noteworthy results, rating movement and league leaders will appear here."
             />
           )}
         </section>
