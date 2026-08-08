@@ -152,21 +152,23 @@ describe('Home activity briefing', () => {
     })).toEqual([]);
   });
 
-  it('ranks personal and higher priority stories ahead of generic stories', () => {
+  it('ranks personal and followed activity ahead of generic stories while preserving a broader signal', () => {
     const ranked = rankHomeStories([
-      { id: 'leader', priority: 60 },
-      { id: 'generic-result', priority: 75 },
-      { id: 'personal-result', priority: 110 },
+      { id: 'leader', priority: 90 },
+      { id: 'generic-result', priority: 80 },
+      { id: 'personal-result', priority: 120 },
+      { id: 'followed-team-result', priority: 112 },
       { id: 'personal-form', priority: 108 },
+      { id: 'rating-milestone', priority: 106 },
       { id: 'riser', priority: 95 },
-      { id: 'second-result', priority: 65 },
-    ], 4);
+    ], 5);
 
     expect(ranked.map((story) => story.id)).toEqual([
       'personal-result',
+      'followed-team-result',
       'personal-form',
+      'rating-milestone',
       'riser',
-      'generic-result',
     ]);
   });
 });
