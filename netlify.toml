@@ -1,8 +1,8 @@
 # Netlify configuration for TT Players.
 #
-# GitHub Actions deploys apps/mobile/dist directly. Keep routing/header changes
-# mirrored in apps/mobile/public/_redirects so they are copied into the published
-# artifact.
+# GitHub Actions deploys apps/mobile/dist plus netlify/functions directly.
+# Keep routing changes mirrored in apps/mobile/public/_redirects so the published
+# artifact and netlify.toml preserve the same first-match order.
 
 [build]
   command = "echo 'Build handled by GitHub Actions'"
@@ -10,25 +10,28 @@
 
 [functions]
   directory = "netlify/functions"
+  node_bundler = "esbuild"
 
-# Proxy /api/* to the backend API on the tt-domain VPS (Cloudflare Tunnel).
-# Keep this even when direct CORS is available: the frontend uses same-origin
-# fetch('/api/...') so auth cookies and caching behave correctly.
+# player-ssr requires the server-only Netlify runtime environment variable
+# SSR_API_ORIGIN. Example local value: https://api.example.test
+# It is intentionally not exposed as VITE_* and is not hard-coded here.
+
+# 1. Browser SPA API proxy. Keep this before all broad rewrites.
 [[redirects]]
   from = "/api/*"
   to = "https://ttp-api.tourneypilot.com/api/:splat"
   status = 200
   force = true
 
-# Only the canonical public player profile is SSR. Deeper player routes and all
-# /tabs/* routes continue through the SPA fallback below.
+# 2. Only the canonical public player profile is SSR. Deeper player routes and
+# all /tabs/* routes continue through the SPA fallback below.
 [[redirects]]
   from = "/players/:playerId"
   to = "/.netlify/functions/player-ssr?playerId=:playerId"
   status = 200
   force = true
 
-# SPA fallback for all other routes.
+# 3. SPA fallback for every other document route.
 [[redirects]]
   from = "/*"
   to = "/index.html"
