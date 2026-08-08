@@ -54,6 +54,19 @@ const QueueJobSchema = z.object({
     last_error: z.string().nullable(),
 });
 
+const QueueJobDetailsSchema = QueueJobSchema.extend({
+    payload: z.record(z.unknown()),
+});
+
+const QueueJobParamsSchema = z.object({
+    jobId: z.string().regex(/^\d+$/),
+});
+
+const ErrorResponseSchema = z.object({
+    error: z.string(),
+    statusCode: z.number().int(),
+});
+
 const RecentScrapeSchema = z.object({
     id: z.string().uuid(),
     platform_name: z.string(),
@@ -171,6 +184,10 @@ interface QueueJobRow {
     last_error: string | null;
 }
 
+interface QueueJobDetailsRow extends QueueJobRow {
+    payload: unknown;
+}
+
 interface ScrapeSummaryRow {
     total: string | number;
     pending: string | number;
@@ -243,6 +260,60 @@ function objectValue(value: unknown): Record<string, unknown> {
         return value as Record<string, unknown>;
     }
     return {};
+}
+
+function isSensitivePayloadKey(key: string): boolean {
+    const normalized = key.replace(/[^a-z0-9]/gi, '').toLowerCase();
+    return [
+        'authorization',
+        'cookie',
+        'credential',
+        'password',
+        'secret',
+        'session',
+        'token',
+        'apikey',
+    ].some((fragment) => normalized.includes(fragment));
+}
+
+function redactUrlSecrets(value: string): string {
+    try {
+        const url = new URL(value);
+        let changed = false;
+
+        if (url.username || url.password) {
+            url.username = '[REDACTED]';
+            url.password = '[REDACTED]';
+            changed = true;
+        }
+
+        for (const key of [...url.searchParams.keys()]) {
+            if (isSensitivePayloadKey(key)) {
+                url.searchParams.set(key, '[REDACTED]');
+                changed = true;
+            }
+        }
+
+        return changed ? url.toString() : value;
+    } catch {
+        return value;
+    }
+}
+
+export function redactJobPayload(value: unknown, key?: string): unknown {
+    if (key && isSensitivePayloadKey(key)) return '[REDACTED]';
+    if (Array.isArray(value)) return value.map((item) => redactJobPayload(item));
+
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(
+            Object.entries(value).map(([entryKey, entryValue]) => [
+                entryKey,
+                redactJobPayload(entryValue, entryKey),
+            ]),
+        );
+    }
+
+    return typeof value === 'string' ? redactUrlSecrets(value) : value;
 }
 
 function percentage(part: number, total: number): number {
@@ -616,6 +687,64 @@ export function scrapingMonitorRoutes(db: Kysely<Database>): FastifyPluginAsync 
                     updated_at: isoValue(row.updated_at)!,
                     last_error: row.last_error,
                 })),
+            });
+        });
+
+        app.get('/jobs/:jobId', {
+            schema: {
+                params: QueueJobParamsSchema,
+                response: {
+                    200: QueueJobDetailsSchema,
+                    404: ErrorResponseSchema,
+                },
+            },
+        }, async (request, reply) => {
+            const { jobId } = QueueJobParamsSchema.parse(request.params);
+            const result = await sql<QueueJobDetailsRow>`
+                SELECT
+                    id::text AS id,
+                    task_identifier,
+                    CASE
+                        WHEN attempts >= max_attempts THEN 'failed'
+                        WHEN locked_by IS NOT NULL THEN 'running'
+                        WHEN run_at > now() THEN 'scheduled'
+                        ELSE 'ready'
+                    END AS state,
+                    payload,
+                    attempts,
+                    max_attempts,
+                    created_at,
+                    updated_at,
+                    run_at,
+                    locked_at,
+                    NULLIF(LEFT(COALESCE(last_error, ''), 10000), '') AS last_error
+                FROM graphile_worker.jobs
+                WHERE id = ${jobId}::bigint
+                  AND task_identifier IN (${monitoredTaskSql()})
+                LIMIT 1
+            `.execute(db);
+            const row = result.rows[0];
+
+            if (!row) {
+                return reply.status(404).send({
+                    error: 'Queue job not found',
+                    statusCode: 404,
+                });
+            }
+
+            reply.header('Cache-Control', 'private, no-store');
+            return reply.send({
+                id: row.id,
+                task_identifier: row.task_identifier,
+                state: row.state,
+                attempts: numberValue(row.attempts),
+                max_attempts: numberValue(row.max_attempts),
+                created_at: isoValue(row.created_at)!,
+                updated_at: isoValue(row.updated_at)!,
+                run_at: isoValue(row.run_at)!,
+                locked_at: isoValue(row.locked_at),
+                last_error: row.last_error,
+                payload: objectValue(redactJobPayload(row.payload)),
             });
         });
     };
