@@ -16,6 +16,71 @@ const screenshotsDir = join(reportDir, 'screenshots');
 const diagnosticsDir = join(reportDir, 'diagnostics');
 const manifestPath = join(reportDir, 'manifest.json');
 
+const SOURCE_QUALITY_SNAPSHOT = {
+  generated_at: '2026-08-08T08:00:00.000Z',
+  summary: {
+    providers: 2,
+    healthy: 1,
+    degraded: 1,
+    unobserved: 0,
+    leagues: 12,
+    competitions: 30,
+    canonical_players: 1200,
+    rubbers: 8000,
+    dated_rubbers_pct: 98.5,
+    full_score_rubbers_pct: 96.4,
+    missing_player_rubbers: 12,
+    pending_identity_suggestions: 4,
+    unhealthy_resources: 1,
+  },
+  sources: [
+    {
+      platform_id: '11111111-1111-4111-8111-111111111111',
+      name: 'Table Tennis 365',
+      base_url: 'https://www.tabletennis365.com',
+      health: 'healthy',
+      leagues: 8,
+      competitions: 20,
+      fixtures: 400,
+      rubbers: 6000,
+      dated_rubbers_pct: 99,
+      full_score_rubbers_pct: 97,
+      missing_player_rubbers: 4,
+      external_players: 1400,
+      canonical_players: 1000,
+      total_scrapes: 120,
+      failed_scrapes: 1,
+      source_instances: 8,
+      source_resources: 50,
+      unhealthy_resources: 0,
+      latest_activity_at: '2026-08-08T07:30:00.000Z',
+      last_error: null,
+    },
+    {
+      platform_id: '22222222-2222-4222-8222-222222222222',
+      name: 'Sport80',
+      base_url: 'https://www.sport80.com',
+      health: 'degraded',
+      leagues: 4,
+      competitions: 10,
+      fixtures: 120,
+      rubbers: 2000,
+      dated_rubbers_pct: 97,
+      full_score_rubbers_pct: 94,
+      missing_player_rubbers: 8,
+      external_players: 500,
+      canonical_players: 200,
+      total_scrapes: 40,
+      failed_scrapes: 3,
+      source_instances: 2,
+      source_resources: 12,
+      unhealthy_resources: 1,
+      latest_activity_at: '2026-08-08T06:45:00.000Z',
+      last_error: 'One source resource is awaiting a successful refresh.',
+    },
+  ],
+};
+
 test.describe.configure({ mode: 'serial' });
 
 function requirePreviewUrl(): string {
@@ -62,8 +127,22 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('groups platform tools and keeps About focused', async ({ page }, testInfo) => {
+test('groups snapshot-backed Platform pages and keeps About focused', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
+  let liveMonitorRequests = 0;
+
+  await page.route('**/sources/quality*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(SOURCE_QUALITY_SNAPSHOT),
+    });
+  });
+  await page.route('**/scraping/monitor*', async (route) => {
+    liveMonitorRequests += 1;
+    await route.abort();
+  });
+
   await page.addInitScript(() => {
     localStorage.setItem('tt_players_league_onboarding_complete', 'true');
     localStorage.setItem('tt_players_selected_league_ids', JSON.stringify([]));
@@ -75,15 +154,34 @@ test('groups platform tools and keeps About focused', async ({ page }, testInfo)
   await page.getByRole('button', { name: 'Open menu' }).click();
 
   await expect(page.getByRole('heading', { name: 'Platform' })).toBeVisible();
-  await expect(page.getByRole('link', { name: /Data Updates/i })).toBeVisible();
-  await expect(page.getByRole('link', { name: /Data Quality/i })).toBeVisible();
-  await expect(page.getByRole('link', { name: /Rating Audit/i })).toBeVisible();
+  const dataUpdatesLink = page.getByRole('link', { name: /Data Updates/i });
+  const dataQualityLink = page.getByRole('link', { name: /Data Quality/i });
+  const ratingAuditLink = page.getByRole('link', { name: /Rating Audit/i });
+  await expect(dataUpdatesLink).toHaveAttribute('href', '/platform/data-updates');
+  await expect(dataQualityLink).toHaveAttribute('href', '/platform/data-quality');
+  await expect(ratingAuditLink).toHaveAttribute('href', '/platform/audit');
   await expect(page.getByRole('button', { name: /About/i })).toBeVisible();
-  await expect(page.getByRole('link', { name: /Feedback/i })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Feedback/i })).toHaveAttribute('href', '/feedback');
   await capture(page, testInfo, 'platform-drawer');
 
-  await page.getByRole('button', { name: /About/i }).click();
-  await expect(page).toHaveURL(/\/about$/);
+  await dataUpdatesLink.click();
+  await expect(page).toHaveURL(/\/platform\/data-updates$/);
+  await expect(page.getByRole('heading', { name: 'Data Updates' })).toBeVisible();
+  await expect(page.getByText('Latest published snapshot')).toBeVisible();
+  await expect(page.getByText(/rather than querying the live scraping queue/i)).toBeVisible();
+  await expect(page.getByText('Table Tennis 365', { exact: true })).toBeVisible();
+  await expect.poll(() => liveMonitorRequests).toBe(0);
+  await capture(page, testInfo, 'snapshot-data-updates');
+
+  await page.goto(`${previewUrl}/platform/data-quality`, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'Data Quality' })).toBeVisible();
+  await expect(page.getByText('Quality Summary')).toBeVisible();
+  await expect(page.getByText(/Snapshot generated/)).toBeVisible();
+  await expect(page.getByText('Sport80', { exact: true })).toBeVisible();
+  await expect.poll(() => liveMonitorRequests).toBe(0);
+  await capture(page, testInfo, 'snapshot-data-quality');
+
+  await page.goto(`${previewUrl}/about`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'About' })).toBeVisible();
   await expect(page.getByText('Data Coverage', { exact: true })).toHaveCount(0);
   await expect(page.getByText('Scraping Monitor', { exact: true })).toHaveCount(0);
@@ -93,6 +191,7 @@ test('groups platform tools and keeps About focused', async ({ page }, testInfo)
 
   await page.goto(`${previewUrl}/feedback`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Feedback' })).toBeVisible();
+  await expect(page.getByText(/Found a bug, noticed a data issue/i)).toBeVisible();
   await capture(page, testInfo, 'feedback-page');
 
   writeReportIndex(previewUrl);
