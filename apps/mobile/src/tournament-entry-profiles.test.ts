@@ -55,6 +55,14 @@ describe('private tournament entry profiles', () => {
     expect(router).toContain('/tabs/:tabId/entry-profiles');
   });
 
+  it('keeps tournament entrant management available without claiming yourself as a player', () => {
+    const myTTPage = read('./MyTTPage.tsx');
+
+    expect(myTTPage).toContain('onManageEntrants: () => void');
+    expect(myTTPage).toContain('onManageEntrants={');
+    expect(myTTPage).toContain('You can still manage private tournament entry information for players you look after.');
+  });
+
   it('does not store medical answers, declarations, or payment details', () => {
     const page = read('./TournamentEntryProfilesPage.tsx');
     const hook = read('./hooks/useTournamentEntryProfiles.ts');
