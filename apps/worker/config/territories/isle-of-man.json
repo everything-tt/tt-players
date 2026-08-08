@@ -1,0 +1,79 @@
+{
+    "territory": "Isle of Man",
+    "sources": [
+        {
+            "key": "isle-of-man-tt365",
+            "name": "Isle of Man Table Tennis Association",
+            "platformName": "TableTennis365",
+            "platformBaseUrl": "https://www.tabletennis365.com",
+            "baseUrl": "https://www.tabletennis365.com/iom",
+            "adapterKey": "tt365",
+            "status": "active",
+            "notes": "Official domestic association/result source. Domestic leagues and cups belong to this source; British League fixtures linked by IOMTTA remain owned by the existing british.ttleagues.com ingestion.",
+            "config": {
+                "role": "domestic-league",
+                "territory": "Isle of Man",
+                "excludedHosts": [
+                    "british.ttleagues.com"
+                ],
+                "excludedCompetitionFamilies": [
+                    "British Clubs Leagues"
+                ]
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "isle-of-man-domestic-league",
+                    "name": "IOMTTA domestic league",
+                    "publicUrl": "https://www.tabletennis365.com/iom",
+                    "refreshPolicy": {
+                        "cadence": "daily"
+                    }
+                },
+                {
+                    "resourceType": "event",
+                    "externalId": "island-closed-championships",
+                    "name": "IOMTTA Island Closed Championships",
+                    "publicUrl": "https://www.tabletennis365.com/iom",
+                    "enabled": false,
+                    "refreshPolicy": {
+                        "cadence": "event-window"
+                    }
+                }
+            ]
+        },
+        {
+            "key": "isle-of-man-championship-results-discovery",
+            "name": "Isle of Man championship result discovery",
+            "platformName": "Isle of Man Table Tennis Association",
+            "platformBaseUrl": "https://www.tabletennis365.com/iom",
+            "baseUrl": "https://www.tabletennis365.com/iom",
+            "adapterKey": "tournament-result-discovery",
+            "status": "discovery",
+            "enabled": false,
+            "notes": "Covers Island Closed, age and veteran events. Enable match ingestion only after an official structured draw/result source is identified; do not reconstruct brackets from winner posts or photos.",
+            "config": {
+                "role": "island-championships",
+                "categories": [
+                    "Open Singles",
+                    "Open Doubles",
+                    "U14",
+                    "U16",
+                    "U18",
+                    "O50",
+                    "O60"
+                ],
+                "publicMatchSourceRequired": true
+            },
+            "resources": [
+                {
+                    "resourceType": "event-results",
+                    "externalId": "isle-of-man-island-championship-results",
+                    "name": "Isle of Man Island Championship match results",
+                    "publicUrl": "https://www.tabletennis365.com/iom",
+                    "enabled": false
+                }
+            ]
+        }
+    ]
+}
