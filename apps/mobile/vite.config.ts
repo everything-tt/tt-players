@@ -47,6 +47,12 @@ export default defineConfig(({ isSsrBuild }) => ({
             },
           ],
         },
+        workbox: {
+          // A direct/refresh navigation to the canonical player profile must hit
+          // Netlify so the SSR Function can return player-specific HTML. Deeper
+          // player routes continue to use the normal cached SPA navigation shell.
+          navigateFallbackDenylist: [/^\/players\/[^/]+\/?$/],
+        },
       }),
     ]),
   ],
