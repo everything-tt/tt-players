@@ -83,9 +83,20 @@ install -m 0644 "$release_dir/infra/systemd/ttp-api.service" /etc/systemd/system
 install -m 0644 "$release_dir/infra/systemd/ttp-worker.service" /etc/systemd/system/ttp-worker.service
 install -m 0644 "$release_dir/infra/systemd/ttp-db-backup.service" /etc/systemd/system/ttp-db-backup.service
 install -m 0644 "$release_dir/infra/systemd/ttp-db-backup.timer" /etc/systemd/system/ttp-db-backup.timer
+install -m 0644 "$release_dir/infra/systemd/ttp-bigquery-sync.service" /etc/systemd/system/ttp-bigquery-sync.service
+install -m 0644 "$release_dir/infra/systemd/ttp-bigquery-sync.timer" /etc/systemd/system/ttp-bigquery-sync.timer
+install -m 0644 "$release_dir/infra/systemd/ttp-bigquery-reconcile.service" /etc/systemd/system/ttp-bigquery-reconcile.service
+install -m 0644 "$release_dir/infra/systemd/ttp-bigquery-reconcile.timer" /etc/systemd/system/ttp-bigquery-reconcile.timer
+bash -n "$release_dir/scripts/backup-vps-postgres.sh"
+bash -n "$release_dir/scripts/verify-vps-postgres-backup.sh"
+bash -n "$release_dir/scripts/run-bigquery-sync.sh"
 systemd-analyze verify \
   /etc/systemd/system/ttp-db-backup.service \
-  /etc/systemd/system/ttp-db-backup.timer
+  /etc/systemd/system/ttp-db-backup.timer \
+  /etc/systemd/system/ttp-bigquery-sync.service \
+  /etc/systemd/system/ttp-bigquery-sync.timer \
+  /etc/systemd/system/ttp-bigquery-reconcile.service \
+  /etc/systemd/system/ttp-bigquery-reconcile.timer
 systemctl daemon-reload
 
 # A database migration is a forward-only boundary. Stop both services before
@@ -136,4 +147,4 @@ done
 echo "Activated release $commit_sha"
 echo "Database changed: $database_changed"
 echo "Rollback allowed from this release: $rollback_allowed"
-echo "Database backup unit installed; timer activation remains an explicit post-restore step"
+echo "Database backup and BigQuery units installed; timer activation remains an explicit verification step"
