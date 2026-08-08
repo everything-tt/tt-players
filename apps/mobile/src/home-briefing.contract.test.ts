@@ -50,7 +50,8 @@ describe('Home briefing information architecture', () => {
 
   it('keeps first-visit Home useful without population-wide analysis', () => {
     expect(source).toContain('TT Players pulse');
-    expect(source).toContain('usePlayerCountQuery(!hasLeagueScope)');
+    expect(source).toContain('function TTPlayersPulse');
+    expect(source).toContain('<TTPlayersPulse allLeagues={allLeagues} />');
     expect(source).toContain('<MetricGrid');
     expect(source).toContain('Top players');
     expect(source).not.toContain('useLeadersQuery');
