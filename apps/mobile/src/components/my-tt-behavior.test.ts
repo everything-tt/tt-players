@@ -4,14 +4,22 @@ import { describe, expect, it } from 'vitest';
 const read = (relativePath: string) => readFileSync(new URL(relativePath, import.meta.url), 'utf8');
 
 describe('My TT identity behaviour', () => {
-  it('requires a signed-in user before a player can be claimed as Me', () => {
-    const source = read('./MyTTSection.tsx');
+  it('keeps My TT local-first and uses sign-in only for optional sync', () => {
+    const pageSource = read('../MyTTPage.tsx');
+    const sectionSource = read('./MyTTSection.tsx');
 
-    expect(source).toContain('useAuth');
-    expect(source).toContain('!auth.user');
-    expect(source).toContain('auth.user && !myPlayer');
-    expect(source).toContain('signInWithGoogle');
-    expect(source).toContain('This is me');
+    expect(pageSource).toContain('Boolean(player)');
+    expect(pageSource).not.toContain('Boolean(auth.user && player)');
+    expect(pageSource).not.toContain('!auth.user || !player');
+    expect(pageSource).not.toContain('!draft || !player || !auth.user');
+    expect(pageSource).toContain('Saved on this device');
+    expect(pageSource).toContain('Sign in to sync');
+    expect(pageSource).not.toContain('Sign in to use My TT');
+    expect(pageSource).not.toContain('Sign in before claiming a player');
+
+    expect(sectionSource).toContain('Boolean(myPlayer)');
+    expect(sectionSource).not.toContain('Boolean(auth.user && myPlayer)');
+    expect(sectionSource).not.toContain('Sign in to use My TT');
   });
 
   it('shows identity selection only before an identity exists and exposes unfollow via FavouriteButton', () => {
@@ -60,7 +68,7 @@ describe('My TT identity behaviour', () => {
     expect(source).toContain('Rubbers');
     expect(source).toContain('FH');
     expect(source).toContain('BH');
-    expect(source).toContain('Saved to your account, separately from indexed public match records.');
+    expect(source).toContain('Saved on this device');
   });
 
   it('returns to My TT after saving the editor', () => {
