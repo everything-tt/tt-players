@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { AppTabId } from './navigation/tab-navigation';
 import { useMyPlayer } from './hooks/useMyPlayer';
 import { useTournamentList } from './hooks/useTournamentList';
@@ -24,6 +25,7 @@ import {
   SectionHeader,
 } from './ui/appkit';
 import { SkeletonList } from './components/Skeleton';
+import { PlayerSearchSheet } from './PlayerSearchSheet';
 
 interface HomeTabContentProps {
   allLeagues: LeagueWithDivisions[];
@@ -70,7 +72,8 @@ export function HomeTabContent({
   onOpenTab,
 }: HomeTabContentProps) {
   const { navigateInTab } = useTabNavigation();
-  const { player: myPlayer } = useMyPlayer();
+  const { player: myPlayer, setMyPlayer } = useMyPlayer();
+  const [claimSheetOpen, setClaimSheetOpen] = useState(false);
   const hasLeagueScope = hasCompletedLeagueOnboarding && selectedLeagueIds.length > 0;
   const isAllLeagueScope = hasLeagueScope
     && allLeagues.length > 0
@@ -132,9 +135,9 @@ export function HomeTabContent({
         {!myPlayer ? (
           <EmptyState
             iconClassName="fa fa-id-badge"
-            title="Make TT Players yours"
-            message="Claim your player to put your form, rating and next team fixture on Home."
-            action={{ label: 'Find my player', onClick: () => onOpenTab('players') }}
+            title="Claim your player"
+            message="Search for your name and claim the matching player. Home will then show your form, rating and next team fixture."
+            action={{ label: 'Claim my player', onClick: () => setClaimSheetOpen(true) }}
           />
         ) : profileQuery.isLoading ? (
           <SkeletonList rows={1} />
@@ -309,6 +312,18 @@ export function HomeTabContent({
           </section>
         </>
       )}
+
+      <PlayerSearchSheet
+        isOpen={claimSheetOpen}
+        onClose={() => setClaimSheetOpen(false)}
+        title="Claim your player"
+        eyebrow="Make Home personal"
+        resultHint="Tap to claim as you"
+        onSelect={(player) => {
+          setMyPlayer({ id: player.id, name: player.name });
+          setClaimSheetOpen(false);
+        }}
+      />
     </>
   );
 }
