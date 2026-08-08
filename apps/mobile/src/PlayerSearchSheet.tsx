@@ -15,11 +15,13 @@ interface PlayerSearchSheetProps {
   onSelect: (player: PlayerSearchItem) => void;
   excludePlayerId?: string;
   title?: string;
+  eyebrow?: string;
+  resultHint?: string;
 }
 
 /**
- * H2H player picker. Now built on the shared BottomSheet + useSearch + List
- * primitives. Replaces the hand-rolled debounce, search-box, and result list.
+ * Shared player picker for lightweight in-context flows such as H2H and
+ * claiming a player from Home.
  */
 export function PlayerSearchSheet({
   isOpen,
@@ -27,6 +29,8 @@ export function PlayerSearchSheet({
   onSelect,
   excludePlayerId,
   title = 'Select Player',
+  eyebrow = 'Head to Head',
+  resultHint,
 }: PlayerSearchSheetProps) {
   const search = useSearch({ minLength: 3, debounceMs: SEARCH_DEBOUNCE_MS, enabled: isOpen });
   const { debouncedQuery, normalizedQuery, query, setQuery, isReady } = search;
@@ -43,7 +47,7 @@ export function PlayerSearchSheet({
       isOpen={isOpen}
       onClose={onClose}
       title={title}
-      eyebrow="Head to Head"
+      eyebrow={eyebrow}
     >
       <label className="tt-search-input">
         <i className="fa fa-search" aria-hidden="true" />
@@ -77,7 +81,7 @@ export function PlayerSearchSheet({
                 key={player.id}
                 leading={<Avatar text={player.name.slice(0, 2).toUpperCase()} variant="subtle" />}
                 title={player.name}
-                subtitle={`${player.wins}W · ${player.played} played`}
+                subtitle={`${player.wins}W · ${player.played} played${resultHint ? ` · ${resultHint}` : ''}`}
                 onClick={() => onSelect(player)}
               />
             ))}
