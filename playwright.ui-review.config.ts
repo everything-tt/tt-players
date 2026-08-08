@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // Home tab following favourite button review.
-  testMatch: 'zz-home-following-fav-button.pw.ts',
+  // PR #196: targeted player SSR, hydration, Netlify and PWA navigation review.
+  testMatch: 'zz-player-ssr-netlify.pw.ts',
 
   timeout: 120_000,
   expect: {
