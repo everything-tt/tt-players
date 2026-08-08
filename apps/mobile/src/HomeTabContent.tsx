@@ -182,8 +182,12 @@ export function HomeTabContent({
     if (typeof window === 'undefined') return null;
     return parseHomeVisitSnapshot(window.localStorage.getItem(HOME_VISIT_SNAPSHOT_STORAGE_KEY));
   });
+  const isLeagueScopeHydrating = hasCompletedLeagueOnboarding && selectedLeagueIds.length === 0;
   const hasLeagueScope = hasCompletedLeagueOnboarding && selectedLeagueIds.length > 0;
-  const [ratingsScope, setRatingsScope] = useState<HomeRatingsScope>(hasLeagueScope ? 'selected' : 'site');
+  const hasLeagueSetup = hasLeagueScope || isLeagueScopeHydrating;
+  const [ratingsScope, setRatingsScope] = useState<HomeRatingsScope>(
+    hasCompletedLeagueOnboarding ? 'selected' : 'site',
+  );
   const isSelectedRatingsScope = hasLeagueScope && ratingsScope === 'selected';
   const isAllLeagueScope = hasLeagueScope
     && allLeagues.length > 0
@@ -204,7 +208,10 @@ export function HomeTabContent({
     HOME_RATINGS_LIMIT,
     isSelectedRatingsScope,
   );
-  const topSiteRatingsQuery = useTopSiteRatingsQuery(HOME_RATINGS_LIMIT, !isSelectedRatingsScope);
+  const topSiteRatingsQuery = useTopSiteRatingsQuery(
+    HOME_RATINGS_LIMIT,
+    !isSelectedRatingsScope && !isLeagueScopeHydrating,
+  );
 
   const topTeam = dashboard?.top_teams[0] ?? null;
   const dashboardError = getQueryError(dashboardQuery.error);
@@ -212,13 +219,13 @@ export function HomeTabContent({
   const rankings = isSelectedRatingsScope
     ? topRatingsQuery.data?.data ?? []
     : topSiteRatingsQuery.data?.data ?? [];
-  const rankingsLoading = isSelectedRatingsScope
+  const rankingsLoading = isLeagueScopeHydrating || (isSelectedRatingsScope
     ? topRatingsQuery.isLoading
-    : topSiteRatingsQuery.isLoading;
+    : topSiteRatingsQuery.isLoading);
   const rankingsError = getQueryError(isSelectedRatingsScope
     ? topRatingsQuery.error
     : topSiteRatingsQuery.error);
-  const setupReadyCount = Number(Boolean(myPlayer)) + Number(hasLeagueScope);
+  const setupReadyCount = Number(Boolean(myPlayer)) + Number(hasLeagueSetup);
   const navItems: DashboardTabId[] = ['players', 'leagues', 'h2h', 'events'];
   const playerRating = ratingQuery.data?.data ?? null;
   const ratingHistory = ratingHistoryQuery.data?.data ?? [];
@@ -383,7 +390,7 @@ export function HomeTabContent({
                   <i className="fa fa-id-badge" aria-hidden="true" />
                   Claim my player
                 </AppButton>
-                {!hasLeagueScope ? (
+                {!hasLeagueSetup ? (
                   <AppButton tone="outline" onClick={onOpenLeagueSelector}>
                     <i className="fa fa-filter" aria-hidden="true" />
                     Choose leagues
@@ -433,7 +440,7 @@ export function HomeTabContent({
               )}
 
               <div className="tt-home-personal-hero__footer">
-                {!hasLeagueScope ? (
+                {!hasLeagueSetup ? (
                   <div className="tt-home-personal-hero__league-prompt">
                     <span>
                       <i className="fa fa-filter" aria-hidden="true" />
@@ -588,9 +595,9 @@ export function HomeTabContent({
         )}
       </section>
 
-      {!hasLeagueScope ? <TTPlayersPulse allLeagues={allLeagues} /> : null}
+      {!hasLeagueSetup ? <TTPlayersPulse allLeagues={allLeagues} /> : null}
 
-      {!hasLeagueScope ? (
+      {!hasLeagueSetup ? (
         <section className="tt-home-section" aria-labelledby="tt-home-explore-title">
           <SectionHeader
             title={<span id="tt-home-explore-title">Explore</span>}
