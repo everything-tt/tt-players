@@ -1,4 +1,4 @@
-import type { ApiFetcher } from '../queries';
+import type { ApiFetcher } from '../player-profile-query';
 
 export class ServerApiError extends Error {
   readonly status: number;
