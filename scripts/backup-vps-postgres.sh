@@ -5,6 +5,7 @@ pg_dump_bin="${PG_DUMP_BIN:-pg_dump}"
 pg_restore_bin="${PG_RESTORE_BIN:-pg_restore}"
 psql_bin="${PSQL_BIN:-psql}"
 gcloud_bin="${GCLOUD_BIN:-gcloud}"
+curl_bin="${CURL_BIN:-curl}"
 sha256_bin="${SHA256_BIN:-sha256sum}"
 node_bin="${NODE_BIN:-node}"
 sudo_bin="${SUDO_BIN:-sudo}"
@@ -110,8 +111,46 @@ fs.writeFileSync(process.argv[1], `${JSON.stringify(metadata, null, 2)}\n`, { mo
 
 # metadata.json is deliberately uploaded last. Its presence is the success marker
 # for a run-scoped prefix; a failed partial upload is never advertised as complete.
-"$gcloud_bin" storage cp "$dump_file" "${object_prefix}/database.dump" --quiet
-"$gcloud_bin" storage cp "$checksum_file" "${object_prefix}/database.sha256" --quiet
-"$gcloud_bin" storage cp "$metadata_file" "${object_prefix}/metadata.json" --quiet
+# The backup writer is intentionally limited to storage.objects.create. The
+# Cloud SDK copy command performs a destination GET even with a generation
+# precondition, so use the JSON API media upload directly. An ifGenerationMatch
+# value of zero makes each run-scoped object immutable without requiring read,
+# list, delete, or overwrite permission.
+access_token="${TTP_GCS_ACCESS_TOKEN:-}"
+if [[ -z "$access_token" ]]; then
+  access_token=$("$gcloud_bin" auth print-access-token)
+fi
+if [[ -z "$access_token" ]]; then
+  echo "Unable to obtain a Google Cloud access token" >&2
+  exit 1
+fi
+
+curl_config="$tmp_dir/curl.conf"
+printf 'header = "Authorization: Bearer %s"\n' "$access_token" > "$curl_config"
+chmod 600 "$curl_config"
+
+upload_object() {
+  local source_file="$1"
+  local object_name="$2"
+  local encoded_object_name
+
+  encoded_object_name=$("$node_bin" -e \
+    'process.stdout.write(encodeURIComponent(process.argv[1]))' \
+    "$object_name")
+  "$curl_bin" \
+    --fail \
+    --silent \
+    --show-error \
+    --config "$curl_config" \
+    --header 'Content-Type: application/octet-stream' \
+    --request POST \
+    --upload-file "$source_file" \
+    "https://storage.googleapis.com/upload/storage/v1/b/${bucket}/o?uploadType=media&name=${encoded_object_name}&ifGenerationMatch=0" \
+    >/dev/null
+}
+
+upload_object "$dump_file" "${prefix%/}/${run_id}/database.dump"
+upload_object "$checksum_file" "${prefix%/}/${run_id}/database.sha256"
+upload_object "$metadata_file" "${prefix%/}/${run_id}/metadata.json"
 
 echo "Backup completed: ${object_prefix}/metadata.json"
