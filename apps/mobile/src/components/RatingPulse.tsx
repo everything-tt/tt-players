@@ -37,9 +37,14 @@ function isEstablishedMover(mover: RatingCalculationMover): boolean {
 
 function choosePreferred<T extends { player_id: string }>(
   items: T[],
-  preferredIds: Set<string>,
+  myPlayerId: string | null,
+  favouriteIds: Set<string>,
 ): T | null {
-  return items.find((item) => preferredIds.has(item.player_id)) ?? items[0] ?? null;
+  if (myPlayerId) {
+    const mine = items.find((item) => item.player_id === myPlayerId);
+    if (mine) return mine;
+  }
+  return items.find((item) => favouriteIds.has(item.player_id)) ?? items[0] ?? null;
 }
 
 function contextPrefix(playerId: string, myPlayerId: string | null, favouriteIds: Set<string>): string | null {
@@ -73,17 +78,13 @@ export function RatingPulse({ onOpenPlayer }: RatingPulseProps) {
     () => new Set(favouritePlayers.map((player) => player.id)),
     [favouritePlayers],
   );
-  const preferredIds = useMemo(() => {
-    const ids = new Set(favouriteIds);
-    if (myPlayer?.id) ids.add(myPlayer.id);
-    return ids;
-  }, [favouriteIds, myPlayer?.id]);
+  const myPlayerId = myPlayer?.id ?? null;
 
   if (auditQuery.isLoading || auditQuery.isError || !auditQuery.data?.run) return null;
 
   const establishedMovers = auditQuery.data.movers.increases.filter(isEstablishedMover);
-  const mover = choosePreferred(establishedMovers, preferredIds);
-  const exceptionalResult = choosePreferred(auditQuery.data.exceptional_results, preferredIds);
+  const mover = choosePreferred(establishedMovers, myPlayerId, favouriteIds);
+  const exceptionalResult = choosePreferred(auditQuery.data.exceptional_results, myPlayerId, favouriteIds);
 
   if (!mover && !exceptionalResult) return null;
 
@@ -93,7 +94,6 @@ export function RatingPulse({ onOpenPlayer }: RatingPulseProps) {
       density="compact"
       title="Rating pulse"
       meta={<Pill size="xs" tone="neutral">Latest</Pill>}
-      description="A couple of interesting signals from the latest ranking update."
     >
       <DesignList density="compact" divider="hairline" paginate={false}>
         {mover ? (
@@ -102,7 +102,7 @@ export function RatingPulse({ onOpenPlayer }: RatingPulseProps) {
             title={mover.player_name}
             subtitle={moverSubtitle(
               mover,
-              contextPrefix(mover.player_id, myPlayer?.id ?? null, favouriteIds),
+              contextPrefix(mover.player_id, myPlayerId, favouriteIds),
             )}
             trailing={<Pill tone="success">{formatDelta(mover.change)}</Pill>}
             onClick={() => onOpenPlayer(mover.player_id)}
@@ -114,7 +114,7 @@ export function RatingPulse({ onOpenPlayer }: RatingPulseProps) {
             title={`${exceptionalResult.player_name} beat ${exceptionalResult.opponent_name}`}
             subtitle={resultSubtitle(
               exceptionalResult,
-              contextPrefix(exceptionalResult.player_id, myPlayer?.id ?? null, favouriteIds),
+              contextPrefix(exceptionalResult.player_id, myPlayerId, favouriteIds),
             )}
             trailing={<Pill tone="success">{formatDelta(exceptionalResult.attributed_rating_delta)}</Pill>}
             onClick={() => onOpenPlayer(exceptionalResult.player_id)}
