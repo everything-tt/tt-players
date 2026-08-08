@@ -13,6 +13,16 @@ The mobile app remains a normal Vite SPA for local development and for every rou
 
 The generated `netlify/functions/player-template.mjs` file is produced from the built Vite `dist/index.html` and is intentionally ignored by Git. It is deployed together with `netlify/functions/player-ssr.mjs` by the frontend GitHub Action.
 
+### Preview verification
+
+After a deploy preview is available, verify the canonical document response itself rather than only checking the hydrated browser UI:
+
+```bash
+curl -i "$PREVIEW_URL/players/$PLAYER_ID"
+```
+
+A valid profile should return `200`, player-specific HTML inside `#root`, a player-specific `<title>`, `index,follow`, the canonical preview URL, and `__TT_QUERY_STATE__`. An unknown player should return `404` with `noindex,follow`. The PR-specific Playwright review also installs the service worker and performs a hard navigation to the same canonical URL to ensure the PWA navigation fallback does not replace the Netlify SSR response.
+
 This template also provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
@@ -56,7 +66,7 @@ export default defineConfig([
 ])
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-react-dom) for React-specific lint rules:
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 
 ```js
 // eslint.config.js
