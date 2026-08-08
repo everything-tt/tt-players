@@ -172,10 +172,7 @@ async function mockApi(page: Page) {
     }
 
     if (path.endsWith('/api/ratings/league/risers')) {
-      await route.fulfill({ json: {
-        data: [{ rank: 1, overall_rank: 164, player_id: leagueRatings[0].player_id, player_name: 'Harrison Hill', rating_before: 2262, rating_after: 2365, change: 103, rating_deviation_after: 45, rated_matches: 916, baseline_date: '2026-06-27' }],
-        total: 1, page: 1, page_size: 1, model: 'glicko2', league_ids: [leagueId], window_days: 42,
-      } });
+      await route.fulfill({ json: { data: [], total: 0, page: 1, page_size: 1, model: 'glicko2', league_ids: [leagueId], window_days: 42 } });
       return;
     }
 
@@ -248,8 +245,6 @@ async function configureReturningUser(page: Page) {
       recentResultIds: ['fixture-old'],
       topTeamId: 'team-hutton-a',
       topTeamName: 'Hutton A',
-      topRiserPlayerId: 'riser-old',
-      topRiserName: 'Previous Riser',
     }));
   }, { claimedPlayerId: playerId, selectedLeagueId: leagueId });
 }
@@ -263,10 +258,14 @@ test('reviews cheap first-visit discovery, returning-user stories, and My TT too
   const previewUrl = requirePreviewUrl();
   const populationWideAnalysisRequests: string[] = [];
   const activityFanOutRequests: string[] = [];
+  const playerCountRequests: string[] = [];
   page.on('request', (request) => {
     const url = new URL(request.url());
     const path = url.pathname;
-    if (path.endsWith('/api/players/leaders')) populationWideAnalysisRequests.push(request.url());
+    if (path.endsWith('/api/players/leaders') || path.endsWith('/api/ratings/league/risers')) {
+      populationWideAnalysisRequests.push(request.url());
+    }
+    if (path.endsWith('/api/players/count')) playerCountRequests.push(request.url());
     if (
       /\/api\/teams\/[^/]+\/(?:form|fixtures)$/.test(path)
       || /\/api\/leagues\/[^/]+\/dashboard$/.test(path)
@@ -292,10 +291,12 @@ test('reviews cheap first-visit discovery, returning-user stories, and My TT too
   await expect(pulse.getByText('Matches', { exact: true })).toBeVisible();
   expect(populationWideAnalysisRequests).toEqual([]);
   expect(activityFanOutRequests).toEqual([]);
+  expect(playerCountRequests).toHaveLength(1);
 
   await capture(page, testInfo, 'home-new-user-discovery', {
     globalRankingPreview: true,
     networkPulse: true,
+    playerCountRequests: playerCountRequests.length,
     populationWideAnalysisRequests: populationWideAnalysisRequests.length,
     activityFanOutRequests: activityFanOutRequests.length,
   });
@@ -309,15 +310,17 @@ test('reviews cheap first-visit discovery, returning-user stories, and My TT too
   await expect(since.getByText('Your rating moved +18', { exact: true })).toBeVisible();
   await expect(since.getByText('up 11 places to #126', { exact: true })).toBeVisible();
   await expect(since.getByText('2 new league results', { exact: true })).toBeVisible();
-  await expect(since.getByText('New league leader: Rowhedge K', { exact: true })).toBeVisible();
-  await expect(since.getByText('Harrison Hill is now the biggest mover', { exact: true })).toBeVisible();
+  await expect(since.getByText('Leading team changed: Rowhedge K', { exact: true })).toBeVisible();
+  await expect(since.getByText('Previously Hutton A in your selected-league briefing', { exact: true })).toBeVisible();
+  await expect(since.getByText(/biggest mover/)).toHaveCount(0);
   await since.getByRole('heading', { name: 'Since your last visit' }).scrollIntoViewIfNeeded();
+  expect(playerCountRequests).toHaveLength(1);
   await capture(page, testInfo, 'home-since-last-visit', {
     ratingDelta: 18,
     rankDelta: 11,
     newResults: 2,
-    leaderChanged: true,
-    biggestMoverChanged: true,
+    leadingTeamChanged: true,
+    playerCountRequestsAfterConfiguredReload: playerCountRequests.length,
   });
 
   const highlights = page.locator('section[aria-labelledby="tt-home-highlights-title"]');
@@ -326,15 +329,16 @@ test('reviews cheap first-visit discovery, returning-user stories, and My TT too
   await expect(highlights.getByText("You've won 4 of your last 5", { exact: true })).toBeVisible();
   await expect(highlights.getByText('You crossed 1,900', { exact: true })).toBeVisible();
   await expect(highlights.getByText('Now 1,912 · up 72 from your 3-month low', { exact: true })).toBeVisible();
-  await expect(highlights.getByText('Harrison Hill surged +103', { exact: true })).toBeVisible();
-  await expect(highlights.getByText('Rowhedge K set the pace', { exact: true })).toHaveCount(0);
+  await expect(highlights.getByText('Rowhedge K set the pace', { exact: true })).toBeVisible();
+  await expect(highlights.getByText('Harrison Hill surged +103', { exact: true })).toHaveCount(0);
   await highlights.getByRole('heading', { name: 'Highlights' }).scrollIntoViewIfNeeded();
   await capture(page, testInfo, 'home-ranked-highlights', {
     personalResultFirst: true,
     followedTeamResultIncluded: true,
     personalFormIncluded: true,
     ratingMilestoneIncluded: true,
-    leagueRiserIncluded: true,
+    leagueLeaderIncluded: true,
+    runtimeRiserAnalysisIncluded: false,
     stories: 5,
   });
 
@@ -369,6 +373,7 @@ test('reviews cheap first-visit discovery, returning-user stories, and My TT too
 
   expect(populationWideAnalysisRequests).toEqual([]);
   expect(activityFanOutRequests).toEqual([]);
+  expect(playerCountRequests).toHaveLength(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
   writeReportIndex(previewUrl);
 });
