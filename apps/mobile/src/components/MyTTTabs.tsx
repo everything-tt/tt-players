@@ -2,6 +2,7 @@ import { useLocation } from 'react-router-dom';
 import { useMyPlayer } from '../hooks/useMyPlayer';
 import { useTabNavigation } from '../navigation/tab-navigation';
 import { SegmentedToggle } from '../ui/appkit';
+import './MyTTTabs.css';
 
 export type MyTTTab = 'profile' | 'journal' | 'entries';
 
