@@ -52,11 +52,13 @@ export function exportSql(table, { lowerWatermark = null, highWatermark = null, 
     : '';
 
   return `SET TIME ZONE 'UTC';
+COPY (
 SELECT row_to_json(export_row)::text
 FROM (
       SELECT ${columns}
       FROM ${pgIdentifier(table.sourceSchema)}.${pgIdentifier(table.sourceTable)}${where}${order}
-) AS export_row;`;
+) AS export_row
+) TO STDOUT WITH (FORMAT csv, DELIMITER E'\\x01', QUOTE E'\\x02', ESCAPE E'\\x02');`;
 }
 
 export function highWatermarkSql(table) {
