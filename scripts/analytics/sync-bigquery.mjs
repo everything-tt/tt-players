@@ -69,6 +69,7 @@ function appendStderr(current, chunk) {
   const next = current + chunk;
   return next.length > 1024 * 1024 ? next.slice(-1024 * 1024) : next;
 }
+const GCS_UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024;
 async function createGcsResumableSession(gcsUri, tempRoot, tableName) {
   const token = gcsAccessToken();
   const requestHeadersPath = path.join(tempRoot, `${tableName}.resumable-headers`);
@@ -87,30 +88,50 @@ async function createGcsResumableSession(gcsUri, tempRoot, tableName) {
 }
 async function psqlExportToGcs(sql, gcsUri, tempRoot, tableName) {
   const { location, uploadHeadersPath } = await createGcsResumableSession(gcsUri, tempRoot, tableName);
-  const uploadConfigPath = path.join(tempRoot, `${tableName}.resumable-upload.conf`);
-  await writeFile(uploadConfigPath, `url = ${JSON.stringify(location)}\nrequest = PUT\ndata-binary = @-\noutput = /dev/null\n`, { mode: 0o600 });
-
   const exporter = spawn(config.sudo, psqlArgs(sql), { env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
-  const uploader = spawn(config.curl, [
-    '--fail', '--silent', '--show-error', '--location', '--config', uploadConfigPath, '--header', `@${uploadHeadersPath}`,
-  ], { env: process.env, stdio: ['pipe', 'ignore', 'pipe'] });
   let rows = 0;
   let exportStderr = '';
-  let uploadStderr = '';
   exporter.stderr.setEncoding('utf8');
-  uploader.stderr.setEncoding('utf8');
   exporter.stderr.on('data', (chunk) => { exportStderr = appendStderr(exportStderr, chunk); });
-  uploader.stderr.on('data', (chunk) => { uploadStderr = appendStderr(uploadStderr, chunk); });
-  exporter.stdout.on('data', (chunk) => { for (const byte of chunk) if (byte === 10) rows += 1; });
   exporter.stdout.on('error', () => {});
-  uploader.stdin.on('error', () => {});
-  exporter.stdout.pipe(uploader.stdin);
-  const [exportResult, uploadResult] = await Promise.all([
-    waitForProcess(exporter, 'PostgreSQL export'),
-    waitForProcess(uploader, 'Cloud Storage upload'),
-  ]);
+  const exportResultPromise = waitForProcess(exporter, 'PostgreSQL export');
+  let uploadedBytes = 0;
+  let buffered = Buffer.alloc(0);
+  async function uploadChunk(chunk, total) {
+    const start = uploadedBytes;
+    const end = start + chunk.length - 1;
+    const uploader = spawn(config.curl, [
+      '--fail', '--silent', '--show-error', '--location', '--request', 'PUT', '--header', `@${uploadHeadersPath}`,
+      '--header', `Content-Length: ${chunk.length}`, '--header', `Content-Range: bytes ${start}-${end}/${total ?? '*'}`,
+      '--upload-file', '-', location,
+    ], { env: process.env, stdio: ['pipe', 'ignore', 'pipe'] });
+    let uploadStderr = '';
+    uploader.stderr.setEncoding('utf8');
+    uploader.stderr.on('data', (chunkData) => { uploadStderr = appendStderr(uploadStderr, chunkData); });
+    uploader.stdin.on('error', () => {});
+    uploader.stdin.end(chunk);
+    const uploadResult = await waitForProcess(uploader, 'Cloud Storage upload');
+    if (uploadResult.status !== 0) throw new Error(`Cloud Storage upload failed (${uploadResult.status}): ${uploadStderr}`.trim());
+    uploadedBytes += chunk.length;
+  }
+  try {
+    for await (const outputChunk of exporter.stdout) {
+      for (const byte of outputChunk) if (byte === 10) rows += 1;
+      buffered = buffered.length === 0 ? outputChunk : Buffer.concat([buffered, outputChunk]);
+      while (buffered.length > GCS_UPLOAD_CHUNK_BYTES) {
+        const chunk = buffered.subarray(0, GCS_UPLOAD_CHUNK_BYTES);
+        buffered = buffered.subarray(GCS_UPLOAD_CHUNK_BYTES);
+        await uploadChunk(chunk, null);
+      }
+    }
+    if (buffered.length > 0) await uploadChunk(buffered, uploadedBytes + buffered.length);
+  } catch (error) {
+    exporter.kill('SIGTERM');
+    await exportResultPromise.catch(() => {});
+    throw error;
+  }
+  const exportResult = await exportResultPromise;
   if (exportResult.status !== 0) throw new Error(`PostgreSQL export failed (${exportResult.status}): ${exportStderr}`.trim());
-  if (uploadResult.status !== 0) throw new Error(`Cloud Storage upload failed (${uploadResult.status}): ${uploadStderr}`.trim());
   return { rows };
 }
 function deleteGcsObject(gcsUri) {

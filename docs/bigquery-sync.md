@@ -111,8 +111,9 @@ For each table the job:
    the `psql` client; control-character CSV delimiters preserve one raw JSON
    object per line;
 4. opens a resumable Cloud Storage JSON upload for one run-scoped NDJSON
-   object and streams PostgreSQL output directly into it; only small 0600
-   request/config files are local, and the job never lists the bucket;
+   object and sends PostgreSQL output in bounded 8 MiB `Content-Range` chunks;
+   only small 0600 request/header files and one upload chunk are local, and the
+   job never lists the bucket;
 5. loads it into a run-scoped staging table using an explicit BigQuery schema;
 6. verifies row count, non-null primary keys, and primary-key uniqueness;
 7. MERGEs by primary key;
