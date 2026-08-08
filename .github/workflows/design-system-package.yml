@@ -1,16 +1,18 @@
-name: Shared Frontend Packages
+name: Shared Packages
 
 on:
   pull_request:
     paths:
       - 'packages/design-system/**'
       - 'packages/pwa/**'
+      - 'packages/ranking/**'
       - '.github/workflows/design-system-package.yml'
   push:
     branches: [main]
     paths:
       - 'packages/design-system/**'
       - 'packages/pwa/**'
+      - 'packages/ranking/**'
       - '.github/workflows/design-system-package.yml'
 
 permissions:
@@ -18,7 +20,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: shared-frontend-packages-${{ github.ref }}
+  group: shared-packages-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -30,8 +32,19 @@ jobs:
         include:
           - workspace: '@tt-players/design-system'
             directory: 'design-system'
+            test: false
+            coverage: false
+            smoke: false
           - workspace: '@tt-players/pwa'
             directory: 'pwa'
+            test: true
+            coverage: false
+            smoke: true
+          - workspace: '@tt-players/ranking'
+            directory: 'ranking'
+            test: true
+            coverage: true
+            smoke: true
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -54,9 +67,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test PWA package
-        if: matrix.directory == 'pwa'
-        run: pnpm --filter @tt-players/pwa test
+      - name: Test package
+        if: matrix.test
+        run: pnpm --filter "${{ matrix.workspace }}" test
+
+      - name: Enforce full code coverage
+        if: matrix.coverage
+        run: pnpm --filter "${{ matrix.workspace }}" coverage
 
       - name: Build publishable package
         run: pnpm --filter "${{ matrix.workspace }}" build
@@ -64,9 +81,9 @@ jobs:
       - name: Inspect package contents
         run: npm pack "./packages/${{ matrix.directory }}/dist" --dry-run
 
-      - name: Test published PWA package as a consumer
-        if: matrix.directory == 'pwa'
-        run: pnpm --filter @tt-players/pwa smoke:consumer
+      - name: Test packed package as a consumer
+        if: matrix.smoke
+        run: pnpm --filter "${{ matrix.workspace }}" smoke:consumer
 
       - name: Publish to GitHub Packages
         if: github.event_name == 'push'

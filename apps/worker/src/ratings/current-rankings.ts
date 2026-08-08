@@ -1,5 +1,6 @@
 import { sql, type Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
+import { DEFAULT_CURRENT_RANKING_POLICY } from '@tt-players/ranking';
 import { DEFAULT_RATING_MODEL_KEY } from './domain.js';
 import { DEFAULT_GLICKO2_CONFIG } from './glicko2.js';
 
@@ -35,8 +36,19 @@ export async function refreshCurrentRankings(
 
     return db.transaction().execute(async (trx) => {
         await sql`
-            INSERT INTO rating_ranking_policies (model_id)
-            VALUES (${model.id}::uuid)
+            INSERT INTO rating_ranking_policies (
+                model_id,
+                active_days,
+                minimum_matches,
+                minimum_unique_opponents,
+                maximum_deviation
+            ) VALUES (
+                ${model.id}::uuid,
+                ${DEFAULT_CURRENT_RANKING_POLICY.activeDays},
+                ${DEFAULT_CURRENT_RANKING_POLICY.minimumMatches},
+                ${DEFAULT_CURRENT_RANKING_POLICY.minimumUniqueOpponents},
+                ${DEFAULT_CURRENT_RANKING_POLICY.maximumDeviation}
+            )
             ON CONFLICT (model_id) DO NOTHING
         `.execute(trx);
 
@@ -65,7 +77,10 @@ export async function refreshCurrentRankings(
                     COALESCE((rating_model.config ->> 'initialDeviation')::double precision, 350) AS initial_deviation,
                     COALESCE((rating_model.config ->> 'ratingScale')::double precision, 173.7178) AS rating_scale,
                     COALESCE((rating_model.config ->> 'conservativeDeviationMultiplier')::double precision, 2) AS deviation_multiplier,
-                    ${DEFAULT_GLICKO2_CONFIG.inactivityPeriodDays}::double precision AS inactivity_period_days,
+                    COALESCE(
+                        (rating_model.config ->> 'inactivityPeriodDays')::double precision,
+                        ${DEFAULT_GLICKO2_CONFIG.inactivityPeriodDays}::double precision
+                    ) AS inactivity_period_days,
                     policy.active_days,
                     policy.minimum_matches,
                     policy.minimum_unique_opponents,
