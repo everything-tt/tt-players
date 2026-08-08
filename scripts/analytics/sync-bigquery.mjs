@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
-import { run, runToFile } from './commands.mjs';
+import { run } from './commands.mjs';
 import { validateTableManifest } from './table-manifest.mjs';
 import { bigQuerySchema, bqIdentifier, commitRunSql, createDestinationSql, exportSql, failureRunSql, highWatermarkSql, mergeSql, pipelineBootstrapSql, readWatermarkSql, replaceEmptySql, replaceSql, resetWatermarkSql, stageValidationSql, validationResultSql } from './bigquery-sql.mjs';
 
@@ -32,7 +33,6 @@ function bqQuery(sql, { json = false } = {}) {
 }
 function psqlArgs(sql) { return ['-u','postgres','--',config.psql,config.databaseUrl,'-X','-q','-A','-t','--no-psqlrc','--set=ON_ERROR_STOP=1','--command',sql]; }
 function psqlScalar(sql) { return run(config.sudo, psqlArgs(sql)).stdout.trim(); }
-async function psqlExport(sql, file) { return runToFile(config.sudo, psqlArgs(sql), file); }
 function loadStage({ stagingTable, gcsUri, schemaPath }) {
   run(config.bq, ['load',`--project_id=${config.project}`,`--location=${config.location}`,'--source_format=NEWLINE_DELIMITED_JSON','--replace','--quiet',`${config.rawDataset}.${stagingTable}`,gcsUri,schemaPath]);
   run(config.bq, ['update',`--project_id=${config.project}`,`--location=${config.location}`,'--expiration=86400','--quiet',`${config.rawDataset}.${stagingTable}`]);
@@ -48,6 +48,9 @@ function gcsApiUrl(gcsUri) {
 function gcsUploadUrl(gcsUri) {
   return `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(config.bucket)}/o?uploadType=media&name=${encodeURIComponent(gcsObjectName(gcsUri))}`;
 }
+function gcsResumableUploadUrl(gcsUri) {
+  return gcsUploadUrl(gcsUri).replace('uploadType=media', 'uploadType=resumable');
+}
 function gcsAccessToken() {
   const token = run(config.gcloud, ['auth', 'print-access-token', '--quiet']).stdout.trim();
   if (!token) throw new Error('gcloud auth print-access-token returned no token');
@@ -56,12 +59,59 @@ function gcsAccessToken() {
 function gcsAuthHeader(token) {
   return `Authorization: Bearer ${token}\n`;
 }
-function uploadGcsObject(dataPath, gcsUri) {
+function waitForProcess(child, label) {
+  return new Promise((resolve, reject) => {
+    child.once('error', reject);
+    child.once('close', (status, signal) => resolve({ status, signal, label }));
+  });
+}
+function appendStderr(current, chunk) {
+  const next = current + chunk;
+  return next.length > 1024 * 1024 ? next.slice(-1024 * 1024) : next;
+}
+async function createGcsResumableSession(gcsUri, tempRoot, tableName) {
   const token = gcsAccessToken();
+  const requestHeadersPath = path.join(tempRoot, `${tableName}.resumable-headers`);
+  const uploadHeadersPath = path.join(tempRoot, `${tableName}.upload-headers`);
+  const responseHeadersPath = path.join(tempRoot, `${tableName}.resumable-response-headers`);
+  await writeFile(requestHeadersPath, `${gcsAuthHeader(token)}Content-Type: application/json; charset=UTF-8\nX-Upload-Content-Type: application/octet-stream\n`, { mode: 0o600 });
+  await writeFile(uploadHeadersPath, `${gcsAuthHeader(token)}Content-Type: application/octet-stream\n`, { mode: 0o600 });
   run(config.curl, [
-    '--fail', '--silent', '--show-error', '--location', '--request', 'POST', '--header', '@-',
-    '--data-binary', `@${dataPath}`, gcsUploadUrl(gcsUri),
-  ], { input: `${gcsAuthHeader(token)}Content-Type: application/octet-stream\n` });
+    '--fail', '--silent', '--show-error', '--location', '--request', 'POST', '--header', `@${requestHeadersPath}`,
+    '--data', '{}', '--dump-header', responseHeadersPath, '--output', '/dev/null', gcsResumableUploadUrl(gcsUri),
+  ]);
+  const responseHeaders = await readFile(responseHeadersPath, 'utf8');
+  const location = responseHeaders.match(/^location:\s*(\S+)\s*$/im)?.[1];
+  if (!location) throw new Error(`Cloud Storage did not return a resumable upload location for ${tableName}`);
+  return { location, uploadHeadersPath };
+}
+async function psqlExportToGcs(sql, gcsUri, tempRoot, tableName) {
+  const { location, uploadHeadersPath } = await createGcsResumableSession(gcsUri, tempRoot, tableName);
+  const uploadConfigPath = path.join(tempRoot, `${tableName}.resumable-upload.conf`);
+  await writeFile(uploadConfigPath, `url = ${JSON.stringify(location)}\nrequest = PUT\ndata-binary = @-\noutput = /dev/null\n`, { mode: 0o600 });
+
+  const exporter = spawn(config.sudo, psqlArgs(sql), { env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const uploader = spawn(config.curl, [
+    '--fail', '--silent', '--show-error', '--location', '--config', uploadConfigPath, '--header', `@${uploadHeadersPath}`,
+  ], { env: process.env, stdio: ['pipe', 'ignore', 'pipe'] });
+  let rows = 0;
+  let exportStderr = '';
+  let uploadStderr = '';
+  exporter.stderr.setEncoding('utf8');
+  uploader.stderr.setEncoding('utf8');
+  exporter.stderr.on('data', (chunk) => { exportStderr = appendStderr(exportStderr, chunk); });
+  uploader.stderr.on('data', (chunk) => { uploadStderr = appendStderr(uploadStderr, chunk); });
+  exporter.stdout.on('data', (chunk) => { for (const byte of chunk) if (byte === 10) rows += 1; });
+  exporter.stdout.on('error', () => {});
+  uploader.stdin.on('error', () => {});
+  exporter.stdout.pipe(uploader.stdin);
+  const [exportResult, uploadResult] = await Promise.all([
+    waitForProcess(exporter, 'PostgreSQL export'),
+    waitForProcess(uploader, 'Cloud Storage upload'),
+  ]);
+  if (exportResult.status !== 0) throw new Error(`PostgreSQL export failed (${exportResult.status}): ${exportStderr}`.trim());
+  if (uploadResult.status !== 0) throw new Error(`Cloud Storage upload failed (${uploadResult.status}): ${uploadStderr}`.trim());
+  return { rows };
 }
 function deleteGcsObject(gcsUri) {
   try {
@@ -103,7 +153,7 @@ async function syncTable(table, tempRoot) {
   const runToken = randomUUID().replaceAll('-', '');
   const runId = `${startedAt.replaceAll(/[-:.TZ]/g, '')}-${runToken}-${table.destinationTable}`;
   const stageTable = `_stage_${table.destinationTable}_${runToken}`;
-  const dataPath = path.join(tempRoot, `${table.destinationTable}.ndjson`), schemaPath = path.join(tempRoot, `${table.destinationTable}.schema.json`);
+  const schemaPath = path.join(tempRoot, `${table.destinationTable}.schema.json`);
   const gcsUri = `gs://${config.bucket}/${config.loadPrefix.replace(/\/+$/, '')}/${runId}/${table.destinationTable}.ndjson`;
   let prior = null, high = null;
   const effectiveMode = fullRefresh ? 'full-replace' : table.mode;
@@ -116,12 +166,13 @@ async function syncTable(table, tempRoot) {
       if (!high) { console.log(`[${table.destinationTable}] no source rows; skipped`); return; }
     } else if (table.watermark) high = sourceHighWatermark(table);
 
-    ({ rows } = await psqlExport(exportSql(table, {
+    await writeFile(schemaPath, `${JSON.stringify(bigQuerySchema(table), null, 2)}\n`, { mode: 0o600 });
+    remoteCreated = true;
+    ({ rows } = await psqlExportToGcs(exportSql(table, {
       lowerWatermark: prior?.timestamp ?? null,
       highWatermark: effectiveMode === 'incremental-merge' ? high : null,
       includeOrder: !fullRefresh,
-    }), dataPath));
-    await writeFile(schemaPath, `${JSON.stringify(bigQuerySchema(table), null, 2)}\n`, { mode: 0o600 });
+    }), gcsUri, tempRoot, table.destinationTable));
     if (rows === 0 && effectiveMode === 'incremental-merge') { console.log(`[${table.destinationTable}] no changed rows; watermark remains ${prior?.timestamp ?? 'unset'}`); return; }
     if (rows === 0 && effectiveMode === 'full-replace') {
       bqQuery(replaceEmptySql({ project: config.project, rawDataset: config.rawDataset, table }));
@@ -131,7 +182,6 @@ async function syncTable(table, tempRoot) {
     }
 
     console.log(`[${table.destinationTable}] exporting ${rows} rows`);
-    uploadGcsObject(dataPath, gcsUri); remoteCreated = true;
     loadStage({ stagingTable: stageTable, gcsUri, schemaPath }); validateStage(table, stageTable, rows, runId);
     if (effectiveMode === 'full-replace') bqQuery(replaceSql({ project: config.project, rawDataset: config.rawDataset, stagingTable: stageTable, table }));
     else { bqQuery(createDestinationSql({ project: config.project, rawDataset: config.rawDataset, table })); bqQuery(mergeSql({ project: config.project, rawDataset: config.rawDataset, stagingTable: stageTable, table })); }

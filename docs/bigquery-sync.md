@@ -107,8 +107,9 @@ For each table the job:
 1. reads the last committed watermark from `tt_players_pipeline.sync_watermarks`;
 2. captures the source high-watermark;
 3. exports rows in the overlap window bounded by that high-watermark;
-4. uploads one run-scoped NDJSON object through the Cloud Storage JSON API
-   using the exact object name; it does not list the bucket;
+4. opens a resumable Cloud Storage JSON upload for one run-scoped NDJSON
+   object and streams PostgreSQL output directly into it; only small 0600
+   request/config files are local, and the job never lists the bucket;
 5. loads it into a run-scoped staging table using an explicit BigQuery schema;
 6. verifies row count, non-null primary keys, and primary-key uniqueness;
 7. MERGEs by primary key;
