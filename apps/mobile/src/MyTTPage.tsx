@@ -401,40 +401,6 @@ export function MyTTPage() {
               )}
             </PageSection>
 
-            <PageSection
-              surface="flat"
-              density="compact"
-              title="Match journal"
-              description="Record match and training reflections, what worked, and what to focus on next."
-              className="tt-my-tt-flat-section"
-            >
-              <DesignList density="compact" divider="none" paginate={false}>
-                <ListItem
-                  leading={<IconCircle iconClassName="fa fa-book-open" tone="neutral" />}
-                  title="Open match journal"
-                  subtitle="Review past notes or add a reflection after a match or training session."
-                  onClick={() => navigateInTab('players', `player/${player.id}/journal`)}
-                />
-              </DesignList>
-            </PageSection>
-
-            <PageSection
-              surface="flat"
-              density="compact"
-              title="Tournament entries"
-              description="Save private entry details for yourself, children, or players you manage."
-              className="tt-my-tt-flat-section"
-            >
-              <DesignList density="compact" divider="none" paginate={false}>
-                <ListItem
-                  leading={<IconCircle iconClassName="fa fa-clipboard-list" tone="neutral" />}
-                  title="Manage tournament players"
-                  subtitle="Keep reusable contact, address and association details ready for entry forms."
-                  onClick={() => navigateInTab('home', 'entry-profiles')}
-                />
-              </DesignList>
-            </PageSection>
-
             <PageSection surface="flat" density="compact" className="tt-my-tt-account-note" ariaLabelledby={undefined}>
               <div className="tt-my-tt-account-inline">
                 <i className={`fa fa-${auth.user ? 'cloud' : 'mobile-alt'}`} aria-hidden="true" />
