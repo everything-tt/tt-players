@@ -6,7 +6,7 @@ import {
 } from '@tanstack/react-query';
 import { renderToString } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom';
-import { AppRoutes } from '../AppRouter';
+import { AppRoutes } from '../AppRoutes';
 import { TabNavigationProvider } from '../navigation/tab-navigation';
 import {
   playerProfileOverviewQueryOptions,
