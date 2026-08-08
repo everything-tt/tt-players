@@ -128,7 +128,7 @@ export function compareCurrentRanking(
   return (
     right.effectiveConservativeRating - left.effectiveConservativeRating
     || right.ratedMatches - left.ratedMatches
-    || left.playerId.localeCompare(right.playerId)
+    || comparePlayerIds(left.playerId, right.playerId)
   );
 }
 
@@ -139,6 +139,12 @@ export function compareHistoricalRanking(
   return (
     right.historicalConservativeRating - left.historicalConservativeRating
     || right.ratedMatches - left.ratedMatches
-    || left.playerId.localeCompare(right.playerId)
+    || comparePlayerIds(left.playerId, right.playerId)
   );
+}
+
+function comparePlayerIds(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
 }
