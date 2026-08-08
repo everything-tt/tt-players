@@ -1,0 +1,12 @@
+[Unit]
+Description=Weekly TT Players BigQuery full reconciliation
+
+[Timer]
+OnCalendar=Sun *-*-* 06:00:00 UTC
+Persistent=true
+RandomizedDelaySec=15m
+AccuracySec=1m
+Unit=ttp-bigquery-reconcile.service
+
+[Install]
+WantedBy=timers.target
