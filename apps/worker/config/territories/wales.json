@@ -1,0 +1,178 @@
+{
+    "territory": "Wales",
+    "sources": [
+        {
+            "key": "table-tennis-wales",
+            "name": "Table Tennis Wales competition catalogue",
+            "platformName": "Table Tennis Wales",
+            "platformBaseUrl": "https://tabletennis.wales",
+            "baseUrl": "https://tabletennis.wales/competitions-overview/",
+            "adapterKey": "official-catalog",
+            "status": "active",
+            "enabled": false,
+            "notes": "Official discovery source for Welsh national events. Result ingestion must follow the event's structured result link rather than parse news summaries.",
+            "config": {
+                "role": "national-event-discovery",
+                "matchDataAuthority": false
+            },
+            "resources": [
+                {
+                    "resourceType": "directory",
+                    "externalId": "wales-national-competitions",
+                    "name": "Table Tennis Wales competitions overview",
+                    "publicUrl": "https://tabletennis.wales/competitions-overview/",
+                    "enabled": false,
+                    "refreshPolicy": {
+                        "cadence": "daily"
+                    }
+                },
+                {
+                    "resourceType": "event",
+                    "externalId": "senior-team-championships-of-wales",
+                    "name": "Senior Team Championships of Wales",
+                    "publicUrl": "https://tabletennis.wales/events/senior-team-championships-of-wales-2/",
+                    "enabled": false,
+                    "refreshPolicy": {
+                        "cadence": "event-window"
+                    }
+                },
+                {
+                    "resourceType": "event",
+                    "externalId": "veterans-team-championships-wales",
+                    "name": "Veterans Team Championships Wales",
+                    "publicUrl": "https://tabletennis.wales/events/veterans-team-championships-wales-2025-2026/",
+                    "enabled": false,
+                    "refreshPolicy": {
+                        "cadence": "event-window"
+                    }
+                }
+            ]
+        },
+        {
+            "key": "cardiff-tt365",
+            "name": "Cardiff & District Table Tennis League",
+            "platformName": "TableTennis365",
+            "platformBaseUrl": "https://www.tabletennis365.com",
+            "baseUrl": "https://www.tabletennis365.com/Cardiff",
+            "adapterKey": "tt365",
+            "status": "active",
+            "notes": "Supported by the existing TT365 standings/fixtures/matchcard/playerstats pipeline.",
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "cardiff-local-league",
+                    "publicUrl": "https://www.tabletennis365.com/Cardiff"
+                }
+            ]
+        },
+        {
+            "key": "east-flintshire-tt365",
+            "name": "East Flintshire League",
+            "platformName": "TableTennis365",
+            "platformBaseUrl": "https://www.tabletennis365.com",
+            "baseUrl": "https://www.tabletennis365.com/EastFlintshire",
+            "adapterKey": "tt365",
+            "status": "active",
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "east-flintshire-local-league",
+                    "publicUrl": "https://www.tabletennis365.com/EastFlintshire"
+                }
+            ]
+        },
+        {
+            "key": "gwent-tt365",
+            "name": "Gwent Table Tennis League",
+            "platformName": "TableTennis365",
+            "platformBaseUrl": "https://www.tabletennis365.com",
+            "baseUrl": "https://www.tabletennis365.com/GwentTTC",
+            "adapterKey": "tt365",
+            "status": "active",
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "gwent-local-league",
+                    "publicUrl": "https://www.tabletennis365.com/GwentTTC"
+                }
+            ]
+        },
+        {
+            "key": "llandudno-tt365",
+            "name": "Llandudno Table Tennis League",
+            "platformName": "TableTennis365",
+            "platformBaseUrl": "https://www.tabletennis365.com",
+            "baseUrl": "https://www.tabletennis365.com/Llandudno",
+            "adapterKey": "tt365",
+            "status": "active",
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "llandudno-local-league",
+                    "publicUrl": "https://www.tabletennis365.com/Llandudno"
+                }
+            ]
+        },
+        {
+            "key": "swansea-local-league",
+            "name": "Swansea League",
+            "platformName": "Swansea Table Tennis",
+            "platformBaseUrl": "https://www.swanseatabletennis.com",
+            "baseUrl": "https://www.swanseatabletennis.com/",
+            "adapterKey": "swansea-discovery",
+            "status": "discovery",
+            "enabled": false,
+            "notes": "Official bespoke site identified; public structured fixtures/rubbers transport must be identified before enabling a parser.",
+            "config": {
+                "role": "local-league",
+                "publicOnly": true
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "swansea-local-league",
+                    "publicUrl": "https://www.swanseatabletennis.com/",
+                    "enabled": false
+                }
+            ]
+        },
+        {
+            "key": "pembrokeshire-local-league",
+            "name": "Pembrokeshire Table Tennis League",
+            "platformName": "Table Tennis Wales",
+            "platformBaseUrl": "https://tabletennis.wales",
+            "baseUrl": "https://tabletennis.wales/tt-leagues/",
+            "adapterKey": "official-catalog",
+            "status": "blocked",
+            "enabled": false,
+            "notes": "TTW lists an active league, but no stable public match-level result backend has been verified. Do not reconstruct matches from news reports.",
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "pembrokeshire-local-league",
+                    "publicUrl": "https://tabletennis.wales/tt-leagues/",
+                    "enabled": false
+                }
+            ]
+        },
+        {
+            "key": "wrexham-local-league",
+            "name": "Wrexham League",
+            "platformName": "Table Tennis Wales",
+            "platformBaseUrl": "https://tabletennis.wales",
+            "baseUrl": "https://tabletennis.wales/tt-leagues/",
+            "adapterKey": "official-catalog",
+            "status": "blocked",
+            "enabled": false,
+            "notes": "TTW lists the league but a current public match-level result transport has not been verified.",
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "wrexham-local-league",
+                    "publicUrl": "https://tabletennis.wales/tt-leagues/",
+                    "enabled": false
+                }
+            ]
+        }
+    ]
+}
