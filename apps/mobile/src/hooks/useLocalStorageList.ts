@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { notifyUserDataChanged } from '../local-persistence';
+import { useSsrHydration } from '../ssr/runtime-context';
 
 /**
  * Generic reactive list persisted to localStorage + synced across tabs/components
@@ -18,6 +19,7 @@ export function useLocalStorageList<T>(
   has: (matcher: (existing: T) => boolean) => boolean;
   clear: () => void;
 }] {
+  const isSsrHydration = useSsrHydration();
   const read = useCallback((): T[] => {
     try {
       const raw = localStorage.getItem(storageKey);
@@ -30,7 +32,9 @@ export function useLocalStorageList<T>(
     }
   }, [storageKey, isValid]);
 
-  const [items, setItems] = useState<T[]>(read);
+  // SSR and the browser's first hydration render must agree. Persisted state is
+  // restored immediately after hydration; ordinary SPA loads keep the eager read.
+  const [items, setItems] = useState<T[]>(() => (isSsrHydration ? [] : read()));
 
   const persist = useCallback((next: T[]) => {
     localStorage.setItem(storageKey, JSON.stringify(next));
@@ -82,13 +86,14 @@ export function useLocalStorageList<T>(
 
   useEffect(() => {
     const sync = () => setItems(read());
+    if (isSsrHydration) sync();
     window.addEventListener('storage', sync);
     window.addEventListener(updatedEventName, sync);
     return () => {
       window.removeEventListener('storage', sync);
       window.removeEventListener(updatedEventName, sync);
     };
-  }, [read, updatedEventName]);
+  }, [isSsrHydration, read, updatedEventName]);
 
   return [items, { set, add, remove, toggle, has, clear }] as const;
 }
