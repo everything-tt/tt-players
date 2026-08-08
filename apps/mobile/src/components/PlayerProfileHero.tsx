@@ -22,6 +22,7 @@ interface PlayerProfileHeroProps {
   recentResults?: unknown;
   formLoading: boolean;
   formError: boolean;
+  ratingEnabled?: boolean;
   onToggleFavourite: () => void;
   onClearIdentity: () => void;
   onOpenInsights: () => void;
@@ -47,6 +48,7 @@ export function PlayerProfileHero({
   momentum,
   formLoading,
   formError,
+  ratingEnabled = true,
   onToggleFavourite,
   onClearIdentity,
   onOpenInsights,
@@ -54,7 +56,7 @@ export function PlayerProfileHero({
 }: PlayerProfileHeroProps) {
   const [isRangeOpen, setIsRangeOpen] = useState(false);
   const [isClaimSheetOpen, setIsClaimSheetOpen] = useState(false);
-  const ratingQuery = usePlayerRatingQuery(playerId, Boolean(playerId));
+  const ratingQuery = usePlayerRatingQuery(playerId, ratingEnabled && Boolean(playerId));
   const rating = ratingQuery.data?.data ?? null;
   const { share, status: shareStatus } = useShareTarget(shareTarget);
 
