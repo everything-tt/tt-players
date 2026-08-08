@@ -33,6 +33,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
 
     services:
       postgres:
@@ -83,99 +86,139 @@ jobs:
             infra/systemd/ttp-db-backup.service \
             infra/systemd/ttp-db-backup.timer
 
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: wudong-agent-master
+          workload_identity_provider: ${{ vars.TT_PLAYERS_RUNTIME_CONFIG_WIF_PROVIDER }}
+          service_account: ${{ vars.TT_PLAYERS_RUNTIME_CONFIG_SERVICE_ACCOUNT }}
+
+      - name: Load runtime deployment credentials
+        id: gcp-secrets
+        uses: google-github-actions/get-secretmanager-secrets@v3
+        with:
+          secrets: |-
+            vps_ssh_key:wudong-agent-master/tt-players-hetzner-vps-deploy-key
+            cloudflare_account_id:wudong-agent-master/cloudflare-account-id
+            cloudflare_ai_api_token:wudong-agent-master/cloudflare-ai-api-token
+            ollama_api_key:wudong-agent-master/ollama-api-key
+
       - name: Configure SSH
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_HOST_KEY: ${{ vars.TT_PLAYERS_VPS_HOST_KEY }}
+          VPS_SSH_KEY: ${{ steps.gcp-secrets.outputs.vps_ssh_key }}
         run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_HOST_KEY"
+          test -n "$VPS_SSH_KEY"
           install -m 700 -d ~/.ssh
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          printf '%s %s\n' "$VPS_HOST" "$VPS_HOST_KEY" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Configure API authentication
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
+          SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: |
           set -euo pipefail
           test -n "$SUPABASE_URL"
           test -n "$SUPABASE_PUBLISHABLE_KEY"
-          url_b64=$(printf '%s' "$SUPABASE_URL" | base64 -w 0)
-          key_b64=$(printf '%s' "$SUPABASE_PUBLISHABLE_KEY" | base64 -w 0)
+          umask 077
+          local_patch=$(mktemp)
+          remote_patch="/tmp/ttp-api-env-${GITHUB_RUN_ID}"
+          trap 'rm -f "$local_patch"' EXIT
+          printf 'SUPABASE_URL=%s\n' "$SUPABASE_URL" > "$local_patch"
+          printf 'SUPABASE_PUBLISHABLE_KEY=%s\n' "$SUPABASE_PUBLISHABLE_KEY" >> "$local_patch"
+          scp "$local_patch" "$VPS_USER@$VPS_HOST:$remote_patch"
 
           ssh "$VPS_USER@$VPS_HOST" \
-            "SUPABASE_URL_B64='$url_b64' SUPABASE_KEY_B64='$key_b64' bash -s" <<'REMOTE'
+            "REMOTE_PATCH='$remote_patch' bash -s" <<'REMOTE'
           set -euo pipefail
           env_file=/etc/ttp/api.env
+          patch_file="$REMOTE_PATCH"
           temp_file=$(mktemp)
-          grep -v -E '^SUPABASE_(URL|PUBLISHABLE_KEY)=' "$env_file" > "$temp_file" || true
-          printf 'SUPABASE_URL=%s\n' "$(printf '%s' "$SUPABASE_URL_B64" | base64 -d)" >> "$temp_file"
-          printf 'SUPABASE_PUBLISHABLE_KEY=%s\n' "$(printf '%s' "$SUPABASE_KEY_B64" | base64 -d)" >> "$temp_file"
+          trap 'rm -f "$temp_file" "$patch_file"' EXIT
+          if [[ -f "$env_file" ]]; then
+            grep -v -E '^SUPABASE_(URL|PUBLISHABLE_KEY)=' "$env_file" > "$temp_file" || true
+          fi
+          cat "$patch_file" >> "$temp_file"
           install -m 600 "$temp_file" "$env_file"
-          rm -f "$temp_file"
           REMOTE
 
       - name: Configure worker embedding credentials
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_AI_API_TOKEN: ${{ secrets.CLOUDFLARE_AI_API_TOKEN }}
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ steps.gcp-secrets.outputs.cloudflare_account_id }}
+          CLOUDFLARE_AI_API_TOKEN: ${{ steps.gcp-secrets.outputs.cloudflare_ai_api_token }}
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_ACCOUNT_ID"
           test -n "$CLOUDFLARE_AI_API_TOKEN"
-
-          token_b64=$(printf '%s' "$CLOUDFLARE_AI_API_TOKEN" | base64 -w 0)
-          account_b64=$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | base64 -w 0)
+          umask 077
+          local_patch=$(mktemp)
+          remote_patch="/tmp/ttp-worker-cloudflare-${GITHUB_RUN_ID}"
+          trap 'rm -f "$local_patch"' EXIT
+          printf 'CLOUDFLARE_API_TOKEN=%s\n' "$CLOUDFLARE_AI_API_TOKEN" > "$local_patch"
+          printf 'CLOUDFLARE_ACCOUNT_ID=%s\n' "$CLOUDFLARE_ACCOUNT_ID" >> "$local_patch"
+          scp "$local_patch" "$VPS_USER@$VPS_HOST:$remote_patch"
 
           ssh "$VPS_USER@$VPS_HOST" \
-            "CLOUDFLARE_TOKEN_B64='$token_b64' CLOUDFLARE_ACCOUNT_B64='$account_b64' bash -s" <<'REMOTE'
+            "REMOTE_PATCH='$remote_patch' bash -s" <<'REMOTE'
           set -euo pipefail
           env_file=/etc/ttp/worker.env
+          patch_file="$REMOTE_PATCH"
           temp_file=$(mktemp)
+          trap 'rm -f "$temp_file" "$patch_file"' EXIT
           if [[ -f "$env_file" ]]; then
             grep -v -E '^CLOUDFLARE_(API_TOKEN|ACCOUNT_ID)=' "$env_file" > "$temp_file" || true
           fi
-          printf 'CLOUDFLARE_API_TOKEN=%s\n' "$(printf '%s' "$CLOUDFLARE_TOKEN_B64" | base64 -d)" >> "$temp_file"
-          printf 'CLOUDFLARE_ACCOUNT_ID=%s\n' "$(printf '%s' "$CLOUDFLARE_ACCOUNT_B64" | base64 -d)" >> "$temp_file"
+          cat "$patch_file" >> "$temp_file"
           install -m 600 "$temp_file" "$env_file"
-          rm -f "$temp_file"
           REMOTE
 
       - name: Configure Ollama form analysis
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
+          OLLAMA_API_KEY: ${{ steps.gcp-secrets.outputs.ollama_api_key }}
         run: |
           set -euo pipefail
           test -n "$OLLAMA_API_KEY"
-          key_b64=$(printf '%s' "$OLLAMA_API_KEY" | base64 -w 0)
+          umask 077
+          local_patch=$(mktemp)
+          remote_patch="/tmp/ttp-worker-ollama-${GITHUB_RUN_ID}"
+          trap 'rm -f "$local_patch"' EXIT
+          printf 'OLLAMA_API_KEY=%s\n' "$OLLAMA_API_KEY" > "$local_patch"
+          printf 'ENTRY_FORM_LLM_BASE_URL=https://api.ollama.com\n' >> "$local_patch"
+          printf 'ENTRY_FORM_LLM_MODEL=deepseek-v4-flash:0731\n' >> "$local_patch"
+          scp "$local_patch" "$VPS_USER@$VPS_HOST:$remote_patch"
 
           ssh "$VPS_USER@$VPS_HOST" \
-            "OLLAMA_KEY_B64='$key_b64' bash -s" <<'REMOTE'
+            "REMOTE_PATCH='$remote_patch' bash -s" <<'REMOTE'
           set -euo pipefail
           env_file=/etc/ttp/worker.env
+          patch_file="$REMOTE_PATCH"
           temp_file=$(mktemp)
+          trap 'rm -f "$temp_file" "$patch_file"' EXIT
           if [[ -f "$env_file" ]]; then
             grep -v -E '^(OLLAMA_API_KEY|DEEPSEEK_API_KEY|ENTRY_FORM_LLM_(BASE_URL|MODEL|API_KEY))=' "$env_file" > "$temp_file" || true
           fi
-          printf 'OLLAMA_API_KEY=%s\n' "$(printf '%s' "$OLLAMA_KEY_B64" | base64 -d)" >> "$temp_file"
-          printf 'ENTRY_FORM_LLM_BASE_URL=https://api.ollama.com\n' >> "$temp_file"
-          printf 'ENTRY_FORM_LLM_MODEL=deepseek-v4-flash:0731\n' >> "$temp_file"
+          cat "$patch_file" >> "$temp_file"
           install -m 600 "$temp_file" "$env_file"
-          rm -f "$temp_file"
           REMOTE
 
       - name: Determine database compatibility boundary
         id: database
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
         run: |
           set -euo pipefail
 
@@ -209,8 +252,8 @@ jobs:
 
       - name: Upload versioned release
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
           RELEASE_SHA: ${{ github.sha }}
         run: |
           ssh "$VPS_USER@$VPS_HOST" \
@@ -225,13 +268,14 @@ jobs:
             --exclude docker-compose.yml \
             --exclude backups \
             --exclude .playwright-cli \
+            --exclude 'gha-creds-*.json' \
             --exclude '*.dump' \
             ./ "$VPS_USER@$VPS_HOST:/opt/tt-players/releases/$RELEASE_SHA/"
 
       - name: Activate release
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
           RELEASE_SHA: ${{ github.sha }}
           DATABASE_CHANGED: ${{ steps.database.outputs.database_changed }}
           DB_FINGERPRINT: ${{ steps.database.outputs.db_fingerprint }}
@@ -266,3 +310,19 @@ jobs:
               echo "- Rollback: available through the manual VPS rollback workflow for compatible releases"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Clean temporary SSH patches and Google credentials
+        if: always()
+        env:
+          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+          VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
+          REMOTE_PATCHES: >-
+            /tmp/ttp-api-env-${{ github.run_id }}
+            /tmp/ttp-worker-cloudflare-${{ github.run_id }}
+            /tmp/ttp-worker-ollama-${{ github.run_id }}
+        run: |
+          if [[ -n "${VPS_HOST:-}" && -n "${VPS_USER:-}" ]]; then
+            ssh "$VPS_USER@$VPS_HOST" "rm -f $REMOTE_PATCHES" || true
+          fi
+          rm -f ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          find "${RUNNER_TEMP:-/tmp}" -maxdepth 1 -type f -name 'gha-creds-*.json' -delete 2>/dev/null || true

@@ -53,4 +53,7 @@ SUPABASE_URL=https://<project-ref>.supabase.co
 SUPABASE_PUBLISHABLE_KEY=<publishable-key>
 ```
 
-The VPS deployment workflow populates these values from the existing `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` GitHub secrets.
+The VPS deployment workflow populates these values from the public repository
+Variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. They are
+embedded in the frontend bundle and are not treated as confidential
+credentials; Supabase service-role keys must never be used here.

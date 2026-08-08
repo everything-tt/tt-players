@@ -294,6 +294,12 @@ Workflow: [`.github/workflows/build.yml`](../.github/workflows/build.yml)
 Triggers: pushes to `main` (frontend paths) and pull requests. Builds the PWA
 with Vite and deploys to Netlify. Pull requests receive preview deployments.
 
+Production frontend deployment runs only on a push to `main` and uses the
+frontend-specific Google Workload Identity Federation reader. Pull-request
+builds are unprivileged. Same-repository preview deployment retains the
+documented GitHub-managed preview token exception; fork pull requests receive
+no Netlify or Google credential.
+
 ### Backend: Deploy API and Database to VPS
 
 Workflow: [`.github/workflows/vps-deploy.yml`](../.github/workflows/vps-deploy.yml)
@@ -303,7 +309,9 @@ Triggers: relevant API/worker/infra/migration/shared package changes pushed to
 
 1. installs dependencies and typechecks;
 2. runs the database test suite against a Postgres service container;
-3. configures SSH from `VPS_*` secrets;
+3. authenticates to Google Cloud with the TT Players runtime Workload Identity
+   Federation provider, loads the VPS and provider credentials from Google
+   Secret Manager, and uses repository Variables for public host/configuration;
 4. `rsync --delete` updates `/opt/tt-players`;
 5. `CI=true pnpm install --frozen-lockfile` on the VPS (the `CI=true` is
    required so pnpm reconciles `node_modules` non-interactively, since the VPS
@@ -315,15 +323,26 @@ Triggers: relevant API/worker/infra/migration/shared package changes pushed to
 
 Deployments are serialized by the `vps-production-ttp` concurrency group.
 
-## GitHub Actions secrets
+## GitHub Actions configuration
 
-| Secret | Used for |
+Public repository Variables:
+
+| Variable | Used for |
 | --- | --- |
-| `NETLIFY_AUTH_TOKEN` | Authenticate Netlify deployment |
 | `NETLIFY_SITE_ID` | Select the `ttp-players` Netlify site |
-| `VPS_HOST` | Deployment SSH host (`5.75.166.235`) |
-| `VPS_USER` | Deployment SSH user (`root`) |
-| `VPS_SSH_KEY` | Deployment private key (pubkey in VPS `/root/.ssh/authorized_keys`) |
+| `TT_PLAYERS_VPS_HOST` | Deployment SSH host (`5.75.166.235`) |
+| `TT_PLAYERS_VPS_USER` | Deployment SSH user (`root`) |
+| `TT_PLAYERS_VPS_HOST_KEY` | Pinned `ssh-ed25519` host key used for strict SSH verification |
+| `VITE_SUPABASE_URL` | Public frontend/API Supabase URL |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Public frontend Supabase publishable key |
+
+Each production workload also has a WIF provider and reader service-account
+Variable documented in the [GCP WIF runbook](https://github.com/wudong/gcloud/blob/main/docs/tt-players-github-secrets.md).
+
+The only intentionally remaining GitHub-managed credential is
+`NETLIFY_AUTH_TOKEN` for same-repository pull-request previews. Production
+frontend, UI audit, SSH, runtime configuration, and backfill jobs use their
+least-privilege Google Secret Manager readers instead.
 
 ## Google Cloud Secret Manager
 
@@ -333,9 +352,20 @@ Operational credentials are stored in Google Cloud Secret Manager project
 ```text
 tt-players-hetzner-db-password
 tt-players-hetzner-vps-deploy-key
-tt-players-netlify-site-id
+tt-players-netlify-auth-token
+tt-players-netlify-site-id   (legacy metadata; CI uses the `NETLIFY_SITE_ID` Variable)
+tt-players-ui-audit-email
+tt-players-ui-audit-password
+cloudflare-account-id
+cloudflare-ai-api-token
+ollama-api-key
 ttlive-domain-cloudflare-tunnel-api-token   (shared tunnel/DNS management)
 ```
+
+Secret Manager is the source of truth for confidential CI/runtime values. The
+WIF provider and per-workload Secret Manager allowlists are maintained in the
+`wudong/gcloud` repository. Secret values are never placed in this repository,
+workflow summaries, artifacts, Terraform variables, or SSH command arguments.
 
 The `ttlive-domain-cloudflare-tunnel-api-token` is shared with the other apps on
 this VPS; it grants Cloudflare Tunnel configuration and `tourneypilot.com` DNS

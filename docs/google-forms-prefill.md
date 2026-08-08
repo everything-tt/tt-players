@@ -40,7 +40,9 @@ ENTRY_FORM_LLM_MODEL=deepseek-v4-flash:0731
 ENTRY_FORM_LLM_TIMEOUT_MS=30000
 ```
 
-- `OLLAMA_API_KEY` enables semantic analysis and is supplied from the GitHub Actions secret with the same name.
+- `OLLAMA_API_KEY` enables semantic analysis and is loaded by the production
+  deploy and entry-form backfill workflows from the shared `ollama-api-key`
+  Google Secret Manager entry.
 - `ENTRY_FORM_LLM_BASE_URL` defaults to `https://api.ollama.com` whenever `OLLAMA_API_KEY` is present.
 - `ENTRY_FORM_LLM_MODEL` defaults to `deepseek-v4-flash:0731`.
 - `ENTRY_FORM_LLM_TIMEOUT_MS` is bounded between 5 and 120 seconds.
