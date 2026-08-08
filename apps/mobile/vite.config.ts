@@ -15,7 +15,7 @@ function getGitCommit(): string {
 const appBuildTime = new Date().toISOString();
 const appCommit = getGitCommit();
 
-export default defineConfig({
+export default defineConfig(({ isSsrBuild }) => ({
   define: {
     'import.meta.env.VITE_APP_BUILD_TIME': JSON.stringify(appBuildTime),
     'import.meta.env.VITE_APP_COMMIT': JSON.stringify(appCommit),
@@ -23,30 +23,32 @@ export default defineConfig({
   plugins: [
     tailwindcss(),
     react(),
-    createPWAPlugin({
-      manifest: {
-        name: 'TT Players',
-        short_name: 'TTPlayers',
-        description: 'Table Tennis League Results and Insights',
-        theme_color: '#17382f',
-        background_color: '#f1f8f2',
-        display: 'standalone',
-        icons: [
-          {
-            src: 'appkit/app/icons/icon-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any maskable',
-          },
-          {
-            src: 'appkit/app/icons/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable',
-          },
-        ],
-      },
-    }),
+    ...(isSsrBuild === true ? [] : [
+      createPWAPlugin({
+        manifest: {
+          name: 'TT Players',
+          short_name: 'TTPlayers',
+          description: 'Table Tennis League Results and Insights',
+          theme_color: '#17382f',
+          background_color: '#f1f8f2',
+          display: 'standalone',
+          icons: [
+            {
+              src: 'appkit/app/icons/icon-192x192.png',
+              sizes: '192x192',
+              type: 'image/png',
+              purpose: 'any maskable',
+            },
+            {
+              src: 'appkit/app/icons/icon-512x512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'any maskable',
+            },
+          ],
+        },
+      }),
+    ]),
   ],
   server: {
     proxy: {
@@ -56,4 +58,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));
