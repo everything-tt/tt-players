@@ -5,7 +5,6 @@ import { useTabNavigation } from './navigation/tab-navigation';
 import { type LeagueWithDivisions, TAB_METADATA, getQueryError } from './player-shared';
 import {
   useLeagueCollectionDashboardQuery,
-  useLeadersQuery,
   usePlayerCountQuery,
   usePlayerProfileOverviewQuery,
 } from './queries';
@@ -170,14 +169,6 @@ export function HomeTabContent({
   const risersQuery = useLeagueRisersQuery(selectedLeagueIds, 1, 42, hasLeagueScope);
   const topSiteRatingsQuery = useTopSiteRatingsQuery(HOME_RATINGS_LIMIT, !isSelectedRatingsScope);
   const playerCountQuery = usePlayerCountQuery();
-  const globalImproverQuery = useLeadersQuery({
-    mode: 'improving',
-    leagueIds: [],
-    limit: 1,
-    minPlayed: 10,
-    allLeaguesCount: allLeagues.length,
-    enabled: !hasLeagueScope,
-  });
 
   const topRiser = risersQuery.data?.data[0] ?? null;
   const topTeam = dashboard?.top_teams[0] ?? null;
@@ -273,12 +264,6 @@ export function HomeTabContent({
   }
 
   const leagueStories = rankHomeStories(storyCandidates, HOME_STORY_LIMIT);
-  const globalLeader = topSiteRatingsQuery.data?.data[0] ?? null;
-  const globalRunnerUp = topSiteRatingsQuery.data?.data[1] ?? null;
-  const globalLeadGap = globalLeader && globalRunnerUp
-    ? Math.max(0, Math.round(globalLeader.rating - globalRunnerUp.rating))
-    : null;
-  const globalImprover = globalImproverQuery.data?.data[0] ?? null;
 
   const homeScopeKey = buildHomeScopeKey(myPlayer?.id ?? null, hasLeagueScope ? selectedLeagueIds : []);
   const recentResultIds = (dashboard?.recent_results ?? []).slice(0, 5).map((result) => result.fixture_id);
@@ -512,48 +497,7 @@ export function HomeTabContent({
             />
           )}
         </section>
-      ) : (
-        <section className="tt-home-section" aria-labelledby="tt-home-whats-happening-title">
-          <SectionHeader
-            title={<span id="tt-home-whats-happening-title">What&apos;s happening</span>}
-            note="A quick pulse before you personalise"
-          />
-          {topSiteRatingsQuery.isLoading || globalImproverQuery.isLoading ? (
-            <SkeletonList rows={2} />
-          ) : globalLeader || globalImprover ? (
-            <List divider="hairline">
-              {globalLeader ? (
-                <ListItem
-                  leading={<IconCircle iconClassName="fa fa-crown" tone="warning" />}
-                  title={globalLeadGap != null && globalLeadGap > 0
-                    ? `${globalLeader.player_name} leads by ${globalLeadGap} rating points`
-                    : `${globalLeader.player_name} sets the benchmark`}
-                  subtitle={`#1 globally · ${Math.round(globalLeader.rating).toLocaleString('en-GB')} rating · ${Math.round(globalLeader.win_rate * 100)}% wins`}
-                  trailing={<Pill tone="accent">#1</Pill>}
-                  onClick={() => navigateInTab('players', `player/${globalLeader.player_id}`)}
-                />
-              ) : null}
-              {globalImprover ? (
-                <ListItem
-                  leading={<IconCircle iconClassName="fa fa-fire" tone="success" />}
-                  title={`${globalImprover.player_name} is finding another gear`}
-                  subtitle={`Improving across the latest 10 singles · ${globalImprover.wins}W ${globalImprover.losses}L in the latest five`}
-                  trailing={globalImprover.score != null
-                    ? <Pill tone="success">+{Math.round(globalImprover.score)}</Pill>
-                    : undefined}
-                  onClick={() => navigateInTab('players', `player/${globalImprover.player_id}`)}
-                />
-              ) : null}
-            </List>
-          ) : (
-            <EmptyState
-              iconClassName="fa fa-bolt"
-              title="Activity is building"
-              message="Interesting player stories will appear here as more results arrive."
-            />
-          )}
-        </section>
-      )}
+      ) : null}
 
       <section className="tt-home-section" aria-labelledby="tt-home-top-players-title">
         <SectionHeader
