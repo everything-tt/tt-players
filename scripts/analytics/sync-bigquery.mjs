@@ -16,7 +16,7 @@ const config = {
   project: process.env.TTP_GCP_PROJECT ?? '', bucket: process.env.TTP_GCS_BUCKET ?? '',
   location: process.env.TTP_BQ_LOCATION ?? 'us-central1', rawDataset: process.env.TTP_BQ_RAW_DATASET ?? 'tt_players_raw',
   pipelineDataset: process.env.TTP_BQ_PIPELINE_DATASET ?? 'tt_players_pipeline', loadPrefix: process.env.TTP_GCS_WAREHOUSE_PREFIX ?? 'warehouse-loads',
-  databaseUrl: process.env.DATABASE_URL ?? 'postgresql:///tt_players?host=/var/run/postgresql', maxBytesBilled: process.env.TTP_BQ_MAX_BYTES_BILLED ?? '5000000000',
+  databaseUrl: process.env.DATABASE_URL ?? 'postgresql:///tt_players?host=/var/run/postgresql', maxBytesBilled: process.env.TTP_BQ_MAX_BYTES_BILLED ?? '20000000000',
   psql: process.env.PSQL_BIN ?? 'psql', sudo: process.env.SUDO_BIN ?? 'sudo', gcloud: process.env.GCLOUD_BIN ?? 'gcloud', bq: process.env.BQ_BIN ?? 'bq', curl: process.env.CURL_BIN ?? 'curl',
 };
 

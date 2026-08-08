@@ -23,7 +23,7 @@ async function executable(directory, name, body) {
   return file;
 }
 
-async function runScenario({ invalidStage = false, largeExport = false } = {}) {
+async function runScenario({ invalidStage = false, largeExport = false, useDefaultMaxBytesBilled = false } = {}) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'ttp-bigquery-runtime-test-'));
   temporaryDirectories.push(directory);
   const commandLog = path.join(directory, 'commands.log');
@@ -77,27 +77,30 @@ if [[ "\${1:-}" == "query" ]]; then
 fi
 `);
 
+  const environment = {
+    ...process.env,
+    TTP_GCP_PROJECT: 'test-project',
+    TTP_GCS_BUCKET: 'test-bucket',
+    TTP_BQ_LOCATION: 'us-central1',
+    TTP_BQ_RAW_DATASET: 'tt_players_raw',
+    TTP_BQ_PIPELINE_DATASET: 'tt_players_pipeline',
+    TTP_GCS_WAREHOUSE_PREFIX: 'warehouse-loads',
+    SUDO_BIN: sudo,
+    PSQL_BIN: psql,
+    GCLOUD_BIN: gcloud,
+    BQ_BIN: bq,
+    CURL_BIN: curl,
+    COMMAND_LOG: commandLog,
+    INVALID_STAGE: invalidStage ? '1' : '0',
+    LARGE_EXPORT: largeExport ? '1' : '0',
+    TMPDIR: directory,
+  };
+  if (useDefaultMaxBytesBilled) delete environment.TTP_BQ_MAX_BYTES_BILLED;
+  else environment.TTP_BQ_MAX_BYTES_BILLED = '5000000000';
+
   const result = spawnSync(process.execPath, [runner, '--full-refresh', '--table=platforms'], {
     cwd: repositoryRoot,
-    env: {
-      ...process.env,
-      TTP_GCP_PROJECT: 'test-project',
-      TTP_GCS_BUCKET: 'test-bucket',
-      TTP_BQ_LOCATION: 'us-central1',
-      TTP_BQ_RAW_DATASET: 'tt_players_raw',
-      TTP_BQ_PIPELINE_DATASET: 'tt_players_pipeline',
-      TTP_GCS_WAREHOUSE_PREFIX: 'warehouse-loads',
-      TTP_BQ_MAX_BYTES_BILLED: '5000000000',
-      SUDO_BIN: sudo,
-      PSQL_BIN: psql,
-      GCLOUD_BIN: gcloud,
-      BQ_BIN: bq,
-      CURL_BIN: curl,
-      COMMAND_LOG: commandLog,
-      INVALID_STAGE: invalidStage ? '1' : '0',
-      LARGE_EXPORT: largeExport ? '1' : '0',
-      TMPDIR: directory,
-    },
+    env: environment,
     encoding: 'utf8',
   });
 
@@ -138,4 +141,11 @@ test('runtime uploads large exports in bounded resumable chunks', async () => {
   assert.match(uploads[0], /Content-Length: 8388608/);
   assert.match(uploads[0], /Content-Range: bytes 0-8388607\/\*/);
   assert.match(uploads[1], /Content-Range: bytes 8388608-\d+\/\d+/);
+});
+
+test('runtime default query cap covers large publication jobs', async () => {
+  const { result, commands } = await runScenario({ useDefaultMaxBytesBilled: true });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(commands, /--maximum_bytes_billed=20000000000/);
 });
