@@ -1,0 +1,89 @@
+{
+    "territory": "Isle of Wight",
+    "sources": [
+        {
+            "key": "isleofwight-tt365",
+            "name": "Isle of Wight Table Tennis League",
+            "platformName": "TableTennis365",
+            "platformBaseUrl": "https://www.tabletennis365.com",
+            "baseUrl": "https://www.tabletennis365.com/IsleOfWight",
+            "adapterKey": "tt365",
+            "status": "active",
+            "notes": "Live TT365 routes expose the current Winter 2025-6 divisions. The tt365Scrape seed enables the existing standings/fixtures/matchcard/playerstats pipeline without a bespoke IOW parser.",
+            "config": {
+                "role": "local-league",
+                "tt365Scrape": {
+                    "leagueExternalId": "isleofwight-tt365",
+                    "seasonName": "Winter League 2025-6",
+                    "seasonExtId": "winter-league-2025-6",
+                    "regions": [
+                        "England",
+                        "Isle of Wight"
+                    ],
+                    "divisions": [
+                        {
+                            "name": "Division One",
+                            "season": "Winter_League_2025-6",
+                            "slug": "Division_One"
+                        },
+                        {
+                            "name": "Division Two",
+                            "season": "Winter_League_2025-6",
+                            "slug": "Division_Two"
+                        },
+                        {
+                            "name": "Division Three",
+                            "season": "Winter_League_2025-6",
+                            "slug": "Division_Three"
+                        }
+                    ]
+                }
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "isle-of-wight-winter-league",
+                    "name": "Isle of Wight Winter League",
+                    "publicUrl": "https://www.tabletennis365.com/IsleOfWight",
+                    "refreshPolicy": {
+                        "cadence": "daily"
+                    }
+                },
+                {
+                    "resourceType": "event",
+                    "externalId": "isle-of-wight-island-events",
+                    "name": "Isle of Wight island championships and cups",
+                    "publicUrl": "https://www.tabletennis365.com/IsleOfWight/Pages/Events_Calendar",
+                    "enabled": false,
+                    "refreshPolicy": {
+                        "cadence": "event-window"
+                    }
+                }
+            ]
+        },
+        {
+            "key": "isle-of-wight-tournament-results",
+            "name": "Isle of Wight tournament result discovery",
+            "platformName": "TableTennis365",
+            "platformBaseUrl": "https://www.tabletennis365.com",
+            "baseUrl": "https://www.tabletennis365.com/IsleOfWight/Pages/Events_Calendar",
+            "adapterKey": "tt365-tournament-discovery",
+            "status": "discovery",
+            "enabled": false,
+            "notes": "Investigate generic TT365 result routes for singles, doubles, handicap, age and divisional championships. Calendar entries alone are not match data.",
+            "config": {
+                "role": "island-tournaments",
+                "preferGenericTT365Extension": true,
+                "preserveHandicapSemantics": true
+            },
+            "resources": [
+                {
+                    "resourceType": "event-results",
+                    "externalId": "isle-of-wight-tournament-results",
+                    "publicUrl": "https://www.tabletennis365.com/IsleOfWight/Pages/Events_Calendar",
+                    "enabled": false
+                }
+            ]
+        }
+    ]
+}
