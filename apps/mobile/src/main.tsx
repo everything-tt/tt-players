@@ -1,6 +1,10 @@
 import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createRoot, hydrateRoot } from 'react-dom/client';
+import {
+  HydrationBoundary,
+  QueryClientProvider,
+  type DehydratedState,
+} from '@tanstack/react-query';
 import './index.css';
 import './design-tokens.css';
 import '@tt-players/design-system/styles.css';
@@ -11,7 +15,9 @@ import './h2h.css';
 import './tournament-timeline.css';
 import './tournament-filters.css';
 import { AppRouter } from './AppRouter';
+import { PlayerSsrHydrationBridge } from './PlayerSsrHydrationBridge';
 import { restoreLocalDataBackup } from './local-persistence';
+import { createMobileQueryClient } from './query-client';
 
 restoreLocalDataBackup();
 
@@ -29,19 +35,34 @@ if (!rootElement) {
   throw new Error('Root element not found');
 }
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5,
-      retry: 2,
-    },
-  },
-});
+const stateElement = document.getElementById('__TT_QUERY_STATE__');
+let dehydratedState: DehydratedState | undefined;
+if (stateElement?.textContent) {
+  try {
+    dehydratedState = JSON.parse(stateElement.textContent) as DehydratedState;
+  } catch {
+    dehydratedState = undefined;
+  }
+}
 
-createRoot(rootElement).render(
+const shouldHydratePlayer = Boolean(stateElement && dehydratedState);
+const queryClient = createMobileQueryClient();
+const content = shouldHydratePlayer
+  ? <PlayerSsrHydrationBridge />
+  : <AppRouter />;
+const app = (
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <AppRouter />
+      <HydrationBoundary state={dehydratedState}>
+        {content}
+      </HydrationBoundary>
     </QueryClientProvider>
-  </StrictMode>,
+  </StrictMode>
 );
+
+if (shouldHydratePlayer) {
+  hydrateRoot(rootElement, app);
+} else {
+  rootElement.replaceChildren();
+  createRoot(rootElement).render(app);
+}
