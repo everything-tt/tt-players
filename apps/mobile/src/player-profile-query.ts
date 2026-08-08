@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import {
   apiFetch,
   type PlayerProfileOverview,
@@ -15,11 +14,4 @@ export function playerProfileOverviewQueryOptions(
     queryFn: ({ signal }: { signal: AbortSignal }) =>
       fetcher<PlayerProfileOverview>(`/players/${playerId}/profile-overview`, signal),
   };
-}
-
-export function useSsrPlayerProfileOverviewQuery(playerId: string, enabled = true) {
-  return useQuery({
-    ...playerProfileOverviewQueryOptions(playerId),
-    enabled: enabled && Boolean(playerId),
-  });
 }
