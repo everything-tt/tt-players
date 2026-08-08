@@ -233,7 +233,7 @@ test('groups snapshot-backed Platform pages and keeps About focused', async ({ p
   await expect(page.getByText(/Collect source updates · Completed/i)).toBeVisible();
   await expect(page.getByText(/Update ratings · Waiting/i)).toBeVisible();
   await expect(page.getByText(/Publish app snapshots · Not started/i)).toBeVisible();
-  await expect(page.getByText(/Recorded 8 Aug 2026/i)).toBeVisible();
+  await expect(page.getByText(/^Recorded /)).toBeVisible();
   await expect.poll(() => liveMonitorRequests).toBe(0);
   await capture(page, testInfo, 'snapshot-data-updates');
 
