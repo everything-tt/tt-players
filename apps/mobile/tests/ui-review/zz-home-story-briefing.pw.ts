@@ -193,10 +193,6 @@ async function mockApi(page: Page) {
 
 async function installNewUser(page: Page) {
   await page.addInitScript(() => {
-    localStorage.removeItem('tt_players_my_player');
-    localStorage.removeItem('tt_players_selected_league_ids');
-    localStorage.removeItem('tt_players_league_onboarding_complete');
-    localStorage.removeItem('tt_players_home_visit_snapshot_v1');
     localStorage.setItem('TTPlayers-Theme', 'light-mode');
     localStorage.setItem('pwa-install-dismissed', Date.now().toString());
   });
