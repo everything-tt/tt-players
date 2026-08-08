@@ -67,6 +67,7 @@ fi
       ...process.env,
       TTP_GCS_BUCKET: 'test-backup-bucket',
       TTP_BACKUP_SKIP_SUDO: '1',
+      TTP_GCLOUD_SKIP_AUTH: '1',
       TTP_BACKUP_LOCK_FILE: path.join(directory, 'backup.lock'),
       TTP_RELEASE_METADATA_FILE: releaseMetadata,
       TMPDIR: directory,
