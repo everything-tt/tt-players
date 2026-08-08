@@ -404,6 +404,23 @@ export function MyTTPage() {
             <PageSection
               surface="flat"
               density="compact"
+              title="Match journal"
+              description="Record match and training reflections, what worked, and what to focus on next."
+              className="tt-my-tt-flat-section"
+            >
+              <DesignList density="compact" divider="none" paginate={false}>
+                <ListItem
+                  leading={<IconCircle iconClassName="fa fa-book-open" tone="neutral" />}
+                  title="Open match journal"
+                  subtitle="Review past notes or add a reflection after a match or training session."
+                  onClick={() => navigateInTab('players', `player/${player.id}/journal`)}
+                />
+              </DesignList>
+            </PageSection>
+
+            <PageSection
+              surface="flat"
+              density="compact"
               title="Tournament entries"
               description="Save private entry details for yourself, children, or players you manage."
               className="tt-my-tt-flat-section"
