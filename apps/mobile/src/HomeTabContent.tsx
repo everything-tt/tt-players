@@ -10,7 +10,6 @@ import {
   usePlayerProfileOverviewQuery,
 } from './queries';
 import {
-  useLeagueRisersQuery,
   usePlayerRatingHistoryQuery,
   usePlayerRatingQuery,
   useTopRatingsQuery,
@@ -63,7 +62,6 @@ type HomeStoryKind =
   | 'personal-form'
   | 'recent-rating-high'
   | 'result'
-  | 'riser'
   | 'leader';
 
 type HomeStory = {
@@ -133,10 +131,40 @@ function iconForVisitChange(change: HomeVisitChange): { iconClassName: string; t
   if (change.kind === 'new-results') {
     return { iconClassName: 'fa fa-bolt', tone: 'accent', label: 'New' };
   }
-  if (change.kind === 'leader-change') {
-    return { iconClassName: 'fa fa-crown', tone: 'warning', label: 'Changed' };
-  }
-  return { iconClassName: 'fa fa-chart-line', tone: 'success', label: 'Now' };
+  return { iconClassName: 'fa fa-crown', tone: 'warning', label: 'Changed' };
+}
+
+function TTPlayersPulse({ allLeagues }: { allLeagues: LeagueWithDivisions[] }) {
+  const playerCountQuery = usePlayerCountQuery();
+  const divisionCount = allLeagues.reduce((total, league) => total + league.divisions.length, 0);
+  const pulseMetrics = [
+    { label: 'Players', value: formatCompactCount(playerCountQuery.data?.players) },
+    { label: 'Matches', value: formatCompactCount(playerCountQuery.data?.matches) },
+    { label: 'Leagues', value: formatCompactCount(allLeagues.length) },
+    { label: 'Divisions', value: formatCompactCount(divisionCount) },
+  ];
+
+  return (
+    <section className="tt-home-section" aria-labelledby="tt-home-pulse-title">
+      <SectionHeader
+        title={<span id="tt-home-pulse-title">TT Players pulse</span>}
+        note="The network at a glance"
+      />
+      {playerCountQuery.isLoading ? (
+        <SkeletonList rows={1} />
+      ) : (
+        <MetricGrid
+          metrics={pulseMetrics}
+          columns={4}
+          density="compact"
+          separators
+          valueSize="prominent"
+          labelStyle="eyebrow"
+          ariaLabel="TT Players pulse"
+        />
+      )}
+    </section>
+  );
 }
 
 export function HomeTabContent({
@@ -176,14 +204,11 @@ export function HomeTabContent({
     HOME_RATINGS_LIMIT,
     isSelectedRatingsScope,
   );
-  const risersQuery = useLeagueRisersQuery(selectedLeagueIds, 1, 42, hasLeagueScope);
   const topSiteRatingsQuery = useTopSiteRatingsQuery(HOME_RATINGS_LIMIT, !isSelectedRatingsScope);
-  const playerCountQuery = usePlayerCountQuery();
 
-  const topRiser = risersQuery.data?.data[0] ?? null;
   const topTeam = dashboard?.top_teams[0] ?? null;
   const dashboardError = getQueryError(dashboardQuery.error);
-  const highlightsError = getQueryError(risersQuery.error) ?? dashboardError;
+  const highlightsError = dashboardError;
   const rankings = isSelectedRatingsScope
     ? topRatingsQuery.data?.data ?? []
     : topSiteRatingsQuery.data?.data ?? [];
@@ -225,21 +250,6 @@ export function HomeTabContent({
         targetPath: 'my-tt',
       });
     }
-  }
-
-  if (topRiser) {
-    storyCandidates.push({
-      id: `riser:${topRiser.player_id}`,
-      kind: 'riser',
-      priority: 95,
-      title: `${topRiser.player_name} surged +${Math.round(topRiser.change)}`,
-      subtitle: `Biggest 6-week rating gain in your leagues · now #${topRiser.overall_rank} globally`,
-      trailing: 'On the rise',
-      iconClassName: 'fa fa-chart-line',
-      tone: 'success',
-      targetTab: 'players',
-      targetPath: `player/${topRiser.player_id}`,
-    });
   }
 
   for (const [index, result] of (dashboard?.recent_results ?? []).slice(0, 4).entries()) {
@@ -300,7 +310,6 @@ export function HomeTabContent({
 
   const highlightStories = rankHomeStories(storyCandidates, HOME_STORY_LIMIT);
   const highlightsLoading = dashboardQuery.isLoading
-    || risersQuery.isLoading
     || Boolean(myPlayer && (profileQuery.isLoading || ratingQuery.isLoading || ratingHistoryQuery.isLoading));
 
   const homeScopeKey = buildHomeScopeKey(myPlayer?.id ?? null, hasLeagueScope ? selectedLeagueIds : []);
@@ -312,12 +321,9 @@ export function HomeTabContent({
     recentResultIds,
     topTeamId: topTeam?.team_id ?? null,
     topTeamName: topTeam?.team_name ?? null,
-    topRiserPlayerId: topRiser?.player_id ?? null,
-    topRiserName: topRiser?.player_name ?? null,
   };
   const activityReady = hasLeagueScope
     && !dashboardQuery.isLoading
-    && !risersQuery.isLoading
     && (!myPlayer || !ratingQuery.isLoading);
   const sinceLastVisitChanges = activityReady
     ? diffHomeVisit(previousVisitSnapshot, currentVisitState).slice(0, 4)
@@ -333,8 +339,6 @@ export function HomeTabContent({
       recentResultIds: recentResultIdsKey ? recentResultIdsKey.split('|') : [],
       topTeamId: topTeam?.team_id ?? null,
       topTeamName: topTeam?.team_name ?? null,
-      topRiserPlayerId: topRiser?.player_id ?? null,
-      topRiserName: topRiser?.player_name ?? null,
     };
     window.localStorage.setItem(HOME_VISIT_SNAPSHOT_STORAGE_KEY, JSON.stringify({
       ...snapshot,
@@ -348,17 +352,7 @@ export function HomeTabContent({
     recentResultIdsKey,
     topTeam?.team_id,
     topTeam?.team_name,
-    topRiser?.player_id,
-    topRiser?.player_name,
   ]);
-
-  const divisionCount = allLeagues.reduce((total, league) => total + league.divisions.length, 0);
-  const pulseMetrics = [
-    { label: 'Players', value: formatCompactCount(playerCountQuery.data?.players) },
-    { label: 'Matches', value: formatCompactCount(playerCountQuery.data?.matches) },
-    { label: 'Leagues', value: formatCompactCount(allLeagues.length) },
-    { label: 'Divisions', value: formatCompactCount(divisionCount) },
-  ];
 
   return (
     <>
@@ -479,13 +473,9 @@ export function HomeTabContent({
                   title={change.title}
                   subtitle={change.subtitle}
                   trailing={<Pill size="xs">{meta.label}</Pill>}
-                  onClick={
-                    change.kind === 'personal-rating'
-                      ? () => navigateInTab('home', 'my-tt')
-                      : change.kind === 'riser-change' && topRiser
-                        ? () => navigateInTab('players', `player/${topRiser.player_id}`)
-                        : () => onOpenTab('leagues')
-                  }
+                  onClick={change.kind === 'personal-rating'
+                    ? () => navigateInTab('home', 'my-tt')
+                    : () => onOpenTab('leagues')}
                 />
               );
             })}
@@ -516,7 +506,7 @@ export function HomeTabContent({
                   leading={<IconCircle iconClassName={story.iconClassName} tone={story.tone} />}
                   title={story.title}
                   subtitle={story.subtitle}
-                  trailing={story.kind === 'riser' || story.kind === 'personal-form' || story.kind === 'recent-rating-high'
+                  trailing={story.kind === 'personal-form' || story.kind === 'recent-rating-high'
                     ? <Pill tone="success">{story.trailing}</Pill>
                     : story.kind === 'personal-result' || story.kind === 'followed-team-result'
                       ? <Pill tone="accent">{story.trailing}</Pill>
@@ -598,27 +588,7 @@ export function HomeTabContent({
         )}
       </section>
 
-      {!hasLeagueScope ? (
-        <section className="tt-home-section" aria-labelledby="tt-home-pulse-title">
-          <SectionHeader
-            title={<span id="tt-home-pulse-title">TT Players pulse</span>}
-            note="The network at a glance"
-          />
-          {playerCountQuery.isLoading ? (
-            <SkeletonList rows={1} />
-          ) : (
-            <MetricGrid
-              metrics={pulseMetrics}
-              columns={4}
-              density="compact"
-              separators
-              valueSize="prominent"
-              labelStyle="eyebrow"
-              ariaLabel="TT Players pulse"
-            />
-          )}
-        </section>
-      ) : null}
+      {!hasLeagueScope ? <TTPlayersPulse allLeagues={allLeagues} /> : null}
 
       {!hasLeagueScope ? (
         <section className="tt-home-section" aria-labelledby="tt-home-explore-title">
