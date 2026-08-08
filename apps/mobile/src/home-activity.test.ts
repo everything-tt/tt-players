@@ -95,7 +95,7 @@ describe('Home activity briefing', () => {
     });
   });
 
-  it('surfaces a meaningful three-month rating high from already-loaded history', () => {
+  it('prefers a crossed round-number milestone when the three-month history proves it', () => {
     const stories = buildPersonalHomeStories({
       recentResults: ['W', 'L', 'W', 'L', 'W'],
       currentRating: 1912,
@@ -107,10 +107,31 @@ describe('Home activity briefing', () => {
     });
 
     expect(stories).toContainEqual(expect.objectContaining({
+      kind: 'rating-milestone',
+      priority: 106,
+      title: 'You crossed 1,900',
+      subtitle: 'Now 1,912 · up 72 from your 3-month low',
+      trailing: 'Milestone',
+    }));
+    expect(stories.some((story) => story.kind === 'recent-rating-high')).toBe(false);
+  });
+
+  it('falls back to a meaningful three-month rating high when no round threshold was crossed', () => {
+    const stories = buildPersonalHomeStories({
+      recentResults: ['W', 'L', 'W', 'L', 'W'],
+      currentRating: 1948,
+      ratingHistory: [
+        { rating: 1901 },
+        { rating: 1920 },
+        { rating: 1948 },
+      ],
+    });
+
+    expect(stories).toContainEqual(expect.objectContaining({
       kind: 'recent-rating-high',
       priority: 102,
       title: "You're at a 3-month rating high",
-      subtitle: '1,912 rating · up 72 from the low in this period',
+      subtitle: '1,948 rating · up 47 from the low in this period',
       trailing: '3m high',
     }));
   });
