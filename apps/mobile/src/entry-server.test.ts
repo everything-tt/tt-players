@@ -44,7 +44,7 @@ const profile: PlayerProfileOverview = {
 
 describe('renderPlayerHtml', () => {
   it('renders useful raw player HTML, metadata and dehydrated query state', async () => {
-    const fetcher: ApiFetcher = async <T,>() => profile as unknown as T;
+    const fetcher: ApiFetcher = async <T,>(): Promise<T> => profile as unknown as T;
 
     const result = await renderPlayerHtml({
       url: '/players/player-123',
@@ -74,7 +74,7 @@ describe('renderPlayerHtml', () => {
   });
 
   it('returns null for non-canonical player routes so they stay SPA-only', async () => {
-    const fetcher: ApiFetcher = async <T,>() => profile as unknown as T;
+    const fetcher: ApiFetcher = async <T,>(): Promise<T> => profile as unknown as T;
 
     await expect(renderPlayerHtml({
       url: '/players/player-123/matches',
@@ -92,7 +92,7 @@ describe('renderPlayerHtml', () => {
   });
 
   it('returns an HTTP 404 noindex page when the player does not exist', async () => {
-    const fetcher: ApiFetcher = async <T,>() => {
+    const fetcher: ApiFetcher = async () => {
       throw new ServerApiError(404, 'https://api.example.test/api/players/missing/profile-overview');
     };
 
