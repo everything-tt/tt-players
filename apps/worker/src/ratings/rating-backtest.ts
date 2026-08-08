@@ -2,7 +2,9 @@ import { sql, type Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
 import {
     DEFAULT_GLICKO2_CONFIG,
+    conservativeRating,
     defaultRatingState,
+    expectedScore,
     inflateDeviationForInactivity,
     updateRating,
     type Glicko2Config,
@@ -201,9 +203,7 @@ export class RatingWindowBacktester {
                         player_name: playerNames.get(playerId) ?? playerId,
                         rating: current.rating,
                         rating_deviation: current.deviation,
-                        conservative_rating:
-                            current.rating
-                            - this.config.conservativeDeviationMultiplier * current.deviation,
+                        conservative_rating: conservativeRating(current, this.config),
                         rated_matches: stored.ratedMatches,
                         last_rated_date: stored.lastDate,
                     };
@@ -488,18 +488,6 @@ export async function runRatingBacktest(
     return snapshot;
 }
 
-function expectedScore(
-    player: RatingState,
-    opponent: RatingState,
-    config: Glicko2Config,
-): number {
-    const playerMu = (player.rating - config.initialRating) / config.ratingScale;
-    const opponentMu = (opponent.rating - config.initialRating) / config.ratingScale;
-    const opponentPhi = opponent.deviation / config.ratingScale;
-    const g = 1 / Math.sqrt(1 + (3 * opponentPhi * opponentPhi) / (Math.PI * Math.PI));
-    return 1 / (1 + Math.exp(-g * (playerMu - opponentMu)));
-}
-
 function addObservation(
     observations: Map<string, RatingObservation[]>,
     playerId: string,
@@ -536,6 +524,10 @@ function parseConfig(value: unknown): Glicko2Config {
         provisionalDeviation: asNumber(
             raw['provisionalDeviation'],
             DEFAULT_GLICKO2_CONFIG.provisionalDeviation,
+        ),
+        inactivityPeriodDays: Math.max(
+            1,
+            asNumber(raw['inactivityPeriodDays'], DEFAULT_GLICKO2_CONFIG.inactivityPeriodDays),
         ),
     };
 }
