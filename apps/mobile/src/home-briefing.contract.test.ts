@@ -17,11 +17,21 @@ describe('Home briefing information architecture', () => {
     expect(source).not.toContain('tt-home-setup-title');
   });
 
-  it('makes Highlights the league activity briefing instead of keeping a separate Next up section', () => {
-    expect(source).toContain('Highlights');
-    expect(source).toContain('View leagues');
-    expect(source).toContain('recentResults.map');
-    expect(source).toContain('Leading team');
+  it('turns returning Home into a change briefing backed by a local visit snapshot', () => {
+    expect(source).toContain('Since your last visit');
+    expect(source).toContain('HOME_VISIT_SNAPSHOT_STORAGE_KEY');
+    expect(source).toContain('buildHomeScopeKey');
+    expect(source).toContain('diffHomeVisit');
+    expect(source).toContain('previousVisitSnapshot');
+    expect(source).toContain('window.localStorage.setItem');
+  });
+
+  it('ranks league stories by relevance instead of rendering a fixed activity recipe', () => {
+    expect(source).toContain('rankHomeStories');
+    expect(source).toContain("kind: 'personal-result'");
+    expect(source).toContain('priority: (isPersonal ? 120 : 80) - index');
+    expect(source).toContain('Picked for relevance, not just recency');
+    expect(source).toContain('set the pace');
     expect(source).not.toContain('Next up');
     expect(source).not.toContain('useTournamentList');
 
@@ -29,6 +39,15 @@ describe('Home briefing information architecture', () => {
     expect(source).not.toContain('title="Latest results"');
     expect(source).not.toContain('Players to watch');
     expect(source).not.toContain('Teams to watch');
+  });
+
+  it('gives new users useful live context before they personalise', () => {
+    expect(source).toContain("What&apos;s happening");
+    expect(source).toContain('useLeadersQuery');
+    expect(source).toContain("mode: 'improving'");
+    expect(source).toContain('TT Players pulse');
+    expect(source).toContain('usePlayerCountQuery');
+    expect(source).toContain('<MetricGrid');
   });
 
   it('keeps a compact player leaderboard on Home with global and league scopes', () => {
