@@ -25,8 +25,9 @@ describe('My TT tab navigation', () => {
     const profileSource = read('../MyTTPage.tsx');
     const styles = read('./MyTTTabs.css');
 
-    expect(shellSource).toContain("section ? <MyTTTabs /> : null");
+    expect(shellSource).toContain('showMyTTTabs ? <MyTTTabs /> : null');
     expect(shellSource).toContain("title: 'My TT'");
+    expect(shellSource).toContain("headerProps?.title !== 'Tournament entrants'");
     expect(profileSource).not.toContain('title="Match journal"');
     expect(profileSource).not.toContain('title="Tournament entries"');
     expect(styles).toContain('min-height: 48px');
