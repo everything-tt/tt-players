@@ -60,6 +60,13 @@ test('incremental export uses overlap and tuple high watermark', () => {
   assert.doesNotMatch(sql, /raw_payload/);
 });
 
+test('full refresh export avoids sorting the entire source table', () => {
+  const table = tableManifest.find((entry) => entry.destinationTable === 'rubbers');
+  const sql = exportSql(table, { includeOrder: false });
+
+  assert.doesNotMatch(sql, /ORDER BY/);
+});
+
 test('string tuple watermarks do not cast source keys to UUID', () => {
   const table = tableManifest.find((entry) => entry.destinationTable === 'scraping_pipeline_runs');
   const sql = exportSql(table, {

@@ -29,7 +29,7 @@ function postgresColumnExpression(column) {
   throw new Error(`Unsupported column type: ${column.type}`);
 }
 
-export function exportSql(table, { lowerWatermark = null, highWatermark = null } = {}) {
+export function exportSql(table, { lowerWatermark = null, highWatermark = null, includeOrder = true } = {}) {
   const columns = table.columns.map(postgresColumnExpression).join(',\n        ');
   const predicates = [];
   if (lowerWatermark && table.watermark) {
@@ -47,7 +47,7 @@ export function exportSql(table, { lowerWatermark = null, highWatermark = null }
     );
   }
   const where = predicates.length ? `\n      WHERE ${predicates.join('\n        AND ')}` : '';
-  const order = table.watermark
+  const order = includeOrder && table.watermark
     ? `\n      ORDER BY ${pgIdentifier(table.watermark.column)}, ${pgIdentifier(table.watermark.tieBreaker)}`
     : '';
 
