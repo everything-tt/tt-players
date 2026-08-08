@@ -81,10 +81,22 @@ async function installState(page: Page) {
       localStorage.setItem('tt_players_my_player', JSON.stringify({ id: claimedPlayerId, name: 'Wudong Liu' }));
       localStorage.setItem('tt_players_selected_league_ids', JSON.stringify([selectedLeagueId]));
       localStorage.setItem('tt_players_league_onboarding_complete', 'true');
+      localStorage.setItem('tt_players_home_visit_snapshot_v1', JSON.stringify({
+        seenAt: '2026-08-07T18:00:00.000Z',
+        scopeKey: `${claimedPlayerId}::${selectedLeagueId}`,
+        rating: 1894,
+        rank: 137,
+        recentResultIds: ['fixture-old'],
+        topTeamId: 'team-hutton-a',
+        topTeamName: 'Hutton A',
+        topRiserPlayerId: 'riser-old',
+        topRiserName: 'Previous Riser',
+      }));
     } else {
       localStorage.removeItem('tt_players_my_player');
       localStorage.removeItem('tt_players_selected_league_ids');
       localStorage.removeItem('tt_players_league_onboarding_complete');
+      localStorage.removeItem('tt_players_home_visit_snapshot_v1');
     }
     localStorage.setItem('TTPlayers-Theme', 'light-mode');
     localStorage.setItem('pwa-install-dismissed', Date.now().toString());
@@ -154,6 +166,31 @@ async function mockApi(page: Page) {
           divisions: [{ id: 'd2', name: 'Division 2' }],
         },
       ] } });
+      return;
+    }
+
+    if (path.endsWith('/api/players/count')) {
+      await route.fulfill({ json: { players: 6381, matches: 91240 } });
+      return;
+    }
+
+    if (path.endsWith('/api/players/leaders')) {
+      await route.fulfill({ json: {
+        mode: 'improving',
+        formula: 'latest five versus previous five',
+        min_played: 10,
+        data: [{
+          rank: 1,
+          player_id: '99999999-9999-4999-8999-999999999999',
+          player_name: 'Maya Chen',
+          played: 5,
+          wins: 4,
+          losses: 1,
+          win_rate: 80,
+          score: 42,
+          first_match_date: '2026-07-20',
+        }],
+      } });
       return;
     }
 
@@ -334,7 +371,7 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('reviews the adaptive hero, richer highlights, and player ranking scopes', async ({ page }, testInfo) => {
+test('reviews new-user discovery and returning-user activity briefing', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
   await installState(page);
   await mockApi(page);
@@ -347,17 +384,22 @@ test('reviews the adaptive hero, richer highlights, and player ranking scopes', 
   await expect(page.getByText('Claim my player', { exact: true })).toBeVisible();
   await expect(page.getByText('Choose leagues', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Next up' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: "What's happening" })).toBeVisible();
+  await expect(page.getByText('Jane Smith leads by 67 rating points', { exact: true })).toBeVisible();
+  await expect(page.getByText('Maya Chen is finding another gear', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Top players' })).toBeVisible();
-  await expect(page.getByText('Jane Smith', { exact: true })).toBeVisible();
   await expect(page.getByText('641 rated matches · 74% win rate', { exact: true })).toBeVisible();
   await expect(page.getByText('426 rated matches · 71% win rate', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'TT Players pulse' })).toBeVisible();
+  await expect(page.getByText('Players', { exact: true })).toBeVisible();
+  await expect(page.getByText('Matches', { exact: true })).toBeVisible();
 
-  await capture(page, testInfo, 'home-new-user-hero', {
+  await capture(page, testInfo, 'home-new-user-discovery', {
     adaptiveHeroState: 'setup',
     setupSteps: 2,
-    noNextUpSection: true,
+    whatsHappeningStories: 2,
     globalRankingPreview: true,
-    ratingWinRateUsesApiRatio: true,
+    pulseVisible: true,
   });
 
   await page.getByText('Claim my player', { exact: true }).click();
@@ -383,9 +425,6 @@ test('reviews the adaptive hero, richer highlights, and player ranking scopes', 
   await expect(page.getByText('18–7', { exact: true })).toBeVisible();
   await expect(page.getByText('Latest rating move +34', { exact: true })).toBeVisible();
   await expect(page.getByText('Choose leagues to personalise fixtures, results and rankings.', { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Your TT' })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Make Home yours' })).toHaveCount(0);
-  await expect(page.getByText('Claim my player', { exact: true })).toHaveCount(0);
   await capture(page, testInfo, 'home-claimed-hero-needs-leagues', {
     adaptiveHeroState: 'claimed-needs-leagues',
     drawerClosed: true,
@@ -400,27 +439,37 @@ test('reviews the adaptive hero, richer highlights, and player ranking scopes', 
   await expect(page.getByText('Rowhedge K · Colchester & District League', { exact: true })).toBeVisible();
   await expect(page.getByText('Personalised to your leagues', { exact: true })).toBeVisible();
   await expect(page.getByText('Latest rating move +34', { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Next up' })).toHaveCount(0);
-  await capture(page, testInfo, 'home-configured-personal-hero', {
-    adaptiveHeroState: 'configured',
-    rating: 1912,
-    globalRank: 126,
-    ratingMovement: 34,
-    noNextUpSection: true,
+
+  const sinceLastVisit = page.locator('section[aria-labelledby="tt-home-since-last-visit-title"]');
+  await expect(sinceLastVisit.getByRole('heading', { name: 'Since your last visit' })).toBeVisible();
+  await expect(sinceLastVisit.getByText('Your rating moved +18', { exact: true })).toBeVisible();
+  await expect(sinceLastVisit.getByText('up 11 places to #126', { exact: true })).toBeVisible();
+  await expect(sinceLastVisit.getByText('2 new league results', { exact: true })).toBeVisible();
+  await expect(sinceLastVisit.getByText('New league leader: Rowhedge K', { exact: true })).toBeVisible();
+  await expect(sinceLastVisit.getByText('Harrison Hill is now the biggest mover', { exact: true })).toBeVisible();
+  await sinceLastVisit.getByRole('heading', { name: 'Since your last visit' }).scrollIntoViewIfNeeded();
+  await capture(page, testInfo, 'home-since-last-visit', {
+    ratingDelta: 18,
+    rankDelta: 11,
+    newResults: 2,
+    leaderChanged: true,
+    biggestMoverChanged: true,
   });
 
   const highlights = page.locator('section[aria-labelledby="tt-home-highlights-title"]');
   await expect(highlights.getByRole('heading', { name: 'Highlights' })).toBeVisible();
-  await expect(highlights.getByText('Harrison Hill is moving up', { exact: true })).toBeVisible();
-  await expect(highlights.getByText('Maldon C vs Hutton A', { exact: true })).toBeVisible();
-  await expect(highlights.getByText('Rowhedge K vs Halstead A', { exact: true })).toBeVisible();
-  await expect(highlights.getByText('Leading team · Division 3 · 10W 1D 1L', { exact: true })).toBeVisible();
+  await expect(highlights.getByText('Rowhedge K beat Halstead A 7–3', { exact: true })).toBeVisible();
+  await expect(highlights.getByText('Harrison Hill surged +103', { exact: true })).toBeVisible();
+  await expect(highlights.getByText('Rowhedge K set the pace', { exact: true })).toBeVisible();
+  await expect(highlights.getByText('Maldon C 4–6 Hutton A', { exact: true })).toBeVisible();
+  await expect(highlights.getByText('Picked for relevance, not just recency', { exact: true })).toBeVisible();
   await highlights.getByRole('heading', { name: 'Highlights' }).scrollIntoViewIfNeeded();
-  await capture(page, testInfo, 'home-expanded-highlights', {
+  await capture(page, testInfo, 'home-ranked-highlights', {
     rows: 4,
+    personalResultRanksFirst: true,
     biggestRiser: true,
-    recentResults: 2,
-    leadingTeam: true,
+    personalLeader: true,
+    genericResult: true,
   });
 
   await expect(page.getByRole('heading', { name: 'Top players' })).toBeVisible();
@@ -429,7 +478,6 @@ test('reviews the adaptive hero, richer highlights, and player ranking scopes', 
   await expect(leagueScope).toBeChecked();
   await expect(page.getByText('Harrison Hill', { exact: true })).toBeVisible();
   await expect(page.getByText('916 rated matches · 73% win rate', { exact: true })).toBeVisible();
-  await expect(page.getByText('Sophie Carter', { exact: true })).toBeVisible();
   await page.getByRole('heading', { name: 'Top players' }).scrollIntoViewIfNeeded();
   await capture(page, testInfo, 'home-top-players-your-leagues', {
     defaultScope: 'selected',
