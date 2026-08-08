@@ -23,7 +23,7 @@ const profile: PlayerProfileOverview = {
 describe('playerProfileOverviewQueryOptions', () => {
   it('keeps the canonical query key and API path together', async () => {
     const paths: string[] = [];
-    const fetcher: ApiFetcher = async <T,>(path) => {
+    const fetcher: ApiFetcher = async <T,>(path: string): Promise<T> => {
       paths.push(path);
       return profile as unknown as T;
     };
