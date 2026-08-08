@@ -9,35 +9,10 @@
             "baseUrl": "https://www.tabletennis365.com/IsleOfWight",
             "adapterKey": "tt365",
             "status": "active",
-            "notes": "Live TT365 routes expose the current Winter 2025-6 divisions. The tt365Scrape seed enables the existing standings/fixtures/matchcard/playerstats pipeline without a bespoke IOW parser.",
+            "notes": "The league is already present in uk-leagues.generated.json and therefore already uses the existing TT365 standings/fixtures/matchcard/playerstats pipeline. This manifest adds territory provenance and tournament scope only; it must not create a duplicate scrape target.",
             "config": {
                 "role": "local-league",
-                "tt365Scrape": {
-                    "leagueExternalId": "isleofwight-tt365",
-                    "seasonName": "Winter League 2025-6",
-                    "seasonExtId": "winter-league-2025-6",
-                    "regions": [
-                        "England",
-                        "Isle of Wight"
-                    ],
-                    "divisions": [
-                        {
-                            "name": "Division One",
-                            "season": "Winter_League_2025-6",
-                            "slug": "Division_One"
-                        },
-                        {
-                            "name": "Division Two",
-                            "season": "Winter_League_2025-6",
-                            "slug": "Division_Two"
-                        },
-                        {
-                            "name": "Division Three",
-                            "season": "Winter_League_2025-6",
-                            "slug": "Division_Three"
-                        }
-                    ]
-                }
+                "scrapeTargetOwner": "uk-leagues.generated.json"
             },
             "resources": [
                 {
