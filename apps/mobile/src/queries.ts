@@ -14,7 +14,6 @@ import {
   type LeaguesResponse,
   type PlayerCountResponse,
   type PlayerCurrentSeasonAffiliationsResponse,
-  type PlayerProfileOverview,
   type PlayerSearchResponse,
   type RosterResponse,
   type RubbersResponse,
@@ -35,6 +34,7 @@ import {
   shouldRetryLeaderboardQuery,
   type LeaderboardQueryOptions,
 } from './leaderboard-query';
+import { playerProfileOverviewQueryOptions } from './player-profile-query';
 
 export function useLeaguesQuery(seasonId?: string, enabled = true) {
   return useQuery({
@@ -140,8 +140,7 @@ export function usePlayerExtendedStatsQuery(playerId: string, enabled = true) {
 
 export function usePlayerProfileOverviewQuery(playerId: string, enabled = true) {
   return useQuery({
-    queryKey: ['players', playerId, 'profile-overview'],
-    queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<PlayerProfileOverview>(`/players/${playerId}/profile-overview`, signal),
+    ...playerProfileOverviewQueryOptions(playerId),
     enabled: enabled && Boolean(playerId),
   });
 }
