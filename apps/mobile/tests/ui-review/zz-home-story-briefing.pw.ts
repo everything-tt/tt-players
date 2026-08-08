@@ -223,6 +223,12 @@ async function configureReturningUser(page: Page) {
     localStorage.setItem('tt_players_my_player', JSON.stringify({ id: claimedPlayerId, name: 'Wudong Liu' }));
     localStorage.setItem('tt_players_selected_league_ids', JSON.stringify([selectedLeagueId]));
     localStorage.setItem('tt_players_league_onboarding_complete', 'true');
+    localStorage.setItem('tt_players_favourite_teams', JSON.stringify([{
+      id: 'team-hutton-a',
+      name: 'Hutton A',
+      leagueName: 'Colchester & District League',
+      divisionName: 'Division 3',
+    }]));
     localStorage.setItem('tt_players_home_visit_snapshot_v1', JSON.stringify({
       seenAt: '2026-08-07T18:00:00.000Z',
       scopeKey: `${claimedPlayerId}::${selectedLeagueId}`,
@@ -294,19 +300,20 @@ test('reviews cheap first-visit discovery and returning-user change stories', as
 
   const highlights = page.locator('section[aria-labelledby="tt-home-highlights-title"]');
   await expect(highlights.getByText('Rowhedge K beat Halstead A 7–3', { exact: true })).toBeVisible();
+  await expect(highlights.getByText('Hutton A beat Maldon C 6–4', { exact: true })).toBeVisible();
   await expect(highlights.getByText("You've won 4 of your last 5", { exact: true })).toBeVisible();
-  await expect(highlights.getByText("You're at a 3-month rating high", { exact: true })).toBeVisible();
-  await expect(highlights.getByText('1,912 rating · up 72 from the low in this period', { exact: true })).toBeVisible();
+  await expect(highlights.getByText('You crossed 1,900', { exact: true })).toBeVisible();
+  await expect(highlights.getByText('Now 1,912 · up 72 from your 3-month low', { exact: true })).toBeVisible();
   await expect(highlights.getByText('Harrison Hill surged +103', { exact: true })).toBeVisible();
   await expect(highlights.getByText('Rowhedge K set the pace', { exact: true })).toHaveCount(0);
-  await expect(highlights.getByText('Maldon C 4–6 Hutton A', { exact: true })).toHaveCount(0);
   await highlights.getByRole('heading', { name: 'Highlights' }).scrollIntoViewIfNeeded();
   await capture(page, testInfo, 'home-ranked-highlights', {
     personalResultFirst: true,
+    followedTeamResultIncluded: true,
     personalFormIncluded: true,
-    recentRatingHighIncluded: true,
+    ratingMilestoneIncluded: true,
     leagueRiserIncluded: true,
-    stories: 4,
+    stories: 5,
   });
 
   expect(globalLeaderAnalysisRequests).toEqual([]);
