@@ -1,4 +1,8 @@
-import { expectedScore } from './ranking-algorithm.js';
+import {
+    expectedScore,
+    projectRatingAfterWin,
+    type WinRatingProjection,
+} from './ranking-algorithm.js';
 
 export const DEFAULT_RATING_MODEL_KEY = 'global-singles-glicko2-v1';
 
@@ -73,10 +77,16 @@ export function predictMatch(player1: RatingRow, player2: RatingRow) {
         combinedDeviation: round(combinedDeviation, 2),
         player1Probability,
         player2Probability,
+        player1WinProjection: projectRatingAfterWin(player1, player2),
+        player2WinProjection: projectRatingAfterWin(player2, player1),
     };
 }
 
-export function presentPredictionPlayer(row: RatingRow, probability: number) {
+export function presentPredictionPlayer(
+    row: RatingRow,
+    probability: number,
+    winProjection: WinRatingProjection,
+) {
     return {
         player_id: row.player_id,
         player_name: row.player_name,
@@ -85,6 +95,8 @@ export function presentPredictionPlayer(row: RatingRow, probability: number) {
         volatility: Number(row.volatility),
         provisional: row.provisional,
         win_probability: round(clampProbability(probability), 4),
+        projected_rating_if_win: round(winProjection.projectedRating, 2),
+        rating_change_if_win: round(winProjection.ratingChange, 2),
     };
 }
 

@@ -37,4 +37,6 @@ export const PredictionPlayerSchema = z.object({
     volatility: z.number(),
     provisional: z.boolean(),
     win_probability: z.number().min(0).max(1),
+    projected_rating_if_win: z.number(),
+    rating_change_if_win: z.number(),
 });
