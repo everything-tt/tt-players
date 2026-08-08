@@ -1,0 +1,180 @@
+{
+    "territory": "Northern Ireland",
+    "sources": [
+        {
+            "key": "table-tennis-ulster",
+            "name": "Table Tennis Ulster competition catalogue",
+            "platformName": "Table Tennis Ulster",
+            "platformBaseUrl": "https://tabletennisulster.com",
+            "baseUrl": "https://tabletennisulster.com/",
+            "adapterKey": "official-catalog",
+            "status": "discovery",
+            "enabled": false,
+            "notes": "Official discovery source for Ulster Open, Sport NI series, Junior Challengers, Ulster Closed and rankings. Ranking points are metadata only and must never be reverse-engineered into matches.",
+            "config": {
+                "role": "event-and-ranking-discovery",
+                "matchDataAuthority": false
+            },
+            "resources": [
+                {
+                    "resourceType": "directory",
+                    "externalId": "ulster-events",
+                    "name": "Table Tennis Ulster events catalogue",
+                    "publicUrl": "https://tabletennisulster.com/",
+                    "enabled": false,
+                    "refreshPolicy": {
+                        "cadence": "daily"
+                    }
+                },
+                {
+                    "resourceType": "ranking-list",
+                    "externalId": "ulster-senior-men-ranking",
+                    "name": "Ulster senior men ranking",
+                    "publicUrl": "https://tabletennisulster.com/ulster-ranking-senior-men/",
+                    "enabled": false,
+                    "refreshPolicy": {
+                        "cadence": "weekly"
+                    }
+                }
+            ]
+        },
+        {
+            "key": "belfast-district-league",
+            "name": "Belfast & District Table Tennis League",
+            "platformName": "Table Tennis Ulster",
+            "platformBaseUrl": "https://tabletennisulster.com",
+            "baseUrl": "https://tabletennisulster.com/leagues/",
+            "adapterKey": "ttu-league-discovery",
+            "status": "blocked",
+            "enabled": false,
+            "notes": "TTU documents five divisions and captain score submission via an app/website, but no unauthenticated public results URL has been verified. Do not use private upload/admin endpoints.",
+            "config": {
+                "role": "local-league",
+                "divisionsDocumented": 5,
+                "formats": [
+                    "9 singles + 1 doubles",
+                    "8 singles + 2 doubles"
+                ],
+                "publicReadBackendRequired": true
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "belfast-district-league",
+                    "publicUrl": "https://tabletennisulster.com/leagues/",
+                    "enabled": false
+                }
+            ]
+        },
+        {
+            "key": "lecale-league",
+            "name": "Lecale League",
+            "platformName": "Table Tennis Ulster",
+            "platformBaseUrl": "https://tabletennisulster.com",
+            "baseUrl": "https://tabletennisulster.com/leagues/",
+            "adapterKey": "ttu-league-discovery",
+            "status": "blocked",
+            "enabled": false,
+            "notes": "Official catalogue documents two divisions, but no public match-level result transport is linked.",
+            "config": {
+                "role": "local-league",
+                "divisionsDocumented": 2,
+                "format": "9 singles + 1 doubles"
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "lecale-league",
+                    "publicUrl": "https://tabletennisulster.com/leagues/",
+                    "enabled": false
+                }
+            ]
+        },
+        {
+            "key": "east-down-churches-league",
+            "name": "East Down Churches League",
+            "platformName": "Table Tennis Ulster",
+            "platformBaseUrl": "https://tabletennisulster.com",
+            "baseUrl": "https://tabletennisulster.com/leagues/",
+            "adapterKey": "ttu-league-discovery",
+            "status": "blocked",
+            "enabled": false,
+            "notes": "Official catalogue documents two divisions, but no public match-level result transport is linked.",
+            "config": {
+                "role": "local-league",
+                "divisionsDocumented": 2,
+                "format": "8 singles + 2 doubles"
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "east-down-churches-league",
+                    "publicUrl": "https://tabletennisulster.com/leagues/",
+                    "enabled": false
+                }
+            ]
+        },
+        {
+            "key": "county-antrim-league",
+            "name": "County Antrim League",
+            "platformName": "Table Tennis Ulster",
+            "platformBaseUrl": "https://tabletennisulster.com",
+            "baseUrl": "https://tabletennisulster.com/leagues/",
+            "adapterKey": "ttu-league-discovery",
+            "status": "blocked",
+            "enabled": false,
+            "notes": "Official catalogue documents two divisions, but no public match-level result transport is linked.",
+            "config": {
+                "role": "local-league",
+                "divisionsDocumented": 2,
+                "format": "8 singles + 2 doubles"
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "county-antrim-league",
+                    "publicUrl": "https://tabletennisulster.com/leagues/",
+                    "enabled": false
+                }
+            ]
+        },
+        {
+            "key": "fermanagh-league",
+            "name": "Fermanagh League",
+            "platformName": "Table Tennis Ulster",
+            "platformBaseUrl": "https://tabletennisulster.com",
+            "baseUrl": "https://tabletennisulster.com/leagues/",
+            "adapterKey": "ttu-league-discovery",
+            "status": "blocked",
+            "enabled": false,
+            "notes": "Listed by TTU without a public results URL or documented division count.",
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "fermanagh-league",
+                    "publicUrl": "https://tabletennisulster.com/leagues/",
+                    "enabled": false
+                }
+            ]
+        },
+        {
+            "key": "greystone-league",
+            "name": "Greystone League",
+            "platformName": "Table Tennis Ulster",
+            "platformBaseUrl": "https://tabletennisulster.com",
+            "baseUrl": "https://tabletennisulster.com/leagues/",
+            "adapterKey": "ttu-league-discovery",
+            "status": "blocked",
+            "enabled": false,
+            "notes": "Listed by TTU without a public results URL or documented division count.",
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "greystone-league",
+                    "publicUrl": "https://tabletennisulster.com/leagues/",
+                    "enabled": false
+                }
+            ]
+        }
+    ]
+}
