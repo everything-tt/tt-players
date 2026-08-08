@@ -114,22 +114,24 @@ test('serves and hydrates canonical player SSR through Netlify, including with t
   // Install/control the PWA from the normal SPA first. Canonical player document
   // navigations must still go to the network/Netlify SSR Function afterwards.
   await page.goto(`${previewUrl}/tabs/home`, { waitUntil: 'domcontentloaded' });
-  await page.evaluate(async () => {
+  const serviceWorkerReady = await page.evaluate(async () => {
     const registration = await Promise.race([
       navigator.serviceWorker.ready,
       new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 15_000)),
     ]);
-    if (registration && !navigator.serviceWorker.controller) {
-      await new Promise<void>((resolve) => {
-        navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true });
-        window.location.reload();
-      });
-    }
+    return Boolean(registration);
   });
+  expect(serviceWorkerReady).toBe(true);
+
+  if (!await page.evaluate(() => Boolean(navigator.serviceWorker.controller))) {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), undefined, { timeout: 15_000 });
+  }
 
   const navigationResponse = await page.goto(canonicalUrl, { waitUntil: 'domcontentloaded' });
   expect(navigationResponse).not.toBeNull();
   expect(navigationResponse!.status()).toBe(200);
+  expect(navigationResponse!.fromServiceWorker()).toBe(false);
   const navigationHtml = await navigationResponse!.text();
   expect(navigationHtml).toContain('id="__TT_QUERY_STATE__" type="application/json"');
 
@@ -146,6 +148,7 @@ test('serves and hydrates canonical player SSR through Netlify, including with t
     rawStatus: rawResponse.status(),
     navigationStatus: navigationResponse!.status(),
     serviceWorkerControlled: await page.evaluate(() => Boolean(navigator.serviceWorker.controller)),
+    navigationFromServiceWorker: navigationResponse!.fromServiceWorker(),
     hydrationErrors,
   });
   writeReportIndex(previewUrl);
