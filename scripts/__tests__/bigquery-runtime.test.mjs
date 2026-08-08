@@ -45,6 +45,17 @@ fi
 `);
   const curl = await executable(directory, 'curl', `
 printf 'curl %s\n' "$*" >> "$COMMAND_LOG"
+dump_header=''
+for ((index = 1; index <= \$#; index += 1)); do
+  if [[ "\${!index}" == "--dump-header" ]]; then
+    next=$((index + 1))
+    dump_header="\${!next}"
+  fi
+done
+if [[ "$*" == *"uploadType=resumable"* ]]; then
+  printf 'HTTP/1.1 200 OK\\r\\nLocation: https://storage.googleapis.com/upload/session/fake-session\\r\\n\\r\\n' > "$dump_header"
+fi
+cat >/dev/null
 `);
   const bq = await executable(directory, 'bq', `
 printf 'bq %s\n' "$*" >> "$COMMAND_LOG"
@@ -93,6 +104,7 @@ test('runtime moves a run-scoped object from GCS into BigQuery before publicatio
   assert.match(commands, /gcloud auth print-access-token/);
   assert.match(commands, /curl .*upload\/storage\/v1\/b\/test-bucket\/o/);
   assert.match(commands, /name=warehouse-loads%2F.*%2Fplatforms\.ndjson/);
+  assert.match(commands, /curl .*--config/);
   assert.match(commands, /bq load .*gs:\/\/test-bucket\/warehouse-loads\/.*\/platforms\.ndjson/);
   assert.match(commands, /CREATE OR REPLACE TABLE `test-project\.tt_players_raw\.platforms`/s);
   assert.match(commands, /INSERT INTO `test-project\.tt_players_pipeline\.validation_results`/s);
