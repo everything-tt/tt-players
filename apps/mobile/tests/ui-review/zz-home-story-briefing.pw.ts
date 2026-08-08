@@ -352,7 +352,7 @@ test('reviews cheap first-visit discovery, returning-user stories, and My TT ent
 
   await manageEntrants.click();
   await expect(page).toHaveURL(/\/tabs\/home\/entry-profiles$/);
-  await expect(page.getByRole('heading', { name: 'Tournament entrants' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tournament entrants', exact: true })).toBeVisible();
 
   expect(populationWideAnalysisRequests).toEqual([]);
   expect(activityFanOutRequests).toEqual([]);
