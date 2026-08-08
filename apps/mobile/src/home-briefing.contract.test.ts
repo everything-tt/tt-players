@@ -7,9 +7,12 @@ describe('Home briefing information architecture', () => {
   it('uses one adaptive personal hero instead of stacked identity and setup sections', () => {
     expect(source).toContain('tt-home-personal-hero');
     expect(source).toContain('Personal dashboard');
+    expect(source).toContain('Make TT Players yours');
     expect(source).toContain('Open My TT');
     expect(source).toContain('usePlayerRatingHistoryQuery');
     expect(source).toContain('Latest rating move');
+    expect(source).toContain('Global rank');
+    expect(source).toContain('Record');
     expect(source).not.toContain('tt-home-your-tt-title');
     expect(source).not.toContain('tt-home-setup-title');
   });
@@ -38,7 +41,6 @@ describe('Home briefing information architecture', () => {
   });
 
   it('lets a new user personalise the hero without leaving Home', () => {
-    expect(source).toContain('Make TT Players yours');
     expect(source).toContain('Claim my player');
     expect(source).toContain('Choose leagues');
     expect(source).toContain('<PlayerSearchSheet');
