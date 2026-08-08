@@ -12,6 +12,7 @@ import {
   useLeagueRisersQuery,
   usePlayerRatingQuery,
   useTopRatingsQuery,
+  useTopSiteRatingsQuery,
 } from './rating-queries';
 import {
   AppButton,
@@ -86,6 +87,7 @@ export function HomeTabContent({
   const ratingQuery = usePlayerRatingQuery(myPlayer?.id ?? '', Boolean(myPlayer));
   const topRatingsQuery = useTopRatingsQuery(selectedLeagueIds, 1, hasLeagueScope);
   const risersQuery = useLeagueRisersQuery(selectedLeagueIds, 1, 42, hasLeagueScope);
+  const topSiteRatingsQuery = useTopSiteRatingsQuery(2, !hasLeagueScope);
   const upcomingTournaments = useTournamentList({
     status: 'upcoming',
     search: '',
@@ -113,202 +115,260 @@ export function HomeTabContent({
 
   const topRated = topRatingsQuery.data?.data[0] ?? null;
   const topRiser = risersQuery.data?.data[0] ?? null;
+  const siteTopRatings = topSiteRatingsQuery.data?.data.slice(0, 2) ?? [];
   const latestResult = dashboard?.recent_results[0] ?? null;
   const topTeam = dashboard?.top_teams[0] ?? null;
   const dashboardError = getQueryError(dashboardQuery.error);
+  const nextUpError = upcomingTournaments.error ?? (hasLeagueScope ? dashboardError : null);
+  const setupReadyCount = Number(Boolean(myPlayer)) + Number(hasLeagueScope);
   const navItems: DashboardTabId[] = ['players', 'leagues', 'h2h', 'events'];
 
   return (
     <>
-      <section className="tt-home-section" aria-labelledby="tt-home-your-tt-title">
+      {myPlayer ? (
+        <section className="tt-home-section" aria-labelledby="tt-home-your-tt-title">
+          <SectionHeader
+            title={<span id="tt-home-your-tt-title">Your TT</span>}
+            note="Your quick snapshot"
+            action={(
+              <AppButton size="s" tone="ghost" onClick={() => navigateInTab('home', 'my-tt')}>
+                Open My TT
+                <i className="fa fa-angle-right" aria-hidden="true" />
+              </AppButton>
+            )}
+          />
+
+          {profileQuery.isLoading ? (
+            <SkeletonList rows={1} />
+          ) : (
+            <List divider="none" size="lg">
+              <ListItem
+                leading={<Avatar text={initials(profileQuery.data?.player_name ?? myPlayer.name)} />}
+                title={profileQuery.data?.player_name ?? myPlayer.name}
+                subtitle={profileQuery.data
+                  ? `${profileQuery.data.wins}W · ${profileQuery.data.losses}L · ${profileQuery.data.total} played${ratingQuery.data?.data ? ` · Rating ${Math.round(ratingQuery.data.data.rating).toLocaleString('en-GB')}` : ''}`
+                  : 'Your claimed player profile'}
+                trailing={<Pill tone="accent">{formatMomentum(profileQuery.data?.form.momentum)}</Pill>}
+                onClick={() => navigateInTab('home', 'my-tt')}
+              />
+            </List>
+          )}
+        </section>
+      ) : null}
+
+      {!myPlayer || !hasLeagueScope ? (
+        <section className="tt-home-section" aria-labelledby="tt-home-setup-title">
+          <SectionHeader
+            title={<span id="tt-home-setup-title">Make Home yours</span>}
+            note={`${setupReadyCount} of 2 ready`}
+          />
+          <List divider="hairline" size="lg">
+            {!myPlayer ? (
+              <ListItem
+                leading={<IconCircle iconClassName="fa fa-id-badge" tone="accent" />}
+                title="Claim my player"
+                subtitle="Find your name to add your form, rating and team fixtures."
+                trailing={<Pill size="xs" tone="accent">Start</Pill>}
+                onClick={() => setClaimSheetOpen(true)}
+              />
+            ) : null}
+            {!hasLeagueScope ? (
+              <ListItem
+                leading={<IconCircle iconClassName="fa fa-filter" tone="neutral" />}
+                title="Choose leagues to follow"
+                subtitle="Add the leagues you care about so Home can prioritise their fixtures and results."
+                trailing={<Pill size="xs">Choose</Pill>}
+                onClick={onOpenLeagueSelector}
+              />
+            ) : null}
+          </List>
+        </section>
+      ) : null}
+
+      <section className="tt-home-section" aria-labelledby="tt-home-next-up-title">
         <SectionHeader
-          title={<span id="tt-home-your-tt-title">Your TT</span>}
-          note={myPlayer ? 'Your quick snapshot' : 'Make Home personal'}
-          action={myPlayer ? (
-            <AppButton size="s" tone="ghost" onClick={() => navigateInTab('home', 'my-tt')}>
-              Open My TT
-              <i className="fa fa-angle-right" aria-hidden="true" />
-            </AppButton>
-          ) : undefined}
+          title={<span id="tt-home-next-up-title">Next up</span>}
+          note={nextFixtureIsPersonal
+            ? 'Your team and tournaments'
+            : hasLeagueScope
+              ? 'Fixtures and tournaments'
+              : 'Upcoming tournaments'}
         />
 
-        {!myPlayer ? (
-          <EmptyState
-            iconClassName="fa fa-id-badge"
-            title="Claim your player"
-            message="Search for your name and claim the matching player. Home will then show your form, rating and next team fixture."
-            action={{ label: 'Claim my player', onClick: () => setClaimSheetOpen(true) }}
-          />
-        ) : profileQuery.isLoading ? (
-          <SkeletonList rows={1} />
-        ) : (
-          <List divider="none" size="lg">
-            <ListItem
-              leading={<Avatar text={initials(profileQuery.data?.player_name ?? myPlayer.name)} />}
-              title={profileQuery.data?.player_name ?? myPlayer.name}
-              subtitle={profileQuery.data
-                ? `${profileQuery.data.wins}W · ${profileQuery.data.losses}L · ${profileQuery.data.total} played${ratingQuery.data?.data ? ` · Rating ${Math.round(ratingQuery.data.data.rating).toLocaleString('en-GB')}` : ''}`
-                : 'Your claimed player profile'}
-              trailing={<Pill tone="accent">{formatMomentum(profileQuery.data?.form.momentum)}</Pill>}
-              onClick={() => navigateInTab('home', 'my-tt')}
-            />
+        {(hasLeagueScope && dashboardQuery.isLoading) || upcomingTournaments.isLoadingInitial ? (
+          <SkeletonList rows={hasLeagueScope ? 2 : 1} />
+        ) : nextFixture || nextTournament ? (
+          <List divider="hairline" size="lg">
+            {nextFixture ? (
+              <ListItem
+                leading={<IconCircle iconClassName="fa fa-calendar-alt" tone={nextFixtureIsPersonal ? 'success' : 'accent'} />}
+                title={formatFixtureTeams(nextFixture.home_team_name, nextFixture.away_team_name)}
+                subtitle={`${formatDate(nextFixture.date_played)} · ${nextFixture.division_name} · ${nextFixture.league_name}`}
+                trailing={nextFixtureIsPersonal ? <Pill size="xs" tone="success">Your team</Pill> : undefined}
+                onClick={() => navigateInTab('leagues', `fixture/${nextFixture.fixture_id}`)}
+              />
+            ) : null}
+
+            {nextTournament ? (
+              <ListItem
+                leading={<IconCircle iconClassName="fa fa-trophy" tone="warning" />}
+                title={nextTournament.name}
+                subtitle={`${formatDate(nextTournament.start_date ?? nextTournament.event_date)} · ${nextTournament.category ?? 'Tournament'}${nextTournamentVenue ? ` · ${nextTournamentVenue}` : ''}`}
+                trailing={nextTournament.status === 'entries_open'
+                  ? <Pill size="xs" tone="success">Entries open</Pill>
+                  : undefined}
+                onClick={() => navigateInTab('events', `event/${nextTournament.id}`)}
+              />
+            ) : null}
           </List>
+        ) : nextUpError ? (
+          <ErrorState message={nextUpError} />
+        ) : (
+          <EmptyState
+            iconClassName="fa fa-calendar"
+            title="Nothing scheduled"
+            message={hasLeagueScope
+              ? 'The next fixture or tournament will appear here.'
+              : 'Upcoming tournaments will appear here. Choose leagues to add relevant fixtures.'}
+          />
         )}
       </section>
 
-      {!hasLeagueScope ? (
-        <>
-          <section className="tt-home-section">
-            <div className="tt-home-onboarding">
-              <div className="tt-home-onboarding-icon">
-                <i className="fa fa-filter" aria-hidden="true" />
-              </div>
-              <h2 className="tt-home-onboarding-title">Choose leagues to follow</h2>
-              <p className="tt-home-onboarding-copy">
-                Home will then surface only the next fixture and a few useful highlights. Full tables, results and rankings stay in Leagues.
-              </p>
-              <AppButton size="m" rounded="m" full onClick={onOpenLeagueSelector}>
-                Select leagues
+      {hasLeagueScope ? (
+        <section className="tt-home-section" aria-labelledby="tt-home-highlights-title">
+          <SectionHeader
+            title={<span id="tt-home-highlights-title">Highlights</span>}
+            note="Worth a quick look"
+            action={(
+              <AppButton size="s" tone="ghost" onClick={() => onOpenTab('leagues')}>
+                View leagues
+                <i className="fa fa-angle-right" aria-hidden="true" />
               </AppButton>
-            </div>
-          </section>
+            )}
+          />
 
-          <nav className="tt-home-nav" aria-label="Explore TT Players">
-            {navItems.map((tabId) => {
-              const meta = TAB_METADATA[tabId];
-              const description =
-                tabId === 'players' ? 'Search players, profiles and ratings' :
-                tabId === 'leagues' ? `${allLeagues.length} available leagues` :
-                meta.description;
+          {dashboardQuery.isLoading && topRatingsQuery.isLoading && risersQuery.isLoading ? (
+            <SkeletonList rows={3} />
+          ) : topRiser || topRated || latestResult || topTeam ? (
+            <List divider="hairline">
+              {topRiser ? (
+                <ListItem
+                  leading={<IconCircle iconClassName="fa fa-chart-line" tone="success" />}
+                  title={`${topRiser.player_name} is moving up`}
+                  subtitle={`Biggest 6-week riser in your leagues · #${topRiser.overall_rank} overall`}
+                  trailing={<Pill tone="success">+{Math.round(topRiser.change)}</Pill>}
+                  onClick={() => navigateInTab('players', `player/${topRiser.player_id}`)}
+                />
+              ) : null}
 
-              return (
-                <button
-                  key={tabId}
-                  type="button"
-                  className="tt-home-nav-row"
-                  onClick={() => onOpenTab(tabId)}
-                >
-                  <div className="tt-home-nav-icon">
-                    <i className={meta.icon} aria-hidden="true" />
-                  </div>
-                  <div className="tt-home-nav-copy">
-                    <span className="tt-home-nav-title">{meta.label}</span>
-                    <span className="tt-home-nav-desc">{description}</span>
-                  </div>
-                  <i className="fa fa-angle-right tt-home-nav-chevron" aria-hidden="true" />
-                </button>
-              );
-            })}
-          </nav>
-        </>
+              {topRated ? (
+                <ListItem
+                  leading={<IconCircle iconClassName="fa fa-star" tone="accent" />}
+                  title={`Top rated · ${topRated.player_name}`}
+                  subtitle={`#${topRated.overall_rank} overall · ${topRated.rated_matches} rated matches`}
+                  trailing={<Pill tone="accent">{Math.round(topRated.rating).toLocaleString('en-GB')}</Pill>}
+                  onClick={() => navigateInTab('players', `player/${topRated.player_id}`)}
+                />
+              ) : null}
+
+              {latestResult ? (
+                <ListItem
+                  leading={<IconCircle iconClassName="fa fa-table-tennis" tone="neutral" />}
+                  title={formatFixtureTeams(latestResult.home_team_name, latestResult.away_team_name)}
+                  subtitle={`Latest result · ${latestResult.division_name} · ${formatDate(latestResult.date_played)}`}
+                  trailing={<Pill>{latestResult.home_score}–{latestResult.away_score}</Pill>}
+                  onClick={() => navigateInTab('leagues', `fixture/${latestResult.fixture_id}`)}
+                />
+              ) : null}
+
+              {!latestResult && topTeam ? (
+                <ListItem
+                  leading={<IconCircle iconClassName="fa fa-shield-alt" tone="neutral" />}
+                  title={topTeam.team_name}
+                  subtitle={`Leading team · ${topTeam.division_name} · ${topTeam.won}W ${topTeam.drawn}D ${topTeam.lost}L`}
+                  trailing={<Pill>{Math.round(topTeam.win_rate)}%</Pill>}
+                  onClick={() => navigateInTab('leagues', `team/${topTeam.team_id}`)}
+                />
+              ) : null}
+            </List>
+          ) : (
+            <EmptyState
+              iconClassName="fa fa-bolt"
+              title="No highlights yet"
+              message="Notable rating movement and recent league activity will appear here."
+            />
+          )}
+        </section>
       ) : (
         <>
-          <section className="tt-home-section" aria-labelledby="tt-home-next-up-title">
+          <section className="tt-home-section" aria-labelledby="tt-home-discover-title">
             <SectionHeader
-              title={<span id="tt-home-next-up-title">Next up</span>}
-              note={nextFixtureIsPersonal ? 'Your team and tournaments' : 'Fixtures and tournaments'}
-            />
-
-            {dashboardQuery.isLoading && upcomingTournaments.isLoadingInitial ? (
-              <SkeletonList rows={2} />
-            ) : nextFixture || nextTournament ? (
-              <List divider="hairline" size="lg">
-                {nextFixture ? (
-                  <ListItem
-                    leading={<IconCircle iconClassName="fa fa-calendar-alt" tone={nextFixtureIsPersonal ? 'success' : 'accent'} />}
-                    title={formatFixtureTeams(nextFixture.home_team_name, nextFixture.away_team_name)}
-                    subtitle={`${formatDate(nextFixture.date_played)} · ${nextFixture.division_name} · ${nextFixture.league_name}`}
-                    trailing={nextFixtureIsPersonal ? <Pill size="xs" tone="success">Your team</Pill> : undefined}
-                    onClick={() => navigateInTab('leagues', `fixture/${nextFixture.fixture_id}`)}
-                  />
-                ) : null}
-
-                {nextTournament ? (
-                  <ListItem
-                    leading={<IconCircle iconClassName="fa fa-trophy" tone="warning" />}
-                    title={nextTournament.name}
-                    subtitle={`${formatDate(nextTournament.start_date ?? nextTournament.event_date)} · ${nextTournament.category ?? 'Tournament'}${nextTournamentVenue ? ` · ${nextTournamentVenue}` : ''}`}
-                    trailing={nextTournament.status === 'entries_open'
-                      ? <Pill size="xs" tone="success">Entries open</Pill>
-                      : undefined}
-                    onClick={() => navigateInTab('events', `event/${nextTournament.id}`)}
-                  />
-                ) : null}
-              </List>
-            ) : dashboardError || upcomingTournaments.error ? (
-              <ErrorState message={dashboardError ?? upcomingTournaments.error ?? 'Upcoming activity is unavailable.'} />
-            ) : (
-              <EmptyState
-                iconClassName="fa fa-calendar"
-                title="Nothing scheduled"
-                message="The next fixture or tournament will appear here."
-              />
-            )}
-          </section>
-
-          <section className="tt-home-section" aria-labelledby="tt-home-highlights-title">
-            <SectionHeader
-              title={<span id="tt-home-highlights-title">Highlights</span>}
-              note="Worth a quick look"
+              title={<span id="tt-home-discover-title">Discover</span>}
+              note="A little to explore right now"
               action={(
-                <AppButton size="s" tone="ghost" onClick={() => onOpenTab('leagues')}>
-                  View leagues
+                <AppButton size="s" tone="ghost" onClick={() => onOpenTab('players')}>
+                  Browse players
                   <i className="fa fa-angle-right" aria-hidden="true" />
                 </AppButton>
               )}
             />
 
-            {dashboardQuery.isLoading && topRatingsQuery.isLoading && risersQuery.isLoading ? (
-              <SkeletonList rows={3} />
-            ) : topRiser || topRated || latestResult || topTeam ? (
+            {topSiteRatingsQuery.isLoading ? (
+              <SkeletonList rows={2} />
+            ) : siteTopRatings.length > 0 ? (
               <List divider="hairline">
-                {topRiser ? (
+                {siteTopRatings.map((player, index) => (
                   <ListItem
-                    leading={<IconCircle iconClassName="fa fa-chart-line" tone="success" />}
-                    title={`${topRiser.player_name} is moving up`}
-                    subtitle={`Biggest 6-week riser in your leagues · #${topRiser.overall_rank} overall`}
-                    trailing={<Pill tone="success">+{Math.round(topRiser.change)}</Pill>}
-                    onClick={() => navigateInTab('players', `player/${topRiser.player_id}`)}
+                    key={player.player_id}
+                    leading={<IconCircle iconClassName={index === 0 ? 'fa fa-star' : 'fa fa-chart-line'} tone={index === 0 ? 'accent' : 'neutral'} />}
+                    title={`${player.rank != null ? `#${player.rank}` : `Top ${index + 1}`} overall · ${player.player_name}`}
+                    subtitle={`${player.rated_matches} rated matches · ${Math.round(player.win_rate)}% win rate`}
+                    trailing={<Pill tone={index === 0 ? 'accent' : 'neutral'}>{Math.round(player.rating).toLocaleString('en-GB')}</Pill>}
+                    onClick={() => navigateInTab('players', `player/${player.player_id}`)}
                   />
-                ) : null}
-
-                {topRated ? (
-                  <ListItem
-                    leading={<IconCircle iconClassName="fa fa-star" tone="accent" />}
-                    title={`Top rated · ${topRated.player_name}`}
-                    subtitle={`#${topRated.overall_rank} overall · ${topRated.rated_matches} rated matches`}
-                    trailing={<Pill tone="accent">{Math.round(topRated.rating).toLocaleString('en-GB')}</Pill>}
-                    onClick={() => navigateInTab('players', `player/${topRated.player_id}`)}
-                  />
-                ) : null}
-
-                {latestResult ? (
-                  <ListItem
-                    leading={<IconCircle iconClassName="fa fa-table-tennis" tone="neutral" />}
-                    title={formatFixtureTeams(latestResult.home_team_name, latestResult.away_team_name)}
-                    subtitle={`Latest result · ${latestResult.division_name} · ${formatDate(latestResult.date_played)}`}
-                    trailing={<Pill>{latestResult.home_score}–{latestResult.away_score}</Pill>}
-                    onClick={() => navigateInTab('leagues', `fixture/${latestResult.fixture_id}`)}
-                  />
-                ) : null}
-
-                {!latestResult && topTeam ? (
-                  <ListItem
-                    leading={<IconCircle iconClassName="fa fa-shield-alt" tone="neutral" />}
-                    title={topTeam.team_name}
-                    subtitle={`Leading team · ${topTeam.division_name} · ${topTeam.won}W ${topTeam.drawn}D ${topTeam.lost}L`}
-                    trailing={<Pill>{Math.round(topTeam.win_rate)}%</Pill>}
-                    onClick={() => navigateInTab('leagues', `team/${topTeam.team_id}`)}
-                  />
-                ) : null}
+                ))}
               </List>
             ) : (
               <EmptyState
-                iconClassName="fa fa-bolt"
-                title="No highlights yet"
-                message="Notable rating movement and recent league activity will appear here."
+                iconClassName="fa fa-star"
+                title="Ratings are getting ready"
+                message="Top players will appear here as rating data becomes available."
               />
             )}
+          </section>
+
+          <section className="tt-home-section" aria-labelledby="tt-home-explore-title">
+            <SectionHeader
+              title={<span id="tt-home-explore-title">Explore</span>}
+              note="Jump into TT Players"
+            />
+            <nav className="tt-home-nav" aria-label="Explore TT Players">
+              {navItems.map((tabId) => {
+                const meta = TAB_METADATA[tabId];
+                const description =
+                  tabId === 'players' ? 'Search players, profiles and ratings' :
+                  tabId === 'leagues' ? `${allLeagues.length} available leagues` :
+                  meta.description;
+
+                return (
+                  <button
+                    key={tabId}
+                    type="button"
+                    className="tt-home-nav-row"
+                    onClick={() => onOpenTab(tabId)}
+                  >
+                    <div className="tt-home-nav-icon">
+                      <i className={meta.icon} aria-hidden="true" />
+                    </div>
+                    <div className="tt-home-nav-copy">
+                      <span className="tt-home-nav-title">{meta.label}</span>
+                      <span className="tt-home-nav-desc">{description}</span>
+                    </div>
+                    <i className="fa fa-angle-right tt-home-nav-chevron" aria-hidden="true" />
+                  </button>
+                );
+              })}
+            </nav>
           </section>
         </>
       )}
