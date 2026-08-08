@@ -15,6 +15,7 @@ on:
       - 'scripts/deploy-vps-release.sh'
       - 'scripts/rollback-vps-release.sh'
       - 'packages/db/**'
+      - 'packages/ranking/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
