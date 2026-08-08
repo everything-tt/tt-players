@@ -7,6 +7,7 @@ on:
       - 'apps/mobile/**'
       - 'packages/design-system/**'
       - 'netlify.toml'
+      - 'netlify/functions/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -19,6 +20,7 @@ on:
       - 'apps/mobile/**'
       - 'packages/design-system/**'
       - 'netlify.toml'
+      - 'netlify/functions/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -69,6 +71,7 @@ jobs:
         uses: nwtgck/actions-netlify@v3.0
         with:
           publish-dir: ./apps/mobile/dist
+          functions-dir: ./netlify/functions
           production-branch: main
           github-token: ${{ secrets.GITHUB_TOKEN }}
           deploy-message: "Deploy from GitHub Actions — ${{ github.event.pull_request.title || github.event.head_commit.message }} (${{ github.sha }})"
