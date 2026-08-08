@@ -1,9 +1,11 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import { readDataVersion, type Database } from '@tt-players/db';
 
 const HealthSchema = z.enum(['healthy', 'degraded', 'unobserved']);
+const PipelineRunStatusSchema = z.enum(['running', 'completed', 'failed']);
+const PipelineStageStatusSchema = z.enum(['running', 'waiting', 'completed', 'failed']);
 
 const SourceQualityItemSchema = z.object({
     platform_id: z.string().uuid(),
@@ -48,10 +50,185 @@ export const SourceQualityResponseSchema = z.object({
     sources: z.array(SourceQualityItemSchema),
 });
 
+const DataUpdateStageSchema = z.object({
+    stage: z.string(),
+    status: PipelineStageStatusSchema,
+    started_at: z.string(),
+    finished_at: z.string().nullable(),
+    duration_ms: z.number().int().nonnegative().nullable(),
+    attempt_count: z.number().int().nonnegative(),
+    summary: z.record(z.unknown()),
+    error_message: z.string().nullable(),
+    recorded_at: z.string(),
+});
+
+const DataUpdateRunSchema = z.object({
+    run_key: z.string(),
+    status: PipelineRunStatusSchema,
+    current_stage: z.string(),
+    window_start: z.string(),
+    started_at: z.string(),
+    finished_at: z.string().nullable(),
+    duration_ms: z.number().int().nonnegative().nullable(),
+    attempt_count: z.number().int().nonnegative(),
+    error_message: z.string().nullable(),
+    recorded_at: z.string(),
+    stages: z.array(DataUpdateStageSchema),
+});
+
+export const DataUpdatesResponseSchema = z.object({
+    generated_at: z.string(),
+    available: z.boolean(),
+    latest_recorded_at: z.string().nullable(),
+    run: DataUpdateRunSchema.nullable(),
+});
+
 const ErrorSchema = z.object({
     error: z.string(),
     statusCode: z.number().int(),
 });
+
+interface PipelineRunRow {
+    run_key: string;
+    status: 'running' | 'completed' | 'failed';
+    current_stage: string;
+    window_start: Date | string;
+    started_at: Date | string;
+    finished_at: Date | string | null;
+    duration_ms: number | string | null;
+    attempt_count: number | string;
+    error_message: string | null;
+    updated_at: Date | string;
+}
+
+interface PipelineStageRow {
+    stage: string;
+    status: 'running' | 'waiting' | 'completed' | 'failed';
+    started_at: Date | string;
+    finished_at: Date | string | null;
+    duration_ms: number | string | null;
+    attempt_count: number | string;
+    summary: unknown;
+    error_message: string | null;
+    updated_at: Date | string;
+}
+
+function numberValue(value: number | string | null | undefined): number {
+    return Number(value ?? 0);
+}
+
+function isoValue(value: Date | string | null | undefined): string | null {
+    if (!value) return null;
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+        return value as Record<string, unknown>;
+    }
+    return {};
+}
+
+function latestIso(values: Array<Date | string | null | undefined>): string | null {
+    let latest = 0;
+    for (const value of values) {
+        const iso = isoValue(value);
+        if (!iso) continue;
+        latest = Math.max(latest, new Date(iso).getTime());
+    }
+    return latest === 0 ? null : new Date(latest).toISOString();
+}
+
+async function loadDataUpdatesSnapshot(db: Kysely<Database>) {
+    try {
+        const runResult = await sql<PipelineRunRow>`
+            SELECT
+                run_key,
+                status,
+                current_stage,
+                window_start,
+                started_at,
+                finished_at,
+                duration_ms,
+                attempt_count,
+                error_message,
+                updated_at
+            FROM scraping_pipeline_runs
+            ORDER BY started_at DESC
+            LIMIT 1
+        `.execute(db);
+
+        const run = runResult.rows[0];
+        if (!run) {
+            return {
+                generated_at: new Date().toISOString(),
+                available: true,
+                latest_recorded_at: null,
+                run: null,
+            };
+        }
+
+        const stagesResult = await sql<PipelineStageRow>`
+            SELECT
+                stage,
+                status,
+                started_at,
+                finished_at,
+                duration_ms,
+                attempt_count,
+                summary,
+                error_message,
+                updated_at
+            FROM scraping_pipeline_run_stages
+            WHERE run_key = ${run.run_key}
+            ORDER BY started_at ASC
+        `.execute(db);
+
+        const stages = stagesResult.rows.map((stage) => ({
+            stage: stage.stage,
+            status: stage.status,
+            started_at: isoValue(stage.started_at)!,
+            finished_at: isoValue(stage.finished_at),
+            duration_ms: stage.duration_ms === null ? null : numberValue(stage.duration_ms),
+            attempt_count: numberValue(stage.attempt_count),
+            summary: objectValue(stage.summary),
+            error_message: stage.error_message,
+            recorded_at: isoValue(stage.updated_at)!,
+        }));
+        const runRecordedAt = isoValue(run.updated_at)!;
+        const latestRecordedAt = latestIso([run.updated_at, ...stagesResult.rows.map((stage) => stage.updated_at)]);
+
+        return {
+            generated_at: new Date().toISOString(),
+            available: true,
+            latest_recorded_at: latestRecordedAt,
+            run: {
+                run_key: run.run_key,
+                status: run.status,
+                current_stage: run.current_stage,
+                window_start: isoValue(run.window_start)!,
+                started_at: isoValue(run.started_at)!,
+                finished_at: isoValue(run.finished_at),
+                duration_ms: run.duration_ms === null ? null : numberValue(run.duration_ms),
+                attempt_count: numberValue(run.attempt_count),
+                error_message: run.error_message,
+                recorded_at: runRecordedAt,
+                stages,
+            },
+        };
+    } catch (error) {
+        const code = (error as { code?: string }).code;
+        if (code !== '42P01' && code !== '3F000') throw error;
+
+        return {
+            generated_at: new Date().toISOString(),
+            available: false,
+            latest_recorded_at: null,
+            run: null,
+        };
+    }
+}
 
 export function sourceQualityRoutes(db: Kysely<Database>): FastifyPluginAsync {
     return async function (app) {
@@ -80,8 +257,20 @@ export function sourceQualityRoutes(db: Kysely<Database>): FastifyPluginAsync {
                 });
             }
 
-            reply.header('ETag', `W/"source-quality-${version}"`);
+            reply.header('ETag', `W/\"source-quality-${version}\"`);
             return reply.send(parsed.data);
+        });
+
+        app.get('/updates', {
+            schema: {
+                response: {
+                    200: DataUpdatesResponseSchema,
+                },
+            },
+        }, async (_request, reply) => {
+            const snapshot = await loadDataUpdatesSnapshot(db);
+            reply.header('Cache-Control', 'public, max-age=30, s-maxage=60, stale-while-revalidate=30');
+            return reply.send(snapshot);
         });
     };
 }
