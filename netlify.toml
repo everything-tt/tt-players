@@ -8,12 +8,23 @@
   command = "echo 'Build handled by GitHub Actions'"
   publish = "apps/mobile/dist"
 
+[functions]
+  directory = "netlify/functions"
+
 # Proxy /api/* to the backend API on the tt-domain VPS (Cloudflare Tunnel).
 # Keep this even when direct CORS is available: the frontend uses same-origin
 # fetch('/api/...') so auth cookies and caching behave correctly.
 [[redirects]]
   from = "/api/*"
   to = "https://ttp-api.tourneypilot.com/api/:splat"
+  status = 200
+  force = true
+
+# Only the canonical public player profile is SSR. Deeper player routes and all
+# /tabs/* routes continue through the SPA fallback below.
+[[redirects]]
+  from = "/players/:playerId"
+  to = "/.netlify/functions/player-ssr?playerId=:playerId"
   status = 200
   force = true
 
