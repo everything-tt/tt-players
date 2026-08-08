@@ -16,7 +16,7 @@ const config = {
   location: process.env.TTP_BQ_LOCATION ?? 'us-central1', rawDataset: process.env.TTP_BQ_RAW_DATASET ?? 'tt_players_raw',
   pipelineDataset: process.env.TTP_BQ_PIPELINE_DATASET ?? 'tt_players_pipeline', loadPrefix: process.env.TTP_GCS_WAREHOUSE_PREFIX ?? 'warehouse-loads',
   databaseUrl: process.env.DATABASE_URL ?? 'postgresql:///tt_players?host=/var/run/postgresql', maxBytesBilled: process.env.TTP_BQ_MAX_BYTES_BILLED ?? '5000000000',
-  psql: process.env.PSQL_BIN ?? 'psql', sudo: process.env.SUDO_BIN ?? 'sudo', gcloud: process.env.GCLOUD_BIN ?? 'gcloud', bq: process.env.BQ_BIN ?? 'bq',
+  psql: process.env.PSQL_BIN ?? 'psql', sudo: process.env.SUDO_BIN ?? 'sudo', gcloud: process.env.GCLOUD_BIN ?? 'gcloud', bq: process.env.BQ_BIN ?? 'bq', curl: process.env.CURL_BIN ?? 'curl',
 };
 
 for (const [key, value] of Object.entries({ project: config.project, bucket: config.bucket })) if (!value) throw new Error(`Missing required configuration: ${key}`);
@@ -36,6 +36,42 @@ async function psqlExport(sql, file) { return runToFile(config.sudo, psqlArgs(sq
 function loadStage({ stagingTable, gcsUri, schemaPath }) {
   run(config.bq, ['load',`--project_id=${config.project}`,`--location=${config.location}`,'--source_format=NEWLINE_DELIMITED_JSON','--replace','--quiet',`${config.rawDataset}.${stagingTable}`,gcsUri,schemaPath]);
   run(config.bq, ['update',`--project_id=${config.project}`,`--location=${config.location}`,'--expiration=86400','--quiet',`${config.rawDataset}.${stagingTable}`]);
+}
+function gcsObjectName(gcsUri) {
+  const bucketPrefix = `gs://${config.bucket}/`;
+  if (!gcsUri.startsWith(bucketPrefix)) throw new Error(`GCS URI is outside configured bucket: ${gcsUri}`);
+  return gcsUri.slice(bucketPrefix.length);
+}
+function gcsApiUrl(gcsUri) {
+  return `https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(config.bucket)}/o/${encodeURIComponent(gcsObjectName(gcsUri))}`;
+}
+function gcsUploadUrl(gcsUri) {
+  return `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(config.bucket)}/o?uploadType=media&name=${encodeURIComponent(gcsObjectName(gcsUri))}`;
+}
+function gcsAccessToken() {
+  const token = run(config.gcloud, ['auth', 'print-access-token', '--quiet']).stdout.trim();
+  if (!token) throw new Error('gcloud auth print-access-token returned no token');
+  return token;
+}
+function gcsAuthHeader(token) {
+  return `Authorization: Bearer ${token}\n`;
+}
+function uploadGcsObject(dataPath, gcsUri) {
+  const token = gcsAccessToken();
+  run(config.curl, [
+    '--fail', '--silent', '--show-error', '--location', '--request', 'POST', '--header', '@-',
+    '--data-binary', `@${dataPath}`, gcsUploadUrl(gcsUri),
+  ], { input: `${gcsAuthHeader(token)}Content-Type: application/octet-stream\n` });
+}
+function deleteGcsObject(gcsUri) {
+  try {
+    const token = gcsAccessToken();
+    return run(config.curl, [
+      '--fail', '--silent', '--show-error', '--location', '--request', 'DELETE', '--header', '@-', gcsApiUrl(gcsUri),
+    ], { input: gcsAuthHeader(token), allowFailure: true });
+  } catch (error) {
+    return { status: 1, error };
+  }
 }
 function validateStage(table, stagingTable, expectedRows, runId) {
   const [row] = JSON.parse(bqQuery(stageValidationSql({ project: config.project, rawDataset: config.rawDataset, stagingTable, table }), { json: true }).stdout || '[]');
@@ -91,7 +127,7 @@ async function syncTable(table, tempRoot) {
     }
 
     console.log(`[${table.destinationTable}] exporting ${rows} rows`);
-    run(config.gcloud, ['storage','cp',dataPath,gcsUri,'--quiet']); remoteCreated = true;
+    uploadGcsObject(dataPath, gcsUri); remoteCreated = true;
     loadStage({ stagingTable: stageTable, gcsUri, schemaPath }); validateStage(table, stageTable, rows, runId);
     if (effectiveMode === 'full-replace') bqQuery(replaceSql({ project: config.project, rawDataset: config.rawDataset, stagingTable: stageTable, table }));
     else { bqQuery(createDestinationSql({ project: config.project, rawDataset: config.rawDataset, table })); bqQuery(mergeSql({ project: config.project, rawDataset: config.rawDataset, stagingTable: stageTable, table })); }
@@ -101,7 +137,7 @@ async function syncTable(table, tempRoot) {
     throw error;
   } finally {
     try { bqQuery(`DROP TABLE IF EXISTS ${bqIdentifier(config.project, config.rawDataset, stageTable)};`); } catch { console.warn(`[${table.destinationTable}] staging table cleanup deferred to its 24h expiration`); }
-    if (remoteCreated) { const cleanup = run(config.gcloud, ['storage','rm',gcsUri,'--quiet'], { allowFailure: true }); if (cleanup.status !== 0) console.warn(`[${table.destinationTable}] GCS cleanup deferred to bucket lifecycle`); }
+    if (remoteCreated) { const cleanup = deleteGcsObject(gcsUri); if (cleanup.status !== 0) console.warn(`[${table.destinationTable}] GCS cleanup deferred to bucket lifecycle`); }
   }
   console.log(`[${table.destinationTable}] sync succeeded`);
 }
