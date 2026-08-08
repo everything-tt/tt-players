@@ -11,7 +11,7 @@ import {
   useMyTTProfile,
 } from './hooks/useMyTTProfile';
 import { useMyPlayer, type MyPlayer } from './hooks/useMyPlayer';
-import { useAuth, type AuthState } from './lib/auth';
+import { useAuth } from './lib/auth';
 import { useTabNavigation } from './navigation/tab-navigation';
 import { usePlayerExtendedStatsQuery } from './queries';
 import { TabShellPage } from './TabShellPage';
@@ -56,51 +56,22 @@ const GRIPS = ['Shakehand', 'Penhold', 'Seemiller', 'Other'];
 const POSITIONS = ['Close to table', 'Mid distance', 'Far from table'];
 
 interface AccessStateProps {
-  auth: AuthState;
   player: MyPlayer | null;
   onFindPlayer: () => void;
 }
 
-function AccessState({ auth, player, onFindPlayer }: AccessStateProps) {
-  if (auth.loading) return <SkeletonList rows={3} />;
-
-  if (!auth.isConfigured) {
-    return (
-      <EmptyState
-        iconClassName="fa fa-user-lock"
-        title="Account sign-in is unavailable"
-        message="My TT needs an account so your claimed player and personal information stay connected to you."
-      />
-    );
-  }
-
-  if (!auth.user) {
-    return (
-      <Stack gap="sm" className="tt-my-tt-access">
-        <EmptyState
-          iconClassName="fa fa-user-lock"
-          title="Sign in to use My TT"
-          message="Sign in before claiming a player and adding your personal table tennis information."
-        />
-        <AppButton full tone="primary" onClick={() => { void auth.signInWithGoogle(); }}>
-          <i className="fab fa-google" aria-hidden="true" />
-          Sign in with Google
-        </AppButton>
-      </Stack>
-    );
-  }
-
+function AccessState({ player, onFindPlayer }: AccessStateProps) {
   if (!player) {
     return (
       <Stack gap="sm" className="tt-my-tt-access">
         <EmptyState
           iconClassName="fa fa-id-badge"
-          title="Claim your player first"
-          message="Find your indexed player record and choose “This is me” to unlock My TT."
+          title="Claim your player from Home"
+          message="Claiming works without an account. Your player and My TT profile are saved on this device."
         />
         <AppButton full tone="primary" onClick={onFindPlayer}>
-          <i className="fa fa-search" aria-hidden="true" />
-          Find my player
+          <i className="fa fa-home" aria-hidden="true" />
+          Go to Home
         </AppButton>
       </Stack>
     );
@@ -207,7 +178,7 @@ export function MyTTPage() {
   const [showSavedNotice] = useState(() => sessionStorage.getItem(MY_TT_SAVED_NOTICE_KEY) === 'true');
   const statsQuery = usePlayerExtendedStatsQuery(
     player?.id ?? '',
-    Boolean(auth.user && player),
+    Boolean(player),
   );
   const stats = statsQuery.data ?? null;
   const activeProfile = profile ?? (player ? createEmptyMyTTProfile(player) : null);
@@ -224,12 +195,11 @@ export function MyTTPage() {
     <TabShellPage>
       <DetailHeader title="My TT" backFallback="" heading />
       <AppPageContent className="tt-my-tt-page">
-        {!auth.user || !player ? (
+        {!player ? (
           <PageSection surface="hero" density="compact" ariaLabelledby={undefined}>
             <AccessState
-              auth={auth}
               player={player}
-              onFindPlayer={() => navigateInTab('players')}
+              onFindPlayer={() => navigateInTab('home')}
             />
           </PageSection>
         ) : activeProfile ? (
@@ -427,9 +397,19 @@ export function MyTTPage() {
 
             <PageSection surface="flat" density="compact" className="tt-my-tt-account-note" ariaLabelledby={undefined}>
               <div className="tt-my-tt-account-inline">
-                <i className="fa fa-lock" aria-hidden="true" />
-                <span>Saved to your account, separately from indexed public match records.</span>
+                <i className={`fa fa-${auth.user ? 'cloud' : 'mobile-alt'}`} aria-hidden="true" />
+                <span>
+                  {auth.user
+                    ? 'Synced to your account, separately from indexed public match records.'
+                    : 'Saved on this device. Sign in to sync My TT across devices.'}
+                </span>
               </div>
+              {!auth.user && auth.isConfigured ? (
+                <AppButton size="s" tone="ghost" onClick={() => { void auth.signInWithGoogle(); }}>
+                  <i className="fab fa-google" aria-hidden="true" />
+                  Sign in to sync
+                </AppButton>
+              ) : null}
             </PageSection>
           </>
         ) : null}
@@ -538,7 +518,7 @@ export function EditMyTTPage() {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!draft || !player || !auth.user || !isDirty) return;
+    if (!draft || !player || !isDirty) return;
     const saved = save(draft);
     if (!saved) return;
     sessionStorage.setItem(MY_TT_SAVED_NOTICE_KEY, 'true');
@@ -554,12 +534,11 @@ export function EditMyTTPage() {
     <TabShellPage>
       <DetailHeader title="Edit My TT" backFallback="my-tt" onBack={handleBack} heading />
       <AppPageContent className="tt-my-tt-page tt-my-tt-edit-page">
-        {!auth.user || !player || !draft ? (
+        {!player || !draft ? (
           <PageSection surface="hero" density="compact" ariaLabelledby={undefined}>
             <AccessState
-              auth={auth}
               player={player}
-              onFindPlayer={() => navigateInTab('players')}
+              onFindPlayer={() => navigateInTab('home')}
             />
           </PageSection>
         ) : (
@@ -744,9 +723,11 @@ export function EditMyTTPage() {
             <PageSection surface="flat" density="compact" className="tt-my-tt-edit-section" ariaLabelledby={undefined}>
               <DesignList density="compact" divider="none" paginate={false}>
                 <ListItem
-                  leading={<IconCircle iconClassName="fa fa-lock" tone="neutral" />}
-                  title="Saved to your account"
-                  subtitle="These details remain separate from the indexed player database."
+                  leading={<IconCircle iconClassName={auth.user ? 'fa fa-cloud' : 'fa fa-mobile-alt'} tone="neutral" />}
+                  title={auth.user ? 'Synced to your account' : 'Saved on this device'}
+                  subtitle={auth.user
+                    ? 'These details remain separate from the indexed player database.'
+                    : 'You can edit everything locally and sign in later to sync it across devices.'}
                   hideChevron
                 />
               </DesignList>
