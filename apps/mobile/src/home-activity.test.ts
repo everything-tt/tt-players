@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildHomeScopeKey,
+  buildPersonalHomeStories,
   diffHomeVisit,
   rankHomeStories,
   type HomeVisitSnapshot,
@@ -62,20 +63,87 @@ describe('Home activity briefing', () => {
     })).toEqual([]);
   });
 
+  it('turns a current winning streak into a high-priority personal story', () => {
+    const stories = buildPersonalHomeStories({
+      recentResults: ['W', 'W', 'W', 'L', 'W'],
+      currentRating: 1912,
+      ratingHistory: [],
+    });
+
+    expect(stories[0]).toMatchObject({
+      kind: 'personal-form',
+      priority: 118,
+      title: "You're on a 3-match winning streak",
+      subtitle: '4 wins in your last 5 singles',
+      trailing: '3 straight',
+    });
+  });
+
+  it('surfaces strong recent form even without a three-match streak', () => {
+    const stories = buildPersonalHomeStories({
+      recentResults: ['W', 'W', 'L', 'W', 'W'],
+      currentRating: 1912,
+      ratingHistory: [],
+    });
+
+    expect(stories[0]).toMatchObject({
+      kind: 'personal-form',
+      priority: 108,
+      title: "You've won 4 of your last 5",
+      subtitle: 'Strong recent singles form',
+      trailing: 'In form',
+    });
+  });
+
+  it('surfaces a meaningful three-month rating high from already-loaded history', () => {
+    const stories = buildPersonalHomeStories({
+      recentResults: ['W', 'L', 'W', 'L', 'W'],
+      currentRating: 1912,
+      ratingHistory: [
+        { rating: 1840 },
+        { rating: 1888 },
+        { rating: 1912 },
+      ],
+    });
+
+    expect(stories).toContainEqual(expect.objectContaining({
+      kind: 'recent-rating-high',
+      priority: 102,
+      title: "You're at a 3-month rating high",
+      subtitle: '1,912 rating · up 72 from the low in this period',
+      trailing: '3m high',
+    }));
+  });
+
+  it('does not call a flat or one-point rating history a meaningful high', () => {
+    expect(buildPersonalHomeStories({
+      recentResults: [],
+      currentRating: 1912,
+      ratingHistory: [{ rating: 1912 }],
+    })).toEqual([]);
+
+    expect(buildPersonalHomeStories({
+      recentResults: [],
+      currentRating: 1912,
+      ratingHistory: [{ rating: 1902 }, { rating: 1912 }],
+    })).toEqual([]);
+  });
+
   it('ranks personal and higher priority stories ahead of generic stories', () => {
     const ranked = rankHomeStories([
       { id: 'leader', priority: 60 },
       { id: 'generic-result', priority: 75 },
       { id: 'personal-result', priority: 110 },
+      { id: 'personal-form', priority: 108 },
       { id: 'riser', priority: 95 },
       { id: 'second-result', priority: 65 },
     ], 4);
 
     expect(ranked.map((story) => story.id)).toEqual([
       'personal-result',
+      'personal-form',
       'riser',
       'generic-result',
-      'second-result',
     ]);
   });
 });
