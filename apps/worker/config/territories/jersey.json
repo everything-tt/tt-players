@@ -1,0 +1,110 @@
+{
+    "territory": "Jersey",
+    "sources": [
+        {
+            "key": "jersey-domestic-league",
+            "name": "Jersey Table Tennis Association domestic leagues",
+            "platformName": "Jersey Table Tennis Association",
+            "platformBaseUrl": "https://www.tabletennisjersey.com",
+            "baseUrl": "https://www.tabletennisjersey.com/league.html",
+            "adapterKey": "jtta-discovery",
+            "status": "discovery",
+            "enabled": false,
+            "notes": "The official league page exposes Division 1/2/3 fixtures, averages and results. Follow the live division links and identify their actual transport before selecting TT365 or a structured-document adapter.",
+            "config": {
+                "role": "domestic-league",
+                "documentedDivisions": [
+                    "Division 1",
+                    "Division 2",
+                    "Division 3"
+                ],
+                "doNotAssumeHistoricalTT365": true,
+                "publicReadBackendRequired": true
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "jersey-domestic-league",
+                    "name": "Jersey domestic league results",
+                    "publicUrl": "https://www.tabletennisjersey.com/league.html",
+                    "enabled": false,
+                    "refreshPolicy": {
+                        "cadence": "daily"
+                    }
+                }
+            ]
+        },
+        {
+            "key": "jersey-tournament-catalog",
+            "name": "Jersey island tournament catalogue",
+            "platformName": "Jersey Table Tennis Association",
+            "platformBaseUrl": "https://www.tabletennisjersey.com",
+            "baseUrl": "https://www.tabletennisjersey.com/",
+            "adapterKey": "structured-tournament-discovery",
+            "status": "discovery",
+            "enabled": false,
+            "notes": "Covers Divisional Championships, Jersey Grand Prix, Top 12 and other JTTA result links. Prefer structured HTML/CSV/XLSX/Google Sheet before PDF; never use gallery OCR as the primary source.",
+            "config": {
+                "role": "island-tournaments",
+                "transportPreference": [
+                    "structured-html-json",
+                    "csv-xlsx-sheet",
+                    "structured-document"
+                ]
+            },
+            "resources": [
+                {
+                    "resourceType": "directory",
+                    "externalId": "jersey-current-events",
+                    "name": "JTTA current season event catalogue",
+                    "publicUrl": "https://www.tabletennisjersey.com/",
+                    "enabled": false
+                },
+                {
+                    "resourceType": "event-results",
+                    "externalId": "jersey-grand-prix-results",
+                    "name": "Jersey Grand Prix results",
+                    "publicUrl": "https://www.tabletennisjersey.com/page46.html",
+                    "enabled": false
+                }
+            ]
+        },
+        {
+            "key": "jersey-channel-islands",
+            "name": "Jersey-hosted Channel Islands competitions",
+            "platformName": "Jersey Table Tennis Association",
+            "platformBaseUrl": "https://www.tabletennisjersey.com",
+            "baseUrl": "https://www.tabletennisjersey.com/",
+            "adapterKey": "channel-islands-discovery",
+            "status": "discovery",
+            "enabled": false,
+            "notes": "Jersey and Guernsey can publish the same Channel Islands edition. Only the host association's complete result source may own canonical matches.",
+            "config": {
+                "role": "shared-channel-islands-events",
+                "canonicalEventNamespace": "channel-islands",
+                "canonicalKeys": [
+                    "channel-islands:<season>:championships",
+                    "channel-islands:<season>:inter-insular",
+                    "channel-islands:<season>:top-12"
+                ],
+                "ownershipRule": "host-association-full-results"
+            },
+            "resources": [
+                {
+                    "resourceType": "event",
+                    "externalId": "channel-islands-championships",
+                    "name": "Channel Islands Championships",
+                    "publicUrl": "https://www.tabletennisjersey.com/",
+                    "enabled": false
+                },
+                {
+                    "resourceType": "event",
+                    "externalId": "channel-islands-inter-insular",
+                    "name": "Channel Islands Inter-Insular",
+                    "publicUrl": "https://www.tabletennisjersey.com/",
+                    "enabled": false
+                }
+            ]
+        }
+    ]
+}
