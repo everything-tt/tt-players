@@ -28,18 +28,15 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 concurrency:
   group: netlify-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-deploy:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    outputs:
-      deploy_url: ${{ steps.netlify.outputs.deploy-url }}
 
     steps:
       - name: Checkout
@@ -60,39 +57,145 @@ jobs:
       - name: Build frontend
         env:
           VITE_API_URL: /api
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: pnpm --filter @tt-players/mobile build
 
-      - name: Deploy to Netlify
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: apps/mobile/dist
+          if-no-files-found: error
+          retention-days: 7
+
+  # Same-repository PR previews remain the deliberately narrow GitHub-secret
+  # exception. Fork PRs never enter this job and therefore receive no Netlify
+  # credential. The job deploys only the validated artifact from build.
+  preview-deploy:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      deploy_url: ${{ steps.netlify.outputs.deploy-url }}
+
+    steps:
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: apps/mobile/dist
+
+      - name: Validate frontend artifact
+        run: |
+          set -euo pipefail
+          test -f apps/mobile/dist/index.html
+          if find apps/mobile/dist -type l -print -quit | grep -q .; then
+            echo 'Frontend artifact contains a symlink' >&2
+            exit 1
+          fi
+
+      - name: Deploy PR preview to Netlify
         id: netlify
         uses: nwtgck/actions-netlify@v3.0
         with:
           publish-dir: ./apps/mobile/dist
           production-branch: main
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          deploy-message: "Deploy from GitHub Actions — ${{ github.event.pull_request.title || github.event.head_commit.message }} (${{ github.sha }})"
+          github-token: ${{ github.token }}
+          deploy-message: "Preview from GitHub Actions — PR #${{ github.event.pull_request.number }} (${{ github.sha }})"
           enable-pull-request-comment: true
           enable-commit-comment: false
           overwrites-pull-request-comment: true
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          NETLIFY_SITE_ID: ${{ vars.NETLIFY_SITE_ID }}
         timeout-minutes: 5
+
+  # The production identity exists only on the push-to-main path. It is never
+  # available to pull_request jobs, including same-repository PRs.
+  deploy-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: apps/mobile/dist
+
+      - name: Validate frontend artifact
+        run: |
+          set -euo pipefail
+          test -f apps/mobile/dist/index.html
+          if find apps/mobile/dist -type l -print -quit | grep -q .; then
+            echo 'Frontend artifact contains a symlink' >&2
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: wudong-agent-master
+          workload_identity_provider: ${{ vars.TT_PLAYERS_FRONTEND_WIF_PROVIDER }}
+          service_account: ${{ vars.TT_PLAYERS_FRONTEND_SERVICE_ACCOUNT }}
+
+      - name: Load production Netlify credential
+        id: gcp-secrets
+        uses: google-github-actions/get-secretmanager-secrets@v3
+        with:
+          secrets: |-
+            netlify_auth_token:wudong-agent-master/tt-players-netlify-auth-token
+
+      - name: Deploy production frontend to Netlify
+        uses: nwtgck/actions-netlify@v3.0
+        with:
+          publish-dir: ./apps/mobile/dist
+          production-branch: main
+          github-token: ${{ github.token }}
+          deploy-message: "Production deploy from GitHub Actions — ${{ github.sha }}"
+          enable-pull-request-comment: false
+          enable-commit-comment: false
+          enable-github-deployment: false
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ steps.gcp-secrets.outputs.netlify_auth_token }}
+          NETLIFY_SITE_ID: ${{ vars.NETLIFY_SITE_ID }}
+        timeout-minutes: 5
+
+      - name: Clean temporary Google credentials
+        if: always()
+        run: |
+          find "${RUNNER_TEMP:-/tmp}" -maxdepth 1 -type f -name 'gha-creds-*.json' -delete 2>/dev/null || true
 
   ui-screenshots:
     if: >-
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      needs.build-deploy.outputs.deploy_url != ''
-    needs: build-deploy
+      needs.preview-deploy.outputs.deploy_url != ''
+    needs: preview-deploy
     runs-on: [self-hosted, Linux, ARM64, docker-ui-screenshot, playwright]
     timeout-minutes: 60
+    permissions:
+      contents: read
     concurrency:
       group: ui-screenshots-pr-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     env:
-      PREVIEW_URL: ${{ needs.build-deploy.outputs.deploy_url }}
+      PREVIEW_URL: ${{ needs.preview-deploy.outputs.deploy_url }}
       UI_REVIEW_REPORT_DIR: ${{ github.workspace }}/ui-review-report
       UI_REVIEW_MAX_ROUTES: 10
 
@@ -167,15 +270,57 @@ jobs:
           retention-days: 14
           path: ui-review-report/
 
+  # This job runs on a fresh hosted runner after the self-hosted browser job.
+  # It uses the same-repository PR-preview exception only to publish the
+  # report artifact; it never checks out or executes PR-controlled code.
+  ui-report-deploy:
+    if: >-
+      always() &&
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      needs.ui-screenshots.result != 'cancelled'
+    needs: [preview-deploy, ui-screenshots]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      report_url: ${{ steps.report.outputs.deploy-url }}
+
+    steps:
+      - name: Download UI review artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-review-pr-${{ github.event.pull_request.number }}-${{ github.sha }}
+          path: ui-review-report
+
+      - name: Validate UI review artifact
+        run: |
+          set -euo pipefail
+          test -f ui-review-report/index.html
+          test -f ui-review-report/manifest.json
+          if find ui-review-report -type l -print -quit | grep -q .; then
+            echo 'UI review artifact contains a symlink' >&2
+            exit 1
+          fi
+          while IFS= read -r -d '' path; do
+            relative="${path#ui-review-report/}"
+            case "$relative" in
+              index.html|manifest.json|coverage.json|diagnostics/*|screenshots/*|playwright-report/*) ;;
+              *) echo "Unexpected UI review artifact path: $relative" >&2; exit 1 ;;
+            esac
+          done < <(find ui-review-report -type f -print0)
+
       - name: Deploy UI review report to Netlify
-        if: always() && hashFiles('ui-review-report/index.html') != ''
+        if: hashFiles('ui-review-report/index.html') != ''
         id: report
         uses: nwtgck/actions-netlify@v3.0
         with:
           publish-dir: ./ui-review-report
           production-branch: main
           production-deploy: false
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
           deploy-message: "UI review screenshots for PR #${{ github.event.pull_request.number }} (${{ github.sha }})"
           alias: ui-review-pr-${{ github.event.pull_request.number }}
           enable-pull-request-comment: false
@@ -184,7 +329,7 @@ jobs:
           enable-github-deployment: false
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          NETLIFY_SITE_ID: ${{ vars.NETLIFY_SITE_ID }}
         timeout-minutes: 5
 
       - name: Comment UI screenshots on PR
@@ -192,7 +337,7 @@ jobs:
         uses: actions/github-script@v7
         env:
           REPORT_URL: ${{ steps.report.outputs.deploy-url }}
-          PREVIEW_URL: ${{ env.PREVIEW_URL }}
+          PREVIEW_URL: ${{ needs.preview-deploy.outputs.deploy_url }}
         with:
           script: |
             const fs = require('node:fs');

@@ -1,20 +1,17 @@
-name: Roll back VPS release
+name: VPS SSH credential canary
 
 on:
   workflow_dispatch:
-    inputs:
-      target_release:
-        description: "Use 'previous' or an already deployed commit SHA/prefix"
-        required: true
-        default: previous
-        type: string
+
+permissions:
+  contents: read
 
 concurrency:
   group: vps-production-ttp
   cancel-in-progress: false
 
 jobs:
-  rollback:
+  canary:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production
@@ -56,54 +53,18 @@ jobs:
           printf '%s %s\n' "$VPS_HOST" "$VPS_HOST_KEY" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Show current release
+      - name: Read release metadata without changing production
         env:
           VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
           VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
-        run: |
-          ssh "$VPS_USER@$VPS_HOST" '
-            set -eu
-            echo "Current release:"
-            cat /opt/tt-players/current/.release-metadata
-            echo
-            if [ -L /opt/tt-players/previous ]; then
-              echo "Previous release:"
-              cat /opt/tt-players/previous/.release-metadata
-            else
-              echo "Previous release: none"
-            fi
-          '
-
-      - name: Roll back compatible release
-        env:
-          VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
-          VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
-          TARGET_RELEASE: ${{ inputs.target_release }}
         run: |
           set -euo pipefail
-          if [[ "$TARGET_RELEASE" != previous && ! "$TARGET_RELEASE" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
-            echo "target_release must be 'previous' or a 7-40 character hexadecimal commit SHA/prefix" >&2
-            exit 2
-          fi
-          printf -v target_q '%q' "$TARGET_RELEASE"
-          ssh "$VPS_USER@$VPS_HOST" \
-            "bash /opt/tt-players/current/scripts/rollback-vps-release.sh $target_q"
-
-      - name: Verify production health
-        run: |
-          curl --fail --retry 10 --retry-delay 3 https://ttp-api.tourneypilot.com/api/health
-          curl --fail --retry 10 --retry-delay 3 https://ttp-api.tourneypilot.com/api/health/db
-
-      - name: Rollback summary
-        env:
-          TARGET_RELEASE: ${{ inputs.target_release }}
-        run: |
-          {
-            echo "### VPS rollback"
-            echo "- Requested target: \`$TARGET_RELEASE\`"
-            echo "- Database compatibility checks: passed"
-            echo "- Production health checks: passed"
-          } >> "$GITHUB_STEP_SUMMARY"
+          test -n "$VPS_USER"
+          ssh "$VPS_USER@$VPS_HOST" '
+            set -eu
+            test -r /opt/tt-players/current/.release-metadata
+            sed -n "1,20p" /opt/tt-players/current/.release-metadata
+          '
 
       - name: Clean temporary SSH and Google credentials
         if: always()

@@ -1,0 +1,7 @@
+# Short-lived Google auth files must never enter an image build context.
+gha-creds-*.json
+
+.git
+node_modules
+.env
+.env.*

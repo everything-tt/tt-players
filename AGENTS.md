@@ -77,11 +77,31 @@ Operational rules:
 
 1. The audit is manual and independent of deployment. Its result must not reverse or block an already successful production deployment.
 2. The walkthrough captures representative anonymous root, static, player, tournament, league, team, fixture and H2H screens. Missing representative production data is recorded as skipped rather than aborting the remaining audit.
-3. Authenticated coverage uses a dedicated synthetic Supabase account. Configure repository secrets `UI_AUDIT_EMAIL` and `UI_AUDIT_PASSWORD`; never use a personal account.
-4. Authentication uses the public `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Never expose or pass a Supabase service-role key to Playwright.
+3. Authenticated coverage uses a dedicated synthetic Supabase account. Configure
+   repository secrets `UI_AUDIT_EMAIL` and `UI_AUDIT_PASSWORD`; never use a
+   personal account.
+4. Authentication uses the public `VITE_SUPABASE_URL` and
+   `VITE_SUPABASE_PUBLISHABLE_KEY` repository secrets. Never expose or pass a
+   Supabase service-role key to Playwright.
 5. If either synthetic-user credential is absent, anonymous coverage still runs and authenticated coverage is skipped.
 6. Authentication state is in-memory browser cookie state only. Do not commit it or include it in artifacts, diagnostics or screenshots beyond the account email visibly rendered by the application.
 7. Browser traces remain disabled because authenticated traffic must not be retained.
 8. Severe browser events are recorded with their screenshot and diagnostics. The audit continues collecting the remaining screens, then fails with a consolidated error summary.
 9. Every run uploads a 30-day `main-ui-audit-<run-id>-<attempt>` artifact containing `ui-review-report/` and `test-results/main-audit/`. Open `ui-review-report/index.html` from the artifact for the screenshot report.
 10. Pull requests validate the workflow contract and that the main audit test is collectable with Playwright `--list`; they do not execute the broad production walkthrough.
+
+## CI and production credentials
+
+Google Secret Manager in project `wudong-agent-master` is the source of truth
+for confidential TT Players CI and runtime credentials. Production workflows
+authenticate with workload-specific GitHub OIDC providers and load only their
+explicit Secret Manager allowlists. SSH workflows use the pinned
+`TT_PLAYERS_VPS_HOST_KEY` repository Variable and remove temporary private-key
+and Google credential files in cleanup steps.
+
+Fork pull requests receive no GCP or Netlify credential. Same-repository PR
+previews retain the narrow GitHub-managed Netlify preview credential as the
+documented isolation-preserving exception. The Main UI Audit remains on its
+existing GitHub-managed credentials until a separate migration. Never pass a
+secret as an SSH command-line argument or commit a value from an ignored
+environment file.

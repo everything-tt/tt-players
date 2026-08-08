@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env
 .env.*
+gha-creds-*.json
 *.tsbuildinfo
 backups/
 artifacts/backend-*.json
