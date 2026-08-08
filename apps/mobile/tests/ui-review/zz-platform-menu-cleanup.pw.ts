@@ -262,7 +262,7 @@ test('groups snapshot-backed Platform pages and keeps About focused', async ({ p
   await page.getByRole('button', { name: 'Open menu' }).click();
   await page.getByRole('link', { name: /Feedback/i }).click();
   await expect(page).toHaveURL(/\/feedback$/);
-  await expect(page.getByRole('heading', { name: 'Feedback' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Feedback', exact: true })).toBeVisible();
   await expect(page.getByText(/Found a bug, noticed a data issue/i)).toBeVisible();
   await expect(page.locator('input[name="page_path"]')).toHaveValue('/tabs/home');
   await capture(page, testInfo, 'feedback-page');
