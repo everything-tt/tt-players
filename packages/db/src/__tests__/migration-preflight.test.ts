@@ -76,6 +76,7 @@ describe('migration preflight', () => {
             '049_create_rating_calculation_audit',
             '050_add_competition_entry_fee',
             '051_add_competition_categories',
+            '052_add_raw_scrape_log_updated_at',
         ]);
     });
 });

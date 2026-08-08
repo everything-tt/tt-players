@@ -14,6 +14,7 @@ import * as m015 from '../../../../packages/db/src/migrations/015_add_rubber_pla
 import * as m029 from '../../../../packages/db/src/migrations/029_create_source_registry.js';
 import * as m030 from '../../../../packages/db/src/migrations/030_create_player_identity_decisions.js';
 import * as m035 from '../../../../packages/db/src/migrations/035_create_api_read_models.js';
+import * as m052 from '../../../../packages/db/src/migrations/052_add_raw_scrape_log_updated_at.js';
 import { buildSourceQualitySnapshot } from '../../../worker/src/read-models.js';
 import { buildApp } from '../app.js';
 
@@ -63,6 +64,7 @@ beforeAll(async () => {
     await m015.up(db);
     await sql`CREATE SCHEMA staging`.execute(db);
     await sql`ALTER TABLE raw_scrape_logs SET SCHEMA staging`.execute(db);
+    await m052.up(db);
     await m029.up(db);
     await m030.up(db);
     await m035.up(db);
