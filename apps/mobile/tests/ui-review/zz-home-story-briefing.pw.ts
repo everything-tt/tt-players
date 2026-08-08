@@ -126,14 +126,6 @@ async function mockApi(page: Page) {
       return;
     }
 
-    if (path.endsWith('/api/players/leaders')) {
-      await route.fulfill({ json: {
-        mode: 'improving', formula: 'latest five versus previous five', min_played: 10,
-        data: [{ rank: 1, player_id: '99999999-9999-4999-8999-999999999999', player_name: 'Maya Chen', played: 5, wins: 4, losses: 1, win_rate: 80, score: 42, first_match_date: '2026-07-20' }],
-      } });
-      return;
-    }
-
     if (path.endsWith('/api/leagues/dashboard')) {
       await route.fulfill({ json: {
         totals: { leagues: 1, divisions: 5, teams: 34, matches_played: 820, upcoming_fixtures: 18 },
@@ -222,27 +214,34 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('reviews first-visit discovery and returning-user change stories', async ({ page }, testInfo) => {
+test('reviews cheap first-visit discovery and returning-user change stories', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
+  const globalLeaderAnalysisRequests: string[] = [];
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path.endsWith('/api/players/leaders')) globalLeaderAnalysisRequests.push(request.url());
+  });
+
   await installNewUser(page);
   await mockApi(page);
   await page.goto(`${previewUrl}/tabs/home`, { waitUntil: 'domcontentloaded' });
 
   await expect(page.getByRole('heading', { name: 'Make TT Players yours' })).toBeVisible();
-  const happening = page.locator('section[aria-labelledby="tt-home-whats-happening-title"]');
-  await expect(happening.getByRole('heading', { name: "What's happening" })).toBeVisible();
-  await expect(happening.getByText('Jane Smith leads by 67 rating points', { exact: true })).toBeVisible();
-  await expect(happening.getByText('Maya Chen is finding another gear', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: "What's happening" })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Top players' })).toBeVisible();
+  await expect(page.getByText('Jane Smith', { exact: true })).toBeVisible();
+  await expect(page.getByText('641 rated matches · 74% win rate', { exact: true })).toBeVisible();
 
   const pulse = page.locator('section[aria-labelledby="tt-home-pulse-title"]');
   await expect(pulse.getByRole('heading', { name: 'TT Players pulse' })).toBeVisible();
   await expect(pulse.getByText('Players', { exact: true })).toBeVisible();
   await expect(pulse.getByText('Matches', { exact: true })).toBeVisible();
-  await expect(page.getByText('641 rated matches · 74% win rate', { exact: true })).toBeVisible();
+  expect(globalLeaderAnalysisRequests).toEqual([]);
+
   await capture(page, testInfo, 'home-new-user-discovery', {
-    liveStories: 2,
     globalRankingPreview: true,
     networkPulse: true,
+    populationWideLeaderAnalysisRequests: globalLeaderAnalysisRequests.length,
   });
 
   await configureReturningUser(page);
@@ -277,6 +276,7 @@ test('reviews first-visit discovery and returning-user change stories', async ({
     stories: 4,
   });
 
+  expect(globalLeaderAnalysisRequests).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
   writeReportIndex(previewUrl);
 });
