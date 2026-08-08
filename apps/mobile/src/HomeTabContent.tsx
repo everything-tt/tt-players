@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { AppTabId } from './navigation/tab-navigation';
 import { useMyPlayer } from './hooks/useMyPlayer';
-import { useTournamentList } from './hooks/useTournamentList';
 import { useTabNavigation } from './navigation/tab-navigation';
 import { type LeagueWithDivisions, TAB_METADATA, getQueryError } from './player-shared';
 import {
@@ -114,36 +113,12 @@ export function HomeTabContent({
   );
   const risersQuery = useLeagueRisersQuery(selectedLeagueIds, 1, 42, hasLeagueScope);
   const topSiteRatingsQuery = useTopSiteRatingsQuery(HOME_RATINGS_LIMIT, !isSelectedRatingsScope);
-  const upcomingTournaments = useTournamentList({
-    status: 'upcoming',
-    search: '',
-    pageSize: 1,
-  });
-
-  const personalTeamNames = new Set(
-    (profileQuery.data?.current_season_affiliations ?? [])
-      .filter((affiliation) => selectedLeagueIds.includes(affiliation.league_id))
-      .map((affiliation) => affiliation.team_name),
-  );
-  const upcomingFixtures = [...(dashboard?.upcoming_fixtures ?? [])]
-    .sort((left, right) => (left.date_played ?? '').localeCompare(right.date_played ?? ''));
-  const personalNextFixture = upcomingFixtures.find((fixture) =>
-    Boolean(
-      (fixture.home_team_name && personalTeamNames.has(fixture.home_team_name))
-      || (fixture.away_team_name && personalTeamNames.has(fixture.away_team_name)),
-    ));
-  const nextFixture = personalNextFixture ?? upcomingFixtures[0] ?? null;
-  const nextFixtureIsPersonal = Boolean(personalNextFixture && nextFixture?.fixture_id === personalNextFixture.fixture_id);
-  const nextTournament = upcomingTournaments.items[0] ?? null;
-  const nextTournamentVenue = nextTournament
-    ? nextTournament.venue_name ?? nextTournament.venue_town ?? nextTournament.venue_postcode
-    : null;
 
   const topRiser = risersQuery.data?.data[0] ?? null;
-  const latestResult = dashboard?.recent_results[0] ?? null;
+  const recentResults = dashboard?.recent_results.slice(0, 2) ?? [];
   const topTeam = dashboard?.top_teams[0] ?? null;
   const dashboardError = getQueryError(dashboardQuery.error);
-  const nextUpError = upcomingTournaments.error ?? (hasLeagueScope ? dashboardError : null);
+  const highlightsError = getQueryError(risersQuery.error) ?? dashboardError;
   const rankings = isSelectedRatingsScope
     ? topRatingsQuery.data?.data ?? []
     : topSiteRatingsQuery.data?.data ?? [];
@@ -268,60 +243,11 @@ export function HomeTabContent({
         </Surface>
       </section>
 
-      <section className="tt-home-section" aria-labelledby="tt-home-next-up-title">
-        <SectionHeader
-          title={<span id="tt-home-next-up-title">Next up</span>}
-          note={nextFixtureIsPersonal
-            ? 'Your team and tournaments'
-            : hasLeagueScope
-              ? 'Fixtures and tournaments'
-              : 'Upcoming tournaments'}
-        />
-
-        {(hasLeagueScope && dashboardQuery.isLoading) || upcomingTournaments.isLoadingInitial ? (
-          <SkeletonList rows={hasLeagueScope ? 2 : 1} />
-        ) : nextFixture || nextTournament ? (
-          <List divider="hairline" size="lg">
-            {nextFixture ? (
-              <ListItem
-                leading={<IconCircle iconClassName="fa fa-calendar-alt" tone={nextFixtureIsPersonal ? 'success' : 'accent'} />}
-                title={formatFixtureTeams(nextFixture.home_team_name, nextFixture.away_team_name)}
-                subtitle={`${formatDate(nextFixture.date_played)} · ${nextFixture.division_name} · ${nextFixture.league_name}`}
-                trailing={nextFixtureIsPersonal ? <Pill size="xs" tone="success">Your team</Pill> : undefined}
-                onClick={() => navigateInTab('leagues', `fixture/${nextFixture.fixture_id}`)}
-              />
-            ) : null}
-
-            {nextTournament ? (
-              <ListItem
-                leading={<IconCircle iconClassName="fa fa-trophy" tone="warning" />}
-                title={nextTournament.name}
-                subtitle={`${formatDate(nextTournament.start_date ?? nextTournament.event_date)} · ${nextTournament.category ?? 'Tournament'}${nextTournamentVenue ? ` · ${nextTournamentVenue}` : ''}`}
-                trailing={nextTournament.status === 'entries_open'
-                  ? <Pill size="xs" tone="success">Entries open</Pill>
-                  : undefined}
-                onClick={() => navigateInTab('events', `event/${nextTournament.id}`)}
-              />
-            ) : null}
-          </List>
-        ) : nextUpError ? (
-          <ErrorState message={nextUpError} />
-        ) : (
-          <EmptyState
-            iconClassName="fa fa-calendar"
-            title="Nothing scheduled"
-            message={hasLeagueScope
-              ? 'The next fixture or tournament will appear here.'
-              : 'Upcoming tournaments will appear here. Choose leagues to add relevant fixtures.'}
-          />
-        )}
-      </section>
-
       {hasLeagueScope ? (
         <section className="tt-home-section" aria-labelledby="tt-home-highlights-title">
           <SectionHeader
             title={<span id="tt-home-highlights-title">Highlights</span>}
-            note="Worth a quick look"
+            note="What is happening in your leagues"
             action={(
               <AppButton size="s" tone="ghost" onClick={() => onOpenTab('leagues')}>
                 View leagues
@@ -330,9 +256,9 @@ export function HomeTabContent({
             )}
           />
 
-          {dashboardQuery.isLoading && risersQuery.isLoading ? (
-            <SkeletonList rows={2} />
-          ) : topRiser || latestResult || topTeam ? (
+          {dashboardQuery.isLoading || risersQuery.isLoading ? (
+            <SkeletonList rows={4} />
+          ) : topRiser || recentResults.length > 0 || topTeam ? (
             <List divider="hairline">
               {topRiser ? (
                 <ListItem
@@ -344,17 +270,18 @@ export function HomeTabContent({
                 />
               ) : null}
 
-              {latestResult ? (
+              {recentResults.map((result, index) => (
                 <ListItem
-                  leading={<IconCircle iconClassName="fa fa-table-tennis" tone="neutral" />}
-                  title={formatFixtureTeams(latestResult.home_team_name, latestResult.away_team_name)}
-                  subtitle={`Latest result · ${latestResult.division_name} · ${formatDate(latestResult.date_played)}`}
-                  trailing={<Pill>{latestResult.home_score}–{latestResult.away_score}</Pill>}
-                  onClick={() => navigateInTab('leagues', `fixture/${latestResult.fixture_id}`)}
+                  key={result.fixture_id}
+                  leading={<IconCircle iconClassName="fa fa-table-tennis" tone={index === 0 ? 'accent' : 'neutral'} />}
+                  title={formatFixtureTeams(result.home_team_name, result.away_team_name)}
+                  subtitle={`${index === 0 ? 'Latest result' : 'Recent result'} · ${result.division_name} · ${formatDate(result.date_played)}`}
+                  trailing={<Pill>{result.home_score}–{result.away_score}</Pill>}
+                  onClick={() => navigateInTab('leagues', `fixture/${result.fixture_id}`)}
                 />
-              ) : null}
+              ))}
 
-              {!latestResult && topTeam ? (
+              {topTeam ? (
                 <ListItem
                   leading={<IconCircle iconClassName="fa fa-shield-alt" tone="neutral" />}
                   title={topTeam.team_name}
@@ -364,11 +291,13 @@ export function HomeTabContent({
                 />
               ) : null}
             </List>
+          ) : highlightsError ? (
+            <ErrorState message={highlightsError} />
           ) : (
             <EmptyState
               iconClassName="fa fa-bolt"
               title="No highlights yet"
-              message="Notable rating movement and recent league activity will appear here."
+              message="Rating movement, recent results and league leaders will appear here."
             />
           )}
         </section>
@@ -418,7 +347,7 @@ export function HomeTabContent({
                 key={player.player_id}
                 leading={<RankBadge>{player.rank ?? index + 1}</RankBadge>}
                 title={player.player_name}
-                subtitle={`${player.rated_matches} rated matches · ${Math.round(player.win_rate)}% win rate`}
+                subtitle={`${player.rated_matches} rated matches · ${Math.round(player.win_rate * 100)}% win rate`}
                 trailing={<Pill tone="accent">{Math.round(player.rating).toLocaleString('en-GB')}</Pill>}
                 onClick={() => navigateInTab('players', `player/${player.player_id}`)}
               />
