@@ -91,6 +91,8 @@ The default policy mirrors TT Players v1:
 
 Eligibility reasons are evaluated in the same order as production: critical data issue, insufficient matches, insufficient opponents, inactivity, high uncertainty, then ranked. Current ranks sort by inactivity-adjusted conservative score, rated matches, then player ID. Historical ranks sort by the stored-period conservative score, rated matches, then player ID.
 
+Each `playerId` supplied to `rankCurrentPlayers` is expected to be unique within the input set, matching the `(model_id, player_id)` uniqueness guaranteed by TT Players persistence.
+
 ```ts
 import { rankCurrentPlayers } from '@wudong/tt-players-ranking';
 
@@ -115,24 +117,39 @@ The worker remains responsible for loading those inputs efficiently from Postgre
 
 `calculateRatingMatchEvidence` exposes the same Glicko-2 terms used by the period update so an audit can explain expected win probability, surprise, information contribution, and an attributed rating delta. Attributed deltas across a period sum to the period rating change.
 
-## Testing and compatibility
+## Testing and full coverage
 
-The package test suite includes:
+Run the fast source-level behavior suite with:
+
+```sh
+pnpm --filter @tt-players/ranking test
+```
+
+Run the release-grade coverage gate with Node 22 or later:
+
+```sh
+pnpm --filter @tt-players/ranking coverage
+```
+
+The coverage command first builds the publishable module, then executes targeted tests against `dist/*.js`. It fails unless the shipped algorithm module maintains **100% line, 100% branch, and 100% function coverage**. The Shared Packages workflow runs this gate for every ranking-package pull request/change before package inspection or publication.
+
+The behavior and coverage suites intentionally exercise:
 
 - the worked example from the Glicko-2 paper
+- both Glicko-2 volatility-search paths and convergence branches
 - same-period ordering invariance
-- draws
-- inactivity and uncertainty caps
-- configurable conservative ranking scores
-- expected-score behavior
-- extreme numeric inputs
-- deterministic upset evidence
-- evidence attribution across multiple matches
-- current-ranking thresholds and eligibility precedence
-- active/historical ranking and tie-break ordering
-- a packed-package consumer smoke test that runs both TypeScript declaration checking and the installed JavaScript package
+- wins, draws, and losses
+- empty rating periods
+- inactivity identity, fractional growth, caps, and period normalization
+- configurable model parameters and conservative ranking scores
+- expected-score behavior and extreme valid inputs
+- deterministic upset evidence and multi-match attribution
+- every current-ranking eligibility outcome and exact policy boundaries
+- active/historical ranking, empty input, null active ranks, and every deterministic tie-break branch
 
-TT Players keeps thin compatibility modules under `apps/worker/src/ratings/` so application orchestration can retain its existing imports while the implementation comes from this package.
+The packed-package consumer smoke test is separate from code coverage: it installs the actual tarball into a standalone consumer, type-checks the published TypeScript declarations, and runs the installed JavaScript package. Together these gates cover algorithm execution, declaration/export integrity, and real package consumption.
+
+TT Players keeps thin compatibility modules under `apps/worker/src/ratings/` so application orchestration can retain its existing imports while the implementation comes from this package. The worker's integration tests also compare SQL-materialized ranking decisions against the package contract to catch cross-layer drift.
 
 ## Versioning and rating-model changes
 
@@ -146,4 +163,4 @@ This keeps persisted rating state reproducible even when the reusable package co
 
 ## Publishing
 
-The shared-package GitHub Actions workflow tests, builds, inspects, consumer-smoke-tests, and publishes this package to GitHub Packages on `main`. Bump `packages/ranking/package.json` before changing a version that has already been published.
+The shared-package GitHub Actions workflow runs the source tests, enforces full compiled-module coverage, builds, inspects, consumer-smoke-tests, and publishes this package to GitHub Packages on `main`. Bump `packages/ranking/package.json` before changing a version that has already been published.
