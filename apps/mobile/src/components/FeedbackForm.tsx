@@ -6,14 +6,15 @@ import { readFeedbackForm } from '../hooks/useSubmitFeedback';
 export interface FeedbackFormProps {
   variant?: 'quick' | 'full';
   onSubmitted?: () => void;
+  contextPath?: string;
 }
 
 const MAX_ATTACHMENTS = 4;
 const MAX_ATTACHMENT_BYTES = 1024 * 1024;
 
-function getPageContext() {
+function getPageContext(contextPath?: string) {
   return {
-    page_path: window.location.pathname + window.location.search + window.location.hash,
+    page_path: contextPath ?? (window.location.pathname + window.location.search + window.location.hash),
     page_title: document.title || null,
   };
 }
@@ -22,7 +23,7 @@ function getPageContext() {
  * Single feedback form. Replaces the duplicated submit/success/error handling in
  * AboutTabContent (full) and QuickFeedbackSheet (quick).
  */
-export function FeedbackForm({ variant = 'quick', onSubmitted }: FeedbackFormProps) {
+export function FeedbackForm({ variant = 'quick', onSubmitted, contextPath }: FeedbackFormProps) {
   const { isSubmitting, submitError, submitSuccess, submit, reset } = useSubmitFeedback();
   const [type, setType] = useState<FeedbackType>('general');
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -66,7 +67,7 @@ export function FeedbackForm({ variant = 'quick', onSubmitted }: FeedbackFormPro
     const payload = readFeedbackForm(event);
     payload.message_type = type;
     payload.attachments = attachments;
-    Object.assign(payload, getPageContext());
+    Object.assign(payload, getPageContext(contextPath));
     await submit(payload);
   };
 
@@ -102,7 +103,7 @@ export function FeedbackForm({ variant = 'quick', onSubmitted }: FeedbackFormPro
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const pageContext = getPageContext();
+  const pageContext = getPageContext(contextPath);
 
   return (
     <form className={`tt-feedback-form tt-feedback-form--${variant}`} onSubmit={handleSubmit}>
@@ -187,7 +188,7 @@ export function FeedbackForm({ variant = 'quick', onSubmitted }: FeedbackFormPro
 
       <div className="tt-feedback-actions">
         <AppButton type="submit" full loading={isSubmitting} tone="primary">
-        {isSubmitting ? 'Sending…' : 'Send feedback'}
+          {isSubmitting ? 'Sending…' : 'Send feedback'}
         </AppButton>
       </div>
     </form>
