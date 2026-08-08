@@ -358,7 +358,7 @@ test('reviews cheap first-visit discovery, returning-user stories, and My TT too
 
   await openJournal.click();
   await expect(page).toHaveURL(new RegExp(`/tabs/players/player/${playerId}/journal$`));
-  await expect(page.getByRole('heading', { name: 'Match Journal', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Wudong Liu Journal', exact: true })).toBeVisible();
 
   await page.goto(`${previewUrl}/tabs/home/my-tt`, { waitUntil: 'domcontentloaded' });
   const entrantsAfterJournal = page.getByText('Manage tournament players', { exact: true });
