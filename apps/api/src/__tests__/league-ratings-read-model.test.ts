@@ -11,6 +11,7 @@ import * as m006 from '../../../../packages/db/src/migrations/006_add_canonical_
 import * as m013 from '../../../../packages/db/src/migrations/013_add_rubber_score_source.js';
 import * as m015 from '../../../../packages/db/src/migrations/015_add_rubber_played_at.js';
 import * as m028 from '../../../../packages/db/src/migrations/028_create_calculated_ratings.js';
+import * as m031 from '../../../../packages/db/src/migrations/031_create_weekly_rating_history.js';
 import * as m035 from '../../../../packages/db/src/migrations/035_create_api_read_models.js';
 import { refreshPlayerActiveLeagues } from '../../../worker/src/read-models.js';
 import { buildApp } from '../app.js';
@@ -45,6 +46,7 @@ beforeAll(async () => {
     await m013.up(db);
     await m015.up(db);
     await m028.up(db);
+    await m031.up(db);
     await m035.up(db);
 
     const platform = await db
@@ -157,6 +159,46 @@ beforeAll(async () => {
         ])
         .execute();
 
+    await db
+        .insertInto('player_rating_weekly_history')
+        .values([
+            {
+                model_id: model.id,
+                player_id: players[0]!.id,
+                week_start: '2025-01-01',
+                snapshot_date: '2025-01-01',
+                rating: 1500,
+                rating_deviation: 80,
+                volatility: 0.06,
+                conservative_rating: 1340,
+                rated_matches: 10,
+                rated_wins: 6,
+                rated_losses: 4,
+                week_matches: 2,
+                week_wins: 1,
+                week_losses: 1,
+                provisional: false,
+            },
+            {
+                model_id: model.id,
+                player_id: players[1]!.id,
+                week_start: '2025-01-01',
+                snapshot_date: '2025-01-01',
+                rating: 1200,
+                rating_deviation: 90,
+                volatility: 0.06,
+                conservative_rating: 1020,
+                rated_matches: 10,
+                rated_wins: 5,
+                rated_losses: 5,
+                week_matches: 2,
+                week_wins: 1,
+                week_losses: 1,
+                provisional: false,
+            },
+        ])
+        .execute();
+
     const app = await buildApp(db);
     await app.ready();
     request = supertest(app.server);
@@ -187,6 +229,7 @@ describe('GET /api/ratings/league', () => {
             player_id: includedPlayerId,
             player_name: 'Included Player',
             rank: 1,
+            overall_rank: 2,
             rating_deviation: 60,
             volatility: 0.06,
         });
@@ -208,6 +251,38 @@ describe('GET /api/ratings/league', () => {
     it('rejects invalid league identifiers before querying', async () => {
         await request
             .get('/api/ratings/league?league_ids=not-a-uuid')
+            .expect(400);
+    });
+});
+
+describe('GET /api/ratings/league/risers', () => {
+    it('ranks established risers by rating change within the selected leagues', async () => {
+        const response = await request
+            .get(`/api/ratings/league/risers?league_ids=${leagueId}&window_days=42`)
+            .expect(200);
+
+        expect(response.body).toMatchObject({
+            total: 1,
+            page: 1,
+            window_days: 42,
+        });
+        expect(response.body.data).toHaveLength(1);
+        expect(response.body.data[0]).toMatchObject({
+            player_id: includedPlayerId,
+            player_name: 'Included Player',
+            rank: 1,
+            overall_rank: 2,
+            rating_before: 1500,
+            rating_after: 1600,
+            change: 100,
+            rating_deviation_after: 60,
+            baseline_date: '2025-01-01',
+        });
+    });
+
+    it('rejects an invalid riser window', async () => {
+        await request
+            .get(`/api/ratings/league/risers?league_ids=${leagueId}&window_days=3`)
             .expect(400);
     });
 });
