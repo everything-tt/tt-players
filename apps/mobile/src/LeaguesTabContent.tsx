@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import {
   formatNumber,
   getInitials,
@@ -14,6 +14,7 @@ import {
   useLeaguesQuery,
   usePlayerProfileOverviewQuery,
 } from './queries';
+import { useLeagueRisersQuery, useTopRatingsQuery } from './rating-queries';
 import { useTabNavigation } from './navigation/tab-navigation';
 import {
   AppButton,
@@ -43,8 +44,16 @@ interface LeaguesTabContentProps {
 }
 
 type PerformanceMode = 'players' | 'teams';
-type PlayerMode = 'top' | 'form' | 'improving';
+type PlayerMode = 'ranked' | 'risers' | 'form';
 type UpcomingFixture = LeagueCollectionDashboard['upcoming_fixtures'][number];
+
+interface PulsePlayerView {
+  player_id: string;
+  player_name: string;
+  rank: number;
+  subtitle: string;
+  trailing: ReactNode;
+}
 
 type DateParts = {
   weekday: string;
@@ -89,6 +98,26 @@ function fixtureSide(fixture: UpcomingFixture, teamNames: Set<string>): 'Home' |
 
 function formatFixtureTeams(home: string | null, away: string | null): string {
   return `${home ?? 'Home'} vs ${away ?? 'Away'}`;
+}
+
+function formatRating(value: number): string {
+  return Math.round(value).toLocaleString('en-GB');
+}
+
+function formatRatingDelta(value: number): string {
+  const rounded = Math.round(value);
+  return `${rounded >= 0 ? '+' : ''}${rounded.toLocaleString('en-GB')}`;
+}
+
+function prioritizePersonalRows<T extends { player_id: string }>(
+  rows: T[],
+  personalPlayerIds: Set<string>,
+  limit: number,
+): T[] {
+  const visible = rows.slice(0, limit);
+  const personal = rows.find((row) => personalPlayerIds.has(row.player_id));
+  if (!personal || visible.some((row) => row.player_id === personal.player_id)) return visible;
+  return [...visible.slice(0, Math.max(0, limit - 1)), personal];
 }
 
 function SectionAction({
@@ -168,22 +197,6 @@ function PulseTitle({ name, personal, rank }: { name: string; personal: boolean;
   );
 }
 
-function PulseValue({
-  mode,
-  winRate,
-  score,
-}: {
-  mode: PlayerMode;
-  winRate: number;
-  score: number | null;
-}) {
-  if (mode === 'improving') {
-    const rounded = Math.round(score ?? 0);
-    return <Pill tone={rounded >= 0 ? 'success' : 'neutral'}>{rounded >= 0 ? '+' : ''}{rounded} pts</Pill>;
-  }
-  return <Pill tone="accent">{Math.round(winRate)}%</Pill>;
-}
-
 export function LeaguesTabContent({
   selectedLeagueIds,
   onOpenLeagueSelector,
@@ -195,7 +208,7 @@ export function LeaguesTabContent({
   const allLeagues: LeagueWithDivisions[] = leaguesQuery.data?.data ?? [];
 
   const [performanceMode, setPerformanceMode] = useState<PerformanceMode>('players');
-  const [playerMode, setPlayerMode] = useState<PlayerMode>('top');
+  const [playerMode, setPlayerMode] = useState<PlayerMode>('ranked');
   const [showAllUpcoming, setShowAllUpcoming] = useState(false);
   const [showAllPulse, setShowAllPulse] = useState(false);
   const [showAllLeagues, setShowAllLeagues] = useState(false);
@@ -212,13 +225,24 @@ export function LeaguesTabContent({
   const overviewQuery = useLeagueOverviewQuery(leagueIds, leagueIds.length > 0);
   const profileQuery = usePlayerProfileOverviewQuery(myPlayer?.id ?? '', Boolean(myPlayer) && leagueIds.length > 0);
   const leadersQuery = useLeadersQuery({
-    mode: playerMode === 'form' ? 'form' : playerMode === 'improving' ? 'improving' : 'combined',
+    mode: 'form',
     leagueIds,
     allLeaguesCount: allLeagues.length,
     limit: 8,
-    minPlayed: playerMode === 'form' ? 5 : 3,
-    enabled: leagueIds.length > 0 && performanceMode === 'players',
+    minPlayed: 5,
+    enabled: leagueIds.length > 0 && performanceMode === 'players' && playerMode === 'form',
   });
+  const rankingsQuery = useTopRatingsQuery(
+    leagueIds,
+    100,
+    leagueIds.length > 0 && performanceMode === 'players' && playerMode === 'ranked',
+  );
+  const risersQuery = useLeagueRisersQuery(
+    leagueIds,
+    100,
+    42,
+    leagueIds.length > 0 && performanceMode === 'players' && playerMode === 'risers',
+  );
   const personalSeasonQuery = useLeadersQuery({
     mode: 'combined',
     leagueIds,
@@ -230,7 +254,7 @@ export function LeaguesTabContent({
 
   const dashboard = dashboardQuery.data ?? null;
   const leagues = overviewQuery.data?.data ?? [];
-  const players = leadersQuery.data?.data ?? [];
+  const formPlayers = leadersQuery.data?.data ?? [];
   const error = getQueryError(dashboardQuery.error) || getQueryError(overviewQuery.error);
 
   const personalAffiliations = useMemo(() => {
@@ -250,15 +274,18 @@ export function LeaguesTabContent({
     () => new Set(favouriteTeams.map((team) => team.name)),
     [favouriteTeams],
   );
+  const personalPlayerIds = useMemo(
+    () => new Set(
+      [myPlayer?.id, profileQuery.data?.player_id].filter((id): id is string => Boolean(id)),
+    ),
+    [myPlayer?.id, profileQuery.data?.player_id],
+  );
 
   const personalRecord = useMemo(() => {
     if (!myPlayer) return null;
-    const candidateIds = new Set(
-      [myPlayer.id, profileQuery.data?.player_id].filter((id): id is string => Boolean(id)),
-    );
     return (personalSeasonQuery.data?.data ?? [])
-      .find((player) => candidateIds.has(player.player_id)) ?? null;
-  }, [myPlayer, personalSeasonQuery.data?.data, profileQuery.data?.player_id]);
+      .find((player) => personalPlayerIds.has(player.player_id)) ?? null;
+  }, [myPlayer, personalPlayerIds, personalSeasonQuery.data?.data]);
 
   const prioritizedUpcoming = useMemo(() => {
     return [...(dashboard?.upcoming_fixtures ?? [])].sort((left, right) => {
@@ -291,13 +318,59 @@ export function LeaguesTabContent({
     });
   }, [leagues, personalLeagueIds]);
 
-  const pulsePlayers = useMemo(() => {
-    const visible = players.slice(0, showAllPulse ? 8 : 4);
-    if (playerMode !== 'top' || !personalRecord) return visible;
-    if (visible.some((player) => player.player_id === personalRecord.player_id)) return visible;
-    if (showAllPulse) return [...visible.slice(0, 7), personalRecord];
-    return [...visible.slice(0, 3), personalRecord];
-  }, [personalRecord, playerMode, players, showAllPulse]);
+  const pulseLimit = showAllPulse ? 8 : 4;
+  const pulsePlayers = useMemo<PulsePlayerView[]>(() => {
+    if (playerMode === 'ranked') {
+      return prioritizePersonalRows(rankingsQuery.data?.data ?? [], personalPlayerIds, pulseLimit)
+        .map((player) => ({
+          player_id: player.player_id,
+          player_name: player.player_name,
+          rank: player.rank,
+          subtitle: `RD ${Math.round(player.rating_deviation)} · #${player.overall_rank} overall · ${player.rated_matches} rated`,
+          trailing: <Pill tone="accent">{formatRating(player.rating)}</Pill>,
+        }));
+    }
+
+    if (playerMode === 'risers') {
+      return prioritizePersonalRows(risersQuery.data?.data ?? [], personalPlayerIds, pulseLimit)
+        .map((player) => ({
+          player_id: player.player_id,
+          player_name: player.player_name,
+          rank: player.rank,
+          subtitle: `${formatRating(player.rating_before)} → ${formatRating(player.rating_after)} · #${player.overall_rank} overall`,
+          trailing: <Pill tone="success">{formatRatingDelta(player.change)}</Pill>,
+        }));
+    }
+
+    return formPlayers.slice(0, pulseLimit).map((player) => ({
+      player_id: player.player_id,
+      player_name: player.player_name,
+      rank: player.rank,
+      subtitle: `${player.wins}W · ${player.losses}L · ${player.played} played`,
+      trailing: <Pill tone="accent">{Math.round(player.win_rate)}%</Pill>,
+    }));
+  }, [formPlayers, personalPlayerIds, playerMode, pulseLimit, rankingsQuery.data?.data, risersQuery.data?.data]);
+
+  const playerPulseLoading = playerMode === 'ranked'
+    ? rankingsQuery.isLoading
+    : playerMode === 'risers'
+      ? risersQuery.isLoading
+      : leadersQuery.isLoading;
+  const playerPulseTotal = playerMode === 'ranked'
+    ? rankingsQuery.data?.total ?? 0
+    : playerMode === 'risers'
+      ? risersQuery.data?.total ?? 0
+      : formPlayers.length;
+  const emptyPulseTitle = playerMode === 'ranked'
+    ? 'No calculated ratings yet'
+    : playerMode === 'risers'
+      ? 'No established risers yet'
+      : 'Not enough recent results';
+  const emptyPulseMessage = playerMode === 'ranked'
+    ? 'Established player ratings will appear as eligible results are processed.'
+    : playerMode === 'risers'
+      ? 'Six-week rating risers will appear once established players have enough history.'
+      : 'Recent-form rankings will appear as results are recorded.';
 
   const primaryAffiliation = personalAffiliations[0] ?? null;
   const hasAnyCurrentAffiliation = (profileQuery.data?.current_season_affiliations.length ?? 0) > 0;
@@ -531,11 +604,13 @@ export function LeaguesTabContent({
             surface="flat"
             density="compact"
             title="League pulse"
-            description="Across selected leagues"
+            description={performanceMode === 'players'
+              ? 'Strength, movement and recent form across selected leagues'
+              : 'Team performance across selected leagues'}
             action={(
               <SectionAction
                 expanded={showAllPulse}
-                total={performanceMode === 'players' ? players.length : dashboard?.top_teams.length ?? 0}
+                total={performanceMode === 'players' ? playerPulseTotal : dashboard?.top_teams.length ?? 0}
                 collapsedCount={4}
                 onClick={() => setShowAllPulse((value) => !value)}
               />
@@ -564,31 +639,31 @@ export function LeaguesTabContent({
                     setShowAllPulse(false);
                   }}
                   options={[
-                    { value: 'top', label: 'Top' },
-                    { value: 'form', label: 'In form' },
-                    { value: 'improving', label: 'Improving' },
+                    { value: 'ranked', label: 'Ranked' },
+                    { value: 'risers', label: 'Risers' },
+                    { value: 'form', label: 'Form' },
                   ]}
                 />
               ) : null}
             </FilterBar>
 
             {performanceMode === 'players' ? (
-              leadersQuery.isLoading ? (
+              playerPulseLoading ? (
                 <SkeletonList rows={4} />
               ) : pulsePlayers.length === 0 ? (
-                <EmptyState iconClassName="fa fa-chart-line" title="Not enough results" message="Player rankings will appear as results are recorded." />
+                <EmptyState iconClassName="fa fa-chart-line" title={emptyPulseTitle} message={emptyPulseMessage} />
               ) : (
                 <DesignList density="compact" divider="hairline" paginate={false}>
-                  {pulsePlayers.map((player, index) => {
-                    const personal = Boolean(myPlayer && player.player_id === personalRecord?.player_id);
+                  {pulsePlayers.map((player) => {
+                    const personal = personalPlayerIds.has(player.player_id);
                     return (
                       <ListItem
                         key={player.player_id}
                         className={personal ? 'tt-leagues-pulse-you' : undefined}
-                        leading={<RankBadge>{player.rank || index + 1}</RankBadge>}
-                        title={<PulseTitle name={player.player_name} personal={personal} rank={player.rank || index + 1} />}
-                        subtitle={`${player.wins}W · ${player.losses}L · ${player.played} played`}
-                        trailing={<PulseValue mode={playerMode} winRate={player.win_rate} score={player.score} />}
+                        leading={<RankBadge>{player.rank}</RankBadge>}
+                        title={<PulseTitle name={player.player_name} personal={personal} rank={player.rank} />}
+                        subtitle={player.subtitle}
+                        trailing={player.trailing}
                         onClick={() => navigateInTab('players', `player/${player.player_id}`)}
                       />
                     );
