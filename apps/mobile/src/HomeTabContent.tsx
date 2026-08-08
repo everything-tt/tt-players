@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { AppTabId } from './navigation/tab-navigation';
+import { useFavouriteTeams } from './hooks/useFavouriteTeams';
 import { useMyPlayer } from './hooks/useMyPlayer';
 import { useTabNavigation } from './navigation/tab-navigation';
 import { type LeagueWithDivisions, TAB_METADATA, getQueryError } from './player-shared';
@@ -58,6 +59,7 @@ type HomeRatingsScope = 'site' | 'selected';
 type HomeStoryTone = 'success' | 'accent' | 'neutral' | 'warning';
 type HomeStoryKind =
   | 'personal-result'
+  | 'followed-team-result'
   | 'personal-form'
   | 'recent-rating-high'
   | 'result'
@@ -78,7 +80,7 @@ type HomeStory = {
 };
 
 const HOME_RATINGS_LIMIT = 4;
-const HOME_STORY_LIMIT = 4;
+const HOME_STORY_LIMIT = 5;
 
 function formatDate(value: string | null): string {
   if (!value) return 'Date unavailable';
@@ -145,6 +147,7 @@ export function HomeTabContent({
   onOpenTab,
 }: HomeTabContentProps) {
   const { navigateInTab } = useTabNavigation();
+  const { teams: favouriteTeams } = useFavouriteTeams();
   const { player: myPlayer, setMyPlayer } = useMyPlayer();
   const [claimSheetOpen, setClaimSheetOpen] = useState(false);
   const [previousVisitSnapshot] = useState(() => {
@@ -247,24 +250,33 @@ export function HomeTabContent({
       : personalTeamNames.has(awayName)
         ? awayName
         : null;
+    const followedTeam = personalTeam
+      ? null
+      : [homeName, awayName].find((teamName) => favouriteTeams.some((team) => (
+          team.name === teamName
+          && (team.leagueName == null || team.leagueName === result.league_name)
+          && (team.divisionName == null || team.divisionName === result.division_name)
+        ))) ?? null;
     const isPersonal = Boolean(personalTeam);
-    const personalIsHome = personalTeam === homeName;
-    const ownScore = personalIsHome ? result.home_score : result.away_score;
-    const opponentScore = personalIsHome ? result.away_score : result.home_score;
-    const opponent = personalIsHome ? awayName : homeName;
+    const isFollowed = Boolean(followedTeam);
+    const relevantTeam = personalTeam ?? followedTeam;
+    const relevantIsHome = relevantTeam === homeName;
+    const ownScore = relevantIsHome ? result.home_score : result.away_score;
+    const opponentScore = relevantIsHome ? result.away_score : result.home_score;
+    const opponent = relevantIsHome ? awayName : homeName;
     const outcome = ownScore > opponentScore ? 'beat' : ownScore < opponentScore ? 'lost to' : 'drew with';
 
     storyCandidates.push({
       id: `result:${result.fixture_id}`,
-      kind: isPersonal ? 'personal-result' : 'result',
-      priority: (isPersonal ? 120 : 80) - index,
-      title: isPersonal
-        ? `${personalTeam} ${outcome} ${opponent} ${ownScore}–${opponentScore}`
+      kind: isPersonal ? 'personal-result' : isFollowed ? 'followed-team-result' : 'result',
+      priority: (isPersonal ? 120 : isFollowed ? 112 : 80) - index,
+      title: relevantTeam
+        ? `${relevantTeam} ${outcome} ${opponent} ${ownScore}–${opponentScore}`
         : `${homeName} ${result.home_score}–${result.away_score} ${awayName}`,
-      subtitle: `${isPersonal ? 'Your team' : index === 0 ? 'Latest result' : 'Recent result'} · ${result.division_name} · ${formatDate(result.date_played)}`,
-      trailing: isPersonal ? 'Your team' : 'Result',
-      iconClassName: isPersonal ? 'fa fa-bolt' : 'fa fa-table-tennis',
-      tone: isPersonal ? 'accent' : 'neutral',
+      subtitle: `${isPersonal ? 'Your team' : isFollowed ? 'Following' : index === 0 ? 'Latest result' : 'Recent result'} · ${result.division_name} · ${formatDate(result.date_played)}`,
+      trailing: isPersonal ? 'Your team' : isFollowed ? 'Following' : 'Result',
+      iconClassName: isPersonal ? 'fa fa-bolt' : isFollowed ? 'fa fa-star' : 'fa fa-table-tennis',
+      tone: isPersonal || isFollowed ? 'accent' : 'neutral',
       targetTab: 'leagues',
       targetPath: `fixture/${result.fixture_id}`,
     });
@@ -506,7 +518,7 @@ export function HomeTabContent({
                   subtitle={story.subtitle}
                   trailing={story.kind === 'riser' || story.kind === 'personal-form' || story.kind === 'recent-rating-high'
                     ? <Pill tone="success">{story.trailing}</Pill>
-                    : story.kind === 'personal-result'
+                    : story.kind === 'personal-result' || story.kind === 'followed-team-result'
                       ? <Pill tone="accent">{story.trailing}</Pill>
                       : <Pill>{story.trailing}</Pill>}
                   onClick={() => navigateInTab(story.targetTab, story.targetPath)}
@@ -519,7 +531,7 @@ export function HomeTabContent({
             <EmptyState
               iconClassName="fa fa-bolt"
               title="No highlights yet"
-              message="Personal form, noteworthy results, rating movement and league leaders will appear here."
+              message="Personal form, followed-team activity, noteworthy results and rating movement will appear here."
             />
           )}
         </section>
