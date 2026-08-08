@@ -14,27 +14,22 @@ function trimTrailingSlashes(value: string): string {
   return value.replace(/\/+$/, '');
 }
 
-export function resolveServerApiBase(
-  apiBase: string,
-  requestOrigin: string,
-  configuredOrigin?: string,
-): string {
-  if (/^https?:\/\//i.test(apiBase)) {
-    return trimTrailingSlashes(apiBase);
+export function resolveServerApiBase(apiOrigin: string, apiPath = '/api'): string {
+  const configuredOrigin = apiOrigin.trim();
+  if (!/^https?:\/\//i.test(configuredOrigin)) {
+    throw new Error('SSR_API_ORIGIN must be an absolute http(s) origin');
   }
 
-  const origin = configuredOrigin?.trim() || requestOrigin;
-  const normalizedOrigin = `${trimTrailingSlashes(origin)}/`;
-  return trimTrailingSlashes(new URL(apiBase, normalizedOrigin).toString());
+  const origin = `${trimTrailingSlashes(configuredOrigin)}/`;
+  const normalizedPath = apiPath.replace(/^\/+/, '');
+  return trimTrailingSlashes(new URL(normalizedPath, origin).toString());
 }
 
 export function createServerApiFetcher(
-  apiBase: string,
-  requestOrigin: string,
-  configuredOrigin?: string,
+  apiOrigin: string,
   fetchImpl: typeof fetch = fetch,
 ): ApiFetcher {
-  const resolvedBase = resolveServerApiBase(apiBase, requestOrigin, configuredOrigin);
+  const resolvedBase = resolveServerApiBase(apiOrigin);
 
   return async function serverApiFetch<T>(path: string, signal?: AbortSignal): Promise<T> {
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
