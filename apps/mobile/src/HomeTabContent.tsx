@@ -48,6 +48,7 @@ import './home-hero.css';
 interface HomeTabContentProps {
   allLeagues: LeagueWithDivisions[];
   hasCompletedLeagueOnboarding: boolean;
+  isLeagueSelectionReady: boolean;
   selectedLeagueIds: string[];
   onOpenLeagueSelector: () => void;
   onOpenTab: (tabId: DashboardTabId) => void;
@@ -170,6 +171,7 @@ function TTPlayersPulse({ allLeagues }: { allLeagues: LeagueWithDivisions[] }) {
 export function HomeTabContent({
   allLeagues,
   hasCompletedLeagueOnboarding,
+  isLeagueSelectionReady,
   selectedLeagueIds,
   onOpenLeagueSelector,
   onOpenTab,
@@ -182,9 +184,11 @@ export function HomeTabContent({
     if (typeof window === 'undefined') return null;
     return parseHomeVisitSnapshot(window.localStorage.getItem(HOME_VISIT_SNAPSHOT_STORAGE_KEY));
   });
-  const isLeagueScopeHydrating = hasCompletedLeagueOnboarding && selectedLeagueIds.length === 0;
-  const hasLeagueScope = hasCompletedLeagueOnboarding && selectedLeagueIds.length > 0;
-  const hasLeagueSetup = hasLeagueScope || isLeagueScopeHydrating;
+  const isLeagueScopeHydrating = !isLeagueSelectionReady && hasCompletedLeagueOnboarding;
+  const hasLeagueScope = isLeagueSelectionReady
+    && hasCompletedLeagueOnboarding
+    && selectedLeagueIds.length > 0;
+  const hasLeagueSetup = isLeagueScopeHydrating || hasLeagueScope;
   const [ratingsScope, setRatingsScope] = useState<HomeRatingsScope>(
     hasCompletedLeagueOnboarding ? 'selected' : 'site',
   );
@@ -195,8 +199,9 @@ export function HomeTabContent({
   const scopedLeagueIds = isAllLeagueScope ? [] : selectedLeagueIds;
 
   useEffect(() => {
+    if (!isLeagueSelectionReady) return;
     setRatingsScope(hasLeagueScope ? 'selected' : 'site');
-  }, [hasLeagueScope]);
+  }, [hasLeagueScope, isLeagueSelectionReady]);
 
   const dashboardQuery = useLeagueCollectionDashboardQuery(scopedLeagueIds, hasLeagueScope);
   const dashboard = dashboardQuery.data ?? null;
