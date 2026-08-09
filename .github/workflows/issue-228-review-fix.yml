@@ -1,0 +1,216 @@
+name: Issue 228 review fix
+
+on:
+  push:
+    branches:
+      - agent/issue-228-england-territory
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/issue-228-england-territory
+          fetch-depth: 0
+
+      - name: Apply review fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          root = Path('.')
+
+          all_targets_path = root / 'apps/worker/src/all-scrape-targets.ts'
+          all_targets = all_targets_path.read_text()
+          old_signature = '''export async function resolveAllScrapeTargets(
+              db: Kysely<Database>,
+              options: ResolveAllScrapeTargetsOptions = {},
+          ): Promise<ScrapeTarget[]> {'''
+          new_signature = '''export async function resolveConfiguredLeagueTargets(
+              db: Kysely<Database>,
+              options: ResolveAllScrapeTargetsOptions = {},
+          ): Promise<ScrapeTarget[]> {'''
+          if all_targets.count(old_signature) != 1:
+              raise SystemExit('unexpected resolveAllScrapeTargets signature count')
+          all_targets = all_targets.replace(old_signature, new_signature, 1)
+
+          old_tail = '''    const nationalTargets = await bootstrapNationalTTLeagues(db, {
+              includeHistory: options.includeHistory,
+              logger: options.logger,
+          });
+          return [...configuredTargets, ...nationalTargets];
+          }
+
+          export const __internal = {
+              mergeLegacyAndTerritoryLeagueConfigs,
+          };
+          '''
+          new_tail = '''    return configuredTargets;
+          }
+
+          export async function resolveAllScrapeTargets(
+              db: Kysely<Database>,
+              options: ResolveAllScrapeTargetsOptions = {},
+          ): Promise<ScrapeTarget[]> {
+              const configuredTargets = await resolveConfiguredLeagueTargets(db, options);
+              const nationalTargets = await bootstrapNationalTTLeagues(db, {
+                  includeHistory: options.includeHistory,
+                  logger: options.logger,
+              });
+              return [...configuredTargets, ...nationalTargets];
+          }
+
+          export const __internal = {
+              mergeLegacyAndTerritoryLeagueConfigs,
+          };
+          '''
+          if old_tail not in all_targets:
+              raise SystemExit('missing all-scrape-targets tail marker')
+          all_targets = all_targets.replace(old_tail, new_tail, 1)
+          all_targets_path.write_text(all_targets)
+
+          bootstrap_path = root / 'apps/worker/src/bootstrap.ts'
+          bootstrap = bootstrap_path.read_text()
+          old_wrapper = '''/**
+           * Backwards-compatible legacy bootstrap. Production target resolution can pass
+           * territory-owned configs through bootstrapLeagueConfigs while older scripts and
+           * parity tests can still evaluate the legacy files directly.
+           */
+          export async function bootstrap(
+              db: Kysely<Database>,
+              options: BootstrapOptions = {},
+          ): Promise<ScrapeTarget[]> {
+              return bootstrapLeagueConfigs(db, readLegacyLeagueConfigs(), options);
+          }
+          '''
+          new_wrapper = '''/**
+           * Backwards-compatible configured bootstrap entry point. Operational callers,
+           * including maintenance scripts, resolve territory-owned configs through the shared
+           * configured target resolver. Legacy parity remains available via
+           * readLegacyLeagueConfigs + bootstrapLeagueConfigs.
+           */
+          export async function bootstrap(
+              db: Kysely<Database>,
+              options: BootstrapOptions = {},
+          ): Promise<ScrapeTarget[]> {
+              const { resolveConfiguredLeagueTargets } = await import('./all-scrape-targets.js');
+              return resolveConfiguredLeagueTargets(db, options);
+          }
+          '''
+          if old_wrapper not in bootstrap:
+              raise SystemExit('missing bootstrap wrapper marker')
+          bootstrap = bootstrap.replace(old_wrapper, new_wrapper, 1)
+          bootstrap_path.write_text(bootstrap)
+
+          parity_path = root / 'apps/worker/src/__tests__/england-territory-parity.integration.test.ts'
+          parity = parity_path.read_text()
+          import_marker = "import { bootstrapLeagueConfigs, readLegacyLeagueConfigs } from '../bootstrap.js';\n"
+          if import_marker not in parity:
+              raise SystemExit('missing parity import marker')
+          parity = parity.replace(
+              import_marker,
+              import_marker + "import { resolveConfiguredLeagueTargets } from '../all-scrape-targets.js';\n",
+              1,
+          )
+          parity_marker = '''        const territoryTargets = await bootstrapLeagueConfigs(db, territoryEngland);
+                  expect(territoryTargets).toEqual(legacyTargets);
+
+                  const targetIdentities = territoryTargets.map((target) => [
+          '''
+          parity_replacement = '''        const territoryTargets = await bootstrapLeagueConfigs(db, territoryEngland);
+                  expect(territoryTargets).toEqual(legacyTargets);
+
+                  const configuredTargets = await resolveConfiguredLeagueTargets(db, {
+                      leagueNames: legacyEngland.map((league) => league.leagueName),
+                  });
+                  expect(configuredTargets).toEqual(legacyTargets);
+
+                  const targetIdentities = territoryTargets.map((target) => [
+          '''
+          if parity_marker not in parity:
+              raise SystemExit('missing parity target marker')
+          parity = parity.replace(parity_marker, parity_replacement, 1)
+          parity_path.write_text(parity)
+
+          unit_path = root / 'apps/worker/src/__tests__/all-scrape-targets.test.ts'
+          if unit_path.exists():
+              raise SystemExit('all-scrape-targets.test.ts already exists')
+          unit_path.write_text('''import { describe, expect, it } from 'vitest';
+          import type { LeagueConfig } from '../bootstrap.js';
+          import { __internal } from '../all-scrape-targets.js';
+
+          function league(externalId: string, leagueName = externalId): LeagueConfig {
+              return {
+                  platform: 'tt365',
+                  leagueName,
+                  externalId,
+                  seasonName: 'Season',
+                  seasonExtId: 'season',
+                  baseUrl: `https://www.tabletennis365.com/${externalId}`,
+                  divisions: [{ name: 'Division 1', season: 'Season', slug: 'Division_1' }],
+              };
+          }
+
+          describe('territory and legacy league config merge', () => {
+              it('replaces a migrated legacy league in place without disturbing other legacy order', () => {
+                  const first = league('first');
+                  const legacyOwned = league('owned', 'Legacy owned');
+                  const territoryOwned = league('owned', 'Territory owned');
+                  const last = league('last');
+
+                  const result = __internal.mergeLegacyAndTerritoryLeagueConfigs(
+                      [first, legacyOwned, last],
+                      [territoryOwned],
+                      new Set(['owned']),
+                  );
+
+                  expect(result).toEqual([first, territoryOwned, last]);
+              });
+
+              it('suppresses legacy fallback for a territory-owned disabled league', () => {
+                  const keep = league('keep');
+                  const disabled = league('disabled');
+
+                  const result = __internal.mergeLegacyAndTerritoryLeagueConfigs(
+                      [keep, disabled],
+                      [],
+                      new Set(['disabled']),
+                  );
+
+                  expect(result).toEqual([keep]);
+              });
+
+              it('appends a territory-native league exactly once', () => {
+                  const legacy = league('legacy');
+                  const territoryNative = league('native');
+
+                  const result = __internal.mergeLegacyAndTerritoryLeagueConfigs(
+                      [legacy],
+                      [territoryNative],
+                      new Set(['native']),
+                  );
+
+                  expect(result).toEqual([legacy, territoryNative]);
+              });
+          });
+          ''')
+          PY
+
+          rm .github/workflows/issue-228-review-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/worker/src/all-scrape-targets.ts \
+                  apps/worker/src/bootstrap.ts \
+                  apps/worker/src/__tests__/england-territory-parity.integration.test.ts \
+                  apps/worker/src/__tests__/all-scrape-targets.test.ts \
+                  .github/workflows/issue-228-review-fix.yml
+          git commit -m "fix: complete England territory target cutover"
+          git push origin HEAD:agent/issue-228-england-territory
