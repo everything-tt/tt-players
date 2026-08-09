@@ -27,13 +27,6 @@ const ErrorSchema = z.object({
     statusCode: z.number().int(),
 });
 
-interface SubmissionTarget {
-    competitionId: string;
-    source: string;
-    eventStatus: string;
-    duplicate: boolean;
-}
-
 export function normalizeManualTournamentUrl(input: string): string {
     const url = new URL(input.trim());
     if (url.protocol !== 'https:') {
@@ -161,129 +154,6 @@ async function addSubmitterSource(
         .execute();
 }
 
-async function findExistingSubmissionTarget(
-    db: Kysely<any>,
-    canonicalUrl: string,
-): Promise<Omit<SubmissionTarget, 'duplicate'> | null> {
-    const existing = await db
-        .selectFrom('tournament_sources as ts')
-        .innerJoin('competitions as c', 'c.id', 'ts.competition_id')
-        .select([
-            'ts.competition_id',
-            'c.source',
-            'c.event_status',
-        ])
-        .where('ts.provider', '=', MANUAL_SOURCE)
-        .where('ts.source_type', '=', MANUAL_SOURCE_TYPE)
-        .where('ts.source_url', '=', canonicalUrl)
-        .where('c.deleted_at', 'is', null)
-        .orderBy('ts.first_seen_at', 'asc')
-        .executeTakeFirst();
-
-    if (!existing) return null;
-    return {
-        competitionId: existing.competition_id,
-        source: existing.source,
-        eventStatus: existing.event_status,
-    };
-}
-
-async function getOrCreateSubmissionTarget(
-    db: Kysely<any>,
-    canonicalUrl: string,
-    urlHash: string,
-    userId: string,
-    now: Date,
-): Promise<SubmissionTarget> {
-    return db.transaction().execute(async (trx) => {
-        // Serialize only submissions for the same canonical URL. This closes the race where
-        // two first-time submitters both observe no provenance row before either inserts one.
-        const urlLockKey = `tt-players:manual-tournament-url:${urlHash}`;
-        await sql`select pg_advisory_xact_lock(hashtext(${urlLockKey}))`.execute(trx);
-
-        const existing = await findExistingSubmissionTarget(trx, canonicalUrl);
-        if (existing) {
-            await addSubmitterSource(
-                trx,
-                existing.competitionId,
-                canonicalUrl,
-                urlHash,
-                userId,
-                now,
-            );
-            return { ...existing, duplicate: true };
-        }
-
-        const seasonId = await ensureManualSeason(trx);
-        const externalId = `manual-submit:${urlHash}`;
-        const orphaned = await trx
-            .selectFrom('competitions')
-            .select(['id', 'deleted_at'])
-            .where('season_id', '=', seasonId)
-            .where('external_id', '=', externalId)
-            .executeTakeFirst();
-
-        let competitionId: string;
-        if (orphaned) {
-            competitionId = orphaned.id;
-            await trx
-                .updateTable('competitions')
-                .set({
-                    name: PENDING_NAME,
-                    display_name: null,
-                    source: MANUAL_SOURCE,
-                    source_url: canonicalUrl,
-                    entry_url: canonicalUrl,
-                    information_url: canonicalUrl,
-                    event_status: 'unpublished',
-                    deleted_at: null,
-                    calendar_last_seen_at: now,
-                    calendar_missing_count: 0,
-                })
-                .where('id', '=', competitionId)
-                .execute();
-        } else {
-            const competition = await trx
-                .insertInto('competitions')
-                .values({
-                    season_id: seasonId,
-                    external_id: externalId,
-                    name: PENDING_NAME,
-                    display_name: null,
-                    type: 'individual',
-                    source: MANUAL_SOURCE,
-                    source_url: canonicalUrl,
-                    entry_url: canonicalUrl,
-                    information_url: canonicalUrl,
-                    event_status: 'unpublished',
-                    record_kind: 'calendar',
-                    calendar_first_seen_at: now,
-                    calendar_last_seen_at: now,
-                    calendar_missing_count: 0,
-                })
-                .returning('id')
-                .executeTakeFirstOrThrow();
-            competitionId = competition.id;
-        }
-
-        await addSubmitterSource(
-            trx,
-            competitionId,
-            canonicalUrl,
-            urlHash,
-            userId,
-            now,
-        );
-
-        return {
-            competitionId,
-            source: MANUAL_SOURCE,
-            eventStatus: 'unpublished',
-            duplicate: Boolean(orphaned),
-        };
-    });
-}
-
 async function enqueueProcessing(db: Kysely<any>, competitionId: string): Promise<void> {
     const payload = JSON.stringify({ competitionId });
     const jobKey = `manual-tournament-submit:${competitionId}`;
@@ -348,34 +218,101 @@ export function manualTournamentSubmissionRoutes(db: Kysely<any>): FastifyPlugin
 
                 const urlHash = manualTournamentUrlHash(canonicalUrl);
                 const now = new Date();
-                const target = await getOrCreateSubmissionTarget(
-                    db,
-                    canonicalUrl,
-                    urlHash,
-                    user.id,
-                    now,
-                );
 
-                if (target.source === MANUAL_SOURCE && target.eventStatus === 'unpublished') {
-                    const queued = await enqueueOrServiceUnavailable(
+                const existing = await db
+                    .selectFrom('tournament_sources as ts')
+                    .innerJoin('competitions as c', 'c.id', 'ts.competition_id')
+                    .select([
+                        'ts.competition_id',
+                        'c.source',
+                        'c.event_status',
+                        'c.deleted_at',
+                    ])
+                    .where('ts.provider', '=', MANUAL_SOURCE)
+                    .where('ts.source_type', '=', MANUAL_SOURCE_TYPE)
+                    .where('ts.source_url', '=', canonicalUrl)
+                    .orderBy('ts.first_seen_at', 'asc')
+                    .executeTakeFirst();
+
+                if (existing && !existing.deleted_at) {
+                    await addSubmitterSource(
                         db,
-                        target.competitionId,
-                        request,
+                        existing.competition_id,
+                        canonicalUrl,
+                        urlHash,
+                        user.id,
+                        now,
                     );
-                    if (!queued) {
-                        return reply.status(503).send({
-                            error: 'Tournament processing is temporarily unavailable. Please retry.',
-                            statusCode: 503,
-                        });
+
+                    if (existing.source === MANUAL_SOURCE && existing.event_status === 'unpublished') {
+                        const queued = await enqueueOrServiceUnavailable(
+                            db,
+                            existing.competition_id,
+                            request,
+                        );
+                        if (!queued) {
+                            return reply.status(503).send({
+                                error: 'Tournament processing is temporarily unavailable. Please retry.',
+                                statusCode: 503,
+                            });
+                        }
                     }
+
+                    return reply.status(202).send({
+                        competition_id: existing.competition_id,
+                        status: existing.event_status === 'unpublished'
+                            ? 'processing'
+                            : 'already_submitted',
+                        duplicate: true,
+                    });
+                }
+
+                const competitionId = await db.transaction().execute(async (trx) => {
+                    const seasonId = await ensureManualSeason(trx);
+                    const competition = await trx
+                        .insertInto('competitions')
+                        .values({
+                            season_id: seasonId,
+                            external_id: `manual-submit:${urlHash}`,
+                            name: PENDING_NAME,
+                            display_name: null,
+                            type: 'individual',
+                            source: MANUAL_SOURCE,
+                            source_url: canonicalUrl,
+                            entry_url: canonicalUrl,
+                            information_url: canonicalUrl,
+                            event_status: 'unpublished',
+                            record_kind: 'calendar',
+                            calendar_first_seen_at: now,
+                            calendar_last_seen_at: now,
+                            calendar_missing_count: 0,
+                        })
+                        .returning('id')
+                        .executeTakeFirstOrThrow();
+
+                    await addSubmitterSource(
+                        trx,
+                        competition.id,
+                        canonicalUrl,
+                        urlHash,
+                        user.id,
+                        now,
+                    );
+                    return competition.id;
+                });
+
+                const queued = await enqueueOrServiceUnavailable(db, competitionId, request);
+                if (!queued) {
+                    return reply.status(503).send({
+                        error: 'Tournament processing is temporarily unavailable. Please retry.',
+                        statusCode: 503,
+                    });
                 }
 
                 return reply.status(202).send({
-                    competition_id: target.competitionId,
-                    status: target.eventStatus === 'unpublished'
-                        ? 'processing'
-                        : 'already_submitted',
-                    duplicate: target.duplicate,
+                    competition_id: competitionId,
+                    status: 'processing',
+                    duplicate: false,
                 });
             },
         );
