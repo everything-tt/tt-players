@@ -28,32 +28,22 @@ jobs:
 
           root = Path('.')
 
+          # Split configured league target resolution from national target resolution.
           all_targets_path = root / 'apps/worker/src/all-scrape-targets.ts'
           all_targets = all_targets_path.read_text()
-          old_signature = '''export async function resolveAllScrapeTargets(
-              db: Kysely<Database>,
-              options: ResolveAllScrapeTargetsOptions = {},
-          ): Promise<ScrapeTarget[]> {'''
-          new_signature = '''export async function resolveConfiguredLeagueTargets(
-              db: Kysely<Database>,
-              options: ResolveAllScrapeTargetsOptions = {},
-          ): Promise<ScrapeTarget[]> {'''
+          old_signature = "export async function resolveAllScrapeTargets("
           if all_targets.count(old_signature) != 1:
               raise SystemExit('unexpected resolveAllScrapeTargets signature count')
-          all_targets = all_targets.replace(old_signature, new_signature, 1)
-
-          old_tail = '''    const nationalTargets = await bootstrapNationalTTLeagues(db, {
-              includeHistory: options.includeHistory,
-              logger: options.logger,
-          });
-          return [...configuredTargets, ...nationalTargets];
-          }
-
-          export const __internal = {
-              mergeLegacyAndTerritoryLeagueConfigs,
-          };
-          '''
-          new_tail = '''    return configuredTargets;
+          all_targets = all_targets.replace(
+              old_signature,
+              "export async function resolveConfiguredLeagueTargets(",
+              1,
+          )
+          national_start = all_targets.index(
+              '    const nationalTargets = await bootstrapNationalTTLeagues(db, {'
+          )
+          internal_start = all_targets.index('export const __internal = {', national_start)
+          replacement = '''    return configuredTargets;
           }
 
           export async function resolveAllScrapeTargets(
@@ -68,30 +58,17 @@ jobs:
               return [...configuredTargets, ...nationalTargets];
           }
 
-          export const __internal = {
-              mergeLegacyAndTerritoryLeagueConfigs,
-          };
           '''
-          if old_tail not in all_targets:
-              raise SystemExit('missing all-scrape-targets tail marker')
-          all_targets = all_targets.replace(old_tail, new_tail, 1)
+          all_targets = all_targets[:national_start] + replacement + all_targets[internal_start:]
           all_targets_path.write_text(all_targets)
 
+          # Make the compatibility bootstrap territory-aware so maintenance callers such as scrape:uk
+          # cannot silently keep reading the legacy England files.
           bootstrap_path = root / 'apps/worker/src/bootstrap.ts'
           bootstrap = bootstrap_path.read_text()
-          old_wrapper = '''/**
-           * Backwards-compatible legacy bootstrap. Production target resolution can pass
-           * territory-owned configs through bootstrapLeagueConfigs while older scripts and
-           * parity tests can still evaluate the legacy files directly.
-           */
-          export async function bootstrap(
-              db: Kysely<Database>,
-              options: BootstrapOptions = {},
-          ): Promise<ScrapeTarget[]> {
-              return bootstrapLeagueConfigs(db, readLegacyLeagueConfigs(), options);
-          }
-          '''
-          new_wrapper = '''/**
+          wrapper_start = bootstrap.index('/**\n * Backwards-compatible legacy bootstrap.')
+          wrapper_end = bootstrap.index('\n// ─── Upsert helpers', wrapper_start)
+          wrapper = '''/**
            * Backwards-compatible configured bootstrap entry point. Operational callers,
            * including maintenance scripts, resolve territory-owned configs through the shared
            * configured target resolver. Legacy parity remains available via
@@ -105,41 +82,42 @@ jobs:
               return resolveConfiguredLeagueTargets(db, options);
           }
           '''
-          if old_wrapper not in bootstrap:
-              raise SystemExit('missing bootstrap wrapper marker')
-          bootstrap = bootstrap.replace(old_wrapper, new_wrapper, 1)
+          bootstrap = bootstrap[:wrapper_start] + wrapper + bootstrap[wrapper_end:]
           bootstrap_path.write_text(bootstrap)
 
+          # Exercise the same merged configured-target path production uses.
           parity_path = root / 'apps/worker/src/__tests__/england-territory-parity.integration.test.ts'
           parity = parity_path.read_text()
           import_marker = "import { bootstrapLeagueConfigs, readLegacyLeagueConfigs } from '../bootstrap.js';\n"
-          if import_marker not in parity:
-              raise SystemExit('missing parity import marker')
+          if parity.count(import_marker) != 1:
+              raise SystemExit('unexpected parity bootstrap import count')
           parity = parity.replace(
               import_marker,
               import_marker + "import { resolveConfiguredLeagueTargets } from '../all-scrape-targets.js';\n",
               1,
           )
-          parity_marker = '''        const territoryTargets = await bootstrapLeagueConfigs(db, territoryEngland);
+          target_marker = '''        const territoryTargets = await bootstrapLeagueConfigs(db, territoryEngland);
                   expect(territoryTargets).toEqual(legacyTargets);
 
-                  const targetIdentities = territoryTargets.map((target) => [
           '''
-          parity_replacement = '''        const territoryTargets = await bootstrapLeagueConfigs(db, territoryEngland);
-                  expect(territoryTargets).toEqual(legacyTargets);
+          if target_marker not in parity:
+              # The source is intentionally not fully formatted yet; use the exact logical lines.
+              target_marker = (
+                  '        const territoryTargets = await bootstrapLeagueConfigs(db, territoryEngland);\n'
+                  '        expect(territoryTargets).toEqual(legacyTargets);\n\n'
+              )
+          if parity.count(target_marker) != 1:
+              raise SystemExit('unexpected territory parity target marker count')
+          configured_assertion = target_marker + '''        const configuredTargets = await resolveConfiguredLeagueTargets(db, {
+              leagueNames: legacyEngland.map((league) => league.leagueName),
+          });
+          expect(configuredTargets).toEqual(legacyTargets);
 
-                  const configuredTargets = await resolveConfiguredLeagueTargets(db, {
-                      leagueNames: legacyEngland.map((league) => league.leagueName),
-                  });
-                  expect(configuredTargets).toEqual(legacyTargets);
-
-                  const targetIdentities = territoryTargets.map((target) => [
           '''
-          if parity_marker not in parity:
-              raise SystemExit('missing parity target marker')
-          parity = parity.replace(parity_marker, parity_replacement, 1)
+          parity = parity.replace(target_marker, configured_assertion, 1)
           parity_path.write_text(parity)
 
+          # Cover the production merge semantics directly.
           unit_path = root / 'apps/worker/src/__tests__/all-scrape-targets.test.ts'
           if unit_path.exists():
               raise SystemExit('all-scrape-targets.test.ts already exists')
