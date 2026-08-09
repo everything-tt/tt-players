@@ -4,6 +4,7 @@ import {
     bootstrapLeagueConfigs,
     readLegacyLeagueConfigs,
     type BootstrapOptions,
+    type LeagueConfig,
     type ScrapeTarget,
 } from './bootstrap.js';
 import { bootstrapNationalTTLeagues } from './national-ttleagues.js';
@@ -23,18 +24,52 @@ export interface ResolveAllScrapeTargetsOptions extends BootstrapOptions {
     logger?: TargetLogger;
 }
 
+function mergeLegacyAndTerritoryLeagueConfigs(
+    legacyLeagueConfigs: LeagueConfig[],
+    territoryLeagueConfigs: LeagueConfig[],
+    territoryOwnedExternalIds: Set<string>,
+): LeagueConfig[] {
+    const territoryByExternalId = new Map(
+        territoryLeagueConfigs.map((league) => [league.externalId, league] as const),
+    );
+    const representedExternalIds = new Set<string>();
+    const merged: LeagueConfig[] = [];
+
+    // Replace migrated leagues in place so target ordering remains identical to the
+    // effective legacy catalog. Territory-owned-but-disabled leagues deliberately
+    // suppress the legacy fallback.
+    for (const legacyLeague of legacyLeagueConfigs) {
+        const territoryLeague = territoryByExternalId.get(legacyLeague.externalId);
+        if (territoryLeague) {
+            merged.push(territoryLeague);
+            representedExternalIds.add(territoryLeague.externalId);
+            continue;
+        }
+        if (territoryOwnedExternalIds.has(legacyLeague.externalId)) continue;
+        merged.push(legacyLeague);
+    }
+
+    // Allow future territory-native leagues that never existed in the legacy files.
+    for (const territoryLeague of territoryLeagueConfigs) {
+        if (representedExternalIds.has(territoryLeague.externalId)) continue;
+        merged.push(territoryLeague);
+    }
+
+    return merged;
+}
+
 function assertNoDuplicateConfiguredTargets(targets: ScrapeTarget[]): void {
     const seen = new Set<string>();
     for (const target of targets) {
         const identity = [
-  target.platformType,
-  target.competitionId,
-  target.divisionExtId,
-  target.url,
-  target.isHistorical ? 'historical' : 'current',
+            target.platformType,
+            target.competitionId,
+            target.divisionExtId,
+            target.url,
+            target.isHistorical ? 'historical' : 'current',
         ].join('|');
         if (seen.has(identity)) {
-  throw new Error(`Duplicate configured scrape target resolved: ${identity}`);
+            throw new Error(`Duplicate configured scrape target resolved: ${identity}`);
         }
         seen.add(identity);
     }
@@ -47,15 +82,13 @@ export async function resolveAllScrapeTargets(
     const territoryCatalog = await bootstrapTerritorySourceCatalog(db, { logger: options.logger });
     const territoryLeagueConfigs = readTerritoryLeagueConfigs();
     const territoryOwnedExternalIds = new Set(readTerritoryOwnedLeagueExternalIds());
-    const legacyLeagueConfigs = readLegacyLeagueConfigs().filter(
-        (league) => !territoryOwnedExternalIds.has(league.externalId),
+    const configuredLeagueConfigs = mergeLegacyAndTerritoryLeagueConfigs(
+        readLegacyLeagueConfigs(),
+        territoryLeagueConfigs,
+        territoryOwnedExternalIds,
     );
 
-    const configuredTargets = await bootstrapLeagueConfigs(
-        db,
-        [...legacyLeagueConfigs, ...territoryLeagueConfigs],
-        options,
-    );
+    const configuredTargets = await bootstrapLeagueConfigs(db, configuredLeagueConfigs, options);
     assertNoDuplicateConfiguredTargets(configuredTargets);
     await linkTerritoryLeagueResources(db);
 
@@ -71,8 +104,8 @@ export async function resolveAllScrapeTargets(
     );
     if (missingTerritoryTargets.length > 0) {
         throw new Error(
-  'Enabled territory legacy-config sources have no operational scrape targets: '
-  + missingTerritoryTargets.join(', '),
+            'Enabled territory legacy-config sources have no operational scrape targets: '
+            + missingTerritoryTargets.join(', '),
         );
     }
 
@@ -82,3 +115,7 @@ export async function resolveAllScrapeTargets(
     });
     return [...configuredTargets, ...nationalTargets];
 }
+
+export const __internal = {
+    mergeLegacyAndTerritoryLeagueConfigs,
+};
