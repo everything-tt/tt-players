@@ -188,10 +188,26 @@ export function readTerritoryManifests(): TerritoryManifest[] {
         throw error;
     }
 
-    return filenames.map((filename) => parseTerritoryManifest(
+    const manifests = filenames.map((filename) => parseTerritoryManifest(
         readFileSync(resolve(TERRITORY_CONFIG_DIR, filename), 'utf8'),
         filename,
     ));
+
+    const platforms = new Map<string, string>();
+    for (const manifest of manifests) {
+        for (const source of manifest.sources) {
+            const existingBaseUrl = platforms.get(source.platformName);
+            if (existingBaseUrl && existingBaseUrl !== source.platformBaseUrl) {
+                throw new Error(
+                    `Territory source catalog platform ${source.platformName} has conflicting base URLs: `
+                    + `${existingBaseUrl} vs ${source.platformBaseUrl}`,
+                );
+            }
+            platforms.set(source.platformName, source.platformBaseUrl);
+        }
+    }
+
+    return manifests;
 }
 
 async function upsertPlatform(
