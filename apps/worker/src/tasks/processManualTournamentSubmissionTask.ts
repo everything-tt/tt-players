@@ -1,4 +1,5 @@
 import type { Task } from 'graphile-worker';
+import type { Kysely } from 'kysely';
 import { db } from '@tt-players/db';
 import { syncTournamentEntryFormInspection } from '../entry-form-inspection.js';
 import { finalizeManualTournamentSubmission } from '../manual-tournament-submission.js';
@@ -11,7 +12,8 @@ export const processManualTournamentSubmissionTask: Task = async (payload, helpe
     const { competitionId } = payload as ProcessManualTournamentSubmissionPayload;
     if (!competitionId) throw new Error('processManualTournamentSubmissionTask requires competitionId');
 
-    const competition = await db
+    const database = db as Kysely<any>;
+    const competition = await database
         .selectFrom('competitions')
         .select(['id', 'source', 'entry_url', 'deleted_at'])
         .where('id', '=', competitionId)
@@ -27,7 +29,7 @@ export const processManualTournamentSubmissionTask: Task = async (payload, helpe
     }
 
     const inspection = await syncTournamentEntryFormInspection(
-        db,
+        database,
         competitionId,
         competition.entry_url,
         new Date(),
@@ -41,7 +43,7 @@ export const processManualTournamentSubmissionTask: Task = async (payload, helpe
         return;
     }
 
-    const finalization = await finalizeManualTournamentSubmission(db, competitionId);
+    const finalization = await finalizeManualTournamentSubmission(database, competitionId);
     helpers.logger.info(
         `processManualTournamentSubmissionTask: ${competitionId} -> ${finalization.status} (${finalization.competitionId})`,
     );
