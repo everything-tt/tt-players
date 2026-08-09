@@ -30,6 +30,19 @@ describe('territory and legacy league config merge', () => {
         expect(result).toEqual([first, territoryOwned, last]);
     });
 
+    it('preserves legacy-only leagues unchanged', () => {
+        const first = league('first');
+        const second = league('second');
+
+        const result = __internal.mergeLegacyAndTerritoryLeagueConfigs(
+            [first, second],
+            [],
+            new Set(),
+        );
+
+        expect(result).toEqual([first, second]);
+    });
+
     it('suppresses legacy fallback for a territory-owned disabled league', () => {
         const keep = league('keep');
         const disabled = league('disabled');
