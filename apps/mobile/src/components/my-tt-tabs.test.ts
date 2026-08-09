@@ -30,7 +30,8 @@ describe('My TT tab navigation', () => {
     expect(shellSource).toContain("headerProps?.title !== 'Tournament entrants'");
     expect(profileSource).not.toContain('title="Match journal"');
     expect(profileSource).not.toContain('title="Tournament entries"');
-    expect(styles).toContain('min-height: 48px');
+    expect(styles).toContain('.tt-my-tt-tabs');
+    expect(styles).not.toContain('.tt-segmented');
   });
 
   it('offers sign in from the My TT header without making sign in a prerequisite', () => {
