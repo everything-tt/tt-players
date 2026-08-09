@@ -30,7 +30,7 @@ describe('territory and legacy league config merge', () => {
         expect(result).toEqual([first, territoryOwned, last]);
     });
 
-    it('preserves legacy-only leagues unchanged', () => {
+    it('preserves legacy-only leagues unchanged during staged migration', () => {
         const first = league('first');
         const second = league('second');
 
