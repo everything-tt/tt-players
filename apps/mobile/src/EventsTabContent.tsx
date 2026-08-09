@@ -7,7 +7,9 @@ import {
   type TournamentListStatus,
 } from './hooks/useTournamentList';
 import { useSearch } from './hooks/useSearch';
+import { useAuth } from './lib/auth';
 import { useTabNavigation } from './navigation/tab-navigation';
+import { API_BASE_URL } from './player-shared';
 import {
   TOURNAMENT_CATEGORY_OPTIONS,
   toggleTournamentCategory,
@@ -41,6 +43,13 @@ import {
 
 const PAGE_SIZE = 10;
 type TournamentListState = ReturnType<typeof useTournamentList>;
+type ManualSubmitState = 'idle' | 'submitting' | 'success' | 'error';
+
+interface ManualSubmitResponse {
+  competition_id: string;
+  status: 'processing' | 'already_submitted';
+  duplicate: boolean;
+}
 
 function formatVenue(event: TournamentEventItem): string | null {
   return event.venue_name ?? event.venue_town ?? event.venue_postcode;
@@ -251,11 +260,16 @@ function TournamentResults({
 
 export function EventsTabContent() {
   const { navigateInActiveTab } = useTabNavigation();
+  const auth = useAuth();
   const [initialPreferences] = useState(() => readTournamentPreferences());
   const [status, setStatus] = useState<TournamentListStatus>(initialPreferences.status);
   const [savedOnly, setSavedOnly] = useState(initialPreferences.savedOnly);
   const [categoryFiltersOpen, setCategoryFiltersOpen] = useState(false);
   const [categories, setCategories] = useState<TournamentCategoryFilter[]>(initialPreferences.categories);
+  const [manualSubmitOpen, setManualSubmitOpen] = useState(false);
+  const [manualSubmitUrl, setManualSubmitUrl] = useState('');
+  const [manualSubmitState, setManualSubmitState] = useState<ManualSubmitState>('idle');
+  const [manualSubmitMessage, setManualSubmitMessage] = useState('');
   const search = useSearch({ minLength: 0, resetOnDisable: false });
   const {
     items: favouriteTournaments,
@@ -273,6 +287,10 @@ export function EventsTabContent() {
     writeTournamentPreferences({ status, savedOnly, categories });
   }, [categories, savedOnly, status]);
 
+  useEffect(() => {
+    if (!auth.session) setManualSubmitOpen(false);
+  }, [auth.session]);
+
   const upcoming = useTournamentList({
     status: 'upcoming',
     search: search.debouncedQuery,
@@ -289,6 +307,42 @@ export function EventsTabContent() {
     enabled: status === 'completed' && mayFetch,
     pageSize: PAGE_SIZE,
   });
+
+  const submitManualTournament = async () => {
+    const session = auth.session;
+    const url = manualSubmitUrl.trim();
+    if (!session || !url || manualSubmitState === 'submitting') return;
+
+    setManualSubmitState('submitting');
+    setManualSubmitMessage('');
+    try {
+      const response = await fetch(`${API_BASE_URL}/events/manual-submit`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url }),
+      });
+      const payload = await response.json() as ManualSubmitResponse & { error?: string };
+      if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+
+      setManualSubmitUrl('');
+      setManualSubmitState('success');
+      setManualSubmitMessage(
+        payload.status === 'already_submitted'
+          ? 'This tournament has already been submitted.'
+          : payload.duplicate
+            ? 'This tournament was already submitted and is still being processed.'
+            : 'Submitted. Tournament details are being extracted from the link.',
+      );
+    } catch (error) {
+      setManualSubmitState('error');
+      setManualSubmitMessage(
+        error instanceof Error ? error.message : 'Could not submit this tournament link.',
+      );
+    }
+  };
 
   return (
     <>
@@ -311,6 +365,25 @@ export function EventsTabContent() {
           className="tt-tournament-search-toolbar"
           actions={(
             <>
+              {auth.session ? (
+                <AppToggleButton
+                  pressed={manualSubmitOpen}
+                  variant="icon"
+                  iconClassName="fa fa-plus"
+                  className="tt-tournament-toolbar-icon"
+                  onClick={() => {
+                    setManualSubmitOpen((current) => !current);
+                    setManualSubmitState('idle');
+                    setManualSubmitMessage('');
+                  }}
+                  aria-label={manualSubmitOpen ? 'Hide tournament submission' : 'Post a tournament'}
+                  aria-expanded={manualSubmitOpen}
+                  aria-controls="tournament-manual-submit"
+                  title="Post a tournament"
+                >
+                  <span className="tt-tournament-toolbar-icon__label">Post</span>
+                </AppToggleButton>
+              ) : null}
               <AppToggleButton
                 pressed={savedOnly}
                 variant="icon"
@@ -353,6 +426,59 @@ export function EventsTabContent() {
             onChange={(event) => search.setQuery(event.target.value)}
           />
         </SearchToolbar>
+
+        {auth.session && manualSubmitOpen ? (
+          <form
+            id="tournament-manual-submit"
+            className="tt-tournament-manual-submit"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submitManualTournament();
+            }}
+          >
+            <label className="tt-tournament-manual-submit__label" htmlFor="tournament-manual-submit-url">
+              Post tournament
+            </label>
+            <p className="tt-tournament-manual-submit__hint">
+              Paste the tournament entry form or information link. We’ll extract the tournament details automatically.
+            </p>
+            <div className="tt-tournament-manual-submit__row">
+              <input
+                id="tournament-manual-submit-url"
+                className="tt-tournament-manual-submit__input"
+                type="url"
+                inputMode="url"
+                autoComplete="url"
+                required
+                placeholder="https://…"
+                value={manualSubmitUrl}
+                onChange={(event) => {
+                  setManualSubmitUrl(event.target.value);
+                  if (manualSubmitState !== 'submitting') {
+                    setManualSubmitState('idle');
+                    setManualSubmitMessage('');
+                  }
+                }}
+              />
+              <AppButton
+                type="submit"
+                size="sm"
+                loading={manualSubmitState === 'submitting'}
+                disabled={!manualSubmitUrl.trim()}
+              >
+                Post
+              </AppButton>
+            </div>
+            {manualSubmitMessage ? (
+              <p
+                className={`tt-tournament-manual-submit__message tt-tournament-manual-submit__message--${manualSubmitState}`}
+                role={manualSubmitState === 'error' ? 'alert' : 'status'}
+              >
+                {manualSubmitMessage}
+              </p>
+            ) : null}
+          </form>
+        ) : null}
 
         {categoryFiltersOpen ? (
           <div id="tournament-category-filters" className="tt-tournament-category-filters">
