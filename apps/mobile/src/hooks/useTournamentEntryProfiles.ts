@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
+  LOCAL_TOURNAMENT_ENTRY_OWNER,
   notifyUserDataChanged,
   TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY,
   TOURNAMENT_ENTRY_PROFILES_UPDATED_EVENT,
@@ -41,8 +42,6 @@ interface TournamentEntryProfilesStore {
   ownerUserId: string;
   profiles: TournamentEntryProfile[];
 }
-
-export const LOCAL_TOURNAMENT_ENTRY_OWNER = 'local-device';
 
 const MAX_PROFILES = 30;
 const MAX_NAME_LENGTH = 160;
