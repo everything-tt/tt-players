@@ -106,16 +106,16 @@ describe('territory source catalog database bootstrap', () => {
         ]);
 
         const enabledSources = await db
-            .selectFrom('source_instances')
-            .select(['key', 'enabled'])
-            .where('enabled', '=', true)
-            .orderBy('key', 'asc')
-            .execute();
-        expect(enabledSources.map((source) => source.key)).toEqual([
-            'dumfries-tt365',
-            'perth-tt365',
-            'west-of-scotland-tt365',
-        ]);
+    .selectFrom('source_instances')
+    .select(['key', 'enabled'])
+    .where('enabled', '=', true)
+    .orderBy('key', 'asc')
+    .execute();
+expect(enabledSources.map((source) => source.key)).toEqual([
+    'dumfries-tt365',
+    'perth-tt365',
+    'west-of-scotland-tt365',
+]);
     });
 
     it('rejects provider base-url conflicts instead of silently rewriting platforms', async () => {
