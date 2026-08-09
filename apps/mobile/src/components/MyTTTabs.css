@@ -18,9 +18,38 @@
   white-space: normal;
 }
 
+.tt-app-header .tt-my-tt-header-sign-in {
+  align-items: center;
+  background: color-mix(in oklch, var(--accent) 10%, var(--tt-surface-raised));
+  border: 1px solid color-mix(in oklch, var(--accent) 28%, var(--tt-border));
+  border-radius: 999px;
+  color: var(--accent);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 750;
+  gap: 5px;
+  height: 32px;
+  justify-content: center;
+  line-height: 1;
+  min-width: 72px;
+  padding: 0 9px;
+  right: 46px;
+  top: 9px;
+  width: auto;
+}
+
+.tt-app-header .tt-my-tt-header-sign-in i {
+  font-size: 12px;
+}
+
 @media (max-width: 370px) {
   .tt-my-tt-tabs .tt-segmented__btn {
     font-size: 11px;
     padding-inline: 4px;
+  }
+
+  .tt-app-header .tt-my-tt-header-sign-in {
+    min-width: 64px;
+    padding-inline: 7px;
   }
 }
