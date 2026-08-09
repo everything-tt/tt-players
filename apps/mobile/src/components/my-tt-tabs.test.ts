@@ -32,4 +32,15 @@ describe('My TT tab navigation', () => {
     expect(profileSource).not.toContain('title="Tournament entries"');
     expect(styles).toContain('min-height: 48px');
   });
+
+  it('offers sign in from the My TT header without making sign in a prerequisite', () => {
+    const shellSource = read('../TabShellPage.tsx');
+    const styles = read('./MyTTTabs.css');
+
+    expect(shellSource).toContain('auth.isConfigured && !auth.loading && !auth.user');
+    expect(shellSource).toContain("ariaLabel: 'Sign in with Google'");
+    expect(shellSource).toContain('void auth.signInWithGoogle()');
+    expect(shellSource).toContain('<span>Sign in</span>');
+    expect(styles).toContain('.tt-my-tt-header-sign-in');
+  });
 });
