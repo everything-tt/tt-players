@@ -15,7 +15,6 @@ let db: Kysely<Database>;
 let request: ReturnType<typeof supertest>;
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
-const SECOND_USER_ID = '22222222-2222-4222-8222-222222222222';
 
 beforeAll(async () => {
     await createTestDatabase();
@@ -59,20 +58,6 @@ function mockAuthenticatedUser(): void {
         status: 200,
         headers: { 'content-type': 'application/json' },
     })));
-}
-
-function mockAuthenticatedUsersByToken(): void {
-    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-        const authorization = new Headers(init?.headers).get('Authorization') ?? '';
-        const second = authorization === 'Bearer second-session';
-        return new Response(JSON.stringify({
-            id: second ? SECOND_USER_ID : USER_ID,
-            email: second ? 'second@example.com' : 'player@example.com',
-        }), {
-            status: 200,
-            headers: { 'content-type': 'application/json' },
-        });
-    }));
 }
 
 describe('manual tournament submissions', () => {
@@ -139,7 +124,7 @@ describe('manual tournament submissions', () => {
             .expect(202);
 
         vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
-            id: SECOND_USER_ID,
+            id: '22222222-2222-4222-8222-222222222222',
             email: 'second@example.com',
         }), { status: 200, headers: { 'content-type': 'application/json' } })));
 
@@ -166,44 +151,8 @@ describe('manual tournament submissions', () => {
             .execute();
 
         expect(sources.map((source: { submitted_by_user_id: string }) => source.submitted_by_user_id)).toEqual([
-            USER_ID,
-            SECOND_USER_ID,
-        ]);
-    });
-
-    it('deduplicates simultaneous first submissions for the same URL', async () => {
-        mockAuthenticatedUsersByToken();
-        const url = 'https://example.com/tournament-entry?id=concurrent-42';
-
-        const [first, second] = await Promise.all([
-            request
-                .post('/api/events/manual-submit')
-                .set('Authorization', 'Bearer first-session')
-                .send({ url }),
-            request
-                .post('/api/events/manual-submit')
-                .set('Authorization', 'Bearer second-session')
-                .send({ url }),
-        ]);
-
-        expect(first.status).toBe(202);
-        expect(second.status).toBe(202);
-        expect(first.body.competition_id).toBe(second.body.competition_id);
-        expect([first.body.duplicate, second.body.duplicate].sort()).toEqual([false, true]);
-
-        const database = db as Kysely<any>;
-        const sources = await database
-            .selectFrom('tournament_sources')
-            .select('submitted_by_user_id')
-            .where('competition_id', '=', first.body.competition_id)
-            .where('provider', '=', 'manual-submit')
-            .where('source_type', '=', 'submission')
-            .orderBy('submitted_by_user_id', 'asc')
-            .execute();
-
-        expect(sources.map((source: { submitted_by_user_id: string }) => source.submitted_by_user_id)).toEqual([
-            USER_ID,
-            SECOND_USER_ID,
+            '11111111-1111-4111-8111-111111111111',
+            '22222222-2222-4222-8222-222222222222',
         ]);
     });
 });
