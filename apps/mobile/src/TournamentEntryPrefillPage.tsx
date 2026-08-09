@@ -4,7 +4,6 @@ import { useSearchParams } from 'react-router-dom';
 import { DetailHeader } from './components/DetailHeader';
 import { SkeletonList } from './components/Skeleton';
 import { useTournamentEntryProfiles } from './hooks/useTournamentEntryProfiles';
-import { useAuth } from './lib/auth';
 import { useTabNavigation } from './navigation/tab-navigation';
 import { apiFetch } from './player-shared';
 import { useEventDetailQuery } from './queries';
@@ -60,7 +59,6 @@ type EntryEvent = {
 };
 
 export function TournamentEntryPrefillPage() {
-  const auth = useAuth();
   const { profiles } = useTournamentEntryProfiles();
   const { navigateInTab } = useTabNavigation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -110,7 +108,7 @@ export function TournamentEntryPrefillPage() {
     setSearchParams({ event: eventId, profile: profileId }, { replace: true });
   };
 
-  const loading = auth.loading || eventQuery.isLoading || inspectionQuery.isLoading;
+  const loading = eventQuery.isLoading || inspectionQuery.isLoading;
   const backFallback = eventId ? `event/${eventId}` : 'events';
 
   return (
@@ -131,36 +129,6 @@ export function TournamentEntryPrefillPage() {
             title="Tournament unavailable"
             message="The tournament could not be loaded. Return to the tournament list and try again."
           />
-        ) : !auth.isConfigured ? (
-          <Stack gap="sm">
-            <EmptyState
-              iconClassName="fa fa-user-lock"
-              title="Account sign-in is unavailable"
-              message="Tournament entry preparation needs an account so private entrant details stay with the correct user."
-            />
-            {originalFormUrl ? (
-              <AppButtonLink href={originalFormUrl} target="_blank" rel="noreferrer" tone="primary" full>
-                Open original form
-              </AppButtonLink>
-            ) : null}
-          </Stack>
-        ) : !auth.user ? (
-          <Stack gap="sm">
-            <EmptyState
-              iconClassName="fa fa-user-lock"
-              title="Sign in to prepare an entry"
-              message="Your saved entrant details remain private to your TT Players account."
-            />
-            <AppButton full tone="primary" onClick={() => { void auth.signInWithGoogle(); }}>
-              <i className="fab fa-google" aria-hidden="true" />
-              Sign in with Google
-            </AppButton>
-            {originalFormUrl ? (
-              <AppButtonLink href={originalFormUrl} target="_blank" rel="noreferrer" tone="outline" full>
-                Open original form
-              </AppButtonLink>
-            ) : null}
-          </Stack>
         ) : !inspection ? (
           <Stack gap="sm">
             <EmptyState
@@ -181,9 +149,9 @@ export function TournamentEntryPrefillPage() {
             <EmptyState
               iconClassName="fa fa-address-card"
               title="Add an entrant first"
-              message="Save private entry details for yourself, a child, or a player you coach before preparing this form."
+              message="Save private entry details for yourself, a child, or a player you coach before preparing this form. Sign-in is optional and only enables account sync."
             />
-            <AppButton full tone="primary" onClick={() => navigateInTab('home', 'entry-profiles')}>
+            <AppButton full tone="primary" onClick={() => navigateInTab('home', 'my-tt/entries')}>
               Manage tournament entrants
             </AppButton>
             <AppButtonLink href={originalFormUrl ?? inspection.form_url} target="_blank" rel="noreferrer" tone="outline" full>
