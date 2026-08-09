@@ -147,5 +147,5 @@ test('runtime default query cap covers large publication jobs', async () => {
   const { result, commands } = await runScenario({ useDefaultMaxBytesBilled: true });
 
   assert.equal(result.status, 0, result.stderr);
-  assert.match(commands, /--maximum_bytes_billed=20000000000/);
+  assert.match(commands, /--maximum_bytes_billed=30000000000/);
 });
