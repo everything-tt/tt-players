@@ -16,6 +16,7 @@ import { scrapeVettsTournamentTask } from './tasks/scrapeVettsTournamentTask.js'
 import { calculateRatingsTask } from './tasks/calculateRatingsTask.js';
 import { refreshApiReadModelsTask } from './tasks/refreshApiReadModelsTask.js';
 import { completeDailyPipelineTask } from './tasks/completeDailyPipelineTask.js';
+import { processManualTournamentSubmissionTask } from './tasks/processManualTournamentSubmissionTask.js';
 
 let scheduledScrapeTargets: ScrapeTarget[] = [];
 
@@ -138,6 +139,7 @@ export const taskList = {
     calculateRatingsTask,
     refreshApiReadModelsTask,
     completeDailyPipelineTask,
+    processManualTournamentSubmissionTask,
     scheduleScrapeTasks,
     purgeExpiredCacheEntries,
 };
