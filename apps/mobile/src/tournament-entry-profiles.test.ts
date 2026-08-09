@@ -34,25 +34,31 @@ describe('private tournament entry profiles', () => {
     expect(hook).toContain('migrateTournamentEntryProfile');
   });
 
-  it('keeps private data account-scoped and separate from public player records', () => {
+  it('is local-first and adopts device entrants for account sync after sign in', () => {
+    const page = read('./TournamentEntryProfilesPage.tsx');
     const hook = read('./hooks/useTournamentEntryProfiles.ts');
     const persistence = read('./local-persistence.ts');
+    const syncProvider = read('./UserDataSyncProvider.tsx');
 
-    expect(hook).toContain('ownerUserId');
-    expect(hook).toContain('store.ownerUserId !== ownerUserId');
-    expect(persistence).toContain("TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY = 'tt_players_tournament_entry_profiles'");
-    expect(persistence).toContain('isOwnedTournamentEntryProfiles');
+    expect(page).not.toContain('Sign in to save tournament entrants');
+    expect(page).not.toContain('!draft || !auth.user');
+    expect(page).toContain('Saved on this device');
+    expect(persistence).toContain("LOCAL_TOURNAMENT_ENTRY_OWNER = 'local-device'");
+    expect(hook).toContain('auth.user?.id ?? LOCAL_TOURNAMENT_ENTRY_OWNER');
+    expect(hook).not.toContain('if (!resolvedOwnerUserId) return null');
+    expect(persistence).toContain('claimLocalTournamentEntryProfiles');
+    expect(syncProvider).toContain('claimLocalTournamentEntryProfiles(userId)');
   });
 
-  it('exposes tournament entry information from the actual My TT page and registers its route', () => {
+  it('exposes tournament entrants as a dedicated My TT tab without a profile cross-link', () => {
     const myTTPage = read('./MyTTPage.tsx');
     const router = read('./AppRouter.tsx');
+    const tabs = read('./components/MyTTTabs.tsx');
 
-    expect(myTTPage).toContain('Tournament entries');
-    expect(myTTPage).toContain('Manage tournament players');
-    expect(myTTPage).toContain("navigateInTab('home', 'entry-profiles')");
-    expect(myTTPage).toContain('Save private entry details for yourself, children, or players you manage.');
-    expect(router).toContain('/tabs/:tabId/entry-profiles');
+    expect(myTTPage).not.toContain('title="Tournament entries"');
+    expect(router).toContain('/tabs/:tabId/my-tt/entries');
+    expect(tabs).toContain("{ value: 'entries', label: 'Tournament entries' }");
+    expect(tabs).toContain("navigateInTab('home', 'my-tt/entries')");
   });
 
   it('keeps tournament entrant management available without claiming yourself as a player', () => {
@@ -61,6 +67,15 @@ describe('private tournament entry profiles', () => {
     expect(myTTPage).toContain('onManageEntrants: () => void');
     expect(myTTPage).toContain('onManageEntrants={');
     expect(myTTPage).toContain('You can still manage private tournament entry information for players you look after.');
+  });
+
+  it('can prepare forms from locally saved profiles without authentication', () => {
+    const prefillPage = read('./TournamentEntryPrefillPage.tsx');
+
+    expect(prefillPage).not.toContain('useAuth');
+    expect(prefillPage).not.toContain('Sign in to prepare an entry');
+    expect(prefillPage).toContain('Sign-in is optional and only enables account sync.');
+    expect(prefillPage).toContain("navigateInTab('home', 'my-tt/entries')");
   });
 
   it('does not store medical answers, declarations, or payment details', () => {

@@ -1,0 +1,36 @@
+.tt-my-tt-tabs {
+  background: var(--tt-surface-raised);
+  border-bottom: 1px solid var(--tt-border);
+  padding: 0 var(--tt-gutter-flat, 12px);
+}
+
+.tt-my-tt-header-sign-in.tt-my-tt-header-sign-in {
+  align-items: center;
+  background: color-mix(in oklch, var(--accent) 10%, var(--tt-surface-raised));
+  border: 1px solid color-mix(in oklch, var(--accent) 28%, var(--tt-border));
+  border-radius: 999px;
+  color: var(--accent);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 750;
+  gap: 5px;
+  height: 32px;
+  justify-content: center;
+  line-height: 1;
+  min-width: 72px;
+  padding: 0 9px;
+  right: 46px;
+  top: 9px;
+  width: auto;
+}
+
+.tt-my-tt-header-sign-in i {
+  font-size: 12px;
+}
+
+@media (max-width: 370px) {
+  .tt-my-tt-header-sign-in.tt-my-tt-header-sign-in {
+    min-width: 64px;
+    padding-inline: 7px;
+  }
+}

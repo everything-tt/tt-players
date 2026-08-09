@@ -2,6 +2,7 @@ import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } fr
 import { useAuth, type AuthState } from './lib/auth';
 import {
   applyUserDataSnapshot,
+  claimLocalTournamentEntryProfiles,
   clearLocalDataBackup,
   clearSyncedLocalData,
   createUserDataSnapshot,
@@ -78,6 +79,11 @@ export function UserDataSyncProvider({ children }: { children: ReactNode }) {
     let retryTimer: number | null = null;
     const userId = auth.session.user.id;
     const previousOwner = getLocalSyncOwner();
+
+    // Device-only tournament entrants can be created before authentication.
+    // Claim them for the account before bootstrap so the normal sync snapshot
+    // can upload them once the user chooses to sign in.
+    if (!previousOwner) claimLocalTournamentEntryProfiles(userId);
 
     // A localStorage cache owned by a different signed-in account must never be
     // used to seed or render this account. Anonymous (unowned) preferences may
