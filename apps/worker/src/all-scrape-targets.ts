@@ -26,7 +26,7 @@ export async function resolveAllScrapeTargets(
     );
     if (missingTerritoryTargets.length > 0) {
         throw new Error(
-            'Enabled territory sources have no configured scrape targets: '
+            'Enabled territory legacy-config sources have no operational scrape targets: '
             + missingTerritoryTargets.join(', '),
         );
     }
