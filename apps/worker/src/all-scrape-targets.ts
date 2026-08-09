@@ -17,8 +17,20 @@ export async function resolveAllScrapeTargets(
     db: Kysely<Database>,
     options: ResolveAllScrapeTargetsOptions = {},
 ): Promise<ScrapeTarget[]> {
-    await bootstrapTerritorySourceCatalog(db, { logger: options.logger });
+    const territoryCatalog = await bootstrapTerritorySourceCatalog(db, { logger: options.logger });
     const configuredTargets = await bootstrap(db, options);
+
+    const configuredLeagueNames = new Set(configuredTargets.map((target) => target.leagueName));
+    const missingTerritoryTargets = territoryCatalog.enabledLegacyLeagueNames.filter(
+        (leagueName) => !configuredLeagueNames.has(leagueName),
+    );
+    if (missingTerritoryTargets.length > 0) {
+        throw new Error(
+            'Enabled territory sources have no configured scrape targets: '
+            + missingTerritoryTargets.join(', '),
+        );
+    }
+
     const nationalTargets = await bootstrapNationalTTLeagues(db, {
         includeHistory: options.includeHistory,
         logger: options.logger,
