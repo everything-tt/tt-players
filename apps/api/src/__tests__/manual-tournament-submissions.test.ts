@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import supertest from 'supertest';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
 import * as manualSubmitterMigration from '../../../../packages/db/src/migrations/053_add_manual_tournament_submitter.js';
 import { buildApp } from '../app.js';
@@ -21,6 +21,16 @@ beforeAll(async () => {
     db = createTestKysely();
     await runMigrations(db);
     await manualSubmitterMigration.up(db as Kysely<any>);
+    await sql`create schema if not exists graphile_worker`.execute(db);
+    await sql`
+        create or replace function graphile_worker.add_job(
+            identifier text,
+            payload json,
+            job_key text default null
+        ) returns json
+        language sql
+        as $$ select json_build_object('identifier', identifier, 'payload', payload, 'job_key', job_key) $$
+    `.execute(db);
 
     process.env.SUPABASE_URL = 'https://supabase.example.com';
     process.env.SUPABASE_PUBLISHABLE_KEY = 'test-publishable-key';
