@@ -25,6 +25,12 @@ describe('manual tournament submission URL handling', () => {
         );
     });
 
+    it('rejects URLs containing embedded credentials', () => {
+        expect(() => normalizeManualTournamentUrl('https://user:secret@example.com/form')).toThrow(
+            'Tournament links must not contain embedded credentials',
+        );
+    });
+
     it('generates a stable source hash for a canonical URL', () => {
         const url = 'https://example.com/tournament-entry?id=42';
         expect(manualTournamentUrlHash(url)).toBe(manualTournamentUrlHash(url));
