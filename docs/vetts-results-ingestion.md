@@ -23,7 +23,7 @@ The adapter key is `tournamentsoftware-vetts` and its current parser version is 
 - `source_instances`: the concrete VETTS tenant (`https://vetts.tournamentsoftware.com`) with the official calendar base URL in instance configuration.
 - `source_resources`: one independently refreshed resource per year calendar, tournament overview, and tournament result set.
 
-Each calendar year records success or failure independently. Overview and result resources also transition health independently, so a bad result page does not make a valid overview appear unhealthy. Empty or unparsable calendars fail closed so the Data Coverage dashboard cannot report a healthy source after discovery silently stops working.
+Each calendar year records success or failure independently. Overview and result resources also transition health independently, so a bad result page does not make a valid overview appear unhealthy. Scheduled discovery fails closed on an unexpectedly empty current/recent calendar so the Data Coverage dashboard cannot report a healthy source after discovery silently stops working.
 
 ## Data flow
 
@@ -46,49 +46,61 @@ Each calendar year records success or failure independently. Overview and result
 - Rows without two singles players or four doubles players, a winner, or valid scores are rejected without inventing data.
 - Separate VETTS competitions derive `upcoming`, `in_progress`, or `completed` from their dates. Partial live results do not prematurely mark an in-progress event completed.
 
-## Running a bounded backfill
+## Running a backfill
 
-From the repository root:
+From the repository root, explicit tournament UUIDs can still be processed directly:
 
 ```bash
 pnpm --filter @tt-players/worker vetts:scrape -- 4af81622-d21a-47ed-a046-86c492b4cfe9
 ```
 
-Multiple UUIDs may be supplied. UUIDs are validated and de-duplicated. With no UUIDs, the command uses the same registered discovery pipeline as the worker, scans the current and previous calendar years by default, and processes at most `VETTS_DISCOVERY_LIMIT` unique tournaments. The default limit is 30 and the hard cap is 100.
+Multiple UUIDs may be supplied. UUIDs are validated and de-duplicated.
 
-`VETTS_DISCOVERY_YEARS` controls how many descending calendar years are scanned. The default is 2 and the hard cap is 10. This supports bounded historical backfills without relying on the client-rendered Tournament Software directory.
+With no UUIDs, the command uses the registered discovery pipeline. Its normal CLI defaults remain bounded (`VETTS_DISCOVERY_YEARS=2`, `VETTS_DISCOVERY_LIMIT=30`) so ad-hoc invocations do not unexpectedly become a full production backfill.
 
-Each tournament is processed one match-day page at a time and a maximum of seven dates is enumerated from its overview. This bounds response memory and database transaction size.
+For a full historical backfill use:
+
+```bash
+VETTS_DISCOVERY_YEARS=all VETTS_DISCOVERY_LIMIT=all \
+  pnpm --filter @tt-players/worker vetts:scrape
+```
+
+`VETTS_DISCOVERY_YEARS=all` scans from the current calendar year back through 1984, the first VETTS tournament year. Historical years with no published Tournament Software links are accepted as empty during this explicit full-history mode; extraction or transformation failures are still recorded. A positive integer may be supplied instead to scan only that many descending years.
+
+`VETTS_DISCOVERY_LIMIT=all` processes every unique tournament discovered in the selected years. A positive integer may be supplied to deliberately cap a manual run.
+
+Each tournament is processed one match-day page at a time and a maximum of seven dates is enumerated from its overview. This bounds response memory and database transaction size even when the overall historical backfill is unbounded by tournament count.
 
 ### Manual GitHub Actions backfill
 
-After the VETTS scraper has been merged and deployed, open **Actions → Backfill VETTS tournament results → Run workflow**.
+After deployment, open **Actions → Backfill VETTS tournament results → Run workflow**.
 
-The workflow supports two bounded modes:
+The workflow supports two modes:
 
-- `discovery`: scan official year calendars and process up to `discovery_limit` tournaments.
+- `discovery`: discover tournaments from official VETTS year calendars. This is the default mode, with `discovery_years=all` and `discovery_limit=all`, so pressing Run after entering the confirmation token performs a complete available-history backfill.
 - `tournament_ids`: process one or more comma- or space-separated Tournament Software UUIDs.
 
-The action requires `confirm=BACKFILL_VETTS`, accepts at most 10 calendar years and 100 tournaments per run, runs the deployed worker under the production `ttp` system user, and prevents overlapping backfills. Its summary reports loaded and rejected match rows plus duplicate links/conflicts. The complete command log is retained as a GitHub Actions artifact for seven days.
+For a smaller discovery run, replace either `all` value with a positive integer, for example `discovery_years=2` and `discovery_limit=30`.
+
+The action requires `confirm=BACKFILL_VETTS`, runs the deployed worker under the production `ttp` system user, serializes tournament processing through the existing ingestion path, prevents overlapping backfills, and allows up to six hours for a full-history run. Its summary reports loaded and rejected match rows plus duplicate links/conflicts. The complete command log is retained as a GitHub Actions artifact for seven days.
 
 ## Recurring refresh and recovery
 
-The worker runs `scrapeVettsTournamentsTask` each Monday at 04:15. The default two-year window refreshes current events and recently completed tournaments. Calendar, event, and result resources appear in the existing Data Coverage API with parser version, fetch/success timestamps, failure count, and bounded error text.
+The worker runs `scrapeVettsTournamentsTask` each Monday at 04:15. The scheduled path is intentionally unchanged: the default two-year window refreshes current events and recently completed tournaments, and the task still caps queued tournaments at 100. Calendar, event, and result resources appear in the existing Data Coverage API with parser version, fetch/success timestamps, failure count, and bounded error text.
 
 Failed calendar years are recorded independently; successful years may still queue work, after which the discovery job fails so Graphile Worker retries the partial failure. Tournament jobs use the shared three-attempt retry, stable dedupe key, and serialized upstream queue.
 
 To recover a specific tournament after an upstream or parser failure, run the one-off command with its UUID or enqueue `scrapeVettsTournamentTask` again. Source observations and canonical loader identities are UPSERTed, so reruns do not create duplicate source rows. Duplicate reconciliation is also rerun-safe: exact duplicates remain suppressed, while conflicts restore and retain the imported VETTS rubber.
 
-`VETTS_DISCOVERY_LIMIT` and `VETTS_DISCOVERY_YEARS` can temporarily reduce the batch during recovery. Do not increase the seven-day per-tournament bound without reviewing memory and queue impact.
+`VETTS_DISCOVERY_LIMIT` and `VETTS_DISCOVERY_YEARS` can reduce a manual batch during recovery. Do not increase the seven-day per-tournament bound without reviewing memory and queue impact.
 
 ## Test coverage
 
 - representative directory, overview, singles, doubles, walkover, invalid-score, and bye fixtures;
 - adapter manifest and directory transform tests;
 - stable tenant-scoped member identity and tournament-scoped fallback tests;
+- current/recent bounded discovery plus full-history year-range tests;
 - lifecycle and bounded-date tests;
 - worker discovery retry, serialization, dedupe, empty-source, limit, and partial-failure tests;
 - database integration coverage for production migrations, raw provenance, source registry health, repeated UPSERT ingestion, canonical duplicate linking, and one effective rubber after reruns;
 - API H2H integration coverage proving the reconciled encounter appears once while the soft-deleted imported duplicate stays hidden.
-
-A production tournament has not been backfilled by this PR. Production verification should be performed only after merge and deployment by running a bounded workflow invocation and checking player profile/H2H responses.

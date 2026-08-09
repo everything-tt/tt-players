@@ -27,10 +27,15 @@ export interface VettsDiscoveryResult {
     failures: Error[];
 }
 
+export interface VettsDiscoveryOptions {
+    allowEmptyYears?: boolean;
+}
+
 export async function discoverVettsTournaments(
     database: Kysely<Database>,
     logger: VettsDiscoveryLogger = {},
     years: number[] = vettsDiscoveryYears(),
+    options: VettsDiscoveryOptions = {},
 ): Promise<VettsDiscoveryResult> {
     const platformId = await upsertVettsPlatform(database);
     const instance = await upsertSourceInstance(database, {
@@ -73,7 +78,10 @@ export async function discoverVettsTournaments(
             const html = await vettsSourceAdapter.extract(context);
             rawLogId = await storeScrapePayload(discoveryUrl, platformId, html, database);
             const transformed = await vettsSourceAdapter.transform(html, context);
-            if (!Array.isArray(transformed) || transformed.length === 0) {
+            if (!Array.isArray(transformed)) {
+                throw new Error(`Unexpected VETTS calendar payload for ${year}`);
+            }
+            if (transformed.length === 0 && !options.allowEmptyYears) {
                 throw new Error(
                     `No VETTS tournaments discovered for ${year}; refusing to treat the calendar as empty`,
                 );

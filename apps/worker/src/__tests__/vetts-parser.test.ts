@@ -8,7 +8,11 @@ import {
 } from '../vetts-parser.js';
 import { vettsDuplicateCandidateMatches } from '../vetts-duplicate-reconciliation.js';
 import { vettsSourceAdapter } from '../vetts-adapter.js';
-import { vettsDiscoveryYears, vettsUrls } from '../vetts-client.js';
+import {
+    VETTS_FIRST_TOURNAMENT_YEAR,
+    vettsDiscoveryYears,
+    vettsUrls,
+} from '../vetts-client.js';
 import { deriveVettsEventStatus } from '../vetts-loader.js';
 import { stabilizeVettsPlayerIdentities } from '../vetts-player-identity.js';
 
@@ -89,10 +93,16 @@ describe('VETTS tournament parsing', () => {
         });
     });
 
-    it('uses bounded official VETTS year calendars for discovery', () => {
+    it('uses official VETTS year calendars and supports full-history discovery', () => {
+        const now = new Date('2026-08-04T00:00:00Z');
         expect(vettsUrls.discovery(2026)).toBe('https://www.vetts.org.uk/tournaments.aspx?year=2026');
-        expect(vettsDiscoveryYears(new Date('2026-08-04T00:00:00Z'), 3)).toEqual([2026, 2025, 2024]);
-        expect(vettsDiscoveryYears(new Date('2026-08-04T00:00:00Z'), 99)).toHaveLength(10);
+        expect(vettsDiscoveryYears(now, 3)).toEqual([2026, 2025, 2024]);
+
+        const allYears = vettsDiscoveryYears(now, 'all');
+        expect(allYears[0]).toBe(2026);
+        expect(allYears.at(-1)).toBe(VETTS_FIRST_TOURNAMENT_YEAR);
+        expect(allYears).toHaveLength(43);
+        expect(vettsDiscoveryYears(now, 99)).toEqual(allYears);
     });
 
     it('discovers modern and legacy tournament links with stable UUIDs', () => {
