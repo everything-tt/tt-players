@@ -20,6 +20,7 @@ import { h2hCommonOpponentRoutes } from './routes/h2h-common-opponents.js';
 import { fixturesRoutes } from './routes/fixtures.js';
 import { eventsRoutes } from './routes/events.js';
 import { eventEntryFormsRoutes } from './routes/event-entry-forms.js';
+import { manualTournamentSubmissionRoutes } from './routes/manual-tournament-submissions.js';
 import { feedbackRoutes } from './routes/feedback.js';
 import { leagueRatingsRoutes } from './routes/league-ratings.js';
 import { ratingAuditRoutes } from './routes/rating-audit.js';
@@ -187,6 +188,7 @@ export async function buildApp(db: Kysely<Database>) {
     await app.register(fixturesRoutes(db), { prefix: '/api/fixtures' });
     await app.register(eventsRoutes(db), { prefix: '/api/events' });
     await app.register(eventEntryFormsRoutes(db), { prefix: '/api/events' });
+    await app.register(manualTournamentSubmissionRoutes(db), { prefix: '/api/events' });
     await app.register(leagueRatingsRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingAuditRoutes(db), { prefix: '/api/ratings' });
     await app.register(ratingCalculationAuditRoutes(db), { prefix: '/api/ratings' });
