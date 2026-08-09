@@ -6,7 +6,6 @@ import {
   useState,
 } from 'react';
 import { DetailHeader } from './components/DetailHeader';
-import { SkeletonList } from './components/Skeleton';
 import { useFavouritePlayers } from './hooks/useFavouritePlayers';
 import { useMyPlayer } from './hooks/useMyPlayer';
 import {
@@ -169,7 +168,7 @@ export function TournamentEntryProfilesPage() {
 
   const handleSave = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!draft || !auth.user || !draft.entrantName.trim()) return;
+    if (!draft || !draft.entrantName.trim()) return;
     const saved = save(draft);
     if (!saved) return;
     setSavedMessage(`${saved.entrantName} is ready for tournament forms.`);
@@ -194,6 +193,12 @@ export function TournamentEntryProfilesPage() {
     goBackInActiveTab('');
   };
 
+  const storageMessage = auth.user
+    ? 'Synced privately to your account. These details remain separate from public player records.'
+    : auth.isConfigured
+      ? 'Saved on this device. Sign in from the My TT header to back up and sync these details across devices.'
+      : 'Saved on this device. Account sync is currently unavailable.';
+
   return (
     <TabShellPage>
       <DetailHeader
@@ -203,31 +208,7 @@ export function TournamentEntryProfilesPage() {
         heading
       />
       <AppPageContent className="tt-entry-profiles-page">
-        {auth.loading ? (
-          <SkeletonList rows={3} />
-        ) : !auth.isConfigured ? (
-          <PageSection surface="hero" density="compact" ariaLabelledby={undefined}>
-            <EmptyState
-              iconClassName="fa fa-user-lock"
-              title="Account sign-in is unavailable"
-              message="Tournament entry details need a private signed-in account."
-            />
-          </PageSection>
-        ) : !auth.user ? (
-          <PageSection surface="hero" density="compact" ariaLabelledby={undefined}>
-            <Stack gap="sm">
-              <EmptyState
-                iconClassName="fa fa-user-lock"
-                title="Sign in to save tournament entrants"
-                message="Keep separate private entry details for yourself, children, or players you coach."
-              />
-              <AppButton full tone="primary" onClick={() => { void auth.signInWithGoogle(); }}>
-                <i className="fab fa-google" aria-hidden="true" />
-                Sign in with Google
-              </AppButton>
-            </Stack>
-          </PageSection>
-        ) : draft ? (
+        {draft ? (
           <form id="tt-entry-profile-form" onSubmit={handleSave}>
             <PageSection surface="flat" density="compact" className="tt-entry-profile-section" ariaLabelledby={undefined}>
               <DesignList density="compact" divider="none" paginate={false}>
@@ -407,9 +388,11 @@ export function TournamentEntryProfilesPage() {
 
             <PageSection surface="flat" density="compact" className="tt-entry-profile-private-note" ariaLabelledby={undefined}>
               <div className="tt-entry-profile-private-inline">
-                <IconCircle iconClassName="fa fa-lock" tone="neutral" />
+                <IconCircle iconClassName={auth.user ? 'fa fa-lock' : 'fa fa-mobile-alt'} tone="neutral" />
                 <span>
-                  Account-private: TT Players will only use these details after you choose this entrant and review a form. Medical information and declarations are not stored.
+                  {auth.user
+                    ? 'Account-private: TT Players will only use these details after you choose this entrant and review a form. Medical information and declarations are not stored.'
+                    : 'Device-private: these details stay in this browser unless you sign in to sync them. Medical information and declarations are not stored.'}
                 </span>
               </div>
             </PageSection>
@@ -501,10 +484,8 @@ export function TournamentEntryProfilesPage() {
 
             <PageSection surface="flat" density="compact" className="tt-entry-profile-private-note" ariaLabelledby={undefined}>
               <div className="tt-entry-profile-private-inline">
-                <IconCircle iconClassName="fa fa-shield-alt" tone="neutral" />
-                <span>
-                  These profiles are part of your signed-in account data, separate from public player records. They are never shown to followers or tournament organisers automatically.
-                </span>
+                <IconCircle iconClassName={auth.user ? 'fa fa-cloud' : 'fa fa-mobile-alt'} tone="neutral" />
+                <span>{storageMessage}</span>
               </div>
             </PageSection>
           </Stack>
