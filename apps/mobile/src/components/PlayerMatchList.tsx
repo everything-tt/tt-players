@@ -126,7 +126,6 @@ export function PlayerMatchList({
         onLoadMore={onLoadMore}
         loadLabel={error ? 'Retry loading matches' : 'Load more matches'}
         loadingLabel="Loading more matches…"
-        endLabel="End of match history"
       />
 
       {error && matches.length > 0 ? (

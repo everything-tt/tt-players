@@ -3,10 +3,11 @@ import type {
   RatingJumpHighlight,
   SurpriseWinHighlight,
 } from '../rating-highlights-queries';
+import { getInitials } from '../player-shared';
 import {
+  DesignAvatar,
   DesignList,
   EmptyState,
-  IconCircle,
   ListItem,
   Pill,
   RankBadge,
@@ -17,6 +18,19 @@ interface RatingHighlightsListProps {
   ratingJumps: RatingJumpHighlight[];
   surpriseWins: SurpriseWinHighlight[];
   onOpenPlayer: (playerId: string) => void;
+}
+
+function cleanPlayerName(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((part) => {
+      if (part.length > 1 && part === part.toUpperCase() && /[A-Z]/.test(part)) {
+        return part.charAt(0) + part.slice(1).toLowerCase();
+      }
+      return part;
+    })
+    .join(' ');
 }
 
 function formatDelta(value: number): string {
@@ -48,14 +62,6 @@ function jumpSubtitle(jump: RatingJumpHighlight): string {
   return parts.join(' · ');
 }
 
-function surpriseSubtitle(win: SurpriseWinHighlight): string {
-  return [
-    formatDate(win.match_date),
-    formatChance(win.expected_win_probability),
-    win.game_score,
-  ].filter(Boolean).join(' · ');
-}
-
 export function RatingHighlightsList({
   tab,
   ratingJumps,
@@ -75,16 +81,19 @@ export function RatingHighlightsList({
 
     return (
       <DesignList density="compact" divider="hairline" paginate={false}>
-        {ratingJumps.map((jump, index) => (
-          <ListItem
-            key={jump.player_id}
-            leading={<RankBadge>{index + 1}</RankBadge>}
-            title={jump.player_name}
-            subtitle={jumpSubtitle(jump)}
-            trailing={<Pill tone="success">{formatDelta(jump.change)}</Pill>}
-            onClick={() => onOpenPlayer(jump.player_id)}
-          />
-        ))}
+        {ratingJumps.map((jump, index) => {
+          const playerName = cleanPlayerName(jump.player_name);
+          return (
+            <ListItem
+              key={jump.player_id}
+              leading={<RankBadge>{index + 1}</RankBadge>}
+              title={playerName}
+              subtitle={jumpSubtitle(jump)}
+              trailing={<Pill tone="success">{formatDelta(jump.change)}</Pill>}
+              onClick={() => onOpenPlayer(jump.player_id)}
+            />
+          );
+        })}
       </DesignList>
     );
   }
@@ -100,17 +109,25 @@ export function RatingHighlightsList({
   }
 
   return (
-    <DesignList density="compact" divider="hairline" paginate={false}>
-      {surpriseWins.map((win) => (
-        <ListItem
-          key={`${win.rubber_id}-${win.player_id}`}
-          leading={<IconCircle iconClassName="fa fa-bolt" tone="accent" />}
-          title={`${win.player_name} beat ${win.opponent_name}`}
-          subtitle={surpriseSubtitle(win)}
-          trailing={<Pill tone="success">{formatDelta(win.attributed_rating_delta)}</Pill>}
-          onClick={() => onOpenPlayer(win.player_id)}
-        />
-      ))}
+    <DesignList density="compact" textWrap="multiline" divider="hairline" paginate={false}>
+      {surpriseWins.map((win) => {
+        const winnerName = cleanPlayerName(win.player_name);
+        const opponentName = cleanPlayerName(win.opponent_name);
+        const scoreStr = win.game_score ? ` (${win.game_score})` : '';
+        const chanceStr = formatChance(win.expected_win_probability);
+        const dateStr = formatDate(win.match_date);
+
+        return (
+          <ListItem
+            key={`${win.rubber_id}-${win.player_id}`}
+            leading={<DesignAvatar size="compact" text={getInitials(winnerName)} />}
+            title={winnerName}
+            subtitle={`def. ${opponentName}${scoreStr} · ${chanceStr} · ${dateStr}`}
+            trailing={<Pill tone="success">{formatDelta(win.attributed_rating_delta)}</Pill>}
+            onClick={() => onOpenPlayer(win.player_id)}
+          />
+        );
+      })}
     </DesignList>
   );
 }

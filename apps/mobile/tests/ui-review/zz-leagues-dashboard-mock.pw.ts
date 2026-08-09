@@ -357,15 +357,15 @@ test('reviews the personalised dashboard, rating scopes, and empty league state'
   await expect(page.getByText('Rowhedge K · Division 3', { exact: true })).toBeVisible();
   await expect(page.getByText('Rowhedge K vs Pegasus E', { exact: true }).first()).toBeVisible();
 
-  const heroMetrics = page.locator('.tt-leagues-dashboard-hero .tt-metric');
-  await expect(heroMetrics).toHaveCount(4);
+  const heroMetrics = page.locator('.tt-leagues-hero-card .tt-leagues-hero-stat');
+  await expect(heroMetrics).toHaveCount(3);
   const metricTops = await heroMetrics.evaluateAll((elements) => elements.map((element) => Math.round(element.getBoundingClientRect().top)));
   expect(new Set(metricTops).size).toBe(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
 
   await page.evaluate(() => window.scrollTo(0, 0));
   await capture(page, testInfo, 'leagues-dashboard-personal-top', {
-    heroMetrics: 4,
+    heroMetrics: 3,
     claimedPlayer: playerName,
     upcomingPrioritised: true,
   });

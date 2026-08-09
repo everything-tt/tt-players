@@ -1,5 +1,6 @@
 import { useFavouritePlayers } from '../hooks/useFavouritePlayers';
 import { useMyPlayer } from '../hooks/useMyPlayer';
+import { useAuth } from '../lib/auth';
 import { useTabNavigation } from '../navigation/tab-navigation';
 import { usePlayerExtendedStatsQuery, usePlayerInsightsQuery } from '../queries';
 import {
@@ -19,6 +20,7 @@ interface MyTTSectionProps {
 }
 
 export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
+  const auth = useAuth();
   const { navigateInTab } = useTabNavigation();
   const { player: myPlayer, setMyPlayer } = useMyPlayer();
   const { players: favouritePlayers, remove } = useFavouritePlayers();
@@ -51,6 +53,12 @@ export function MyTTSection({ onOpenPlayer }: MyTTSectionProps) {
               <i className="fa fa-address-card" aria-hidden="true" />
               Manage tournament entrants
             </AppButton>
+            {auth.isConfigured ? (
+              <AppButton full tone="ghost" onClick={() => navigateInTab('home', 'sign-in')}>
+                <i className="fa fa-angle-right" aria-hidden="true" />
+                Sign in to sync
+              </AppButton>
+            ) : null}
           </div>
         </>
       ) : statsQuery.isLoading ? (

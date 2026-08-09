@@ -97,7 +97,7 @@ export function TournamentEntryProfilesPage() {
   const { player: myPlayer } = useMyPlayer();
   const { players: favouritePlayers } = useFavouritePlayers();
   const { profiles, save, remove } = useTournamentEntryProfiles();
-  const { goBackInActiveTab } = useTabNavigation();
+  const { navigateInTab, goBackInActiveTab } = useTabNavigation();
   const [draft, setDraft] = useState<TournamentEntryProfileDraft | null>(null);
   const [baseline, setBaseline] = useState('');
   const [savedMessage, setSavedMessage] = useState('');
@@ -486,6 +486,12 @@ export function TournamentEntryProfilesPage() {
               <div className="tt-entry-profile-private-inline">
                 <IconCircle iconClassName={auth.user ? 'fa fa-cloud' : 'fa fa-mobile-alt'} tone="neutral" />
                 <span>{storageMessage}</span>
+                {!auth.user && auth.isConfigured ? (
+                  <AppButton size="s" tone="ghost" onClick={() => navigateInTab('home', 'sign-in')}>
+                    Sign in to sync
+                    <i className="fa fa-angle-right" aria-hidden="true" />
+                  </AppButton>
+                ) : null}
               </div>
             </PageSection>
           </Stack>

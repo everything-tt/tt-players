@@ -4,16 +4,26 @@
 .tt-page-content > .tt-hero + .tt-section,
 .tt-page-content > .tt-player-profile-hero + .tt-section,
 .tt-page-content > .tt-section + .tt-section,
-.tt-page-content > * + .tt-section {
+.tt-page-content > * + .tt-section,
+.tt-root-content > .tt-entity-hero + .tt-section,
+.tt-root-content > .tt-hero + .tt-section,
+.tt-root-content > .tt-player-profile-hero + .tt-section,
+.tt-root-content > .tt-section + .tt-section,
+.tt-root-content > * + .tt-section {
   margin-top: var(--tt-section-gap-standard);
 }
 
-.tt-page-content > .tt-section--compact + .tt-section--compact {
+.tt-page-content > .tt-section--compact + .tt-section--compact,
+.tt-page-content > .tt-app-search-toolbar + .tt-section--compact,
+.tt-root-content > .tt-section--compact + .tt-section--compact,
+.tt-root-content > .tt-app-search-toolbar + .tt-section--compact {
   margin-top: var(--tt-section-gap-compact);
 }
 
 .tt-page-content > .tt-section--editorial + .tt-section,
-.tt-page-content > .tt-section + .tt-section--editorial {
+.tt-page-content > .tt-section + .tt-section--editorial,
+.tt-root-content > .tt-section--editorial + .tt-section,
+.tt-root-content > .tt-section + .tt-section--editorial {
   margin-top: var(--tt-section-gap-editorial);
 }
 
