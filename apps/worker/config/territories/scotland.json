@@ -202,7 +202,8 @@
             },
             "config": {
                 "role": "local-league",
-                "targetSource": "uk-leagues.generated.json"
+                "targetSource": "uk-leagues.generated.json",
+                "migration": "legacy-config bridge; move target definition into territory config in a follow-up"
             },
             "resources": [
                 {
@@ -227,7 +228,8 @@
             },
             "config": {
                 "role": "local-league",
-                "targetSource": "uk-leagues.generated.json"
+                "targetSource": "uk-leagues.generated.json",
+                "migration": "legacy-config bridge; move target definition into territory config in a follow-up"
             },
             "resources": [
                 {
@@ -274,7 +276,8 @@
             },
             "config": {
                 "role": "local-league-history",
-                "targetSource": "uk-leagues.generated.json"
+                "targetSource": "uk-leagues.generated.json",
+                "migration": "legacy-config bridge; move target definition into territory config in a follow-up"
             },
             "resources": [
                 {
