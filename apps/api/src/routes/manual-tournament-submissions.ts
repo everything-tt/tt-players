@@ -163,6 +163,23 @@ async function enqueueProcessing(db: Kysely<any>, competitionId: string): Promis
     `.execute(db);
 }
 
+async function enqueueOrServiceUnavailable(
+    db: Kysely<any>,
+    competitionId: string,
+    request: { log: { error: (context: unknown, message: string) => void } },
+): Promise<boolean> {
+    try {
+        await enqueueProcessing(db, competitionId);
+        return true;
+    } catch (error) {
+        request.log.error(
+            { err: error, competitionId },
+            'manual tournament submission processing queue unavailable',
+        );
+        return false;
+    }
+}
+
 export function manualTournamentSubmissionRoutes(db: Kysely<any>): FastifyPluginAsync {
     return async function (fastify) {
         const app = fastify.withTypeProvider<ZodTypeProvider>();
@@ -225,13 +242,16 @@ export function manualTournamentSubmissionRoutes(db: Kysely<any>): FastifyPlugin
                     );
 
                     if (existing.source === MANUAL_SOURCE && existing.event_status === 'unpublished') {
-                        try {
-                            await enqueueProcessing(db, existing.competition_id);
-                        } catch (error) {
-                            request.log.warn(
-                                { err: error, competitionId: existing.competition_id },
-                                'manual tournament submission queued for periodic retry only',
-                            );
+                        const queued = await enqueueOrServiceUnavailable(
+                            db,
+                            existing.competition_id,
+                            request,
+                        );
+                        if (!queued) {
+                            return reply.status(503).send({
+                                error: 'Tournament processing is temporarily unavailable. Please retry.',
+                                statusCode: 503,
+                            });
                         }
                     }
 
@@ -278,16 +298,12 @@ export function manualTournamentSubmissionRoutes(db: Kysely<any>): FastifyPlugin
                     return competition.id;
                 });
 
-                try {
-                    await enqueueProcessing(db, competitionId);
-                } catch (error) {
-                    // The periodic entry-form inspection remains a fallback if the
-                    // queue is temporarily unavailable. The hidden placeholder is
-                    // intentionally safe to leave pending until then.
-                    request.log.warn(
-                        { err: error, competitionId },
-                        'manual tournament submission queued for periodic retry only',
-                    );
+                const queued = await enqueueOrServiceUnavailable(db, competitionId, request);
+                if (!queued) {
+                    return reply.status(503).send({
+                        error: 'Tournament processing is temporarily unavailable. Please retry.',
+                        statusCode: 503,
+                    });
                 }
 
                 return reply.status(202).send({
