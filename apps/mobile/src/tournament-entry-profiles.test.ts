@@ -43,7 +43,7 @@ describe('private tournament entry profiles', () => {
     expect(page).not.toContain('Sign in to save tournament entrants');
     expect(page).not.toContain('!draft || !auth.user');
     expect(page).toContain('Saved on this device');
-    expect(hook).toContain("LOCAL_TOURNAMENT_ENTRY_OWNER = 'local-device'");
+    expect(persistence).toContain("LOCAL_TOURNAMENT_ENTRY_OWNER = 'local-device'");
     expect(hook).toContain('auth.user?.id ?? LOCAL_TOURNAMENT_ENTRY_OWNER');
     expect(hook).not.toContain('if (!resolvedOwnerUserId) return null');
     expect(persistence).toContain('claimLocalTournamentEntryProfiles');
