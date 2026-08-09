@@ -36,6 +36,71 @@
   line-height: 1;
 }
 
+.tt-tournament-manual-submit {
+  box-sizing: border-box;
+  margin: 12px var(--tt-gutter-flat) 0;
+  padding: 14px;
+  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.12));
+  border-radius: 14px;
+  background: var(--surface-raised, var(--canvas-parchment));
+}
+
+.tt-tournament-manual-submit__label {
+  display: block;
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.tt-tournament-manual-submit__hint,
+.tt-tournament-manual-submit__message {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.tt-tournament-manual-submit__hint {
+  margin-bottom: 10px;
+  color: var(--text-muted, #666);
+}
+
+.tt-tournament-manual-submit__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tt-tournament-manual-submit__input {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.18));
+  border-radius: 10px;
+  background: var(--surface-input, #fff);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+}
+
+.tt-tournament-manual-submit__input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.tt-tournament-manual-submit__message {
+  margin-top: 9px;
+}
+
+.tt-tournament-manual-submit__message--success {
+  color: var(--success, #237a3b);
+}
+
+.tt-tournament-manual-submit__message--error {
+  color: var(--danger, #b42318);
+}
+
 .tt-tournament-category-filters {
   box-sizing: border-box;
   display: flex;
@@ -60,12 +125,18 @@
 @media (max-width: 360px) {
   .tt-tournament-status-toggle,
   .tt-tournament-search-toolbar,
+  .tt-tournament-manual-submit,
   .tt-tournament-category-filters {
     margin-inline: 14px;
   }
 
   .tt-tournament-search-toolbar {
     gap: 5px;
+  }
+
+  .tt-tournament-manual-submit__row {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .tt-tournament-category-filters {
