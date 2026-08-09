@@ -42,6 +42,8 @@ interface TournamentEntryProfilesStore {
   profiles: TournamentEntryProfile[];
 }
 
+export const LOCAL_TOURNAMENT_ENTRY_OWNER = 'local-device';
+
 const MAX_PROFILES = 30;
 const MAX_NAME_LENGTH = 160;
 const MAX_VALUE_LENGTH = 320;
@@ -102,8 +104,7 @@ function cleanDate(value: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : '';
 }
 
-function readProfiles(ownerUserId: string | null): TournamentEntryProfile[] {
-  if (!ownerUserId) return [];
+function readProfiles(ownerUserId: string): TournamentEntryProfile[] {
   try {
     const raw = localStorage.getItem(TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY);
     if (!raw) return [];
@@ -188,8 +189,8 @@ export function draftFromTournamentEntryProfile(
 export function useTournamentEntryProfiles(ownerUserId?: string | null) {
   const auth = useAuth();
   const resolvedOwnerUserId = ownerUserId === undefined
-    ? auth.user?.id ?? null
-    : ownerUserId;
+    ? auth.user?.id ?? LOCAL_TOURNAMENT_ENTRY_OWNER
+    : ownerUserId ?? LOCAL_TOURNAMENT_ENTRY_OWNER;
   const [profiles, setProfiles] = useState<TournamentEntryProfile[]>(
     () => readProfiles(resolvedOwnerUserId),
   );
@@ -206,7 +207,6 @@ export function useTournamentEntryProfiles(ownerUserId?: string | null) {
   }, [resolvedOwnerUserId]);
 
   const save = useCallback((draft: TournamentEntryProfileDraft) => {
-    if (!resolvedOwnerUserId) return null;
     const next: TournamentEntryProfile = {
       version: 1,
       id: clean(draft.id, MAX_NAME_LENGTH),
@@ -242,7 +242,6 @@ export function useTournamentEntryProfiles(ownerUserId?: string | null) {
   }, [resolvedOwnerUserId]);
 
   const remove = useCallback((profileId: string) => {
-    if (!resolvedOwnerUserId) return;
     setProfiles((previous) => {
       const updated = previous.filter((profile) => profile.id !== profileId);
       persistProfiles(resolvedOwnerUserId, updated);
@@ -256,7 +255,6 @@ export function useTournamentEntryProfiles(ownerUserId?: string | null) {
   );
 
   const clear = useCallback(() => {
-    if (!resolvedOwnerUserId) return;
     persistProfiles(resolvedOwnerUserId, []);
     setProfiles([]);
   }, [resolvedOwnerUserId]);
