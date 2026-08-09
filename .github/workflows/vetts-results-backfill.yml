@@ -12,14 +12,14 @@ on:
           - discovery
           - tournament_ids
       discovery_years:
-        description: Number of descending calendar years to scan (1-10; ignored for explicit IDs)
+        description: "Calendar history to scan: all, or a positive number of descending years"
         required: true
-        default: '2'
+        default: 'all'
         type: string
       discovery_limit:
-        description: Maximum discovered tournaments to process (1-100; ignored for explicit IDs)
+        description: "Maximum discovered tournaments to process: all, or a positive integer"
         required: true
-        default: '30'
+        default: 'all'
         type: string
       tournament_ids:
         description: Comma or space-separated tournament UUIDs when mode is tournament_ids
@@ -42,7 +42,7 @@ concurrency:
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 360
 
     steps:
       - name: Validate inputs
@@ -60,14 +60,18 @@ jobs:
             exit 64
           fi
 
-          if [[ ! "$DISCOVERY_YEARS" =~ ^[0-9]+$ ]] || (( DISCOVERY_YEARS < 1 || DISCOVERY_YEARS > 10 )); then
-            echo "discovery_years must be an integer from 1 to 10: $DISCOVERY_YEARS" >&2
-            exit 64
+          if [[ "$DISCOVERY_YEARS" != "all" ]]; then
+            if [[ ! "$DISCOVERY_YEARS" =~ ^[0-9]+$ ]] || (( DISCOVERY_YEARS < 1 )); then
+              echo "discovery_years must be 'all' or a positive integer: $DISCOVERY_YEARS" >&2
+              exit 64
+            fi
           fi
 
-          if [[ ! "$DISCOVERY_LIMIT" =~ ^[0-9]+$ ]] || (( DISCOVERY_LIMIT < 1 || DISCOVERY_LIMIT > 100 )); then
-            echo "discovery_limit must be an integer from 1 to 100: $DISCOVERY_LIMIT" >&2
-            exit 64
+          if [[ "$DISCOVERY_LIMIT" != "all" ]]; then
+            if [[ ! "$DISCOVERY_LIMIT" =~ ^[0-9]+$ ]] || (( DISCOVERY_LIMIT < 1 )); then
+              echo "discovery_limit must be 'all' or a positive integer: $DISCOVERY_LIMIT" >&2
+              exit 64
+            fi
           fi
 
           normalized_ids=$(printf '%s' "$TOURNAMENT_IDS" | tr ',\n\r\t' '    ' | xargs || true)
@@ -129,8 +133,8 @@ jobs:
           test -n "$VPS_USER"
           ssh "$VPS_USER@$VPS_HOST" \
             "test -f /opt/tt-players/current/apps/worker/src/scrape-vetts-once.ts && \
-             grep -q 'VETTS_DISCOVERY_YEARS' /opt/tt-players/current/apps/worker/src/vetts-client.ts && \
-             grep -q 'VETTS_DISCOVERY_LIMIT' /opt/tt-players/current/apps/worker/src/scrape-vetts-once.ts"
+             grep -q 'VETTS_FIRST_TOURNAMENT_YEAR' /opt/tt-players/current/apps/worker/src/vetts-client.ts && \
+             grep -q \"raw === 'all'\" /opt/tt-players/current/apps/worker/src/scrape-vetts-once.ts"
 
       - name: Run VETTS results backfill
         env:
@@ -195,8 +199,8 @@ jobs:
             echo "- Status: \`$JOB_STATUS\`"
             echo "- Mode: \`$BACKFILL_MODE\`"
             if [[ "$BACKFILL_MODE" == "discovery" ]]; then
-              echo "- Calendar years: \`$DISCOVERY_YEARS\`"
-              echo "- Discovery limit: \`$DISCOVERY_LIMIT\`"
+              echo "- Calendar history: \`$DISCOVERY_YEARS\`"
+              echo "- Tournament limit: \`$DISCOVERY_LIMIT\`"
             else
               echo "- Tournament IDs: \`${NORMALIZED_TOURNAMENT_IDS:-not validated}\`"
             fi
