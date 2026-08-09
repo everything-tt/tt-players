@@ -11,6 +11,8 @@ import { scrapeSport80EventResultsTask } from './tasks/scrapeSport80EventResults
 import { scrapeSport80RankingsDiscoveryTask } from './tasks/scrapeSport80RankingsDiscoveryTask.js';
 import { scrapeSport80RankingTableTask } from './tasks/scrapeSport80RankingTableTask.js';
 import { scrapeTteCalendarEventsTask } from './tasks/scrapeTteCalendarEventsTask.js';
+import { scrapeVettsTournamentsTask } from './tasks/scrapeVettsTournamentsTask.js';
+import { scrapeVettsTournamentTask } from './tasks/scrapeVettsTournamentTask.js';
 import { calculateRatingsTask } from './tasks/calculateRatingsTask.js';
 import { refreshApiReadModelsTask } from './tasks/refreshApiReadModelsTask.js';
 import { completeDailyPipelineTask } from './tasks/completeDailyPipelineTask.js';
@@ -131,6 +133,8 @@ export const taskList = {
     scrapeSport80RankingsDiscoveryTask,
     scrapeSport80RankingTableTask,
     scrapeTteCalendarEventsTask,
+    scrapeVettsTournamentsTask,
+    scrapeVettsTournamentTask,
     calculateRatingsTask,
     refreshApiReadModelsTask,
     completeDailyPipelineTask,

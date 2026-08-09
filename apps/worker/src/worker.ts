@@ -58,6 +58,7 @@ const CRONTAB = `
  0 3 * * * scrapeSport80RankingsDiscoveryTask ?fill=1d
  30 3 * * * purgeExpiredCacheEntries ?fill=1d
  45 3 * * * completeDailyPipelineTask ?fill=1d
+ 15 4 * * 1 scrapeVettsTournamentsTask ?fill=7d
  `;
 
 export async function startWorker(): Promise<void> {

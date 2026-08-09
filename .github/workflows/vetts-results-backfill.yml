@@ -1,0 +1,265 @@
+name: Backfill VETTS tournament results
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Discover from official year calendars or process explicit Tournament Software UUIDs
+        required: true
+        default: discovery
+        type: choice
+        options:
+          - discovery
+          - tournament_ids
+      discovery_years:
+        description: Number of descending calendar years to scan (1-10; ignored for explicit IDs)
+        required: true
+        default: '2'
+        type: string
+      discovery_limit:
+        description: Maximum discovered tournaments to process (1-100; ignored for explicit IDs)
+        required: true
+        default: '30'
+        type: string
+      tournament_ids:
+        description: Comma or space-separated tournament UUIDs when mode is tournament_ids
+        required: false
+        default: ''
+        type: string
+      confirm:
+        description: Type BACKFILL_VETTS to confirm this production write
+        required: true
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vetts-results-production-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Validate inputs
+        env:
+          BACKFILL_MODE: ${{ inputs.mode }}
+          DISCOVERY_YEARS: ${{ inputs.discovery_years }}
+          DISCOVERY_LIMIT: ${{ inputs.discovery_limit }}
+          TOURNAMENT_IDS: ${{ inputs.tournament_ids }}
+          CONFIRM_BACKFILL: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$CONFIRM_BACKFILL" != "BACKFILL_VETTS" ]]; then
+            echo "Production backfill requires confirm=BACKFILL_VETTS" >&2
+            exit 64
+          fi
+
+          if [[ ! "$DISCOVERY_YEARS" =~ ^[0-9]+$ ]] || (( DISCOVERY_YEARS < 1 || DISCOVERY_YEARS > 10 )); then
+            echo "discovery_years must be an integer from 1 to 10: $DISCOVERY_YEARS" >&2
+            exit 64
+          fi
+
+          if [[ ! "$DISCOVERY_LIMIT" =~ ^[0-9]+$ ]] || (( DISCOVERY_LIMIT < 1 || DISCOVERY_LIMIT > 100 )); then
+            echo "discovery_limit must be an integer from 1 to 100: $DISCOVERY_LIMIT" >&2
+            exit 64
+          fi
+
+          normalized_ids=$(printf '%s' "$TOURNAMENT_IDS" | tr ',\n\r\t' '    ' | xargs || true)
+          tournament_count=0
+
+          case "$BACKFILL_MODE" in
+            discovery)
+              normalized_ids=''
+              ;;
+            tournament_ids)
+              if [[ -z "$normalized_ids" ]]; then
+                echo "tournament_ids is required when mode=tournament_ids" >&2
+                exit 64
+              fi
+
+              for tournament_id in $normalized_ids; do
+                if [[ ! "$tournament_id" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ ]]; then
+                  echo "Invalid Tournament Software UUID: $tournament_id" >&2
+                  exit 64
+                fi
+                tournament_count=$((tournament_count + 1))
+              done
+
+              if (( tournament_count > 100 )); then
+                echo "At most 100 explicit tournament IDs may be processed in one run" >&2
+                exit 64
+              fi
+              ;;
+            *)
+              echo "mode must be discovery or tournament_ids: $BACKFILL_MODE" >&2
+              exit 64
+              ;;
+          esac
+
+          {
+            echo "NORMALIZED_TOURNAMENT_IDS=$normalized_ids"
+            echo "TOURNAMENT_COUNT=$tournament_count"
+          } >> "$GITHUB_ENV"
+
+      - name: Configure SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_SSH_KEY"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Verify VETTS backfill command is deployed
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_USER"
+          ssh "$VPS_USER@$VPS_HOST" \
+            "test -f /opt/tt-players/current/apps/worker/src/scrape-vetts-once.ts && \
+             grep -q 'VETTS_DISCOVERY_YEARS' /opt/tt-players/current/apps/worker/src/vetts-client.ts && \
+             grep -q 'VETTS_DISCOVERY_LIMIT' /opt/tt-players/current/apps/worker/src/scrape-vetts-once.ts"
+
+      - name: Run VETTS results backfill
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          BACKFILL_MODE: ${{ inputs.mode }}
+          DISCOVERY_YEARS: ${{ inputs.discovery_years }}
+          DISCOVERY_LIMIT: ${{ inputs.discovery_limit }}
+        run: |
+          set -euo pipefail
+
+          ssh "$VPS_USER@$VPS_HOST" \
+            "BACKFILL_MODE='$BACKFILL_MODE' DISCOVERY_YEARS='$DISCOVERY_YEARS' DISCOVERY_LIMIT='$DISCOVERY_LIMIT' TOURNAMENT_IDS='$NORMALIZED_TOURNAMENT_IDS' bash -s" \
+            <<'REMOTE' | tee vetts-backfill-output.txt
+          set -euo pipefail
+
+          run_args=(
+            --quiet
+            --wait
+            --pipe
+            --collect
+            --unit="ttp-vetts-backfill-$(date +%s)"
+            --uid=ttp
+            --gid=ttp
+            --property=EnvironmentFile=/etc/ttp/worker.env
+            --property=WorkingDirectory=/opt/tt-players/current/apps/worker
+          )
+
+          if [[ "$BACKFILL_MODE" == "discovery" ]]; then
+            run_args+=(
+              --setenv="VETTS_DISCOVERY_YEARS=$DISCOVERY_YEARS"
+              --setenv="VETTS_DISCOVERY_LIMIT=$DISCOVERY_LIMIT"
+            )
+          fi
+
+          run_args+=(
+            /opt/tt-players/current/apps/worker/node_modules/.bin/tsx
+            src/scrape-vetts-once.ts
+          )
+
+          if [[ "$BACKFILL_MODE" == "tournament_ids" ]]; then
+            read -r -a tournament_ids <<< "$TOURNAMENT_IDS"
+            run_args+=("${tournament_ids[@]}")
+          fi
+
+          systemd-run "${run_args[@]}"
+          REMOTE
+
+      - name: Add workflow summary
+        if: always()
+        env:
+          BACKFILL_MODE: ${{ inputs.mode }}
+          DISCOVERY_YEARS: ${{ inputs.discovery_years }}
+          DISCOVERY_LIMIT: ${{ inputs.discovery_limit }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+
+          {
+            echo "## VETTS tournament results backfill"
+            echo
+            echo "- Status: \`$JOB_STATUS\`"
+            echo "- Mode: \`$BACKFILL_MODE\`"
+            if [[ "$BACKFILL_MODE" == "discovery" ]]; then
+              echo "- Calendar years: \`$DISCOVERY_YEARS\`"
+              echo "- Discovery limit: \`$DISCOVERY_LIMIT\`"
+            else
+              echo "- Tournament IDs: \`${NORMALIZED_TOURNAMENT_IDS:-not validated}\`"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ -f vetts-backfill-output.txt ]]; then
+            node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'vetts-backfill-output.txt';
+          const results = [];
+
+          for (const line of fs.readFileSync(path, 'utf8').split(/\r?\n/)) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('{')) continue;
+            try {
+              const value = JSON.parse(trimmed);
+              if (typeof value.tournamentId === 'string' && typeof value.competitionId === 'string') {
+                results.push(value);
+              }
+            } catch {
+              // Non-JSON diagnostic output is retained below.
+            }
+          }
+
+          if (results.length > 0) {
+            const totals = results.reduce((total, result) => ({
+              matchRows: total.matchRows + Number(result.matchRows ?? 0),
+              rejectedRows: total.rejectedRows + Number(result.rejectedRows ?? 0),
+              duplicateLinks: total.duplicateLinks + Number(result.duplicateLinks ?? 0),
+              duplicateConflicts: total.duplicateConflicts + Number(result.duplicateConflicts ?? 0),
+            }), { matchRows: 0, rejectedRows: 0, duplicateLinks: 0, duplicateConflicts: 0 });
+
+            let summary = `- Tournaments processed: ${results.length}\n` +
+              `- Match rows loaded: ${totals.matchRows}\n` +
+              `- Rejected rows: ${totals.rejectedRows}\n` +
+              `- Duplicate links: ${totals.duplicateLinks}\n` +
+              `- Duplicate conflicts: ${totals.duplicateConflicts}\n\n` +
+              `| Tournament | Competition | Matches | Rejected | Duplicate links | Conflicts |\n` +
+              `| --- | --- | ---: | ---: | ---: | ---: |\n`;
+
+            for (const result of results) {
+              summary += `| \`${result.tournamentId}\` | \`${result.competitionId}\` | ${result.matchRows ?? 0} | ${result.rejectedRows ?? 0} | ${result.duplicateLinks ?? 0} | ${result.duplicateConflicts ?? 0} |\n`;
+            }
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
+          }
+          NODE
+
+            {
+              echo
+              echo "<details><summary>Command output</summary>"
+              echo
+              echo '```text'
+              sed -n '1,500p' vetts-backfill-output.txt
+              echo '```'
+              echo "</details>"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload backfill log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vetts-backfill-${{ github.run_id }}-${{ github.run_attempt }}
+          path: vetts-backfill-output.txt
+          if-no-files-found: ignore
+          retention-days: 7
