@@ -75,7 +75,7 @@ function assertNoDuplicateConfiguredTargets(targets: ScrapeTarget[]): void {
     }
 }
 
-export async function resolveAllScrapeTargets(
+export async function resolveConfiguredLeagueTargets(
     db: Kysely<Database>,
     options: ResolveAllScrapeTargetsOptions = {},
 ): Promise<ScrapeTarget[]> {
@@ -109,6 +109,14 @@ export async function resolveAllScrapeTargets(
         );
     }
 
+    return configuredTargets;
+}
+
+export async function resolveAllScrapeTargets(
+    db: Kysely<Database>,
+    options: ResolveAllScrapeTargetsOptions = {},
+): Promise<ScrapeTarget[]> {
+    const configuredTargets = await resolveConfiguredLeagueTargets(db, options);
     const nationalTargets = await bootstrapNationalTTLeagues(db, {
         includeHistory: options.includeHistory,
         logger: options.logger,

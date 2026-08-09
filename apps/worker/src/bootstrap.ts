@@ -491,15 +491,17 @@ export async function bootstrapLeagueConfigs(
 }
 
 /**
- * Backwards-compatible legacy bootstrap. Production target resolution can pass
- * territory-owned configs through bootstrapLeagueConfigs while older scripts and
- * parity tests can still evaluate the legacy files directly.
+ * Backwards-compatible configured bootstrap entry point. Operational callers,
+ * including maintenance scripts, resolve territory-owned configs through the shared
+ * configured target resolver. Legacy parity remains available via
+ * readLegacyLeagueConfigs + bootstrapLeagueConfigs.
  */
 export async function bootstrap(
     db: Kysely<Database>,
     options: BootstrapOptions = {},
 ): Promise<ScrapeTarget[]> {
-    return bootstrapLeagueConfigs(db, readLegacyLeagueConfigs(), options);
+    const { resolveConfiguredLeagueTargets } = await import('./all-scrape-targets.js');
+    return resolveConfiguredLeagueTargets(db, options);
 }
 
 // ─── Upsert helpers ───────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import * as m002 from '@tt-players/db/src/migrations/002_create_core_tables.js';
 import * as m009 from '@tt-players/db/src/migrations/009_create_regions.js';
 import * as m029 from '@tt-players/db/src/migrations/029_create_source_registry.js';
 import { bootstrapLeagueConfigs, readLegacyLeagueConfigs } from '../bootstrap.js';
+import { resolveConfiguredLeagueTargets } from '../all-scrape-targets.js';
 import {
     bootstrapTerritorySourceCatalog,
     linkTerritoryLeagueResources,
@@ -104,6 +105,11 @@ describe('England territory migration parity', () => {
 
         const territoryTargets = await bootstrapLeagueConfigs(db, territoryEngland);
         expect(territoryTargets).toEqual(legacyTargets);
+
+        const configuredTargets = await resolveConfiguredLeagueTargets(db, {
+    leagueNames: legacyEngland.map((league) => league.leagueName),
+});
+expect(configuredTargets).toEqual(legacyTargets);
 
         const targetIdentities = territoryTargets.map((target) => [
   target.platformType,
