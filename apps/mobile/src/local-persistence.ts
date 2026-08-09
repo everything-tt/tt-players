@@ -13,6 +13,7 @@ export const MY_TT_PROFILE_STORAGE_KEY = 'tt_players_my_tt_profile';
 export const MY_TT_PROFILE_UPDATED_EVENT = 'tt-players:my-tt-profile-updated';
 export const TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY = 'tt_players_tournament_entry_profiles';
 export const TOURNAMENT_ENTRY_PROFILES_UPDATED_EVENT = 'tt-players:tournament-entry-profiles-updated';
+export const LOCAL_TOURNAMENT_ENTRY_OWNER = 'local-device';
 export const TOURNAMENT_FILTERS_STORAGE_KEY = 'tt_players_tournament_filters';
 export const MATCH_JOURNAL_STORAGE_KEY = 'tt_players_match_journal';
 export const MATCH_JOURNAL_UPDATED_EVENT = 'tt-players:match-journal-updated';
@@ -71,6 +72,38 @@ function isOwnedTournamentEntryProfiles(value: string, userId: string): boolean 
     return store.version === 1
       && store.ownerUserId === userId
       && Array.isArray(store.profiles);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Turn anonymous device-only tournament entrants into data owned by the user
+ * who has just signed in. This happens before bootstrap so the existing sync
+ * flow can upload the local data without requiring sign-in to create it.
+ */
+export function claimLocalTournamentEntryProfiles(
+  userId: string,
+  local: StorageLike = localStorage,
+): boolean {
+  const raw = local.getItem(TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY);
+  if (!raw) return false;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') return false;
+    const store = parsed as Record<string, unknown>;
+    if (
+      store.version !== 1
+      || store.ownerUserId !== LOCAL_TOURNAMENT_ENTRY_OWNER
+      || !Array.isArray(store.profiles)
+    ) {
+      return false;
+    }
+    local.setItem(TOURNAMENT_ENTRY_PROFILES_STORAGE_KEY, JSON.stringify({
+      ...store,
+      ownerUserId: userId,
+    }));
+    return true;
   } catch {
     return false;
   }
