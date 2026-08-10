@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { FavouriteButton } from './components/FavouriteButton';
 import { useFavouriteTournaments } from './hooks/useFavouriteTournaments';
 import {
+  useManualTournamentSubmissions,
+  type ManualTournamentSubmissionItem,
+} from './hooks/useManualTournamentSubmissions';
+import {
   useTournamentList,
   type TournamentEventItem,
   type TournamentListStatus,
@@ -26,8 +30,11 @@ import {
 } from './tournament-preferences';
 import {
   AppButton,
+  AppListGroup,
+  AppListItem,
   AppSearchInput,
   AppToggleButton,
+  BottomSheet,
   DesignList,
   EmptyState,
   ErrorState,
@@ -44,12 +51,25 @@ import {
 const PAGE_SIZE = 10;
 type TournamentListState = ReturnType<typeof useTournamentList>;
 type ManualSubmitState = 'idle' | 'submitting' | 'success' | 'error';
+type TournamentListScope = 'all' | 'saved' | 'submitted';
 
 interface ManualSubmitResponse {
   competition_id: string;
   status: 'processing' | 'already_submitted';
   duplicate: boolean;
 }
+
+const LIST_SCOPE_LABELS: Record<TournamentListScope, string> = {
+  all: 'All tournaments',
+  saved: 'Saved tournaments',
+  submitted: 'My submissions',
+};
+
+const LIST_SCOPE_ICONS: Record<TournamentListScope, string> = {
+  all: 'fa fa-list-ul',
+  saved: 'fa fa-heart',
+  submitted: 'fa fa-upload',
+};
 
 function formatVenue(event: TournamentEventItem): string | null {
   return event.venue_name ?? event.venue_town ?? event.venue_postcode;
@@ -157,7 +177,7 @@ function TournamentResults({
       <EmptyState
         iconClassName="fa fa-heart-o"
         title="No saved tournaments"
-        message="Turn off Saved, then use the heart beside a tournament to keep it here."
+        message="Choose All tournaments, then use the heart beside a tournament to save it."
       />
     );
   } else if (list.isLoadingInitial) {
@@ -258,12 +278,184 @@ function TournamentResults({
   );
 }
 
+function submissionVenue(submission: ManualTournamentSubmissionItem): string | null {
+  return submission.venue_name ?? submission.venue_town ?? submission.venue_postcode;
+}
+
+function submissionSourceLabel(sourceUrl: string): string {
+  try {
+    const hostname = new URL(sourceUrl).hostname.replace(/^www\./, '');
+    return hostname === 'docs.google.com' ? 'Google Forms' : hostname;
+  } catch {
+    return 'Submitted link';
+  }
+}
+
+function submissionDateLabel(submittedAt: string): string {
+  const value = new Date(submittedAt);
+  if (Number.isNaN(value.getTime())) return 'Submitted';
+  return `Submitted ${value.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`;
+}
+
+function SubmissionDateTile({ submission }: { submission: ManualTournamentSubmissionItem }) {
+  if (submission.status === 'processing') {
+    return (
+      <span className="tt-tournament-date-tile tt-tournament-date-tile--unknown" aria-label="Processing tournament details">
+        <i className="fa fa-spinner fa-spin" aria-hidden="true" />
+      </span>
+    );
+  }
+  if (submission.status === 'failed') {
+    return (
+      <span className="tt-tournament-date-tile tt-tournament-date-tile--unknown" aria-label="Tournament processing failed">
+        <i className="fa fa-exclamation" aria-hidden="true" />
+      </span>
+    );
+  }
+
+  const parts = submission.start_date ? getTournamentDateParts(submission.start_date) : null;
+  if (!parts) {
+    return (
+      <span className="tt-tournament-date-tile tt-tournament-date-tile--unknown" aria-label="Date unavailable">
+        <i className="fa fa-check" aria-hidden="true" />
+      </span>
+    );
+  }
+
+  return (
+    <span className="tt-tournament-date-tile" aria-label={parts.fullLabel} title={parts.fullLabel}>
+      <span className="tt-tournament-date-tile__month" aria-hidden="true">{parts.month}</span>
+      <span className="tt-tournament-date-tile__day" aria-hidden="true">{parts.day}</span>
+    </span>
+  );
+}
+
+function SubmissionMetadata({ submission }: { submission: ManualTournamentSubmissionItem }) {
+  const normalDetails = [
+    submission.category,
+    submissionVenue(submission),
+    submissionSourceLabel(submission.source_url),
+  ].filter(Boolean).join(' · ');
+  const details = submission.status === 'failed' && submission.status_message
+    ? submission.status_message
+    : normalDetails || 'Submitted tournament';
+  const statusLabel = submission.status === 'processing'
+    ? 'Processing'
+    : submission.status === 'failed'
+      ? 'Couldn’t process'
+      : submission.status === 'merged'
+        ? 'Added to existing tournament'
+        : 'Published';
+  const statusTone = submission.status === 'published'
+    ? 'success'
+    : submission.status === 'failed'
+      ? 'danger'
+      : submission.status === 'processing'
+        ? 'accent'
+        : 'neutral';
+
+  return (
+    <span className="tt-tournament-timeline-item__metadata">
+      <span className="tt-tournament-timeline-item__details">{details}</span>
+      <span className="tt-tournament-timeline-item__status-row">
+        <Pill tone={statusTone} size="xs">{statusLabel}</Pill>
+        <span className="tt-tournament-timeline-item__match-count">
+          {submissionDateLabel(submission.submitted_at)}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+interface ManualSubmissionResultsProps {
+  items: ManualTournamentSubmissionItem[];
+  isLoading: boolean;
+  error: string | null;
+  searchQuery: string;
+  onRetry: () => void;
+  onOpen: (competitionId: string) => void;
+}
+
+function ManualSubmissionResults({
+  items,
+  isLoading,
+  error,
+  searchQuery,
+  onRetry,
+  onOpen,
+}: ManualSubmissionResultsProps) {
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredItems = useMemo(() => {
+    if (!normalizedSearch) return items;
+    return items.filter((submission) => [
+      submission.name,
+      submission.category,
+      submissionVenue(submission),
+      submission.source_url,
+    ].some((value) => value?.toLowerCase().includes(normalizedSearch)));
+  }, [items, normalizedSearch]);
+
+  let state = null;
+  if (isLoading) {
+    state = <EmptyState iconClassName="fa fa-spinner fa-spin" title="Loading your submissions…" />;
+  } else if (error && items.length === 0) {
+    state = <ErrorState message={error} onRetry={onRetry} />;
+  } else if (filteredItems.length === 0) {
+    state = (
+      <EmptyState
+        iconClassName="fa fa-upload"
+        title={normalizedSearch ? 'No submissions found' : 'No tournament submissions yet'}
+        message={normalizedSearch
+          ? `No submissions matching “${searchQuery.trim()}”.`
+          : 'Use Post to add a tournament from its entry form or information link.'}
+      />
+    );
+  }
+
+  return (
+    <PageSection surface="flat" density="compact" className="tt-tournament-results-section">
+      <h2 className="tt-visually-hidden">My tournament submissions</h2>
+      {state ?? (
+        <DesignList
+          density="editorial"
+          surface="grouped"
+          textWrap="multiline"
+          divider="none"
+          paginate={false}
+          className="tt-tournament-timeline-list"
+        >
+          {filteredItems.map((submission) => {
+            const resolved = submission.status === 'published' || submission.status === 'merged';
+            return (
+              <ListItem
+                key={submission.submission_id}
+                leading={<SubmissionDateTile submission={submission} />}
+                title={submission.name ?? (submission.status === 'failed'
+                  ? 'Couldn’t read tournament details'
+                  : 'Processing tournament details…')}
+                subtitle={<SubmissionMetadata submission={submission} />}
+                onClick={resolved ? () => onOpen(submission.competition_id) : undefined}
+                trailing={submission.status === 'processing'
+                  ? <i className="fa fa-clock-o" aria-hidden="true" />
+                  : submission.status === 'failed'
+                    ? <i className="fa fa-exclamation-circle" aria-hidden="true" />
+                    : <i className="fa fa-angle-right" aria-hidden="true" />}
+              />
+            );
+          })}
+        </DesignList>
+      )}
+    </PageSection>
+  );
+}
+
 export function EventsTabContent() {
   const { navigateInActiveTab } = useTabNavigation();
   const auth = useAuth();
   const [initialPreferences] = useState(() => readTournamentPreferences());
   const [status, setStatus] = useState<TournamentListStatus>(initialPreferences.status);
-  const [savedOnly, setSavedOnly] = useState(initialPreferences.savedOnly);
+  const [listScope, setListScope] = useState<TournamentListScope>(initialPreferences.savedOnly ? 'saved' : 'all');
+  const [listPickerOpen, setListPickerOpen] = useState(false);
   const [categoryFiltersOpen, setCategoryFiltersOpen] = useState(false);
   const [categories, setCategories] = useState<TournamentCategoryFilter[]>(initialPreferences.categories);
   const [manualSubmitOpen, setManualSubmitOpen] = useState(false);
@@ -276,20 +468,33 @@ export function EventsTabContent() {
     isFavourite,
     toggle: toggleFavourite,
   } = useFavouriteTournaments();
+  const savedOnly = listScope === 'saved';
   const savedIds = useMemo(
     () => savedOnly ? favouriteTournaments.map((event) => event.id) : [],
     [favouriteTournaments, savedOnly],
   );
-  const mayFetch = !(savedOnly && favouriteTournaments.length === 0);
+  const mayFetch = listScope !== 'submitted' && !(savedOnly && favouriteTournaments.length === 0);
   const categoryFilterActive = categories.length > 0;
+  const manualSubmissions = useManualTournamentSubmissions(
+    auth.session?.access_token,
+    listScope === 'submitted',
+  );
 
   useEffect(() => {
     writeTournamentPreferences({ status, savedOnly, categories });
   }, [categories, savedOnly, status]);
 
   useEffect(() => {
-    if (!auth.session) setManualSubmitOpen(false);
-  }, [auth.session]);
+    if (!auth.session) {
+      setManualSubmitOpen(false);
+      setListPickerOpen(false);
+      if (listScope === 'submitted') setListScope('all');
+    }
+  }, [auth.session, listScope]);
+
+  useEffect(() => {
+    if (listScope === 'submitted') setCategoryFiltersOpen(false);
+  }, [listScope]);
 
   const upcoming = useTournamentList({
     status: 'upcoming',
@@ -307,6 +512,12 @@ export function EventsTabContent() {
     enabled: status === 'completed' && mayFetch,
     pageSize: PAGE_SIZE,
   });
+
+  const chooseListScope = (scope: TournamentListScope) => {
+    setListScope(scope);
+    setListPickerOpen(false);
+    if (scope === 'submitted') setCategoryFiltersOpen(false);
+  };
 
   const submitManualTournament = async () => {
     const session = auth.session;
@@ -329,13 +540,10 @@ export function EventsTabContent() {
 
       setManualSubmitUrl('');
       setManualSubmitState('success');
-      setManualSubmitMessage(
-        payload.status === 'already_submitted'
-          ? 'This tournament has already been submitted.'
-          : payload.duplicate
-            ? 'This tournament was already submitted and is still being processed.'
-            : 'Submitted. Tournament details are being extracted from the link.',
-      );
+      setManualSubmitMessage('');
+      setManualSubmitOpen(false);
+      setListScope('submitted');
+      void manualSubmissions.retry();
     } catch (error) {
       setManualSubmitState('error');
       setManualSubmitMessage(
@@ -344,24 +552,33 @@ export function EventsTabContent() {
     }
   };
 
+  const searchLabel = listScope === 'submitted'
+    ? 'Search my tournament submissions'
+    : `Search ${status} tournaments`;
+  const searchPlaceholder = listScope === 'submitted'
+    ? 'Search my submissions…'
+    : `Search ${status} tournaments…`;
+
   return (
     <>
       <div className="tt-tournament-controls-panel">
-        <div className="tt-browse-controls tt-tournament-status-toggle">
-          <SegmentedToggle
-            full
-            ariaLabel="Tournament status"
-            value={status}
-            onChange={setStatus}
-            options={[
-              { value: 'upcoming', label: 'Upcoming' },
-              { value: 'completed', label: 'Completed' },
-            ]}
-          />
-        </div>
+        {listScope !== 'submitted' ? (
+          <div className="tt-browse-controls tt-tournament-status-toggle">
+            <SegmentedToggle
+              full
+              ariaLabel="Tournament status"
+              value={status}
+              onChange={setStatus}
+              options={[
+                { value: 'upcoming', label: 'Upcoming' },
+                { value: 'completed', label: 'Completed' },
+              ]}
+            />
+          </div>
+        ) : null}
 
         <SearchToolbar
-          ariaLabel={`Search ${status} tournaments`}
+          ariaLabel={searchLabel}
           className="tt-tournament-search-toolbar"
           actions={(
             <>
@@ -385,34 +602,37 @@ export function EventsTabContent() {
                 </AppToggleButton>
               ) : null}
               <AppToggleButton
-                pressed={savedOnly}
+                pressed={listPickerOpen || listScope !== 'all'}
                 variant="icon"
-                iconClassName={savedOnly ? 'fa fa-heart' : 'fa fa-heart-o'}
+                iconClassName={LIST_SCOPE_ICONS[listScope]}
                 className="tt-tournament-toolbar-icon"
-                onClick={() => setSavedOnly((current) => !current)}
-                aria-label={savedOnly ? 'Show all tournaments' : 'Show saved tournaments only'}
-                title={savedOnly ? 'Show all tournaments' : 'Show saved tournaments only'}
+                onClick={() => setListPickerOpen(true)}
+                aria-label={`Tournament list: ${LIST_SCOPE_LABELS[listScope]}`}
+                aria-expanded={listPickerOpen}
+                title={LIST_SCOPE_LABELS[listScope]}
               >
-                <span className="tt-tournament-toolbar-icon__label">Saved</span>
+                <span className="tt-tournament-toolbar-icon__label">List</span>
               </AppToggleButton>
-              <AppToggleButton
-                pressed={categoryFiltersOpen || categoryFilterActive}
-                variant="icon"
-                iconClassName="fa fa-filter"
-                className="tt-tournament-toolbar-icon"
-                onClick={() => setCategoryFiltersOpen((current) => !current)}
-                aria-label={categoryFiltersOpen ? 'Hide tournament category filters' : 'Show tournament category filters'}
-                aria-expanded={categoryFiltersOpen}
-                aria-controls="tournament-category-filters"
-                title={categoryFiltersOpen ? 'Hide category filters' : 'Show category filters'}
-              >
-                <span className="tt-tournament-toolbar-icon__label">Categories</span>
-                {categoryFilterActive ? (
-                  <span className="tt-tournament-toolbar-icon__count" aria-hidden="true">
-                    {categories.length}
-                  </span>
-                ) : null}
-              </AppToggleButton>
+              {listScope !== 'submitted' ? (
+                <AppToggleButton
+                  pressed={categoryFiltersOpen || categoryFilterActive}
+                  variant="icon"
+                  iconClassName="fa fa-filter"
+                  className="tt-tournament-toolbar-icon"
+                  onClick={() => setCategoryFiltersOpen((current) => !current)}
+                  aria-label={categoryFiltersOpen ? 'Hide tournament category filters' : 'Show tournament category filters'}
+                  aria-expanded={categoryFiltersOpen}
+                  aria-controls="tournament-category-filters"
+                  title={categoryFiltersOpen ? 'Hide category filters' : 'Show category filters'}
+                >
+                  <span className="tt-tournament-toolbar-icon__label">Categories</span>
+                  {categoryFilterActive ? (
+                    <span className="tt-tournament-toolbar-icon__count" aria-hidden="true">
+                      {categories.length}
+                    </span>
+                  ) : null}
+                </AppToggleButton>
+              ) : null}
             </>
           )}
         >
@@ -420,8 +640,8 @@ export function EventsTabContent() {
             inputMode="search"
             enterKeyHint="search"
             autoComplete="off"
-            placeholder={`Search ${status} tournaments…`}
-            aria-label={`Search ${status} tournaments`}
+            placeholder={searchPlaceholder}
+            aria-label={searchLabel}
             value={search.query}
             onChange={(event) => search.setQuery(event.target.value)}
           />
@@ -480,7 +700,7 @@ export function EventsTabContent() {
           </form>
         ) : null}
 
-        {categoryFiltersOpen ? (
+        {listScope !== 'submitted' && categoryFiltersOpen ? (
           <div id="tournament-category-filters" className="tt-tournament-category-filters">
             <FilterBar ariaLabel="Tournament category filters" className="tt-tournament-category-filters__options">
               {TOURNAMENT_CATEGORY_OPTIONS.map((option) => (
@@ -510,17 +730,62 @@ export function EventsTabContent() {
         ) : null}
       </div>
 
-      <TournamentResults
-        status={status}
-        list={status === 'upcoming' ? upcoming : completed}
-        savedOnly={savedOnly}
-        hasSavedTournaments={favouriteTournaments.length > 0}
-        hasCategoryFilters={categoryFilterActive}
-        searchQuery={search.query}
-        isFavourite={isFavourite}
-        onToggleFavourite={toggleFavourite}
-        onOpen={(id) => navigateInActiveTab(`event/${id}`)}
-      />
+      {listScope === 'submitted' ? (
+        <ManualSubmissionResults
+          items={manualSubmissions.items}
+          isLoading={manualSubmissions.isLoading}
+          error={manualSubmissions.error}
+          searchQuery={search.query}
+          onRetry={() => void manualSubmissions.retry()}
+          onOpen={(id) => navigateInActiveTab(`event/${id}`)}
+        />
+      ) : (
+        <TournamentResults
+          status={status}
+          list={status === 'upcoming' ? upcoming : completed}
+          savedOnly={savedOnly}
+          hasSavedTournaments={favouriteTournaments.length > 0}
+          hasCategoryFilters={categoryFilterActive}
+          searchQuery={search.query}
+          isFavourite={isFavourite}
+          onToggleFavourite={toggleFavourite}
+          onOpen={(id) => navigateInActiveTab(`event/${id}`)}
+        />
+      )}
+
+      <BottomSheet
+        isOpen={listPickerOpen}
+        onClose={() => setListPickerOpen(false)}
+        title="Tournament list"
+        description="Choose which tournaments you want to see."
+        height="360px"
+      >
+        <AppListGroup size="large">
+          <AppListItem
+            iconClassName="fa fa-list-ul"
+            title="All tournaments"
+            subtitle="Browse every published tournament"
+            trailingElement={listScope === 'all' ? <i className="fa fa-check" aria-hidden="true" /> : null}
+            onClick={() => chooseListScope('all')}
+          />
+          <AppListItem
+            iconClassName="fa fa-heart"
+            title="Saved"
+            subtitle="Tournaments you’ve saved"
+            trailingElement={listScope === 'saved' ? <i className="fa fa-check" aria-hidden="true" /> : null}
+            onClick={() => chooseListScope('saved')}
+          />
+          {auth.session ? (
+            <AppListItem
+              iconClassName="fa fa-upload"
+              title="My submissions"
+              subtitle="Track tournaments you’ve posted"
+              trailingElement={listScope === 'submitted' ? <i className="fa fa-check" aria-hidden="true" /> : null}
+              onClick={() => chooseListScope('submitted')}
+            />
+          ) : null}
+        </AppListGroup>
+      </BottomSheet>
     </>
   );
 }
