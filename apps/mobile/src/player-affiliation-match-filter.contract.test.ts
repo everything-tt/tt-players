@@ -18,12 +18,22 @@ describe('player affiliation match filtering', () => {
     expect(page).toContain('aria-label={`Open ${event.event_name} tournament`}');
   });
 
+  it('passes exact entity ids to the paged match query', () => {
+    const page = source('./PlayerPage.tsx');
+
+    expect(page).toContain("teamId: matchFilter?.kind === 'team' ? matchFilter.id : undefined");
+    expect(page).toContain("eventId: matchFilter?.kind === 'tournament' ? matchFilter.id : undefined");
+    expect(page).not.toContain('filteredMatchesState.matches.filter');
+    expect(page).toContain('matches={displayedMatches}');
+    expect(page).toContain('total={displayedMatchesState.total}');
+  });
+
   it('shows the active filter and can clear it without changing the player page', () => {
     const page = source('./PlayerPage.tsx');
 
     expect(page).toContain('ariaLabel="Active match filter"');
     expect(page).toContain("{matchFilter.kind === 'team' ? 'Team' : 'Tournament'} · {matchFilter.label}");
     expect(page).toContain('onClick={() => setMatchFilter(null)}');
-    expect(page).toContain('showCount={!matchFilter}');
+    expect(page).toContain('`${displayedMatchesState.total} matching`');
   });
 });
