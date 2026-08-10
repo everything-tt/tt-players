@@ -66,6 +66,10 @@ describe('manual tournament submissions', () => {
             .post('/api/events/manual-submit')
             .send({ url: 'https://example.com/tournament-form' })
             .expect(401);
+
+        await request
+            .get('/api/events/manual-submissions')
+            .expect(401);
     });
 
     it('creates one hidden manual-submit competition and records the submitting user', async () => {
@@ -111,6 +115,55 @@ describe('manual tournament submissions', () => {
             source_url: 'https://docs.google.com/forms/d/example-form-id/viewform',
             submitted_by_user_id: USER_ID,
         });
+    });
+
+    it('lists the signed-in users submissions and reflects processing completion', async () => {
+        mockAuthenticatedUser();
+        const url = 'https://example.com/my-tracked-tournament';
+
+        const submitted = await request
+            .post('/api/events/manual-submit')
+            .set('Authorization', 'Bearer tracking-session')
+            .send({ url })
+            .expect(202);
+
+        const processing = await request
+            .get('/api/events/manual-submissions')
+            .set('Authorization', 'Bearer tracking-session')
+            .expect(200);
+
+        expect(processing.body.data).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                competition_id: submitted.body.competition_id,
+                source_url: url,
+                status: 'processing',
+                name: null,
+            }),
+        ]));
+
+        await (db as Kysely<any>)
+            .updateTable('competitions')
+            .set({
+                display_name: 'Tracked Open 2026',
+                start_date: '2026-09-12',
+                event_status: 'upcoming',
+            })
+            .where('id', '=', submitted.body.competition_id)
+            .execute();
+
+        const published = await request
+            .get('/api/events/manual-submissions')
+            .set('Authorization', 'Bearer tracking-session')
+            .expect(200);
+
+        expect(published.body.data).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                competition_id: submitted.body.competition_id,
+                status: 'published',
+                name: 'Tracked Open 2026',
+                start_date: '2026-09-12',
+            }),
+        ]));
     });
 
     it('deduplicates the tournament while retaining a provenance row per submitting user', async () => {
