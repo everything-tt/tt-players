@@ -14,6 +14,7 @@ import { competitionsRoutes } from './routes/competitions.js';
 import { leaguesRoutes } from './routes/leagues.js';
 import { teamsRoutes } from './routes/teams.js';
 import { playersRoutes } from './routes/players.js';
+import { playerMatchFiltersRoutes } from './routes/player-match-filters.js';
 import { playerRivalsRoutes } from './routes/player-rivals.js';
 import { h2hAnalysisRoutes } from './routes/h2h-analysis.js';
 import { h2hCommonOpponentRoutes } from './routes/h2h-common-opponents.js';
@@ -93,6 +94,7 @@ export async function buildApp(db: Kysely<Database>) {
         [/^\/api\/players\/count(\/|$)/, CACHE_STATIC],
         [/^\/api\/players\/search(\/|$)/, CACHE_DYNAMIC],
         [/^\/api\/players\/[\w-]+\/profile-overview(\/|$)/, CACHE_DYNAMIC],
+        [/^\/api\/players\/[\w-]+\/rubbers-filtered(\/|$)/, CACHE_DYNAMIC],
         [/^\/api\/players\/[\w-]+\/rivals(\/|$)/, CACHE_DYNAMIC],
         [/^\/api\/players\/[\w-]+\/h2h\/[\w-]+\/analysis(\/|$)/, CACHE_DYNAMIC],
         [/^\/api\/players\/[\w-]+\/h2h\/[\w-]+\/common-opponents(\/|$)/, CACHE_DYNAMIC],
@@ -182,6 +184,7 @@ export async function buildApp(db: Kysely<Database>) {
     await app.register(competitionsRoutes(db), { prefix: '/api/competitions' });
     await app.register(teamsRoutes(db), { prefix: '/api/teams' });
     await app.register(playersRoutes(db), { prefix: '/api/players' });
+    await app.register(playerMatchFiltersRoutes(db), { prefix: '/api/players' });
     await app.register(playerRivalsRoutes(db), { prefix: '/api/players' });
     await app.register(h2hAnalysisRoutes(db), { prefix: '/api/players' });
     await app.register(h2hCommonOpponentRoutes(db), { prefix: '/api/players' });
