@@ -1,0 +1,48 @@
+name: Temporary fix PR 216 England P0
+
+on:
+  push:
+    branches:
+      - agent/issue-202-scotland-ingestion
+    paths:
+      - .github/workflows/tmp-fix-216-england-p0.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix-england-territory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Remove retired England territory targets
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'apps/worker/config/territories/england.json';
+          const retired = new Set([
+            'chelmsford-ttl',
+            'sunderland-tt365',
+            'brentwood-ttl',
+            'maidstone-tt365',
+          ]);
+          const manifest = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const before = manifest.sources.length;
+          manifest.sources = manifest.sources.filter((source) => !retired.has(source.key));
+          const removed = before - manifest.sources.length;
+          if (removed !== retired.size) {
+            throw new Error(`Expected to remove ${retired.size} sources, removed ${removed}`);
+          }
+          fs.writeFileSync(path, `${JSON.stringify(manifest, null, 4)}\n`);
+          NODE
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/worker/config/territories/england.json
+          git diff --cached --check
+          git commit -m "fix: drop retired England territory targets"
+          git push origin HEAD:agent/issue-202-scotland-ingestion
