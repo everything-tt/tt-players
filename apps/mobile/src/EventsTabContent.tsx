@@ -305,6 +305,13 @@ function SubmissionDateTile({ submission }: { submission: ManualTournamentSubmis
       </span>
     );
   }
+  if (submission.status === 'failed') {
+    return (
+      <span className="tt-tournament-date-tile tt-tournament-date-tile--unknown" aria-label="Tournament processing failed">
+        <i className="fa fa-exclamation" aria-hidden="true" />
+      </span>
+    );
+  }
 
   const parts = submission.start_date ? getTournamentDateParts(submission.start_date) : null;
   if (!parts) {
@@ -324,25 +331,32 @@ function SubmissionDateTile({ submission }: { submission: ManualTournamentSubmis
 }
 
 function SubmissionMetadata({ submission }: { submission: ManualTournamentSubmissionItem }) {
-  const details = [
+  const normalDetails = [
     submission.category,
     submissionVenue(submission),
     submissionSourceLabel(submission.source_url),
   ].filter(Boolean).join(' · ');
+  const details = submission.status === 'failed' && submission.status_message
+    ? submission.status_message
+    : normalDetails || 'Submitted tournament';
   const statusLabel = submission.status === 'processing'
     ? 'Processing'
-    : submission.status === 'merged'
-      ? 'Added to existing tournament'
-      : 'Published';
+    : submission.status === 'failed'
+      ? 'Couldn’t process'
+      : submission.status === 'merged'
+        ? 'Added to existing tournament'
+        : 'Published';
   const statusTone = submission.status === 'published'
     ? 'success'
-    : submission.status === 'processing'
-      ? 'accent'
-      : 'neutral';
+    : submission.status === 'failed'
+      ? 'danger'
+      : submission.status === 'processing'
+        ? 'accent'
+        : 'neutral';
 
   return (
     <span className="tt-tournament-timeline-item__metadata">
-      <span className="tt-tournament-timeline-item__details">{details || 'Submitted tournament'}</span>
+      <span className="tt-tournament-timeline-item__details">{details}</span>
       <span className="tt-tournament-timeline-item__status-row">
         <Pill tone={statusTone} size="xs">{statusLabel}</Pill>
         <span className="tt-tournament-timeline-item__match-count">
@@ -410,20 +424,25 @@ function ManualSubmissionResults({
           paginate={false}
           className="tt-tournament-timeline-list"
         >
-          {filteredItems.map((submission) => (
-            <ListItem
-              key={submission.submission_id}
-              leading={<SubmissionDateTile submission={submission} />}
-              title={submission.name ?? 'Processing tournament details…'}
-              subtitle={<SubmissionMetadata submission={submission} />}
-              onClick={submission.status === 'processing'
-                ? undefined
-                : () => onOpen(submission.competition_id)}
-              trailing={submission.status === 'processing'
-                ? <i className="fa fa-clock-o" aria-hidden="true" />
-                : <i className="fa fa-angle-right" aria-hidden="true" />}
-            />
-          ))}
+          {filteredItems.map((submission) => {
+            const resolved = submission.status === 'published' || submission.status === 'merged';
+            return (
+              <ListItem
+                key={submission.submission_id}
+                leading={<SubmissionDateTile submission={submission} />}
+                title={submission.name ?? (submission.status === 'failed'
+                  ? 'Couldn’t read tournament details'
+                  : 'Processing tournament details…')}
+                subtitle={<SubmissionMetadata submission={submission} />}
+                onClick={resolved ? () => onOpen(submission.competition_id) : undefined}
+                trailing={submission.status === 'processing'
+                  ? <i className="fa fa-clock-o" aria-hidden="true" />
+                  : submission.status === 'failed'
+                    ? <i className="fa fa-exclamation-circle" aria-hidden="true" />
+                    : <i className="fa fa-angle-right" aria-hidden="true" />}
+              />
+            );
+          })}
         </DesignList>
       )}
     </PageSection>
