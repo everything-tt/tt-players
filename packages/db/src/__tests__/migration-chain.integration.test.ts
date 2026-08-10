@@ -198,4 +198,202 @@ describe('production migration chain', () => {
             await pool.end();
         }
     }, 120_000);
+
+    it('excludes non-completed fixtures from ratings and dirties ratings on status changes', async () => {
+        const pool = new Pool({ connectionString: TEST_DATABASE_URL });
+        try {
+            const migrationDown = spawnSync(
+                'pnpm',
+                ['exec', 'tsx', 'src/migrate-down.ts'],
+                {
+                    cwd: packageDirectory,
+                    env: {
+                        ...process.env,
+                        DATABASE_URL: TEST_DATABASE_URL,
+                    },
+                    encoding: 'utf8',
+                    timeout: 120_000,
+                },
+            );
+            expect(
+                migrationDown.status,
+                `Migration rollback failed.\nstdout:\n${migrationDown.stdout}\nstderr:\n${migrationDown.stderr}`,
+            ).toBe(0);
+
+            const platform = await pool.query<{ id: string }>(`
+                INSERT INTO platforms (name, base_url)
+                VALUES ('Rating Gate Test', 'https://rating-gate.example')
+                RETURNING id
+            `);
+            const league = await pool.query<{ id: string }>(`
+                INSERT INTO leagues (platform_id, external_id, name)
+                VALUES ($1, 'rating-gate', 'Rating Gate Test')
+                RETURNING id
+            `, [platform.rows[0].id]);
+            const season = await pool.query<{ id: string }>(`
+                INSERT INTO seasons (league_id, external_id, name)
+                VALUES ($1, '2026', '2026')
+                RETURNING id
+            `, [league.rows[0].id]);
+            const competition = await pool.query<{ id: string }>(`
+                INSERT INTO competitions (season_id, external_id, name, type)
+                VALUES ($1, 'rating-gate', 'Rating Gate Test', 'league')
+                RETURNING id
+            `, [season.rows[0].id]);
+            const players = await pool.query<{ id: string }>(`
+                INSERT INTO external_players (platform_id, external_id, name)
+                VALUES
+                    ($1, 'rating-home', 'Rating Home'),
+                    ($1, 'rating-away', 'Rating Away')
+                RETURNING id
+            `, [platform.rows[0].id]);
+            const fixtures = await pool.query<{ id: string; status: string }>(`
+                INSERT INTO fixtures (
+                    competition_id,
+                    external_id,
+                    date_played,
+                    status
+                )
+                VALUES
+                    ($1, 'rating-completed', '2026-01-10', 'completed'),
+                    ($1, 'rating-upcoming', '2026-01-11', 'upcoming'),
+                    ($1, 'rating-postponed', '2026-01-12', 'postponed')
+                RETURNING id, status::text
+            `, [competition.rows[0].id]);
+            const fixtureByStatus = new Map(
+                fixtures.rows.map((fixture) => [fixture.status, fixture.id]),
+            );
+
+            await pool.query(`
+                INSERT INTO rubbers (
+                    fixture_id,
+                    external_id,
+                    home_player_1_id,
+                    away_player_1_id,
+                    home_games_won,
+                    away_games_won,
+                    outcome_type,
+                    is_doubles
+                )
+                VALUES
+                    ($1, 'rating-completed', $4, $5, 3, 1, 'normal', false),
+                    ($2, 'rating-upcoming', $4, $5, 3, 1, 'normal', false),
+                    ($3, 'rating-postponed', $4, $5, 3, 1, 'normal', false),
+                    ($2, 'rating-upcoming-doubles', $4, $5, 3, 1, 'normal', true)
+            `, [
+                fixtureByStatus.get('completed'),
+                fixtureByStatus.get('upcoming'),
+                fixtureByStatus.get('postponed'),
+                players.rows[0].id,
+                players.rows[1].id,
+            ]);
+
+            await pool.query(`
+                INSERT INTO rating_processing_state (
+                    model_id,
+                    last_processed_date,
+                    status,
+                    dirty_from_date
+                )
+                SELECT id, '2026-12-31', 'idle', NULL
+                FROM rating_models
+                WHERE key = 'global-singles-glicko2-v1'
+                ON CONFLICT (model_id) DO UPDATE SET
+                    last_processed_date = EXCLUDED.last_processed_date,
+                    status = EXCLUDED.status,
+                    dirty_from_date = NULL
+            `);
+
+            const migrationUp = spawnSync(
+                'pnpm',
+                ['exec', 'tsx', 'src/migrate.ts'],
+                {
+                    cwd: packageDirectory,
+                    env: {
+                        ...process.env,
+                        DATABASE_URL: TEST_DATABASE_URL,
+                    },
+                    encoding: 'utf8',
+                    timeout: 120_000,
+                },
+            );
+            expect(
+                migrationUp.status,
+                `Migration reapply failed.\nstdout:\n${migrationUp.stdout}\nstderr:\n${migrationUp.stderr}`,
+            ).toBe(0);
+
+            const classified = await pool.query<{
+                external_id: string;
+                eligibility_reason: string;
+            }>(`
+                SELECT rubber.external_id, classification.eligibility_reason
+                FROM rating_rubber_classification classification
+                JOIN rubbers rubber ON rubber.id = classification.rubber_id
+                WHERE rubber.external_id LIKE 'rating-%'
+                ORDER BY rubber.external_id
+            `);
+
+            expect(classified.rows).toEqual([
+                { external_id: 'rating-completed', eligibility_reason: 'eligible' },
+                { external_id: 'rating-postponed', eligibility_reason: 'fixture_not_completed' },
+                { external_id: 'rating-upcoming', eligibility_reason: 'fixture_not_completed' },
+                { external_id: 'rating-upcoming-doubles', eligibility_reason: 'doubles' },
+            ]);
+
+            const migratedState = await pool.query<{
+                dirty_from_date: string;
+                status: string;
+            }>(`
+                SELECT dirty_from_date::text, status
+                FROM rating_processing_state
+                WHERE model_id = (
+                    SELECT id
+                    FROM rating_models
+                    WHERE key = 'global-singles-glicko2-v1'
+                )
+            `);
+            expect(migratedState.rows[0]).toEqual({
+                dirty_from_date: '2026-01-11',
+                status: 'dirty',
+            });
+
+            await pool.query(`
+                UPDATE rating_processing_state
+                SET status = 'idle',
+                    dirty_from_date = NULL
+                WHERE model_id = (
+                    SELECT id
+                    FROM rating_models
+                    WHERE key = 'global-singles-glicko2-v1'
+                )
+            `);
+
+            await pool.query(`
+                UPDATE fixtures
+                SET status = 'postponed',
+                    updated_at = now()
+                WHERE id = $1
+            `, [fixtureByStatus.get('completed')]);
+
+            const processingState = await pool.query<{
+                dirty_from_date: string;
+                status: string;
+            }>(`
+                SELECT dirty_from_date::text, status
+                FROM rating_processing_state
+                WHERE model_id = (
+                    SELECT id
+                    FROM rating_models
+                    WHERE key = 'global-singles-glicko2-v1'
+                )
+            `);
+
+            expect(processingState.rows[0]).toEqual({
+                dirty_from_date: '2026-01-10',
+                status: 'dirty',
+            });
+        } finally {
+            await pool.end();
+        }
+    }, 120_000);
 });

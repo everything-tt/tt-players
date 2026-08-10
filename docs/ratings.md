@@ -25,15 +25,16 @@ multi-million-row rubber table.
 
 The current model includes only:
 
+- rubbers whose fixture status is `completed`;
 - singles rubbers;
 - normal outcomes;
 - results with two known, distinct canonical players;
 - results with a non-tied game score; and
 - records with `rubbers.played_at` or `fixtures.date_played`.
 
-Walkovers, retirements, void results and doubles are excluded. Calendar records without persisted
-rubbers cannot affect a rating. Once result ingestion persists an eligible rubber, it is available
-to the incremental calculator or historical replay.
+Rubbers on upcoming or postponed fixtures, walkovers, retirements, void results and doubles are
+excluded. Calendar records without persisted rubbers cannot affect a rating. Once result ingestion
+persists an eligible rubber, it is available to the incremental calculator or historical replay.
 
 Every eligible match on one rating date is calculated from the same pre-date state, and the whole
 period is committed in one database transaction. A failed period therefore changes no player

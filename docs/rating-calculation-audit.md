@@ -42,7 +42,7 @@ ratingScale * updatedPhi^2 * g(opponentRD) * (actual - expected)
 
 The attributed deltas for all of a player's matches in a rating period sum to the player's combined rating delta. This makes same-day movement explainable without processing matches sequentially.
 
-Excluded source rubbers are also written to `rating_match_audits` with `included = false` and an explicit reason from `rating_rubber_classification`. The v1 eligibility boundary is unchanged. Reasons include doubles, walkover, retirement, void result, missing dates or identities, same canonical player and tied score.
+Excluded source rubbers are also written to `rating_match_audits` with `included = false` and an explicit reason from `rating_rubber_classification`. Reasons include a non-completed fixture, doubles, walkover, retirement, void result, missing dates or identities, same canonical player and tied score.
 
 ## Source of truth
 

@@ -676,6 +676,69 @@ Flag significant degradation compared with previous successful runs.
 
 ---
 
+### CHECK DATA-05 — Active rubbers on non-completed fixtures
+
+An active rubber must belong to a completed fixture before it can affect
+ratings. The `rating_rubber_classification` view enforces this boundary with
+the `fixture_not_completed` exclusion reason.
+
+Run:
+
+```sql
+SELECT
+    p.name AS platform,
+    f.status AS fixture_status,
+    COUNT(DISTINCT f.id) AS affected_fixtures,
+    COUNT(r.id) AS active_rubbers,
+    COUNT(r.id) FILTER (
+        WHERE classification.eligibility_reason = 'fixture_not_completed'
+    ) AS rating_excluded_rubbers,
+    COUNT(r.id) FILTER (
+        WHERE classification.eligibility_reason = 'eligible'
+    ) AS incorrectly_rating_eligible_rubbers,
+    MIN(COALESCE(r.played_at::date, f.date_played)) AS earliest_effective_date,
+    MAX(COALESCE(r.played_at::date, f.date_played)) AS latest_effective_date
+FROM fixtures f
+JOIN competitions c
+  ON c.id = f.competition_id
+JOIN seasons s
+  ON s.id = c.season_id
+JOIN leagues l
+  ON l.id = s.league_id
+JOIN platforms p
+  ON p.id = l.platform_id
+JOIN rubbers r
+  ON r.fixture_id = f.id
+ AND r.deleted_at IS NULL
+LEFT JOIN rating_rubber_classification classification
+  ON classification.rubber_id = r.id
+WHERE f.deleted_at IS NULL
+  AND f.status <> 'completed'
+GROUP BY p.id, p.name, f.status
+ORDER BY p.name, f.status;
+```
+
+#### Interpretation
+
+Expected:
+
+```text
+no active rubbers on upcoming or postponed fixtures
+incorrectly_rating_eligible_rubbers = 0
+```
+
+Classify any `incorrectly_rating_eligible_rubbers > 0` as **CRITICAL** because
+the rating eligibility gate has regressed. Classify active rubbers that are
+correctly excluded from ratings as **ERROR** because normalized fixture/result
+state is inconsistent even though ratings are protected.
+
+For each affected fixture, inspect the latest raw source payload before taking
+corrective action. A successfully re-fetched non-completed fixture should have
+its stale rubbers reconciled or soft-deleted. Do not mutate production data as
+part of the audit itself.
+
+---
+
 ## 13. Phase 5 — Player Identity Integrity
 
 ### CHECK IDENTITY-01 — Broken canonical topology
@@ -1120,7 +1183,7 @@ SELECT
     b.median_bytes,
 
     ROUND(
-        p.bytes / NULLIF(b.median_bytes, 0),
+        (p.bytes / NULLIF(b.median_bytes, 0))::numeric,
         2
     ) AS ratio
 
@@ -1521,6 +1584,7 @@ SOURCE-01
 DATA-01
 DATA-02
 DATA-03
+DATA-05
 IDENTITY-01
 IDENTITY-02
 IDENTITY-03
@@ -1738,6 +1802,7 @@ Before completing an audit, verify:
 - [ ] Malformed rubbers checked.
 - [ ] Missing-player rate calculated.
 - [ ] Score completeness calculated.
+- [ ] Non-completed fixtures with active rubbers checked.
 - [ ] Canonical-player topology checked.
 - [ ] Multiple confirmed identity links checked.
 - [ ] Confirmed decision consistency checked.
