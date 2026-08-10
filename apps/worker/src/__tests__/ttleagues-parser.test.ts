@@ -72,7 +72,7 @@ const forfeitMatch = {
     away: team(104331, 84219, 'Altrincham Social Crabs'),
 };
 
-describe('parseTTLeaguesData() forfeit handling', () => {
+describe('parseTTLeaguesData() player identity handling', () => {
     it('does not create players from team-level forfeit placeholders', () => {
         const result = parseTTLeaguesData({
             standings: [],
@@ -107,7 +107,7 @@ describe('parseTTLeaguesData() forfeit handling', () => {
         });
     });
 
-    it('still extracts real players and keeps normal rubbers when a match has both', () => {
+    it('still extracts source-linked players and keeps normal rubbers when a match has both', () => {
         const result = parseTTLeaguesData({
             standings: [],
             matches: { groups: [], matches: [forfeitMatch] },
@@ -143,7 +143,7 @@ describe('parseTTLeaguesData() forfeit handling', () => {
         });
     });
 
-    it('keeps genuine unnamed players whose entrant is not the team', () => {
+    it('ignores unregistered participants without a source userId', () => {
         const result = parseTTLeaguesData({
             standings: [],
             matches: { groups: [], matches: [forfeitMatch] },
@@ -161,7 +161,10 @@ describe('parseTTLeaguesData() forfeit handling', () => {
             },
         });
 
-        expect(result.players.map((p) => p.name).sort()).toEqual(['Bob Jones', 'Unregistered Player']);
-        expect(result.players.find((p) => p.name === 'Unregistered Player')?.externalId).toBeNull();
+        expect(result.players.map((p) => p.name)).toEqual(['Bob Jones']);
+        expect(result.rubbers[0]).toMatchObject({
+            homePlayers: [],
+            awayPlayers: ['user-2'],
+        });
     });
 });
