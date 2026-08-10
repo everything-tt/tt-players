@@ -25,6 +25,20 @@ export interface DailyPipelinePayload {
     runKey?: string;
     windowStart?: string;
     stage?: DailyPipelineStage;
+    /**
+     * Manual runs use their own window (the trigger time) instead of the
+     * daily 00:00 window, so they are not blocked by ingestion jobs that
+     * permanently failed earlier in the day. Failures created after the
+     * manual trigger still block the run.
+     */
+    manual?: boolean;
+}
+
+export interface DailyPipelineInvocation {
+    /** Graphile Worker job ID, used to keep same-day manual runs distinct. */
+    jobId: string;
+    /** Time the Graphile Worker job was enqueued. */
+    createdAt: Date;
 }
 
 export interface IngestionQueueState {
@@ -81,10 +95,19 @@ function positiveIntegerEnvironment(name: string, fallback: number): number {
 export function normalizeDailyPipelinePayload(
     payload: DailyPipelinePayload | null | undefined,
     now: Date,
+    invocation?: DailyPipelineInvocation,
 ): Required<DailyPipelinePayload> {
+    const manual = payload?.manual ?? false;
     const defaultRunKey = now.toISOString().slice(0, 10);
-    const runKey = payload?.runKey || defaultRunKey;
-    const windowStart = payload?.windowStart || `${runKey}T00:00:00.000Z`;
+    const manualTriggerTime = invocation?.createdAt ?? now;
+    const manualRunSuffix = invocation?.jobId ?? String(manualTriggerTime.getTime());
+    const runKey = payload?.runKey || (
+        manual
+            ? `${manualTriggerTime.toISOString().slice(0, 10)}-manual-${manualRunSuffix}`
+            : defaultRunKey
+    );
+    const windowStart = payload?.windowStart
+        || (manual ? manualTriggerTime.toISOString() : `${runKey}T00:00:00.000Z`);
     const stage = payload?.stage || 'wait-for-ingestion';
 
     if (!['wait-for-ingestion', 'reconcile', 'ratings', 'read-models'].includes(stage)) {
@@ -94,7 +117,7 @@ export function normalizeDailyPipelinePayload(
         throw new Error(`Invalid daily pipeline window start: ${windowStart}`);
     }
 
-    return { runKey, windowStart, stage };
+    return { runKey, windowStart, stage, manual };
 }
 
 async function queuePipelineStage(
@@ -406,6 +429,10 @@ export const completeDailyPipelineTask: Task = async (payload, helpers) => {
     const normalized = normalizeDailyPipelinePayload(
         payload as DailyPipelinePayload | null | undefined,
         productionDependencies.now(),
+        {
+            jobId: helpers.job.id,
+            createdAt: helpers.job.created_at,
+        },
     );
     const log = (message: string) => helpers.logger.info(message);
 
