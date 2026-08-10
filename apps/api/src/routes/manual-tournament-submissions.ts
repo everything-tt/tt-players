@@ -12,6 +12,8 @@ const MANUAL_LEAGUE_EXTERNAL_ID = 'manual-tournament-submissions';
 const MANUAL_SEASON_EXTERNAL_ID = 'manual-tournament-submissions';
 const PENDING_NAME = 'Pending tournament submission';
 
+type ManualSubmissionStatus = 'processing' | 'published' | 'merged' | 'failed';
+
 const BodySchema = z.object({
     url: z.string().trim().url().max(4096),
 });
@@ -63,7 +65,7 @@ function submissionPayload(value: unknown): Record<string, unknown> {
     return value && typeof value === 'object' ? value as Record<string, unknown> : {};
 }
 
-function explicitSubmissionStatus(value: unknown): 'processing' | 'published' | 'merged' | 'failed' | null {
+function explicitSubmissionStatus(value: unknown): ManualSubmissionStatus | null {
     return value === 'processing' || value === 'published' || value === 'merged' || value === 'failed'
         ? value
         : null;
@@ -161,7 +163,15 @@ async function addSubmitterSource(
     urlHash: string,
     userId: string,
     now: Date,
+    status: ManualSubmissionStatus,
 ): Promise<void> {
+    const rawPayload = {
+        submitted_url: canonicalUrl,
+        submitted_at: now.toISOString(),
+        submission_status: status,
+        submission_status_message: null,
+    };
+
     await db
         .insertInto('tournament_sources')
         .values({
@@ -172,12 +182,7 @@ async function addSubmitterSource(
             source_url: canonicalUrl,
             source_key: `${urlHash}:${userId}`,
             payload_hash: urlHash,
-            raw_payload: {
-                submitted_url: canonicalUrl,
-                submitted_at: now.toISOString(),
-                submission_status: 'processing',
-                submission_status_message: null,
-            },
+            raw_payload: rawPayload,
             first_seen_at: now,
             last_seen_at: now,
             missing_count: 0,
@@ -192,6 +197,7 @@ async function addSubmitterSource(
             .doUpdateSet({
                 competition_id: competitionId,
                 source_url: canonicalUrl,
+                raw_payload: rawPayload,
                 last_seen_at: now,
                 updated_at: now,
             }))
@@ -356,6 +362,11 @@ export function manualTournamentSubmissionRoutes(db: Kysely<any>): FastifyPlugin
                     .executeTakeFirst();
 
                 if (existing && !existing.deleted_at) {
+                    const submissionStatus: ManualSubmissionStatus = existing.source !== MANUAL_SOURCE
+                        ? 'merged'
+                        : existing.event_status === 'unpublished'
+                            ? 'processing'
+                            : 'published';
                     await addSubmitterSource(
                         db,
                         existing.competition_id,
@@ -363,9 +374,10 @@ export function manualTournamentSubmissionRoutes(db: Kysely<any>): FastifyPlugin
                         urlHash,
                         user.id,
                         now,
+                        submissionStatus,
                     );
 
-                    if (existing.source === MANUAL_SOURCE && existing.event_status === 'unpublished') {
+                    if (submissionStatus === 'processing') {
                         const queued = await enqueueOrServiceUnavailable(
                             db,
                             existing.competition_id,
@@ -381,7 +393,7 @@ export function manualTournamentSubmissionRoutes(db: Kysely<any>): FastifyPlugin
 
                     return reply.status(202).send({
                         competition_id: existing.competition_id,
-                        status: existing.event_status === 'unpublished'
+                        status: submissionStatus === 'processing'
                             ? 'processing'
                             : 'already_submitted',
                         duplicate: true,
@@ -418,6 +430,7 @@ export function manualTournamentSubmissionRoutes(db: Kysely<any>): FastifyPlugin
                         urlHash,
                         user.id,
                         now,
+                        'processing',
                     );
                     return competition.id;
                 });
