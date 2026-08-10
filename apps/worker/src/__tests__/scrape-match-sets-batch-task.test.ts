@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Match } from '../zod-schemas.js';
+import { __resetTTLeaguesHttpForTests } from '../ttleagues-http.js';
 
 const storeScrapePayload = vi.hoisted(() => vi.fn());
 
@@ -77,7 +78,9 @@ function responseFor(status: number): Response {
 }
 
 afterEach(() => {
+    __resetTTLeaguesHttpForTests();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
 });
 
@@ -133,6 +136,7 @@ describe('scrapeMatchSetsBatchTask', () => {
     it('retries a transient 429 response and succeeds on the next attempt', async () => {
         vi.stubEnv('TTL_FETCH_MAX_ATTEMPTS', '3');
         vi.stubEnv('TTL_FETCH_MIN_INTERVAL_MS', '0');
+        vi.stubEnv('TTL_FETCH_429_RETRY_DELAY_MS', '1');
         vi.stubEnv('TTL_FETCH_BACKOFF_BASE_MS', '1');
         vi.stubEnv('TTL_FETCH_BACKOFF_JITTER_MS', '0');
 
@@ -164,6 +168,7 @@ describe('scrapeMatchSetsBatchTask', () => {
     it('rejects after exhausting retries when the source keeps returning 429', async () => {
         vi.stubEnv('TTL_FETCH_MAX_ATTEMPTS', '3');
         vi.stubEnv('TTL_FETCH_MIN_INTERVAL_MS', '0');
+        vi.stubEnv('TTL_FETCH_429_RETRY_DELAY_MS', '1');
         vi.stubEnv('TTL_FETCH_BACKOFF_BASE_MS', '1');
         vi.stubEnv('TTL_FETCH_BACKOFF_JITTER_MS', '0');
 
