@@ -32,7 +32,7 @@ const GoogleFormSchema = z.object({
     provider: z.literal('google_forms'),
     form_url: z.string().url(),
     title: z.string(),
-    public_text: z.string().optional(),
+    public_text: z.string().nullable().optional(),
     fields: z.array(GoogleFormFieldSchema),
 });
 
@@ -73,11 +73,17 @@ const EventDetailSchema = z.object({
         'venue_postcode',
         'organizer_name',
         'category',
+        'entry_fee',
     ]),
     value: z.string(),
     confidence: z.number().min(0).max(1),
     evidence: z.string(),
     source_field_ids: z.array(z.string()),
+});
+
+const EntryFormCategorySchema = z.object({
+    name: z.string(),
+    entry_fee: z.string().nullable(),
 });
 
 const SemanticAnalysisSchema = z.object({
@@ -90,6 +96,7 @@ const SemanticAnalysisSchema = z.object({
     analyzed_at: z.string(),
     mappings: z.array(SemanticMappingSchema),
     event_details: z.array(EventDetailSchema),
+    categories: z.array(EntryFormCategorySchema).optional(),
     error_message: z.string().nullable(),
 });
 
