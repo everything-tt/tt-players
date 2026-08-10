@@ -11,6 +11,7 @@ import type { RubberItem } from './player-shared';
 import { usePlayerExtendedStatsQuery } from './queries';
 import { TabShellPage } from './TabShellPage';
 import {
+  AppPageContent,
   FilterBar,
   PageSection,
   SegmentedToggle,
@@ -56,7 +57,7 @@ export function PlayerMatchesPage() {
         backFallback={playerId ? `player/${playerId}` : ''}
         heading
       />
-      <div className="page-content app-shell-content">
+      <AppPageContent>
         <PageSection surface="flat" density="compact" title="Player Matches" note="Full match list">
           <FilterBar ariaLabel="Choose match source">
             <SegmentedToggle
@@ -88,7 +89,7 @@ export function PlayerMatchesPage() {
             onRetry={matchesState.retry}
           />
         </PageSection>
-      </div>
+      </AppPageContent>
     </TabShellPage>
   );
 }
