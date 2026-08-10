@@ -137,6 +137,7 @@ describe('manual tournament submissions', () => {
                 competition_id: submitted.body.competition_id,
                 source_url: url,
                 status: 'processing',
+                status_message: null,
                 name: null,
             }),
         ]));
@@ -150,6 +151,20 @@ describe('manual tournament submissions', () => {
             })
             .where('id', '=', submitted.body.competition_id)
             .execute();
+        await (db as Kysely<any>)
+            .updateTable('tournament_sources')
+            .set({
+                raw_payload: {
+                    submitted_url: url,
+                    submission_status: 'published',
+                    submission_status_message: null,
+                },
+            })
+            .where('competition_id', '=', submitted.body.competition_id)
+            .where('provider', '=', 'manual-submit')
+            .where('source_type', '=', 'submission')
+            .where('submitted_by_user_id', '=', USER_ID)
+            .execute();
 
         const published = await request
             .get('/api/events/manual-submissions')
@@ -160,8 +175,50 @@ describe('manual tournament submissions', () => {
             expect.objectContaining({
                 competition_id: submitted.body.competition_id,
                 status: 'published',
+                status_message: null,
                 name: 'Tracked Open 2026',
                 start_date: '2026-09-12',
+            }),
+        ]));
+    });
+
+    it('reports a failed processing outcome without publishing the placeholder', async () => {
+        mockAuthenticatedUser();
+        const url = 'https://example.com/unreadable-tournament';
+
+        const submitted = await request
+            .post('/api/events/manual-submit')
+            .set('Authorization', 'Bearer failed-session')
+            .send({ url })
+            .expect(202);
+
+        await (db as Kysely<any>)
+            .updateTable('tournament_sources')
+            .set({
+                raw_payload: {
+                    submitted_url: url,
+                    submission_status: 'failed',
+                    submission_status_message: 'Could not extract tournament details from this link.',
+                },
+            })
+            .where('competition_id', '=', submitted.body.competition_id)
+            .where('provider', '=', 'manual-submit')
+            .where('source_type', '=', 'submission')
+            .where('submitted_by_user_id', '=', USER_ID)
+            .execute();
+
+        const response = await request
+            .get('/api/events/manual-submissions')
+            .set('Authorization', 'Bearer failed-session')
+            .expect(200);
+
+        expect(response.body.data).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                competition_id: submitted.body.competition_id,
+                status: 'failed',
+                status_message: 'Could not extract tournament details from this link.',
+                name: null,
+                event_status: 'unpublished',
             }),
         ]));
     });
