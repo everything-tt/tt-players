@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { API_BASE_URL } from '../player-shared';
 
-export type ManualTournamentSubmissionStatus = 'processing' | 'published' | 'merged';
+export type ManualTournamentSubmissionStatus = 'processing' | 'published' | 'merged' | 'failed';
 
 export interface ManualTournamentSubmissionItem {
   submission_id: string;
   competition_id: string;
   status: ManualTournamentSubmissionStatus;
+  status_message: string | null;
   submitted_at: string;
   source_url: string;
   name: string | null;
