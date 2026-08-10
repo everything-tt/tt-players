@@ -8,6 +8,8 @@ export type MatchSourceFilter = 'all' | 'league' | 'tournament';
 interface UsePagedPlayerMatchesOptions {
   playerId: string;
   source?: MatchSourceFilter;
+  teamId?: string;
+  eventId?: string;
   enabled?: boolean;
   pageSize?: number;
 }
@@ -15,19 +17,28 @@ interface UsePagedPlayerMatchesOptions {
 export function usePagedPlayerMatches({
   playerId,
   source = 'all',
+  teamId,
+  eventId,
   enabled = true,
   pageSize = 20,
 }: UsePagedPlayerMatchesOptions) {
   const [matches, setMatches] = useState<RubberItem[]>([]);
   const [offset, setOffset] = useState(0);
   const [total, setTotal] = useState(0);
-  const query = usePlayerRubbersQuery(playerId, pageSize, offset, enabled, source);
+  const query = usePlayerRubbersQuery(
+    playerId,
+    pageSize,
+    offset,
+    enabled,
+    source,
+    { teamId, eventId },
+  );
 
   useEffect(() => {
     setMatches([]);
     setOffset(0);
     setTotal(0);
-  }, [playerId, source, pageSize]);
+  }, [playerId, source, teamId, eventId, pageSize]);
 
   useEffect(() => {
     if (!query.data) return;
