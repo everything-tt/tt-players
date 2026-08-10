@@ -131,7 +131,7 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('reviews tuned-down signed-out section and dedicated sign-in page', async ({
+test('reviews signed-out Home setup and dedicated sign-in page', async ({
   page,
 }, testInfo) => {
   const previewUrl = requirePreviewUrl();
@@ -139,29 +139,37 @@ test('reviews tuned-down signed-out section and dedicated sign-in page', async (
 
   await page.goto(`${previewUrl}/tabs/home`, { waitUntil: 'domcontentloaded' });
 
-  // 1. Verify tuned-down My TT section on Home tab
-  const signInItem = page.getByRole('button', { name: 'Sign in to sync' });
-  await expect(signInItem).toBeVisible();
+  // 1. Verify the current signed-out Home setup state.
+  await expect(page.getByRole('heading', { name: 'Make TT Players yours' })).toBeVisible();
+  await expect(page.getByText('Personal dashboard', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Claim my player' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Choose leagues' })).toBeVisible();
 
   // Confirm inline "Sign in with Google" button is removed from Home tab
-  const homeGoogleBtn = page.getByRole('button', { name: /Sign in with Google/i });
-  await expect(homeGoogleBtn).toBeHidden();
+  await expect(page.getByRole('button', { name: /Sign in with Google/i })).toHaveCount(0);
 
-  // Capture Home tab tuned down state
-  await capture(page, testInfo, 'home-signed-out-tuned-down');
+  // Capture Home tab signed-out state
+  await capture(page, testInfo, 'home-signed-out-setup');
 
-  // 2. Click Sign in button to open dedicated Sign in page
-  const signInBtn = page.getByRole('button', { name: 'Sign in to sync' });
-  await expect(signInBtn).toBeVisible();
-  await signInBtn.click();
+  // 2. Open the dedicated sign-in page directly. The preview may omit public
+  // Supabase configuration, so verify the safe unavailable state as well as
+  // the configured Google sign-in state when it is present.
+  await page.goto(`${previewUrl}/tabs/home/sign-in`, { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(/\/tabs\/home\/sign-in\/?$/);
 
-  // 3. Verify Dedicated Sign In page content and Google Sign in button
+  // 3. Verify dedicated Sign In page content.
   await expect(page.getByRole('heading', { name: 'Sign in to TT Players' })).toBeVisible();
-  await expect(page.getByText('Claim your player profile')).toBeVisible();
-  await expect(page.getByText('Save favourite players & teams')).toBeVisible();
-
   const dedicatedGoogleBtn = page.getByRole('button', { name: 'Sign in with Google' });
-  await expect(dedicatedGoogleBtn).toBeVisible();
+  const unavailableHeading = page.getByRole('heading', { name: 'Account sign-in unavailable' });
+  await expect(dedicatedGoogleBtn.or(unavailableHeading)).toBeVisible();
+
+  if (await dedicatedGoogleBtn.isVisible()) {
+    await expect(page.getByText('Claim your player profile')).toBeVisible();
+    await expect(page.getByText('Save favourite players & teams')).toBeVisible();
+  } else {
+    await expect(unavailableHeading).toBeVisible();
+    await expect(page.getByText(/Supabase authentication is not configured/)).toBeVisible();
+  }
 
   // Capture Dedicated Sign In page
   await capture(page, testInfo, 'dedicated-sign-in-page');
