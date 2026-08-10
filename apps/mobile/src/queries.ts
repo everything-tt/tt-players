@@ -154,16 +154,57 @@ export function usePlayerCurrentSeasonAffiliationsQuery(playerId: string, enable
   });
 }
 
+export interface PlayerRubbersFilterOptions {
+  teamId?: string;
+  eventId?: string;
+}
+
+export function buildPlayerRubbersPath(
+  playerId: string,
+  limit: number,
+  offset: number,
+  source: 'league' | 'tournament' | 'all',
+  filters: PlayerRubbersFilterOptions = {},
+): string {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+
+  if (filters.teamId) params.set('team_id', filters.teamId);
+  if (filters.eventId) params.set('event_id', filters.eventId);
+
+  if (filters.teamId || filters.eventId) {
+    return `/players/${playerId}/rubbers-filtered?${params.toString()}`;
+  }
+
+  params.set('source', source);
+  return `/players/${playerId}/rubbers?${params.toString()}`;
+}
+
 export function usePlayerRubbersQuery(
   playerId: string,
   limit: number,
   offset: number,
   enabled = true,
   source: 'league' | 'tournament' | 'all' = 'league',
+  filters: PlayerRubbersFilterOptions = {},
 ) {
   return useQuery({
-    queryKey: ['players', playerId, 'rubbers', source, limit, offset],
-    queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<RubbersResponse>(`/players/${playerId}/rubbers?limit=${limit}&offset=${offset}&source=${source}`, signal),
+    queryKey: [
+      'players',
+      playerId,
+      'rubbers',
+      source,
+      filters.teamId ?? '',
+      filters.eventId ?? '',
+      limit,
+      offset,
+    ],
+    queryFn: ({ signal }: { signal: AbortSignal }) => apiFetch<RubbersResponse>(
+      buildPlayerRubbersPath(playerId, limit, offset, source, filters),
+      signal,
+    ),
     enabled: enabled && Boolean(playerId),
   });
 }
