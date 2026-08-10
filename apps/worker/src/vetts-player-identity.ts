@@ -2,7 +2,16 @@ import * as cheerio from 'cheerio';
 import type { VettsMatchesPage, VettsPlayer } from './vetts-parser.js';
 
 const PLAYER_LINK_SELECTOR = 'a[href*="player.aspx"], a[href*="/player/"]';
-const MATCH_LINK_SELECTOR = 'a[href*="match-info"], a[href*="match.aspx"]';
+const MATCH_CONTAINER_SELECTOR = [
+    'table.matches > tbody > tr',
+    'div#table-matches table > tbody > tr',
+    '.match.match--list',
+].join(', ');
+const MATCH_LINK_SELECTOR = [
+    'a[href*="match-info"]',
+    'a[href*="match.aspx"]',
+    'a[href*="head-2-head"]',
+].join(', ');
 const VETTS_PLAYER_NAMESPACE = 'tournamentsoftware:vetts';
 
 function queryParam(href: string, key: string): string | null {
@@ -49,7 +58,7 @@ export function stabilizeVettsPlayerIdentities(
     const $ = cheerio.load(html);
     const memberByEntry = new Map<string, string>();
 
-    $('table.matches > tbody > tr, div#table-matches table > tbody > tr').each((_rowIndex, element) => {
+    $(MATCH_CONTAINER_SELECTOR).each((_rowIndex, element) => {
         const row = $(element);
         const anchors = row.find(PLAYER_LINK_SELECTOR).toArray();
         const matchHref = row.find(MATCH_LINK_SELECTOR).first().attr('href') ?? '';

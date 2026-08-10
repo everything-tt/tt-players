@@ -13,8 +13,10 @@ function discoveryLimit(): number {
 }
 
 function suppliedTournamentIds(): string[] {
+    const argumentsToParse = [...process.argv.slice(2)];
+    if (argumentsToParse[0] === '--') argumentsToParse.shift();
     const ids = [...new Set(
-        process.argv.slice(2).map((value) => value.trim().toLowerCase()).filter(Boolean),
+        argumentsToParse.map((value) => value.trim().toLowerCase()).filter(Boolean),
     )];
     for (const tournamentId of ids) {
         if (!TOURNAMENT_ID_PATTERN.test(tournamentId)) {

@@ -9,6 +9,7 @@ import { syncVettsTournament } from '../vetts-sync.js';
 
 const { Pool } = pg;
 const TOURNAMENT_ID = '4af81622-d21a-47ed-a046-86c492b4cfe9';
+const EMPTY_TOURNAMENT_ID = '769534f2-8229-4b33-bf34-cd35c9cd7d73';
 const TOURNAMENT_URL = `https://vetts.tournamentsoftware.com/tournament/${TOURNAMENT_ID}`;
 const TEST_DATABASE_NAME = `tt_players_vetts_ingestion_${process.pid}`;
 const ADMIN_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/postgres';
@@ -305,5 +306,32 @@ describe('VETTS ingestion integration', () => {
         ]);
         expect(rawLogs).toHaveLength(3);
         expect(rawLogs.every((row) => row.status === 'processed' && row.count === 3)).toBe(true);
+    }, 120_000);
+
+    it('fails closed when a completed tournament has no parsed matches', async () => {
+        const overviewUrl = `https://vetts.tournamentsoftware.com/tournament/${EMPTY_TOURNAMENT_ID}`;
+        vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+            const url = String(input);
+            if (url === overviewUrl) {
+                return new Response(overviewHtml, { status: 200 });
+            }
+            if (url === `${overviewUrl}/matches/20260516` || url === `${overviewUrl}/matches/20260517`) {
+                return new Response(emptyMatchesHtml, { status: 200 });
+            }
+            throw new Error(`Unexpected empty VETTS URL in integration test: ${url}`);
+        }));
+
+        await expect(syncVettsTournament(db, EMPTY_TOURNAMENT_ID)).rejects.toThrow(
+            `VETTS completed tournament ${EMPTY_TOURNAMENT_ID} produced no parsed matches`,
+        );
+
+        const resultsResource = await db
+            .selectFrom('source_resources')
+            .select(['consecutive_failures', 'last_error'])
+            .where('resource_type', '=', 'event-results')
+            .where('external_id', '=', `${EMPTY_TOURNAMENT_ID}:matches`)
+            .executeTakeFirstOrThrow();
+        expect(resultsResource.consecutive_failures).toBe(1);
+        expect(resultsResource.last_error).toContain('produced no parsed matches');
     }, 120_000);
 });

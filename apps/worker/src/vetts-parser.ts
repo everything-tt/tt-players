@@ -113,6 +113,11 @@ const ROUND_ORDER: Array<[RegExp, number]> = [
 
 const PLAYER_LINK_SELECTOR = 'a[href*="player.aspx"], a[href*="/player/"]';
 const DRAW_LINK_SELECTOR = 'a[href*="draw.aspx"], a[href*="/draw/"]';
+const MATCH_CONTAINER_SELECTOR = [
+    'table.matches > tbody > tr',
+    'div#table-matches table > tbody > tr',
+    '.match.match--list',
+].join(', ');
 const SCORE_SELECTOR = [
     '[data-score]',
     'td.score',
@@ -121,6 +126,7 @@ const SCORE_SELECTOR = [
     'span[class*="score"]',
     'li.score',
     'li[class*="score"]',
+    'li.points__cell',
 ].join(', ');
 
 function cleanText(value: string): string {
@@ -129,6 +135,10 @@ function cleanText(value: string): string {
 
 function absoluteUrl(href: string, baseUrl: string): string {
     return new URL(href, baseUrl).toString();
+}
+
+function isUnsupportedTeamCompetition(name: string | null): boolean {
+    return /\bteam\b/i.test(name ?? '');
 }
 
 export function extractVettsTournamentId(value: string): string | null {
@@ -148,10 +158,12 @@ export function parseVettsTournamentLinks(
         if (!href) return;
         const tournamentId = extractVettsTournamentId(href);
         if (!tournamentId || links.has(tournamentId)) return;
+        const name = cleanText($(element).text()) || null;
+        if (isUnsupportedTeamCompetition(name)) return;
         links.set(tournamentId, {
             tournamentId,
             url: absoluteUrl(href, baseUrl),
-            name: cleanText($(element).text()) || null,
+            name,
         });
     });
 
@@ -198,8 +210,25 @@ function firstNumberAfterLabel(text: string, label: string): number | null {
     return match ? Number(match[1]) : null;
 }
 
+function tournamentMetaValue(
+    $: cheerio.CheerioAPI,
+    label: string,
+): string | null {
+    const normalizedLabel = label.toLowerCase();
+    let result: string | null = null;
+    $('.tournament-meta__info-block').each((_index, element) => {
+        if (result) return;
+        const block = $(element);
+        if (cleanText(block.find('.text--low-opacity').first().text()).toLowerCase() !== normalizedLabel) {
+            return;
+        }
+        result = cleanText(block.find('.tournament-meta__title').first().text()) || null;
+    });
+    return result;
+}
+
 function countValue($: cheerio.CheerioAPI, bodyText: string, label: string): number | null {
-    const structured = labeledValue($, label);
+    const structured = tournamentMetaValue($, label) ?? labeledValue($, label);
     const structuredMatch = structured?.match(/\d+/);
     return structuredMatch ? Number(structuredMatch[0]) : firstNumberAfterLabel(bodyText, label);
 }
@@ -218,8 +247,18 @@ export function parseVettsTournamentOverview(
         cleanText($('title').text()).replace(/\s*\|.*$/, '') ||
         `VETTS Tournament ${tournamentId}`;
     const year = inferredYear(`${name} ${bodyText}`);
-    const summary = cleanText(heading.nextAll('p').first().text()) ||
-        cleanText(heading.parent().text()).replace(name, '').trim();
+    const subheadingLines = $('.media__content-subinfo .media__subheading')
+        .map((_index, element) => cleanText($(element).text()))
+        .get()
+        .filter(Boolean);
+    const dateSummary = subheadingLines.find((line) => /\b\d{1,2}\s+[A-Za-z]+/.test(line));
+    const organisationLocationSummary = subheadingLines.find((line) =>
+        line.includes('|') && !/\b\d{1,2}\s+[A-Za-z]+/.test(line),
+    );
+    const summary = organisationLocationSummary && dateSummary
+        ? `${organisationLocationSummary} ${dateSummary}`
+        : cleanText(heading.nextAll('p').first().text()) ||
+            cleanText(heading.parent().text()).replace(name, '').trim();
     const pipeParts = summary.split('|').map(cleanText).filter(Boolean);
     const organisation = pipeParts.length > 1 ? pipeParts[0] ?? null : null;
     const locationAndDates = pipeParts.length > 1 ? pipeParts.slice(1).join(' | ') : summary;
@@ -235,14 +274,17 @@ export function parseVettsTournamentOverview(
         locationAndDates.replace(rangeMatch?.[0] ?? singleDateMatch?.[0] ?? '', ''),
     ).replace(/^\|+|\|+$/g, '').trim() || null;
 
-    const venueHeading = $('h3, h4, h5').filter((_index, element) =>
+    const venueHeading = $('h3, h4, h5, .module__title-main').filter((_index, element) =>
         cleanText($(element).text()).toLowerCase() === 'venue'
     ).first();
-    const venueContainer = venueHeading.length
-        ? venueHeading.parent()
-        : cheerio.load('<div></div>')('div');
+    const venueCard = venueHeading.closest('.module--card');
+    const venueContainer = venueCard.length
+        ? venueCard
+        : venueHeading.length
+            ? venueHeading.parent()
+            : cheerio.load('<div></div>')('div');
     const venueLines = venueContainer
-        .find('h4, h5, p, address, a')
+        .find('.media__title, .p-street-address, .p-postal-code, .p-locality, h4, h5, p, address')
         .map((_index, element) => cleanText($(element).text()))
         .get()
         .filter((value, index, values) => value && values.indexOf(value) === index)
@@ -288,6 +330,56 @@ function playerFromAnchor($: cheerio.CheerioAPI, element: any): VettsPlayer | nu
     const name = cleanText($(element).text()).replace(/\s+\[(?:\d+(?:\/\d+)?)\]\s*$/, '');
     if (!playerId || !name) return null;
     return { externalId: `tournamentsoftware:${playerId}`, name };
+}
+
+function uniquePlayers(players: VettsPlayer[]): VettsPlayer[] {
+    return players.filter((player, index, values) =>
+        values.findIndex((item) => item.externalId === player.externalId) === index
+    );
+}
+
+function parsePlayerAnchors(
+    $: cheerio.CheerioAPI,
+    anchors: any[],
+): VettsPlayer[] {
+    return uniquePlayers(
+        anchors
+            .map((anchor) => playerFromAnchor($, anchor))
+            .filter((player): player is VettsPlayer => player !== null),
+    );
+}
+
+function playerGroups(
+    $: cheerio.CheerioAPI,
+    row: cheerio.Cheerio<any>,
+): {
+    allAnchors: any[];
+    homePlayers: VettsPlayer[];
+    awayPlayers: VettsPlayer[];
+    hasExplicitSides: boolean;
+} {
+    const sideRows = row.find('.match__row').toArray();
+    if (sideRows.length >= 2) {
+        const sideAnchors = sideRows.slice(0, 2).map((side) =>
+            $(side).find(PLAYER_LINK_SELECTOR).toArray(),
+        );
+        return {
+            allAnchors: sideAnchors.flat(),
+            homePlayers: parsePlayerAnchors($, sideAnchors[0] ?? []),
+            awayPlayers: parsePlayerAnchors($, sideAnchors[1] ?? []),
+            hasExplicitSides: true,
+        };
+    }
+
+    const allAnchors = row.find(PLAYER_LINK_SELECTOR).toArray();
+    const players = parsePlayerAnchors($, allAnchors);
+    const split = players.length / 2;
+    return {
+        allAnchors,
+        homePlayers: players.slice(0, split),
+        awayPlayers: players.slice(split),
+        hasExplicitSides: false,
+    };
 }
 
 function roundOrder(roundName: string | null): number | null {
@@ -360,6 +452,19 @@ function winnerFromMarkup(
     row: cheerio.Cheerio<any>,
     indexes: number[],
 ): 'home' | 'away' | null {
+    const sideRows = row.find('.match__row').toArray();
+    if (sideRows.length >= 2) {
+        const winnerIndex = sideRows.slice(0, 2).findIndex((side) => {
+            const sideNode = $(side);
+            const className = sideNode.attr('class') ?? '';
+            const status = cleanText(sideNode.find('.match__status').text());
+            return /(?:^|\s)has-won(?:\s|$)/i.test(className) ||
+                /^(?:W|Winner)$/i.test(status);
+        });
+        if (winnerIndex === 0) return 'home';
+        if (winnerIndex === 1) return 'away';
+    }
+
     const anchors = row.find(PLAYER_LINK_SELECTOR).toArray();
     for (let index = 0; index < anchors.length; index += 1) {
         const anchor = $(anchors[index]!);
@@ -383,7 +488,7 @@ function stableMatchId(parts: string[]): string {
 }
 
 function roundNameFromRow($: cheerio.CheerioAPI, row: cheerio.Cheerio<any>): string | null {
-    const explicit = cleanText(row.find('.round, [class*="round"]').first().text());
+    const explicit = cleanText(row.find('.round, [title*="Round"]').first().text());
     if (explicit) return explicit;
     const match = cleanText(row.text()).match(
         /\b(Round\s+\d+|Quarter[- ]?final|Semi[- ]?final|Final|Last\s+\d+)\b/i,
@@ -399,7 +504,12 @@ function playedAtFromRow(
     if (!date) return null;
     const datetime = row.find('time[datetime]').attr('datetime');
     if (datetime) return datetime;
-    const match = cleanText(row.text()).match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
+    const groupHeader = row
+        .closest('.match-group__wrapper')
+        .children('.match-group__header')
+        .first();
+    const match = cleanText(row.text()).match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/) ??
+        cleanText(groupHeader.text()).match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
     return match ? `${date} ${match[1]!.padStart(2, '0')}:${match[2]}:00` : `${date} 00:00:00`;
 }
 
@@ -411,7 +521,7 @@ export function parseVettsMatchesPage(
     const matches: VettsMatchResult[] = [];
     const issues: VettsParseIssue[] = [];
 
-    $('table.matches > tbody > tr, div#table-matches table > tbody > tr').each((rowIndex, element) => {
+    $(MATCH_CONTAINER_SELECTOR).each((rowIndex, element) => {
         const row = $(element);
         const rawText = cleanText(row.text());
         if (!rawText || row.is('.dark, .header, .ruler')) return;
@@ -424,7 +534,14 @@ export function parseVettsMatchesPage(
         const eventName = cleanText(drawAnchor.text());
         if (!eventExternalId || !eventName) return;
 
-        const outcome = detectOutcome(rawText);
+        const leafText = row
+            .find('*')
+            .filter((_index, child) => $(child).children().length === 0)
+            .map((_index, child) => cleanText($(child).text()))
+            .get()
+            .filter(Boolean)
+            .join(' ');
+        const outcome = detectOutcome(`${rawText} ${leafText}`);
         if (outcome === 'bye' || outcome === 'cancelled') {
             issues.push({
                 rowIndex,
@@ -435,13 +552,23 @@ export function parseVettsMatchesPage(
             return;
         }
 
-        const playerAnchors = row.find(PLAYER_LINK_SELECTOR).toArray();
-        const players = playerAnchors
-            .map((anchor) => playerFromAnchor($, anchor))
-            .filter((player): player is VettsPlayer => player !== null)
-            .filter((player, index, values) =>
-                values.findIndex((item) => item.externalId === player.externalId) === index
-            );
+        const groups = playerGroups($, row);
+        const scores = gameScores(scoreNumbers($, row));
+        if (
+            outcome === 'normal' &&
+            groups.hasExplicitSides &&
+            (groups.homePlayers.length === 0 || groups.awayPlayers.length === 0) &&
+            scores.length === 0
+        ) {
+            issues.push({
+                rowIndex,
+                reason: 'bye',
+                message: 'Skipped row with an empty player side',
+                rawText,
+            });
+            return;
+        }
+        const players = uniquePlayers([...groups.homePlayers, ...groups.awayPlayers]);
         if (players.length !== 2 && players.length !== 4) {
             issues.push({
                 rowIndex,
@@ -454,10 +581,25 @@ export function parseVettsMatchesPage(
 
         const isDoubles = players.length === 4;
         const split = players.length / 2;
-        const homePlayers = players.slice(0, split);
-        const awayPlayers = players.slice(split);
-        const indexes = playerCellIndexes($, row, playerAnchors);
-        const scores = gameScores(scoreNumbers($, row));
+        const homePlayers = groups.hasExplicitSides
+            ? groups.homePlayers
+            : players.slice(0, split);
+        const awayPlayers = groups.hasExplicitSides
+            ? groups.awayPlayers
+            : players.slice(split);
+        if (
+            homePlayers.length !== split ||
+            awayPlayers.length !== split
+        ) {
+            issues.push({
+                rowIndex,
+                reason: 'missing-player',
+                message: `Expected equal player sides, found ${homePlayers.length} and ${awayPlayers.length}`,
+                rawText,
+            });
+            return;
+        }
+        const indexes = playerCellIndexes($, row, groups.allAnchors);
         if (
             outcome === 'normal' &&
             (scores.length === 0 || scores.some((score) => !validTableTennisGame(score.home, score.away)))

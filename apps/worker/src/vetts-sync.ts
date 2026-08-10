@@ -134,6 +134,9 @@ export async function syncVettsTournament(
             metadata = asTournamentMetadata(
                 await vettsSourceAdapter.transform(overviewHtml, overviewContext),
             );
+            if (!metadata.startDate) {
+                throw new Error(`VETTS event page did not contain a usable tournament start date for ${tournamentId}`);
+            }
         } catch (error) {
             await markRawLogFailed(database, overviewLogId);
             throw error;
@@ -190,6 +193,7 @@ export async function syncVettsTournament(
         let rejectedRows = 0;
         let duplicateLinks = 0;
         let duplicateConflicts = 0;
+        const eventStatus = deriveVettsEventStatus(metadata);
 
         for (const date of pages) {
             const matchesUrl = vettsUrls.matches(tournamentId, date);
@@ -244,11 +248,15 @@ export async function syncVettsTournament(
             );
         }
 
+        if (eventStatus === 'completed' && matchRows === 0) {
+            throw new Error(`VETTS completed tournament ${tournamentId} produced no parsed matches`);
+        }
+
         await (database as Kysely<any>)
             .updateTable('competitions')
             .set({
                 last_scraped_at: new Date(),
-                event_status: deriveVettsEventStatus(metadata),
+                event_status: eventStatus,
             })
             .where('id', '=', competitionId)
             .execute();

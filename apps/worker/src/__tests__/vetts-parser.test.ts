@@ -68,6 +68,54 @@ const matchesHtml = `
 </tbody>
 </table>`;
 
+const liveOverviewHtml = `
+<div class="media__content">
+  <h2 class="media__title media__title--large"><span>VETTS Nationals 2026</span></h2>
+  <div class="media__content-subinfo">
+    <small class="media__subheading media__subheading--muted">Veterans English Table Tennis Society | Wolverhampton</small>
+    <small class="media__subheading media__subheading--muted">16 May to 17 May</small>
+  </div>
+</div>
+<div class="tournament-meta">
+  <ul>
+    <li class="tournament-meta__info-block"><div class="text--low-opacity text--small">Events</div><div class="tournament-meta__title">24</div></li>
+    <li class="tournament-meta__info-block"><div class="text--low-opacity text--small">Entries</div><div class="tournament-meta__title">310</div></li>
+  </ul>
+</div>
+<div class="module module--card">
+  <div class="module__banner"><h3 class="module__title"><span class="module__title-main">Venue</span></h3></div>
+  <div class="module__content"><h5 class="media__title">Aldersley Leisure Village</h5><div class="p-street-address">Aldersley Road</div><span class="p-postal-code">WV6 9NW</span><span class="p-locality">Wolverhampton</span></div>
+</div>`;
+
+const liveMatchesHtml = `
+<div class="match-group__wrapper">
+  <h5 class="match-group__header">08:30</h5>
+  <ol class="match-group">
+    <li class="match-group__item">
+      <div class="match match--list">
+        <div class="match__header"><ul class="match__header-title"><li><a href="/sport/draw.aspx?id=${TOURNAMENT_ID}&amp;draw=993">O40 Mixed Doubles - Group 1</a></li><li><span title="Round 2">Round 2</span></li></ul></div>
+        <div class="match__body">
+          <div class="match__row-wrapper">
+            <div class="match__row has-won"><div class="match__row-title"><a href="/sport/player.aspx?id=${TOURNAMENT_ID}&amp;player=760" data-player-id="760">Adam Fuzes [1]</a><a href="/sport/player.aspx?id=${TOURNAMENT_ID}&amp;player=924" data-player-id="924">Sara Williams</a></div><span class="match__status">W</span></div>
+            <div class="match__row"><div class="match__row-title"><a href="/sport/player.aspx?id=${TOURNAMENT_ID}&amp;player=838" data-player-id="838">Stephen Horton</a><a href="/sport/player.aspx?id=${TOURNAMENT_ID}&amp;player=660" data-player-id="660">Sarah Horsnell</a></div></div>
+          </div>
+          <div class="match__result"><ul class="points"><li class="points__cell points__cell--won">12</li><li class="points__cell">10</li></ul><ul class="points"><li class="points__cell points__cell--won">11</li><li class="points__cell">3</li></ul><ul class="points"><li class="points__cell points__cell--won">11</li><li class="points__cell">6</li></ul></div>
+          <a class="match__btn-h2h" href="/head-2-head?T1P1MemberID=6779&amp;T1P2MemberID=5476&amp;T2P1MemberID=1172&amp;T2P2MemberID=5505">H2H</a>
+        </div>
+      </div>
+    </li>
+    <li class="match-group__item">
+      <div class="match match--list">
+        <div class="match__header"><ul class="match__header-title"><li><a href="/sport/draw.aspx?id=${TOURNAMENT_ID}&amp;draw=918">O70 Men's Singles - Group C 2</a></li><li><span title="Round 3">Round 3</span></li></ul></div>
+        <div class="match__body"><div class="match__row-wrapper"><div class="match__row has-won"><a href="/sport/player.aspx?id=${TOURNAMENT_ID}&amp;player=100">Tony Rowell</a><span class="match__status">W</span></div><div class="match__row"><a href="/sport/player.aspx?id=${TOURNAMENT_ID}&amp;player=101">John Hope</a></div></div><div class="match__result">Walkover</div><a class="match__btn-h2h" href="/head-2-head?T1P1MemberID=1017&amp;T2P1MemberID=6797">H2H</a></div>
+      </div>
+    </li>
+    <li class="match-group__item">
+      <div class="match match--list"><div class="match__header"><a href="/sport/draw.aspx?id=${TOURNAMENT_ID}&amp;draw=919">O40 Mixed Doubles - Group 2</a></div><div class="match__row-wrapper"><div class="match__row"><div class="match__row-title"></div></div><div class="match__row"><a href="/sport/player.aspx?id=${TOURNAMENT_ID}&amp;player=760">Adam Fuzes</a></div></div></div>
+    </li>
+  </ol>
+</div>`;
+
 function parseMatches() {
     return stabilizeVettsPlayerIdentities(
         matchesHtml,
@@ -84,7 +132,7 @@ describe('VETTS tournament parsing', () => {
     it('publishes a source adapter manifest for every registered resource type', () => {
         expect(vettsSourceAdapter.manifest).toMatchObject({
             key: 'tournamentsoftware-vetts',
-            version: '1.1.0',
+            version: '1.3.0',
             supportedResourceTypes: ['directory', 'event', 'event-results'],
         });
     });
@@ -99,6 +147,7 @@ describe('VETTS tournament parsing', () => {
         const links = parseVettsTournamentLinks(`
           <a href="https://vetts.tournamentsoftware.com/tournament/${TOURNAMENT_ID}">Nationals</a>
           <a href="https://vetts.tournamentsoftware.com/sport/tournament.aspx?id=7ed3b6c4-2370-4fd2-a010-f3dfaa1d6f2e">Southern</a>
+          <a href="https://vetts.tournamentsoftware.com/sport/tournament.aspx?id=769534f2-8229-4b33-bf34-cd35c9cd7d73">VETTS Super 50s TEAM Competition 2026</a>
           <a href="https://vetts.tournamentsoftware.com/tournament/${TOURNAMENT_ID}">Duplicate</a>
         `, vettsUrls.discovery(2026));
         expect(links).toHaveLength(2);
@@ -133,6 +182,57 @@ describe('VETTS tournament parsing', () => {
             venuePostcode: 'WV6 9NW',
             eventCount: 24,
             entryCount: 310,
+        });
+    });
+
+    it('parses the current Tournament Software overview and match-card markup', () => {
+        const tournament = parseVettsTournamentOverview(liveOverviewHtml, SOURCE_URL);
+        expect(tournament).toMatchObject({
+            name: 'VETTS Nationals 2026',
+            organisation: 'Veterans English Table Tennis Society',
+            location: 'Wolverhampton',
+            startDate: '2026-05-16',
+            endDate: '2026-05-17',
+            venueName: 'Aldersley Leisure Village',
+            venueAddress: 'Aldersley Road',
+            venueTown: 'Wolverhampton',
+            venuePostcode: 'WV6 9NW',
+            eventCount: 24,
+            entryCount: 310,
+        });
+
+        const page = stabilizeVettsPlayerIdentities(
+            liveMatchesHtml,
+            TOURNAMENT_ID,
+            parseVettsMatchesPage(liveMatchesHtml, {
+                tournamentId: TOURNAMENT_ID,
+                sourceUrl: `${SOURCE_URL}/Matches`,
+                date: '2026-05-17',
+            }),
+        );
+        expect(page.matches).toHaveLength(2);
+        expect(page.issues.map((issue) => issue.reason)).toEqual(['bye']);
+        expect(page.matches[0]).toMatchObject({
+            eventExternalId: '993',
+            eventName: 'O40 Mixed Doubles - Group 1',
+            roundName: 'Round 2',
+            playedAt: '2026-05-17 08:30:00',
+            isDoubles: true,
+            homeGamesWon: 3,
+            awayGamesWon: 0,
+        });
+        expect(page.matches[0]!.homePlayers.map((player) => player.externalId)).toEqual([
+            'tournamentsoftware:vetts:member:6779',
+            'tournamentsoftware:vetts:member:5476',
+        ]);
+        expect(page.matches[0]!.awayPlayers.map((player) => player.externalId)).toEqual([
+            'tournamentsoftware:vetts:member:1172',
+            'tournamentsoftware:vetts:member:5505',
+        ]);
+        expect(page.matches[1]).toMatchObject({
+            outcomeType: 'walkover',
+            scoreSource: 'win_loss_only',
+            winnerSide: 'home',
         });
     });
 
