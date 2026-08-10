@@ -20,6 +20,7 @@ export interface PlayerMatchListProps {
   isLoadingMore: boolean;
   error: string | null;
   quickJournalEnabled: boolean;
+  showCount?: boolean;
   onOpenMatch: (match: RubberItem) => void;
   onOpenOpponent: (opponentId: string) => void;
   onQuickJournal: (match: RubberItem) => void;
@@ -36,6 +37,7 @@ export function PlayerMatchList({
   isLoadingMore,
   error,
   quickJournalEnabled,
+  showCount = true,
   onOpenMatch,
   onOpenOpponent,
   onQuickJournal,
@@ -118,7 +120,7 @@ export function PlayerMatchList({
         })}
       </DesignList>
 
-      <p className="tt-section-meta">Showing {matches.length} of {total} matches</p>
+      {showCount ? <p className="tt-section-meta">Showing {matches.length} of {total} matches</p> : null}
       <InfiniteListFooter
         hasMore={hasMore}
         isLoading={isLoadingMore}
