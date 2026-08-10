@@ -66,6 +66,16 @@ function payload(matchId: number): ScrapeMatchSetPayload {
     };
 }
 
+function responseFor(status: number): Response {
+    return {
+        ok: status >= 200 && status < 300,
+        status,
+        json: async () => [],
+        arrayBuffer: async () => new ArrayBuffer(0),
+        headers: { get: () => null },
+    } as unknown as Response;
+}
+
 afterEach(() => {
     vi.unstubAllGlobals();
     vi.clearAllMocks();
@@ -73,17 +83,18 @@ afterEach(() => {
 
 describe('scrapeMatchSetsBatchTask', () => {
     it('saves successful entries and returns only failed promises for Graphile retry', async () => {
+        vi.stubEnv('TTL_FETCH_MAX_ATTEMPTS', '1');
+        vi.stubEnv('TTL_FETCH_MIN_INTERVAL_MS', '0');
+        vi.stubEnv('TTL_FETCH_BACKOFF_BASE_MS', '1');
+        vi.stubEnv('TTL_FETCH_BACKOFF_JITTER_MS', '0');
+
         vi.mocked(storeScrapePayload).mockResolvedValue('log-success');
         vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => {
             if (String(url).includes('/matches/1001/sets')) {
-                return { ok: false, status: 500 } as Response;
+                return responseFor(500);
             }
             if (String(url).includes('/matches/1002/sets')) {
-                return {
-                    ok: true,
-                    status: 200,
-                    json: async () => [],
-                } as Response;
+                return responseFor(200);
             }
             throw new Error(`Unexpected URL: ${url}`);
         }));
@@ -117,5 +128,85 @@ describe('scrapeMatchSetsBatchTask', () => {
                 jobKeyMode: 'unsafe_dedupe',
             }),
         );
+    });
+
+    it('retries a transient 429 response and succeeds on the next attempt', async () => {
+        vi.stubEnv('TTL_FETCH_MAX_ATTEMPTS', '3');
+        vi.stubEnv('TTL_FETCH_MIN_INTERVAL_MS', '0');
+        vi.stubEnv('TTL_FETCH_BACKOFF_BASE_MS', '1');
+        vi.stubEnv('TTL_FETCH_BACKOFF_JITTER_MS', '0');
+
+        vi.mocked(storeScrapePayload).mockResolvedValue('log-retried');
+        let setsCalls = 0;
+        vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => {
+            if (String(url).includes('/matches/1003/sets')) {
+                setsCalls += 1;
+                return setsCalls === 1 ? responseFor(429) : responseFor(200);
+            }
+            throw new Error(`Unexpected URL: ${url}`);
+        }));
+
+        const addJob = vi.fn(async () => undefined);
+        const result = scrapeMatchSetsBatchTask(
+            [payload(1003)],
+            {
+                addJob,
+                logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+            } as never,
+        ) as Promise<void>[];
+
+        const settled = await Promise.allSettled(result);
+        expect(settled.map((entry) => entry.status)).toEqual(['fulfilled']);
+        expect(setsCalls).toBe(2);
+        expect(storeScrapePayload).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects after exhausting retries when the source keeps returning 429', async () => {
+        vi.stubEnv('TTL_FETCH_MAX_ATTEMPTS', '3');
+        vi.stubEnv('TTL_FETCH_MIN_INTERVAL_MS', '0');
+        vi.stubEnv('TTL_FETCH_BACKOFF_BASE_MS', '1');
+        vi.stubEnv('TTL_FETCH_BACKOFF_JITTER_MS', '0');
+
+        const fetchMock = vi.fn(async () => responseFor(429));
+        vi.stubGlobal('fetch', fetchMock);
+
+        const addJob = vi.fn(async () => undefined);
+        const result = scrapeMatchSetsBatchTask(
+            [payload(1004)],
+            {
+                addJob,
+                logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+            } as never,
+        ) as Promise<void>[];
+
+        const settled = await Promise.allSettled(result);
+        expect(settled.map((entry) => entry.status)).toEqual(['rejected']);
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+        expect(storeScrapePayload).not.toHaveBeenCalled();
+    });
+
+    it('skips matches where the source reports no sets (404)', async () => {
+        vi.stubEnv('TTL_FETCH_MAX_ATTEMPTS', '1');
+        vi.stubEnv('TTL_FETCH_MIN_INTERVAL_MS', '0');
+        vi.stubEnv('TTL_FETCH_BACKOFF_BASE_MS', '1');
+        vi.stubEnv('TTL_FETCH_BACKOFF_JITTER_MS', '0');
+
+        const fetchMock = vi.fn(async () => responseFor(404));
+        vi.stubGlobal('fetch', fetchMock);
+
+        const addJob = vi.fn(async () => undefined);
+        const result = scrapeMatchSetsBatchTask(
+            [payload(1005)],
+            {
+                addJob,
+                logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+            } as never,
+        ) as Promise<void>[];
+
+        const settled = await Promise.allSettled(result);
+        expect(settled.map((entry) => entry.status)).toEqual(['fulfilled']);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(storeScrapePayload).not.toHaveBeenCalled();
+        expect(addJob).not.toHaveBeenCalled();
     });
 });

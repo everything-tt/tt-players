@@ -1,6 +1,7 @@
 import type { Task } from 'graphile-worker';
 import { db } from '@tt-players/db';
 import { storeScrapePayload } from '../extractor.js';
+import { fetchWithTTLeaguesPolicy } from '../ttleagues-http.js';
 import { RETRYABLE_JOB_SPEC, stableJobKey } from '../job-policy.js';
 import { SetsResponseSchema, type Match } from '../zod-schemas.js';
 
@@ -32,20 +33,6 @@ const TTL_SETS_FETCH_DELAY_MS = Number(
 
 function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function fetchWithTimeout(
-    url: string,
-    timeoutMs: number,
-    headers: Record<string, string>,
-): Promise<Response> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-        return await fetch(url, { signal: controller.signal, headers });
-    } finally {
-        clearTimeout(timeout);
-    }
 }
 
 function normalizePayload(payload: unknown): {
@@ -100,7 +87,11 @@ async function scrapeOneMatchResult(
 
     const headers = { Tenant: tenantHost, Entry: '1' };
     const url = `${TTL_API_BASE}/matches/${match.id}/sets`;
-    const response = await fetchWithTimeout(url, TTL_SETS_FETCH_TIMEOUT_MS, headers);
+    // Transient 429/5xx responses are retried with backoff by the TT Leagues
+    // policy, so sustained backfills no longer exhaust jobs on rate limits.
+    const response = await fetchWithTTLeaguesPolicy(url, { headers }, {
+        timeoutMs: TTL_SETS_FETCH_TIMEOUT_MS,
+    });
 
     if (response.status === 404) {
         helpers.logger.info(`scrapeMatchSetsBatchTask: no sets found for match ${match.id}`);
