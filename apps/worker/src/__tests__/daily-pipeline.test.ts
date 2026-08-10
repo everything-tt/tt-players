@@ -70,6 +70,41 @@ describe('daily pipeline', () => {
         expect(taskHelpers.addJob).not.toHaveBeenCalled();
     });
 
+    it('manual runs use the trigger time as their window and a distinct run key', async () => {
+        const deps = dependencies({
+            inspectIngestion: vi.fn(async () => ({ pending: 0, failed: 0 })),
+        });
+        const taskHelpers = helpers();
+
+        await runDailyPipelineStage({ manual: true }, taskHelpers, deps);
+
+        expect(deps.inspectIngestion).toHaveBeenCalledWith(NOW);
+        expect(taskHelpers.addJob).toHaveBeenCalledWith(
+            'completeDailyPipelineTask',
+            expect.objectContaining({
+                runKey: '2026-07-31-manual',
+                windowStart: NOW.toISOString(),
+                stage: 'reconcile',
+                manual: true,
+            }),
+            expect.anything(),
+        );
+    });
+
+    it('manual runs respect an explicit window start', async () => {
+        const deps = dependencies();
+        const taskHelpers = helpers();
+
+        await runDailyPipelineStage({
+            manual: true,
+            windowStart: '2026-07-31T02:00:00.000Z',
+        }, taskHelpers, deps);
+
+        expect(deps.inspectIngestion).toHaveBeenCalledWith(
+            new Date('2026-07-31T02:00:00.000Z'),
+        );
+    });
+
     it('moves from completed ingestion to reconciliation', async () => {
         const deps = dependencies();
         const taskHelpers = helpers();

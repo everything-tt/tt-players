@@ -25,6 +25,13 @@ export interface DailyPipelinePayload {
     runKey?: string;
     windowStart?: string;
     stage?: DailyPipelineStage;
+    /**
+     * Manual runs use their own window (the trigger time) instead of the
+     * daily 00:00 window, so they are not blocked by ingestion jobs that
+     * permanently failed earlier in the day. Failures created after the
+     * manual trigger still block the run.
+     */
+    manual?: boolean;
 }
 
 export interface IngestionQueueState {
@@ -83,8 +90,10 @@ export function normalizeDailyPipelinePayload(
     now: Date,
 ): Required<DailyPipelinePayload> {
     const defaultRunKey = now.toISOString().slice(0, 10);
-    const runKey = payload?.runKey || defaultRunKey;
-    const windowStart = payload?.windowStart || `${runKey}T00:00:00.000Z`;
+    const manual = payload?.manual ?? false;
+    const runKey = payload?.runKey || (manual ? `${defaultRunKey}-manual` : defaultRunKey);
+    const windowStart = payload?.windowStart
+        || (manual ? now.toISOString() : `${runKey}T00:00:00.000Z`);
     const stage = payload?.stage || 'wait-for-ingestion';
 
     if (!['wait-for-ingestion', 'reconcile', 'ratings', 'read-models'].includes(stage)) {
@@ -94,7 +103,7 @@ export function normalizeDailyPipelinePayload(
         throw new Error(`Invalid daily pipeline window start: ${windowStart}`);
     }
 
-    return { runKey, windowStart, stage };
+    return { runKey, windowStart, stage, manual };
 }
 
 async function queuePipelineStage(
