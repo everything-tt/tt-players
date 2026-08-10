@@ -5,6 +5,7 @@ import pg from 'pg';
 import type { Database } from '@tt-players/db';
 import * as m001 from '@tt-players/db/src/migrations/001_create_enums.js';
 import * as m002 from '@tt-players/db/src/migrations/002_create_core_tables.js';
+import * as m004 from '@tt-players/db/src/migrations/004_create_raw_scrape_logs.js';
 import * as m009 from '@tt-players/db/src/migrations/009_create_regions.js';
 import * as m029 from '@tt-players/db/src/migrations/029_create_source_registry.js';
 import { bootstrapLeagueConfigs, readLegacyLeagueConfigs } from '../bootstrap.js';
@@ -26,6 +27,7 @@ class StaticMigrationProvider implements MigrationProvider {
         return {
             '001_create_enums': m001,
             '002_create_core_tables': m002,
+            '004_create_raw_scrape_logs': m004,
             '009_create_regions': m009,
             '029_create_source_registry': m029,
         };
@@ -96,6 +98,19 @@ describe('England territory migration parity', () => {
         expect(englandSources.every((source) => source.enabled)).toBe(true);
 
         const legacyTargets = await bootstrapLeagueConfigs(db, legacyEngland);
+        const continuityTarget = legacyTargets[0];
+        expect(continuityTarget).toBeDefined();
+        const rawLog = await db
+            .insertInto('raw_scrape_logs')
+            .values({
+                platform_id: continuityTarget!.platformId,
+                endpoint_url: continuityTarget!.url,
+                raw_payload: '{"parity":"before-territory"}',
+                payload_hash: 'territory-parity-continuity',
+                status: 'processed',
+            })
+            .returning(['id', 'platform_id', 'endpoint_url'])
+            .executeTakeFirstOrThrow();
         const leagueIdsBefore = await db
             .selectFrom('leagues')
             .select(['external_id', 'id'])
@@ -127,6 +142,20 @@ describe('England territory migration parity', () => {
             .orderBy('external_id', 'asc')
             .execute();
         expect(leagueIdsAfter).toEqual(leagueIdsBefore);
+
+        const rawLogAfter = await db
+            .selectFrom('raw_scrape_logs')
+            .select(['platform_id', 'endpoint_url'])
+            .where('id', '=', rawLog.id)
+            .executeTakeFirstOrThrow();
+        expect(rawLogAfter).toEqual({
+            platform_id: rawLog.platform_id,
+            endpoint_url: rawLog.endpoint_url,
+        });
+        expect(configuredTargets.some(
+            (target) => target.platformId === rawLog.platform_id
+                && target.url === rawLog.endpoint_url,
+        )).toBe(true);
 
         const linkedCount = await linkTerritoryLeagueResources(db);
         expect(linkedCount).toBe(territoryEngland.length);
