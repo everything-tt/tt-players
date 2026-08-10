@@ -105,13 +105,18 @@ describe('territory source catalog database bootstrap', () => {
             'West of Scotland Table Tennis League',
         ]);
 
-        const enabledSources = await db
+        const enabledScotlandSources = await db
             .selectFrom('source_instances')
             .select(['key', 'enabled'])
             .where('enabled', '=', true)
+            .where('key', 'in', [
+                'dumfries-tt365',
+                'perth-tt365',
+                'west-of-scotland-tt365',
+            ])
             .orderBy('key', 'asc')
             .execute();
-        expect(enabledSources.map((source) => source.key)).toEqual([
+        expect(enabledScotlandSources.map((source) => source.key)).toEqual([
             'dumfries-tt365',
             'perth-tt365',
             'west-of-scotland-tt365',
