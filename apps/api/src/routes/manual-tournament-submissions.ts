@@ -25,7 +25,8 @@ const ResponseSchema = z.object({
 const ManualSubmissionSchema = z.object({
     submission_id: z.string().uuid(),
     competition_id: z.string().uuid(),
-    status: z.enum(['processing', 'published', 'merged']),
+    status: z.enum(['processing', 'published', 'merged', 'failed']),
+    status_message: z.string().nullable(),
     submitted_at: z.string(),
     source_url: z.string(),
     name: z.string().nullable(),
@@ -56,6 +57,16 @@ function dateOnly(value: unknown): string | null {
 function timestamp(value: unknown): string {
     if (value instanceof Date) return value.toISOString();
     return new Date(String(value)).toISOString();
+}
+
+function submissionPayload(value: unknown): Record<string, unknown> {
+    return value && typeof value === 'object' ? value as Record<string, unknown> : {};
+}
+
+function explicitSubmissionStatus(value: unknown): 'processing' | 'published' | 'merged' | 'failed' | null {
+    return value === 'processing' || value === 'published' || value === 'merged' || value === 'failed'
+        ? value
+        : null;
 }
 
 export function normalizeManualTournamentUrl(input: string): string {
@@ -164,6 +175,8 @@ async function addSubmitterSource(
             raw_payload: {
                 submitted_url: canonicalUrl,
                 submitted_at: now.toISOString(),
+                submission_status: 'processing',
+                submission_status_message: null,
             },
             first_seen_at: now,
             last_seen_at: now,
@@ -242,6 +255,7 @@ export function manualTournamentSubmissionRoutes(db: Kysely<any>): FastifyPlugin
                         'ts.competition_id',
                         'ts.source_url',
                         'ts.first_seen_at as submitted_at',
+                        'ts.raw_payload',
                         'c.source as competition_source',
                         'c.name',
                         'c.display_name',
@@ -260,28 +274,36 @@ export function manualTournamentSubmissionRoutes(db: Kysely<any>): FastifyPlugin
                     .execute();
 
                 return reply.send({
-                    data: rows.map((row: Record<string, any>) => ({
-                        submission_id: row.submission_id,
-                        competition_id: row.competition_id,
-                        status: row.competition_source !== MANUAL_SOURCE
+                    data: rows.map((row: Record<string, any>) => {
+                        const payload = submissionPayload(row.raw_payload);
+                        const explicitStatus = explicitSubmissionStatus(payload.submission_status);
+                        const fallbackStatus = row.competition_source !== MANUAL_SOURCE
                             ? 'merged' as const
                             : row.event_status === 'unpublished'
                                 ? 'processing' as const
-                                : 'published' as const,
-                        submitted_at: timestamp(row.submitted_at),
-                        source_url: row.source_url,
-                        name: row.display_name && row.display_name !== PENDING_NAME
-                            ? row.display_name
-                            : row.name && row.name !== PENDING_NAME
-                                ? row.name
+                                : 'published' as const;
+                        return {
+                            submission_id: row.submission_id,
+                            competition_id: row.competition_id,
+                            status: explicitStatus ?? fallbackStatus,
+                            status_message: typeof payload.submission_status_message === 'string'
+                                ? payload.submission_status_message
                                 : null,
-                        start_date: dateOnly(row.start_date),
-                        venue_name: row.venue_name ?? null,
-                        venue_town: row.venue_town ?? null,
-                        venue_postcode: row.venue_postcode ?? null,
-                        category: row.category ?? null,
-                        event_status: row.event_status,
-                    })),
+                            submitted_at: timestamp(row.submitted_at),
+                            source_url: row.source_url,
+                            name: row.display_name && row.display_name !== PENDING_NAME
+                                ? row.display_name
+                                : row.name && row.name !== PENDING_NAME
+                                    ? row.name
+                                    : null,
+                            start_date: dateOnly(row.start_date),
+                            venue_name: row.venue_name ?? null,
+                            venue_town: row.venue_town ?? null,
+                            venue_postcode: row.venue_postcode ?? null,
+                            category: row.category ?? null,
+                            event_status: row.event_status,
+                        };
+                    }),
                 });
             },
         );
