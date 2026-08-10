@@ -140,7 +140,7 @@ test('reviews tuned-down signed-out section and dedicated sign-in page', async (
   await page.goto(`${previewUrl}/tabs/home`, { waitUntil: 'domcontentloaded' });
 
   // 1. Verify tuned-down My TT section on Home tab
-  const signInItem = page.getByText('Sign in to use My TT');
+  const signInItem = page.getByRole('button', { name: 'Sign in to sync' });
   await expect(signInItem).toBeVisible();
 
   // Confirm inline "Sign in with Google" button is removed from Home tab
@@ -151,7 +151,7 @@ test('reviews tuned-down signed-out section and dedicated sign-in page', async (
   await capture(page, testInfo, 'home-signed-out-tuned-down');
 
   // 2. Click Sign in button to open dedicated Sign in page
-  const signInBtn = page.getByRole('button', { name: 'Sign in' });
+  const signInBtn = page.getByRole('button', { name: 'Sign in to sync' });
   await expect(signInBtn).toBeVisible();
   await signInBtn.click();
 
