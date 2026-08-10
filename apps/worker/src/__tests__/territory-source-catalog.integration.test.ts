@@ -107,7 +107,7 @@ describe('territory source catalog database bootstrap', () => {
 
         const enabledScotlandSources = await db
             .selectFrom('source_instances')
-            .select(['key', 'enabled'])
+            .select(['key', 'enabled', 'config'])
             .where('enabled', '=', true)
             .where('key', 'in', [
                 'dumfries-tt365',
@@ -121,6 +121,107 @@ describe('territory source catalog database bootstrap', () => {
             'perth-tt365',
             'west-of-scotland-tt365',
         ]);
+        for (const source of enabledScotlandSources) {
+            expect(source.config).toMatchObject({ managedBy: 'territory-manifest' });
+        }
+    });
+
+    it('disables retired territory sources and resources without touching unrelated registry rows', async () => {
+        await bootstrapTerritorySourceCatalog(db);
+
+        const platform = await db
+            .selectFrom('platforms')
+            .select('id')
+            .where('name', '=', 'TableTennis365')
+            .executeTakeFirstOrThrow();
+        const dumfries = await db
+            .selectFrom('source_instances')
+            .select('id')
+            .where('platform_id', '=', platform.id)
+            .where('key', '=', 'dumfries-tt365')
+            .executeTakeFirstOrThrow();
+
+        const retired = await db
+            .insertInto('source_instances')
+            .values({
+                platform_id: platform.id,
+                key: 'retired-territory-source',
+                name: 'Retired territory source',
+                base_url: 'https://www.tabletennis365.com/Retired',
+                adapter_key: 'tt365',
+                enabled: true,
+                config: {
+                    managedBy: 'territory-manifest',
+                    territory: 'England',
+                    status: 'active',
+                    ingestionMode: 'league-config',
+                },
+            })
+            .returning('id')
+            .executeTakeFirstOrThrow();
+        const retiredResource = await db
+            .insertInto('source_resources')
+            .values({
+                source_instance_id: retired.id,
+                resource_type: 'league',
+                external_id: 'retired-territory-source',
+                adapter_version: 'tt365-v1',
+                enabled: true,
+            })
+            .returning('id')
+            .executeTakeFirstOrThrow();
+        const removedResource = await db
+            .insertInto('source_resources')
+            .values({
+                source_instance_id: dumfries.id,
+                resource_type: 'league',
+                external_id: 'obsolete-dumfries-resource',
+                adapter_version: 'tt365-v1',
+                enabled: true,
+            })
+            .returning('id')
+            .executeTakeFirstOrThrow();
+        const unrelated = await db
+            .insertInto('source_instances')
+            .values({
+                platform_id: platform.id,
+                key: 'manual-source',
+                name: 'Manual source',
+                base_url: 'https://example.test/manual',
+                adapter_key: 'manual',
+                enabled: true,
+                config: { managedBy: 'manual' },
+            })
+            .returning('id')
+            .executeTakeFirstOrThrow();
+
+        await bootstrapTerritorySourceCatalog(db);
+
+        const retiredAfter = await db
+            .selectFrom('source_instances')
+            .select('enabled')
+            .where('id', '=', retired.id)
+            .executeTakeFirstOrThrow();
+        const retiredResourceAfter = await db
+            .selectFrom('source_resources')
+            .select('enabled')
+            .where('id', '=', retiredResource.id)
+            .executeTakeFirstOrThrow();
+        const removedResourceAfter = await db
+            .selectFrom('source_resources')
+            .select('enabled')
+            .where('id', '=', removedResource.id)
+            .executeTakeFirstOrThrow();
+        const unrelatedAfter = await db
+            .selectFrom('source_instances')
+            .select('enabled')
+            .where('id', '=', unrelated.id)
+            .executeTakeFirstOrThrow();
+
+        expect(retiredAfter.enabled).toBe(false);
+        expect(retiredResourceAfter.enabled).toBe(false);
+        expect(removedResourceAfter.enabled).toBe(false);
+        expect(unrelatedAfter.enabled).toBe(true);
     });
 
     it('rejects provider base-url conflicts instead of silently rewriting platforms', async () => {
