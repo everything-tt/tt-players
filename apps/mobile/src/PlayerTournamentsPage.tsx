@@ -7,7 +7,7 @@ import { formatDateOrUnknown, getQueryError, groupTournamentMatches } from './pl
 import { usePlayerExtendedStatsQuery, usePlayerTournamentsQuery } from './queries';
 import { TabShellPage } from './TabShellPage';
 import { DetailHeader } from './components/DetailHeader';
-import { DesignList, EmptyState, ErrorState, IconCircle, ListItem, PageSection } from './ui/appkit';
+import { AppPageContent, DesignList, EmptyState, ErrorState, IconCircle, ListItem, PageSection } from './ui/appkit';
 
 export function PlayerTournamentsPage() {
   const { navigateInActiveTab } = useTabNavigation();
@@ -20,7 +20,7 @@ export function PlayerTournamentsPage() {
   return (
     <TabShellPage>
       <DetailHeader title={statsQuery.isLoading ? 'Tournaments' : stats?.player_name ?? 'Tournaments'} backFallback={playerId ? `player/${playerId}` : ''} heading />
-      <div className="page-content app-shell-content">
+      <AppPageContent>
         <PageSection surface="flat" density="compact" title="Player Tournaments" note={`${tournaments.length} events`}>
           {tournamentsQuery.isLoading ? (
             <SkeletonList rows={5} />
@@ -43,7 +43,7 @@ export function PlayerTournamentsPage() {
             </DesignList>
           )}
         </PageSection>
-      </div>
+      </AppPageContent>
     </TabShellPage>
   );
 }
