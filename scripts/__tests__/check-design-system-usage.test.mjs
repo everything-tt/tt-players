@@ -74,21 +74,18 @@ test('rejects page-level top and bottom clearance overrides', () => {
   assert.ok(descendant.failures.some((failure) => /page-content top\/bottom shell clearance/.test(failure)));
 });
 
-test('rejects raw detail-page app-shell-content markup', () => {
-  const result = inspectTsxSource(
+test('rejects the legacy app-shell-content hook on detail and root screens', () => {
+  const detail = inspectTsxSource(
     'NewDetailPage.tsx',
     '<div className="page-content app-shell-content">content</div>',
   );
+  assert.equal(detail.failures.length, 1);
+  assert.match(detail.failures[0], /AppPageContent\/design-system shell classes/);
 
-  assert.equal(result.failures.length, 1);
-  assert.match(result.failures[0], /use AppPageContent/);
-});
-
-test('allows the root tab composition to retain its transitional shell hook', () => {
-  const result = inspectTsxSource(
+  const root = inspectTsxSource(
     'App.tsx',
     '<main className="page-content app-shell-content tt-page-content tt-root-content">content</main>',
   );
-
-  assert.deepEqual(result.failures, []);
+  assert.equal(root.failures.length, 1);
+  assert.match(root.failures[0], /legacy app-shell-content hook/);
 });
