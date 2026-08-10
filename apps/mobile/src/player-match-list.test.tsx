@@ -73,10 +73,11 @@ describe('player match list helpers', () => {
     )).toEqual({ date: '2026-08-02', opponent: '', outcome: 'win' });
   });
 
-  it('pages player matches in batches of twenty and resets by player/source', () => {
+  it('pages player matches in batches of twenty and resets by player/source/entity filter', () => {
     const source = readFileSync(new URL('./hooks/usePagedPlayerMatches.ts', import.meta.url), 'utf8');
     expect(source).toContain('pageSize = 20');
-    expect(source).toContain('[playerId, source, pageSize]');
+    expect(source).toContain('[playerId, source, teamId, eventId, pageSize]');
+    expect(source).toContain('{ teamId, eventId }');
     expect(source).toContain('mergePlayerMatchPage');
   });
 });
