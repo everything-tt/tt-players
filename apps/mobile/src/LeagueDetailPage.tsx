@@ -5,6 +5,7 @@ import { SkeletonList } from './components/Skeleton';
 import { useLeagueDashboardQuery, useLeaguesQuery, useStandingsQuery } from './queries';
 import { TabShellPage } from './TabShellPage';
 import {
+  AppPageContent,
   DesignList,
   EmptyState,
   EntityHero,
@@ -43,7 +44,7 @@ export function LeagueDetailPage() {
   return (
     <TabShellPage>
       <DetailHeader title={league?.name ?? dashboard?.league.name ?? 'League'} />
-      <div className="page-content app-shell-content">
+      <AppPageContent>
         {dashboardQuery.isLoading || leaguesQuery.isLoading ? (
           <PageSection surface="flat" density="compact"><SkeletonList rows={6} /></PageSection>
         ) : error || !dashboard || !league ? (
@@ -148,7 +149,7 @@ export function LeagueDetailPage() {
             </PageSection>
           </>
         )}
-      </div>
+      </AppPageContent>
     </TabShellPage>
   );
 }

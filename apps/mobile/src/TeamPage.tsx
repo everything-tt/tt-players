@@ -13,6 +13,7 @@ import { FavouriteButton } from './components/FavouriteButton';
 import { useFavouritePlayers } from './hooks/useFavouritePlayers';
 import { useFavouriteTeams } from './hooks/useFavouriteTeams';
 import {
+  AppPageContent,
   DesignAvatar,
   DesignList,
   EmptyState,
@@ -94,7 +95,7 @@ export function TeamPage() {
   return (
     <TabShellPage>
       <DetailHeader title={summary?.name ?? 'Team'} shareTarget={shareTarget} />
-      <div className="page-content app-shell-content">
+      <AppPageContent>
         {summaryQuery.isLoading ? (
           <TeamPageSkeleton />
         ) : !summary ? (
@@ -227,7 +228,7 @@ export function TeamPage() {
             </PageSection>
           </>
         )}
-      </div>
+      </AppPageContent>
     </TabShellPage>
   );
 }

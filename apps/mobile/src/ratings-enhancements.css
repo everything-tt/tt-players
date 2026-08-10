@@ -38,10 +38,6 @@
   background: var(--accent-subtle);
 }
 
-.tt-ratings-leaderboard-page {
-  padding-bottom: calc(76px + env(safe-area-inset-bottom));
-}
-
 .tt-ratings-leaderboard-copy {
   color: var(--ink-muted);
   font-size: 13px;
@@ -217,37 +213,37 @@
   outline-offset: -3px;
 }
 
-main.app-shell-content:has(#tt-player-title),
-main.app-shell-content:has(.tt-player-hero[aria-label="Loading player profile"]) {
+main:has(#tt-player-title),
+main:has(.tt-player-hero[aria-label="Loading player profile"]) {
   display: flex;
   flex-direction: column;
 }
 
-main.app-shell-content:has(#tt-player-title) > .tt-player-hero,
-main.app-shell-content:has(.tt-player-hero[aria-label="Loading player profile"]) > .tt-player-hero {
+main:has(#tt-player-title) > .tt-player-hero,
+main:has(.tt-player-hero[aria-label="Loading player profile"]) > .tt-player-hero {
   order: 1;
   width: 100%;
 }
 
-main.app-shell-content:has(#tt-player-title) > .tt-rating-panel {
+main:has(#tt-player-title) > .tt-rating-panel {
   order: 2;
   width: 100%;
 }
 
-main.app-shell-content:has(#tt-player-title) > section[aria-labelledby="tt-player-form-title"],
-main.app-shell-content:has(.tt-player-hero[aria-label="Loading player profile"]) > section[aria-label="Loading form"] {
+main:has(#tt-player-title) > section[aria-labelledby="tt-player-form-title"],
+main:has(.tt-player-hero[aria-label="Loading player profile"]) > section[aria-label="Loading form"] {
   order: 3;
   width: 100%;
 }
 
-main.app-shell-content:has(#tt-player-title) > section[aria-label="Current season clubs and tournaments"],
-main.app-shell-content:has(.tt-player-hero[aria-label="Loading player profile"]) > section[aria-label="Loading current season"] {
+main:has(#tt-player-title) > section[aria-label="Current season clubs and tournaments"],
+main:has(.tt-player-hero[aria-label="Loading player profile"]) > section[aria-label="Loading current season"] {
   order: 4;
   width: 100%;
 }
 
-main.app-shell-content:has(#tt-player-title) > section[aria-labelledby="tt-player-matches-title"],
-main.app-shell-content:has(.tt-player-hero[aria-label="Loading player profile"]) > section[aria-label="Loading recent matches"] {
+main:has(#tt-player-title) > section[aria-labelledby="tt-player-matches-title"],
+main:has(.tt-player-hero[aria-label="Loading player profile"]) > section[aria-label="Loading recent matches"] {
   order: 5;
   width: 100%;
 }

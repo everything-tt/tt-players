@@ -7,6 +7,7 @@ import { useFixtureRubbersQuery } from './queries';
 import { TabShellPage } from './TabShellPage';
 import { DetailHeader } from './components/DetailHeader';
 import {
+  AppPageContent,
   EmptyState,
   EntityHero,
   ErrorState,
@@ -78,7 +79,7 @@ export function FixturePage() {
   return (
     <TabShellPage>
       <DetailHeader title="Fixture Details" />
-      <div className="page-content app-shell-content">
+      <AppPageContent>
         {!fixtureId ? (
           <ErrorState title="Missing fixture" message="Fixture id is missing from the route." />
         ) : rubbersQuery.isLoading && !fixtureMeta ? (
@@ -139,7 +140,7 @@ export function FixturePage() {
             </PageSection>
           </>
         )}
-      </div>
+      </AppPageContent>
     </TabShellPage>
   );
 }

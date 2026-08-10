@@ -148,10 +148,32 @@ export function getCanonicalFamilies(selector) {
     .map(({ name }) => name);
 }
 
+export function inspectTsxSource(relative, source) {
+  const failures = [];
+
+  if (!legacySectionAllowlist.has(relative) && /<section\s+className=["'`]tt-player-section/.test(source)) {
+    failures.push(`${relative}: use PageSection instead of a new tt-player-section wrapper`);
+  }
+
+  if (!inlineGeometryAllowlist.has(relative)) {
+    const inlineGeometry = /style=\{\{[^}]*\b(?:padding|margin|width|height|minHeight|maxWidth)\s*:/s;
+    if (inlineGeometry.test(source)) {
+      failures.push(`${relative}: move canonical layout geometry out of inline styles`);
+    }
+  }
+
+  if (/\bapp-shell-content\b/.test(source)) {
+    failures.push(`${relative}: use AppPageContent/design-system shell classes instead of the legacy app-shell-content hook`);
+  }
+
+  return { failures };
+}
+
 export function inspectCssSource(relative, source) {
   const basename = path.basename(relative);
   const failures = [];
   const exceptions = [];
+  const uncommentedSource = source.replace(/\/\*[\s\S]*?\*\//g, '');
 
   if (!legacyCanonicalCssOwners.has(basename)) {
     const allowedFamilies = temporarySelectorAllowlist.get(relative)
@@ -174,6 +196,16 @@ export function inspectCssSource(relative, source) {
     failures.push(`${relative}: canonical geometry tokens belong in packages/design-system/src/styles/tokens.css`);
   }
 
+  const screenPageInsetOverride = /\.tt-[A-Za-z0-9_-]+-page\b[^{}]*\{[^{}]*\bpadding-(?:top|bottom)\s*:/i;
+  if (screenPageInsetOverride.test(uncommentedSource)) {
+    failures.push(`${relative}: page-level top/bottom clearance belongs to AppPageContent and the design system`);
+  }
+
+  const legacyPageContentInsetOverride = /(?:\.page-content|\.app-shell-content)\b[^{}]*\{[^{}]*\bpadding-(?:top|bottom)\s*:/i;
+  if (!legacyCanonicalCssOwners.has(basename) && legacyPageContentInsetOverride.test(uncommentedSource)) {
+    failures.push(`${relative}: app CSS must not override page-content top/bottom shell clearance`);
+  }
+
   return { failures, exceptions };
 }
 
@@ -188,16 +220,8 @@ export async function runDesignSystemUsageCheck({ projectRoot = process.cwd() } 
     const source = await readFile(file, 'utf8');
 
     if (file.endsWith('.tsx')) {
-      if (!legacySectionAllowlist.has(relative) && /<section\s+className=["'`]tt-player-section/.test(source)) {
-        failures.push(`${relative}: use PageSection instead of a new tt-player-section wrapper`);
-      }
-
-      if (!inlineGeometryAllowlist.has(relative)) {
-        const inlineGeometry = /style=\{\{[^}]*\b(?:padding|margin|width|height|minHeight|maxWidth)\s*:/s;
-        if (inlineGeometry.test(source)) {
-          failures.push(`${relative}: move canonical layout geometry out of inline styles`);
-        }
-      }
+      const result = inspectTsxSource(relative, source);
+      failures.push(...result.failures);
     }
 
     if (file.endsWith('.css')) {

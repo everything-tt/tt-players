@@ -7,7 +7,7 @@ Reusable React primitives built on top of AppKit classes for `apps/mobile`.
 - `AppShellPage`: wraps `#page` root shell.
 - `AppHeader`: fixed AppKit header with typed left/right icon actions.
 - `AppHeaderSpacer`: inserts header-clear spacer (`small|medium|large`).
-- `AppPageContent`: wraps main content area (`page-content app-shell-content`).
+- `AppPageContent`: wraps the canonical main content area (`page-content tt-page-content`); header/footer/safe-area clearance stays design-system-owned.
 - `AppCard`: base `card card-style` container.
 - `AppCardContent`: standard `content` slot.
 - `AppLoadingCard`: card with AppKit loading spinner + text.
