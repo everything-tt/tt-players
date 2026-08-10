@@ -109,13 +109,23 @@ export function parseTTLeaguesData(input: RawTTLeaguesInput): ParsedTTLeaguesDat
         }
     }
 
-    // 3. Extract players — deduplicate from all rubber sets by userId
+    // 3. Extract players — deduplicate from all rubber sets by userId.
+    //    Skip team-level placeholders: for forfeited matches the TT Leagues
+    //    API lists the team as the "player" (empty userId, entrantId = match
+    //    entrant id, name = team name). Those must never become
+    //    external_players rows; the rubber is still created as a walkover
+    //    with no player references.
+    const matchById = new Map(
+        matchesResponse.matches.map((match) => [String(match.id), match]),
+    );
     const playerMap = new Map<string, ParsedPlayer>();
 
-    for (const sets of Object.values(setsMap)) {
+    for (const [matchId, sets] of Object.entries(setsMap)) {
+        const match = matchById.get(matchId);
         for (const set of sets.filter(isScoredSet)) {
             const allPlayers = [...set.homePlayers, ...set.awayPlayers];
             for (const player of allPlayers) {
+                if (isTeamPlaceholderPlayer(player, match)) continue;
                 const extId = player.userId || null;
                 const key = extId ?? `unnamed_${player.playerId}`;
                 if (!playerMap.has(key)) {
@@ -196,6 +206,18 @@ function isScoredSet(set: TTSet): set is TTSet & { homeScore: number; awayScore:
     return set.homeScore != null && set.awayScore != null;
 }
 
+/**
+ * TT Leagues lists the team as the "player" in set data for forfeited
+ * matches: userId is empty and entrantId matches the match's home/away
+ * entrant id. These are team-level placeholders, not people, and must not
+ * be turned into external_players rows.
+ */
+function isTeamPlaceholderPlayer(player: TTPlayer, match: Match | undefined): boolean {
+    if (player.userId) return false;
+    if (!match) return false;
+    return player.entrantId === match.home.id || player.entrantId === match.away.id;
+}
+
 function mapSetToRubber(set: TTSet & { homeScore: number; awayScore: number }): ParsedRubber {
     const isDoubles = set.homePlayers.length > 1 || set.awayPlayers.length > 1;
 
@@ -203,8 +225,10 @@ function mapSetToRubber(set: TTSet & { homeScore: number; awayScore: number }): 
         externalId: String(set.id),
         matchExternalId: String(set.matchId),
         isDoubles,
-        homePlayers: set.homePlayers.map((p) => p.userId),
-        awayPlayers: set.awayPlayers.map((p) => p.userId),
+        // Team-level forfeit placeholders carry an empty userId; drop them so
+        // walkover rubbers have no player references instead of empty strings.
+        homePlayers: set.homePlayers.map((p) => p.userId).filter(Boolean),
+        awayPlayers: set.awayPlayers.map((p) => p.userId).filter(Boolean),
         homeGamesWon: set.homeScore,
         awayGamesWon: set.awayScore,
         outcomeType: deriveOutcomeType(set),
