@@ -9,6 +9,7 @@ import {
 } from './rating-highlights-queries';
 import { TabShellPage } from './TabShellPage';
 import {
+  AppPageContent,
   EmptyState,
   ErrorState,
   FilterBar,
@@ -43,7 +44,7 @@ export function RatingHighlightsPage() {
   return (
     <TabShellPage>
       <DetailHeader title="Rating highlights" />
-      <div className="page-content app-shell-content">
+      <AppPageContent>
         <PageSection
           surface="flat"
           density="compact"
@@ -85,7 +86,7 @@ export function RatingHighlightsPage() {
             />
           )}
         </PageSection>
-      </div>
+      </AppPageContent>
     </TabShellPage>
   );
 }
