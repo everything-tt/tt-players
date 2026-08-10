@@ -6,7 +6,6 @@ import {
     type Standing,
     type Match,
     type TTSet,
-    type TTPlayer,
 } from './zod-schemas.js';
 
 // ─── Output Types ─────────────────────────────────────────────────────────────
@@ -17,7 +16,7 @@ export interface ParsedTeam {
 }
 
 export interface ParsedPlayer {
-    externalId: string | null;  // userId (UUID string), null if empty
+    externalId: string | null;
     name: string;
 }
 
@@ -109,18 +108,20 @@ export function parseTTLeaguesData(input: RawTTLeaguesInput): ParsedTTLeaguesDat
         }
     }
 
-    // 3. Extract players — deduplicate from all rubber sets by userId
+    // 3. Extract only source-linked players. TT Leagues may include team-level
+    //    forfeit placeholders or unregistered/anonymous participants with an
+    //    empty userId. Neither can be linked reliably to a player in our system,
+    //    so do not create external_players rows for them.
     const playerMap = new Map<string, ParsedPlayer>();
 
     for (const sets of Object.values(setsMap)) {
         for (const set of sets.filter(isScoredSet)) {
             const allPlayers = [...set.homePlayers, ...set.awayPlayers];
             for (const player of allPlayers) {
-                const extId = player.userId || null;
-                const key = extId ?? `unnamed_${player.playerId}`;
-                if (!playerMap.has(key)) {
-                    playerMap.set(key, {
-                        externalId: extId,
+                if (!player.userId) continue;
+                if (!playerMap.has(player.userId)) {
+                    playerMap.set(player.userId, {
+                        externalId: player.userId,
                         name: player.name,
                     });
                 }
@@ -203,8 +204,10 @@ function mapSetToRubber(set: TTSet & { homeScore: number; awayScore: number }): 
         externalId: String(set.id),
         matchExternalId: String(set.matchId),
         isDoubles,
-        homePlayers: set.homePlayers.map((p) => p.userId),
-        awayPlayers: set.awayPlayers.map((p) => p.userId),
+        // Only source-linked users can participate in our player model.
+        // Preserve the rubber and score even when one/both source userIds are absent.
+        homePlayers: set.homePlayers.map((p) => p.userId).filter(Boolean),
+        awayPlayers: set.awayPlayers.map((p) => p.userId).filter(Boolean),
         homeGamesWon: set.homeScore,
         awayGamesWon: set.awayScore,
         outcomeType: deriveOutcomeType(set),

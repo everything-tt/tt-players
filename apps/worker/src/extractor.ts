@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { type Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
 import { fetchWithTT365Policy } from './tt365-http.js';
+import { fetchWithTTLeaguesPolicy, isTTLeaguesUrl } from './ttleagues-http.js';
 
 export async function storeScrapePayload(
     url: string,
@@ -50,7 +51,9 @@ export async function extractAndStore(
     db: Kysely<Database>,
     requestInit: RequestInit = {},
 ): Promise<string> {
-    const response = await fetchWithTT365Policy(url, requestInit);
+    const response = isTTLeaguesUrl(url)
+        ? await fetchWithTTLeaguesPolicy(url, requestInit)
+        : await fetchWithTT365Policy(url, requestInit);
 
     if (!response.ok) {
         throw new Error(

@@ -128,45 +128,6 @@
     },
     {
         "platform": "ttleagues",
-        "leagueName": "Chelmsford TTL",
-        "externalId": "chelmsford-ttl",
-        "seasonName": "2025-26",
-        "seasonExtId": "2025-26",
-        "history": {
-            "enabled": true,
-            "maxSeasons": 6,
-            "includeCups": false
-        },
-        "regions": [
-            "England",
-            "Essex"
-        ],
-        "divisions": [
-            {
-                "name": "Division 1",
-                "divisionId": 10978
-            },
-            {
-                "name": "Division 2",
-                "divisionId": 10979
-            },
-            {
-                "name": "Division 3",
-                "divisionId": 10980
-            },
-            {
-                "name": "Division 4",
-                "divisionId": 10981
-            },
-            {
-                "name": "Division 5",
-                "divisionId": 10982
-            }
-        ],
-        "baseUrl": "https://chelmsford.ttleagues.com"
-    },
-    {
-        "platform": "ttleagues",
         "leagueName": "Colchester & District TTL",
         "externalId": "colchester-ttl",
         "seasonName": "CDTTL 2025-2026",

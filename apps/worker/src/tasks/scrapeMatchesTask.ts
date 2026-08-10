@@ -4,6 +4,7 @@ import { chunkItems } from '../batches.js';
 import { storeScrapePayload } from '../extractor.js';
 import { RETRYABLE_JOB_SPEC, stableJobKey } from '../job-policy.js';
 import { selectMatchesNeedingResults } from '../match-batch-planner.js';
+import { fetchWithTTLeaguesPolicy } from '../ttleagues-http.js';
 import type { ScrapeMatchSetPayload } from './scrapeMatchSetsBatchTask.js';
 import { MatchesResponseSchema } from '../zod-schemas.js';
 
@@ -18,25 +19,13 @@ export interface ScrapeMatchesPayload {
 const TTL_API_BASE = 'https://ttleagues-api.azurewebsites.net/api';
 const TTL_RECHECK_COMPLETED_MS = 7 * 24 * 60 * 60 * 1000;
 const TTL_MATCHES_FETCH_TIMEOUT_MS = Number(
-    process.env['TTL_MATCHES_FETCH_TIMEOUT_MS'] ?? '15000',
+    process.env['TTL_MATCHES_FETCH_TIMEOUT_MS']
+    ?? process.env['TTL_FETCH_TIMEOUT_MS']
+    ?? '15000',
 );
 const TTL_SET_BATCH_SIZE = Number(
     process.env['TTL_SET_BATCH_SIZE'] ?? '20',
 );
-
-async function fetchWithTimeout(
-    url: string,
-    timeoutMs: number,
-    headers: Record<string, string>,
-): Promise<Response> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-        return await fetch(url, { signal: controller.signal, headers });
-    } finally {
-        clearTimeout(timeout);
-    }
-}
 
 export const scrapeMatchesTask: Task = async (payload, helpers) => {
     const { divisionId, tenantHost, platformId, competitionId } = payload as ScrapeMatchesPayload;
@@ -48,7 +37,9 @@ export const scrapeMatchesTask: Task = async (payload, helpers) => {
     const headers = { Tenant: tenantHost, Entry: '1' };
     helpers.logger.info(`scrapeMatchesTask: fetching ${matchesUrl}`);
 
-    const response = await fetchWithTimeout(matchesUrl, TTL_MATCHES_FETCH_TIMEOUT_MS, headers);
+    const response = await fetchWithTTLeaguesPolicy(matchesUrl, { headers }, {
+        timeoutMs: TTL_MATCHES_FETCH_TIMEOUT_MS,
+    });
     if (!response.ok) {
         throw new Error(`HTTP ${response.status} fetching ${matchesUrl}`);
     }

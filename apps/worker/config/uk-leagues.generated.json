@@ -1205,39 +1205,6 @@
     },
     {
         "platform": "tt365",
-        "leagueName": "Sunderland Table Tennis League",
-        "externalId": "sunderland-tt365",
-        "seasonName": "Winter - 24-25",
-        "seasonExtId": "winter-24-25",
-        "baseUrl": "https://www.tabletennis365.com/Sunderland",
-        "history": {
-            "enabled": true,
-            "maxSeasons": 6
-        },
-        "divisions": [
-            {
-                "name": "Division 1",
-                "season": "Winter_-_24-25",
-                "slug": "Division_1"
-            },
-            {
-                "name": "Division 2",
-                "season": "Winter_-_24-25",
-                "slug": "Division_2"
-            },
-            {
-                "name": "Division 3",
-                "season": "Winter_-_24-25",
-                "slug": "Division_3"
-            }
-        ],
-        "regions": [
-            "England",
-            "Durham"
-        ]
-    },
-    {
-        "platform": "tt365",
         "leagueName": "Basildon Table Tennis League",
         "externalId": "basildon-tt365",
         "seasonName": "Winter 2025-26",
@@ -1335,29 +1302,6 @@
             {
                 "name": "Division 4",
                 "divisionId": 1843
-            }
-        ],
-        "regions": [
-            "England",
-            "Essex"
-        ]
-    },
-    {
-        "platform": "ttleagues",
-        "leagueName": "Brentwood Table Tennis League",
-        "externalId": "brentwood-ttl",
-        "seasonName": "Brentwood Table Tennis League",
-        "seasonExtId": "brentwood-table-tennis-league",
-        "baseUrl": "https://brentwood.ttleagues.com",
-        "history": {
-            "enabled": false,
-            "maxSeasons": 6,
-            "includeCups": false
-        },
-        "divisions": [
-            {
-                "name": "Premier Division",
-                "divisionId": 1632
             }
         ],
         "regions": [
@@ -2375,44 +2319,6 @@
             {
                 "name": "Group 12",
                 "divisionId": 12426
-            }
-        ],
-        "regions": [
-            "England",
-            "Kent"
-        ]
-    },
-    {
-        "platform": "tt365",
-        "leagueName": "Maidstone Table Tennis Association",
-        "externalId": "maidstone-tt365",
-        "seasonName": "Allen Cooper 25-26",
-        "seasonExtId": "allen-cooper-25-26",
-        "baseUrl": "https://www.tabletennis365.com/Maidstone",
-        "history": {
-            "enabled": true,
-            "maxSeasons": 6
-        },
-        "divisions": [
-            {
-                "name": "Consolation Cup",
-                "season": "Allen_Cooper_25-26",
-                "slug": "Consolation_Cup"
-            },
-            {
-                "name": "Cooper Cup",
-                "season": "Allen_Cooper_25-26",
-                "slug": "Cooper_Cup"
-            },
-            {
-                "name": "Groups 1 -4",
-                "season": "Allen_Cooper_25-26",
-                "slug": "Groups_1_-4"
-            },
-            {
-                "name": "Groups 5 -8",
-                "season": "Allen_Cooper_25-26",
-                "slug": "Groups_5_-8"
             }
         ],
         "regions": [
