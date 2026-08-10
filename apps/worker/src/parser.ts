@@ -34,10 +34,20 @@ export function normalizePlayerName(name: string): string {
         }).join(' ');
     }
 
-    // Mixed case: capitalise individual all-lowercase words (length > 1)
+    // Mixed case: normalise each word individually.
+    // - All-lowercase words (length > 1) → capitalise first letter.
+    // - All-uppercase words (length > 1) → title case (first upper, rest lower).
+    //   Handles surnames like "MARTEAU" in "MARTEAU Berenice".
+    // - Words with mixed casing (e.g. "McEvoy", "O'Neill") are preserved.
     return collapsed.split(' ').map((word) => {
-        if (word.length > 1 && word === word.toLowerCase() && word !== word.toUpperCase()) {
+        if (word.length <= 1) return word;
+        const isWordAllLower = word === word.toLowerCase() && word !== word.toUpperCase();
+        const isWordAllUpper = word === word.toUpperCase() && word !== word.toLowerCase();
+        if (isWordAllLower) {
             return word.charAt(0).toUpperCase() + word.slice(1);
+        }
+        if (isWordAllUpper) {
+            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
         }
         return word;
     }).join(' ');

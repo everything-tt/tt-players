@@ -232,16 +232,195 @@ export async function reconcilePlayersByName(
         if (groupCreatedSuggestion) suggestedGroups += 1;
     }
 
+    // Same-platform pass: suggest merges for players with the same name
+    // who play in the same league on the same platform.
+    const samePlatform = await reconcileSamePlatformByLeague(db, logger);
+
     logger?.info(
-        `reconcilePlayersByName: applied ${applied.appliedLinks} confirmed links across ${applied.linkedGroups} groups, created ${suggestedLinks} suggestions across ${suggestedGroups} groups, remapped 0 rubber refs`,
+        `reconcilePlayersByName: applied ${applied.appliedLinks} confirmed links across ${applied.linkedGroups} groups, created ${suggestedLinks} cross-platform + ${samePlatform.suggestedLinks} same-platform suggestions, remapped 0 rubber refs`,
     );
 
     return {
         linkedGroups: applied.linkedGroups,
-        suggestedGroups,
-        suggestedLinks,
+        suggestedGroups: suggestedGroups + samePlatform.suggestedGroups,
+        suggestedLinks: suggestedLinks + samePlatform.suggestedLinks,
         remappedRubbers: 0,
     };
+}
+
+/**
+ * Generate identity suggestions for same-platform players who share the same
+ * normalized name AND have played in the same league. This catches cases where
+ * a single person has multiple source profiles (e.g. different TT365 player
+ * IDs across seasons in the same local league) that the cross-platform pass
+ * skips due to the same-platform guard.
+ *
+ * Suggestions use rule 'same-platform-same-league' with confidence 0.8.
+ * "Unknown Player" entries are excluded.
+ */
+const SAME_PLATFORM_SAME_LEAGUE_CONFIDENCE = 0.8;
+
+interface PlayerLeagueRow {
+    player_id: string;
+    platform_id: string;
+    external_id: string | null;
+    canonical_player_id: string;
+    name: string;
+    league_id: string;
+    league_name: string;
+}
+
+export async function reconcileSamePlatformByLeague(
+    db: Kysely<Database>,
+    logger?: ReconcileLogger,
+): Promise<{ suggestedGroups: number; suggestedLinks: number }> {
+    // Get all (player, league) pairs for active players with external_ids.
+    // Using UNION ALL to avoid OR conditions in joins.
+    const homePlayerLeagues = db
+        .selectFrom('external_players as ep')
+        .innerJoin('rubbers as r', 'r.home_player_1_id', 'ep.id')
+        .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
+        .innerJoin('competitions as c', 'c.id', 'f.competition_id')
+        .innerJoin('seasons as s', 's.id', 'c.season_id')
+        .innerJoin('leagues as l', 'l.id', 's.league_id')
+        .where('ep.deleted_at', 'is', null)
+        .where('r.deleted_at', 'is', null)
+        .where('ep.external_id', 'is not', null)
+        .where('ep.name', '!=', 'Unknown Player')
+        .select([
+            'ep.id as player_id',
+            'ep.platform_id as platform_id',
+            'ep.external_id as external_id',
+            'ep.canonical_player_id as canonical_player_id',
+            'ep.name as name',
+            'l.id as league_id',
+            'l.name as league_name',
+        ]);
+
+    const allPlayerLeagues = await db
+        .selectFrom('external_players as ep')
+        .innerJoin('rubbers as r', 'r.away_player_1_id', 'ep.id')
+        .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
+        .innerJoin('competitions as c', 'c.id', 'f.competition_id')
+        .innerJoin('seasons as s', 's.id', 'c.season_id')
+        .innerJoin('leagues as l', 'l.id', 's.league_id')
+        .where('ep.deleted_at', 'is', null)
+        .where('r.deleted_at', 'is', null)
+        .where('ep.external_id', 'is not', null)
+        .where('ep.name', '!=', 'Unknown Player')
+        .select([
+            'ep.id as player_id',
+            'ep.platform_id as platform_id',
+            'ep.external_id as external_id',
+            'ep.canonical_player_id as canonical_player_id',
+            'ep.name as name',
+            'l.id as league_id',
+            'l.name as league_name',
+        ])
+        .unionAll(homePlayerLeagues)
+        .execute() as PlayerLeagueRow[];
+
+    // Group by (platform_id, normalized_name, league_id) to find same-platform
+    // same-name same-league groups with multiple distinct canonicals.
+    const groups = new Map<string, PlayerLeagueRow[]>();
+    for (const row of allPlayerLeagues) {
+        const normName = normalizePlayerName(row.name);
+        if (!normName || !normName.includes(' ')) continue;
+        const key = `${row.platform_id}|${normName}|${row.league_id}`;
+        const bucket = groups.get(key) ?? [];
+        bucket.push(row);
+        groups.set(key, bucket);
+    }
+
+    let suggestedGroups = 0;
+    let suggestedLinks = 0;
+
+    for (const group of groups.values()) {
+        // Deduplicate by player_id (a player may have multiple rubbers in the same league)
+        const byPlayer = new Map<string, PlayerLeagueRow>();
+        for (const row of group) {
+            if (!byPlayer.has(row.player_id)) {
+                byPlayer.set(row.player_id, row);
+            }
+        }
+        const uniquePlayers = Array.from(byPlayer.values());
+        if (uniquePlayers.length < 2) continue;
+
+        // Check if they have different canonical_player_ids
+        const canonicalIds = new Set(uniquePlayers.map((p) => p.canonical_player_id));
+        if (canonicalIds.size < 2) continue;
+
+        // Pick canonical root: prefer the one with the most rubbers (most active)
+        const canonical = uniquePlayers.sort((a, b) =>
+            a.canonical_player_id < b.canonical_player_id ? -1 : 1,
+        )[0]!;
+
+        const leagueName = uniquePlayers[0]!.league_name;
+        let groupCreatedSuggestion = false;
+
+        for (const source of uniquePlayers) {
+            if (source.player_id === canonical.player_id) continue;
+            if (source.canonical_player_id === canonical.canonical_player_id) continue;
+
+            const existing = await db
+                .selectFrom('player_identity_decisions')
+                .select(['id', 'status'])
+                .where('source_player_id', '=', source.player_id)
+                .where('canonical_player_id', '=', canonical.player_id)
+                .executeTakeFirst();
+
+            if (existing?.status === 'confirmed' || existing?.status === 'rejected') {
+                continue;
+            }
+
+            const evidence: IdentityEvidence = {
+                rule: 'same-platform-same-league',
+                normalized_name: normalizePlayerName(source.name),
+                source_platform_id: source.platform_id,
+                canonical_platform_id: canonical.platform_id,
+                source_external_id: source.external_id,
+                canonical_external_id: canonical.external_id,
+                league_name: leagueName,
+                reason: 'Same normalized name on same platform in same league',
+            };
+
+            const now = new Date();
+            if (existing) {
+                await db
+                    .updateTable('player_identity_decisions')
+                    .set({
+                        confidence: SAME_PLATFORM_SAME_LEAGUE_CONFIDENCE,
+                        evidence,
+                        created_by: 'automatic',
+                        updated_at: now,
+                    })
+                    .where('id', '=', existing.id)
+                    .execute();
+            } else {
+                await db
+                    .insertInto('player_identity_decisions')
+                    .values({
+                        source_player_id: source.player_id,
+                        canonical_player_id: canonical.player_id,
+                        status: 'suggested',
+                        confidence: SAME_PLATFORM_SAME_LEAGUE_CONFIDENCE,
+                        evidence,
+                        created_by: 'automatic',
+                        updated_at: now,
+                    })
+                    .execute();
+                suggestedLinks += 1;
+                groupCreatedSuggestion = true;
+            }
+        }
+        if (groupCreatedSuggestion) suggestedGroups += 1;
+    }
+
+    logger?.info(
+        `reconcileSamePlatformByLeague: created ${suggestedLinks} same-platform suggestions across ${suggestedGroups} groups`,
+    );
+
+    return { suggestedGroups, suggestedLinks };
 }
 
 async function assertActivePlayers(

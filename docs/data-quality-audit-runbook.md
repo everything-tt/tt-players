@@ -2037,3 +2037,210 @@ the current pipeline.
 **Action:** Mark stale pending logs older than 2 hours as `failed`
 during cleanup. Do not flag as ERROR unless new pending logs are
 accumulating from currently active scraper paths.
+
+
+---
+
+## 33. Cross-Platform Identity Verification Techniques
+
+When reviewing `player_identity_decisions` with status `suggested`, the
+reconciler's evidence is limited to exact normalized name matching
+(rule: `exact-normalized-name`, confidence 0.65). Before confirming or
+rejecting a suggestion, the agent should gather corroborating evidence
+using the techniques below. The same techniques apply when reviewing
+candidates from CHECK IDENTITY-05.
+
+### 33.1 Evidence hierarchy
+
+From strongest to weakest:
+
+1. **Common opponents with matched canonical IDs** — both players have
+   faced the same opponents across different platforms, and those
+   opponents are already canonicalised across platforms. This is the
+   strongest evidence short of a shared governing-body ID.
+
+2. **Geographic match between tournament and league** — the Sport80
+   player's tournament venue is in the same town or region as the
+   league player's local league. For example, a Sport80 player in the
+   "Isle of Wight Mountbatten Charity" tournament and a TT365 player in
+   the "Isle of Wight Table Tennis League" are almost certainly the same
+   person.
+
+3. **Tournament opponents appearing in the same local league** — an
+   opponent from a Sport80 tournament also plays in the same local
+   league as the TT365/TT Leagues player. This links the two platforms
+   through a shared opponent even when no canonical-level match exists.
+
+4. **Temporal overlap** — both profiles have activity in overlapping
+   time periods. A 10-year gap between profiles weakens the case even
+   when the name matches.
+
+5. **Name distinctiveness** — unusual names (e.g. "Alessio Napolitano",
+   "Tencho Tsvetkov") provide strong evidence on their own. Common names
+   (e.g. "Michael Smith", "Peter Clarke") require corroborating evidence
+   from techniques 1–3.
+
+### 33.2 Verification queries
+
+#### Common opponents (canonical level)
+
+Finds opponents that both the source and canonical player have faced,
+where the opponent's `canonical_player_id` matches across both
+platforms. See the audit run for the full query.
+
+#### Common opponents (name level)
+
+When canonical-level matching returns zero results, check for opponents
+with the same normalized name on different platforms. This is weaker
+evidence but can confirm a match when combined with geographic evidence.
+
+#### League and tournament comparison
+
+```sql
+SELECT
+    ep.name, p.name AS platform, l.name AS league,
+    s.name AS season, COUNT(DISTINCT r.id) AS rubbers,
+    MIN(f.date_played) AS earliest, MAX(f.date_played) AS latest
+FROM external_players ep
+JOIN platforms p ON p.id = ep.platform_id
+JOIN rubbers r ON r.deleted_at IS NULL
+    AND (r.home_player_1_id = ep.id OR r.away_player_1_id = ep.id)
+JOIN fixtures f ON f.id = r.fixture_id
+JOIN competitions c ON c.id = f.competition_id
+JOIN seasons s ON s.id = c.season_id
+JOIN leagues l ON l.id = s.league_id
+WHERE ep.id IN ('<source_player_id>', '<canonical_player_id>')
+GROUP BY ep.id, ep.name, p.name, l.name, s.name
+ORDER BY ep.id, l.name, s.name;
+```
+
+This reveals the leagues and seasons each player has participated in.
+Look for:
+
+- Same town or region across platforms
+- Overlapping time periods
+- Tournament venues that match local league locations
+
+#### Sport80 tournament venue lookup
+
+```sql
+SELECT ep.name AS player, c.name AS competition, f.date_played
+FROM external_players ep
+JOIN rubbers r ON r.deleted_at IS NULL
+    AND (r.home_player_1_id = ep.id OR r.away_player_1_id = ep.id)
+JOIN fixtures f ON f.id = r.fixture_id
+JOIN competitions c ON c.id = f.competition_id
+WHERE ep.id = '<sport80_player_id>'
+GROUP BY ep.name, c.name, f.date_played
+ORDER BY f.date_played;
+```
+
+Sport80 competition names often include the venue location (e.g.
+"West Cornwall 1* Senior", "Woodford Wells Senior 1*",
+"Isle of Wight Mountbatten Charity Senior 1*"). Cross-reference the
+venue name with the league locations from the query above.
+
+#### Tournament opponents in local leagues
+
+```sql
+SELECT DISTINCT ep.name, p.name AS platform, l.name AS league
+FROM external_players ep
+JOIN platforms p ON p.id = ep.platform_id
+JOIN rubbers r ON r.deleted_at IS NULL
+    AND (r.home_player_1_id = ep.id OR r.away_player_1_id = ep.id)
+JOIN fixtures f ON f.id = r.fixture_id
+JOIN competitions c ON c.id = f.competition_id
+JOIN seasons s ON s.id = c.season_id
+JOIN leagues l ON l.id = s.league_id
+WHERE ep.deleted_at IS NULL
+  AND l.name = '<local_league_name>'
+  AND lower(trim(ep.name)) IN (
+      SELECT lower(trim(opp.name))
+      FROM rubbers r2
+      JOIN external_players opp ON opp.id = CASE
+          WHEN r2.home_player_1_id = '<sport80_player_id>' THEN r2.away_player_1_id
+          ELSE r2.home_player_1_id
+      END
+      WHERE r2.deleted_at IS NULL
+        AND (r2.home_player_1_id = '<sport80_player_id>'
+             OR r2.away_player_1_id = '<sport80_player_id>')
+  )
+ORDER BY ep.name;
+```
+
+If a Sport80 tournament opponent also plays in the same local league as
+the TT365/TT Leagues player, this links the two profiles through a
+shared social/competitive circle.
+
+### 33.3 Decision framework
+
+```
+Evidence gathered
+      |
+      v
+Common opponents (canonical) > 0?
+    YES → CONFIRM (strong evidence)
+    NO  → continue
+      |
+      v
+Geographic match (tournament venue = league location)?
+    YES → CONFIRM (strong evidence)
+    NO  → continue
+      |
+      v
+Tournament opponents in same local league?
+    YES → CONFIRM (moderate evidence)
+    NO  → continue
+      |
+      v
+Name is distinctive AND temporal overlap?
+    YES → CONFIRM (name distinctiveness suffices)
+    NO  → continue
+      |
+      v
+Common name AND no geographic/temporal evidence?
+    YES → REJECT or leave as suggested for manual review
+    NO  → use judgement, lean towards suggested
+```
+
+### 33.4 Split-source caution
+
+Some suggestions involve multiple source profiles on the same platform
+pointing to one canonical player on another platform. For example, two
+TT Leagues "Peter Rowe" profiles (one in West Cornwall, one in Lincoln)
+both suggested to merge with one Sport80 "Peter Rowe".
+
+In these cases, the geographic check may reveal that only one of the
+source profiles matches the canonical player's location. Confirm the
+matching source and reject the non-matching one separately.
+
+### 33.5 Documenting the decision
+
+When confirming or rejecting, update the `evidence` JSONB field with
+the reasoning:
+
+```sql
+-- Confirm with evidence
+UPDATE player_identity_decisions
+SET status = 'confirmed', confidence = 1, decided_at = now(),
+    evidence = jsonb_build_object(
+        'rule', 'manual-confirmation',
+        'reason', 'Sport80 tournament venue matches TT365 league location',
+        'tournament', 'West Cornwall 1* Senior',
+        'league', 'West Cornwall Table Tennis League',
+        'common_opponents_canonical', 0,
+        'geographic_match', true
+    )
+WHERE id = '<decision_id>';
+
+-- Reject with evidence
+UPDATE player_identity_decisions
+SET status = 'rejected', confidence = 0, decided_at = now(),
+    evidence = jsonb_build_object(
+        'rule', 'manual-rejection',
+        'reason', '8 separate canonical players with same name, no common opponents',
+        'common_opponents_canonical', 0,
+        'geographic_match', false
+    )
+WHERE id = '<decision_id>';
+```
