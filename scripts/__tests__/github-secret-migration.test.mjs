@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
@@ -18,6 +18,8 @@ const productionWorkflows = [
   'tte-calendar-sync.yml',
   'build.yml',
 ];
+
+const deferredWorkflows = new Set(['main-ui-audit.yml']);
 
 const sshWorkflows = [
   'vps-deploy.yml',
@@ -102,6 +104,27 @@ test('VPS runtime deployment uses the configured runtime reader service account'
 
   assert.match(source, /service_account:\s*\$\{\{\s*vars\.TT_PLAYERS_RUNTIME_SERVICE_ACCOUNT\s*\}\}/);
   assert.doesNotMatch(source, /TT_PLAYERS_RUNTIME_CONFIG_SERVICE_ACCOUNT/);
+});
+
+test('migrated workflows keep the documented same-repository preview exception as their only custom secret', () => {
+  const references = [];
+  for (const name of readdirSync(workflowDir).filter((file) => file.endsWith('.yml'))) {
+    if (deferredWorkflows.has(name)) continue;
+    const source = readWorkflow(name);
+    for (const match of source.matchAll(/\$\{\{\s*secrets\.([A-Z0-9_]+)\s*\}\}/g)) {
+      references.push({ name, secret: match[1] });
+    }
+  }
+
+  assert.deepEqual(
+    references.filter(({ secret }) => secret !== 'GITHUB_TOKEN'),
+    [
+      { name: 'build.yml', secret: 'NETLIFY_AUTH_TOKEN' },
+      { name: 'build.yml', secret: 'NETLIFY_AUTH_TOKEN' },
+    ],
+  );
+  assert.doesNotMatch(readWorkflow('design-system-package.yml'), /secrets\.GITHUB_TOKEN/);
+  assert.match(readWorkflow('design-system-package.yml'), /github\.token/);
 });
 
 test('Main UI Audit remains on its existing credentials until separately migrated', () => {
