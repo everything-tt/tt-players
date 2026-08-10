@@ -37,9 +37,35 @@ async function fetchManualTournamentSubmissions(accessToken: string): Promise<Ma
   return payload;
 }
 
+function sessionCacheKey(accessToken: string | null | undefined): string {
+  if (!accessToken) return 'signed-out';
+
+  try {
+    const payload = accessToken.split('.')[1];
+    if (payload) {
+      const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+      const decoded = JSON.parse(atob(padded)) as { sub?: unknown };
+      if (typeof decoded.sub === 'string' && decoded.sub) {
+        return `user:${decoded.sub}`;
+      }
+    }
+  } catch {
+    // A Supabase access token is normally a JWT. Keep the fallback user/session-specific
+    // without placing the bearer token itself in the React Query cache key.
+  }
+
+  let hash = 2166136261;
+  for (let index = 0; index < accessToken.length; index += 1) {
+    hash ^= accessToken.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `session:${(hash >>> 0).toString(36)}`;
+}
+
 export function useManualTournamentSubmissions(accessToken: string | null | undefined, enabled = true) {
   const query = useQuery({
-    queryKey: ['events', 'manual-submissions', accessToken ? 'signed-in' : 'signed-out'],
+    queryKey: ['events', 'manual-submissions', sessionCacheKey(accessToken)],
     queryFn: () => fetchManualTournamentSubmissions(accessToken!),
     enabled: Boolean(accessToken) && enabled,
     refetchInterval: (currentQuery) => {
