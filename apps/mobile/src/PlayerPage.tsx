@@ -42,7 +42,6 @@ type PlayerMatchFilter =
       kind: 'team';
       id: string;
       label: string;
-      sourceLabel: string;
     }
   | {
       kind: 'tournament';
@@ -160,8 +159,10 @@ export function PlayerPage() {
   const filteredMatchesState = usePagedPlayerMatches({
     playerId,
     source: matchFilter?.kind === 'tournament' ? 'tournament' : 'league',
+    teamId: matchFilter?.kind === 'team' ? matchFilter.id : undefined,
+    eventId: matchFilter?.kind === 'tournament' ? matchFilter.id : undefined,
     enabled: Boolean(playerId) && Boolean(matchFilter),
-    pageSize: 100,
+    pageSize: 20,
   });
   const tournamentsQuery = usePlayerTournamentSummariesQuery(
     playerId,
@@ -184,20 +185,7 @@ export function PlayerPage() {
   const tournamentSummariesLoading = tournamentsQuery.isLoading;
   const tournamentSummariesError = tournamentsQuery.error instanceof Error ? tournamentsQuery.error.message : null;
 
-  const filteredMatches = useMemo(() => {
-    if (!matchFilter) return [];
-
-    if (matchFilter.kind === 'team') {
-      return filteredMatchesState.matches.filter((match) => (
-        match.source === 'league'
-        && (match.source_label ?? match.league) === matchFilter.sourceLabel
-      ));
-    }
-
-    return filteredMatchesState.matches.filter((match) => match.event_id === matchFilter.id);
-  }, [filteredMatchesState.matches, matchFilter]);
-
-  const displayedMatches = matchFilter ? filteredMatches : recentMatchesState.matches;
+  const displayedMatches = matchFilter ? filteredMatchesState.matches : recentMatchesState.matches;
   const displayedMatchesState = matchFilter ? filteredMatchesState : recentMatchesState;
 
   const winRate = useMemo(() => {
@@ -354,8 +342,7 @@ export function PlayerPage() {
                     {affiliations.map((affiliation: any) => {
                       const sourceLabel = `${affiliation.league_name} · ${affiliation.competition_name}`;
                       const isActive = matchFilter?.kind === 'team'
-                        && matchFilter.id === affiliation.team_id
-                        && matchFilter.sourceLabel === sourceLabel;
+                        && matchFilter.id === affiliation.team_id;
 
                       return (
                         <ListItem
@@ -368,7 +355,6 @@ export function PlayerPage() {
                             kind: 'team',
                             id: affiliation.team_id,
                             label: affiliation.team_name,
-                            sourceLabel,
                           })}
                           trailing={(
                             <AppButton
@@ -449,7 +435,7 @@ export function PlayerPage() {
                 </h2>
                 <span className="tt-player-section-note">
                   {matchFilter
-                    ? `${displayedMatches.length} matching`
+                    ? `${displayedMatchesState.total} matching`
                     : recentMatchesState.total > 0
                       ? `${recentMatchesState.matches.length} of ${recentMatchesState.total}`
                       : 'Latest results'}
@@ -476,7 +462,6 @@ export function PlayerPage() {
                 isLoadingMore={displayedMatchesState.isLoadingMore}
                 error={displayedMatchesState.error}
                 quickJournalEnabled={isCurrentUser}
-                showCount={!matchFilter}
                 onOpenMatch={openMatch}
                 onOpenOpponent={openOpponent}
                 onQuickJournal={openQuickJournal}
