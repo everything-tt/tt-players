@@ -411,8 +411,8 @@ export function MyTTPage() {
                 </span>
               </div>
               {!auth.user && auth.isConfigured ? (
-                <AppButton size="s" tone="ghost" onClick={() => { void auth.signInWithGoogle(); }}>
-                  <i className="fab fa-google" aria-hidden="true" />
+                <AppButton size="s" tone="ghost" onClick={() => navigateInTab('home', 'sign-in')}>
+                  <i className="fa fa-angle-right" aria-hidden="true" />
                   Sign in to sync
                 </AppButton>
               ) : null}

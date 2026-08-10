@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { TAB_METADATA } from '../player-shared';
 import type { AppTabId } from '../navigation/tab-navigation';
 import { AppDrawer, AppSwitch } from '../ui/appkit';
@@ -44,6 +44,7 @@ export function MainDrawer({
   onThemeChange,
 }: MainDrawerProps) {
   const auth = useAuth();
+  const navigate = useNavigate();
   const location = useLocation();
   const { canUpdate, updateApp } = usePWAInstallContext();
   const currentPath = `${location.pathname}${location.search}${location.hash}`;
@@ -176,14 +177,17 @@ export function MainDrawer({
                     <i className="fa fa-angle-right" aria-hidden="true" />
                   </button>
                 </>
-              ) : (
-                <button
-                  type="button"
-                  className="tt-drawer__row"
-                  onClick={() => { void auth.signInWithGoogle(); }}
-                >
+                ) : (
+                  <button
+                    type="button"
+                    className="tt-drawer__row"
+                    onClick={() => {
+                      onClose();
+                      navigate(`/tabs/${activeTab}/sign-in`);
+                    }}
+                  >
                   <i className="fa fa-sign-in-alt" aria-hidden="true" />
-                  <span>Sign in with Google</span>
+                  <span>Sign in</span>
                   <i className="fa fa-angle-right" aria-hidden="true" />
                 </button>
               )}

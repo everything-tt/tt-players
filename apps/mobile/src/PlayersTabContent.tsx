@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { FavouriteButton } from './components/FavouriteButton';
 import { RatingPulse } from './components/RatingPulse';
 import { useFavouritePlayers } from './hooks/useFavouritePlayers';
@@ -40,7 +40,6 @@ export function PlayersTabContent({ onOpenPlayer }: PlayersTabContentProps) {
   const search = useSearch({ minLength: 3, resetOnDisable: false });
   const { player: myPlayer } = useMyPlayer();
   const { players: favouritePlayers, isFavourite, toggle: toggleFavourite } = useFavouritePlayers();
-  const [followingLimit, setFollowingLimit] = useState(PAGE_SIZE);
   const mode = getPlayersTabMode(search.normalizedQuery);
   const followedIds = useMemo(
     () => getFollowedPlayerIds(favouritePlayers, myPlayer?.id),
@@ -52,7 +51,6 @@ export function PlayersTabContent({ onOpenPlayer }: PlayersTabContentProps) {
       .map((playerId) => playersById.get(playerId))
       .filter((player): player is NonNullable<typeof player> => Boolean(player));
   }, [favouritePlayers, followedIds]);
-  const visibleFollowedPlayers = followedPlayers.slice(0, followingLimit);
 
   const searchList = usePlayerList({
     search: search.debouncedQuery,
@@ -94,21 +92,7 @@ export function PlayersTabContent({ onOpenPlayer }: PlayersTabContentProps) {
       );
     }
 
-    const visibleCount = visibleFollowedPlayers.length;
-    return (
-      <>
-        {renderRows(visibleFollowedPlayers)}
-        <InfiniteListFooter
-          hasMore={visibleCount < followedPlayers.length}
-          isLoading={false}
-          autoLoad
-          onLoadMore={() => setFollowingLimit((current) => Math.min(current + PAGE_SIZE, followedPlayers.length))}
-          loadLabel="Load more followed players"
-          loadingLabel="Loading more followed players…"
-          endLabel={`All ${visibleCount} followed ${visibleCount === 1 ? 'player' : 'players'} shown`}
-        />
-      </>
-    );
+    return renderRows(followedPlayers);
   };
 
   const renderSearchResults = () => {
@@ -138,7 +122,7 @@ export function PlayersTabContent({ onOpenPlayer }: PlayersTabContentProps) {
           onLoadMore={searchList.loadMore}
           loadLabel={searchList.error ? 'Retry loading players' : 'Load more players'}
           loadingLabel="Loading more players…"
-          endLabel={`All ${searchList.items.length} players shown`}
+          endLabel={searchList.items.length > PAGE_SIZE ? `All ${searchList.items.length} players shown` : undefined}
         />
       </>
     );

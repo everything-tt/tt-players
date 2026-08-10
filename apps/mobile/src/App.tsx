@@ -296,7 +296,7 @@ function App() {
 
             <TabFooterBar reselectBehavior="root" />
 
-            <main className="page-content app-shell-content tt-root-content">
+            <main className="page-content app-shell-content tt-page-content tt-root-content">
               {activeTab === 'home' ? (
                 <HomeTabContent
                   allLeagues={allLeagues}

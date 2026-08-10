@@ -21,13 +21,11 @@ import {
   DesignAvatar,
   DesignList,
   EmptyState,
-  EntityHero,
   ErrorState,
   FilterBar,
   IconCircle,
   ListItem,
   MatchRecordRow,
-  MetricGrid,
   OutcomeBadge,
   PageSection,
   Pill,
@@ -55,12 +53,6 @@ interface PulsePlayerView {
   trailing: ReactNode;
 }
 
-type DateParts = {
-  weekday: string;
-  day: string;
-  month: string;
-};
-
 function parseDate(value: string | null): Date | null {
   if (!value) return null;
   const date = new Date(`${value}T12:00:00`);
@@ -71,16 +63,6 @@ function formatDate(value: string | null): string {
   const date = parseDate(value);
   if (!date) return 'Date unavailable';
   return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(date);
-}
-
-function formatDateParts(value: string | null): DateParts {
-  const date = parseDate(value);
-  if (!date) return { weekday: 'TBD', day: '—', month: '' };
-  return {
-    weekday: new Intl.DateTimeFormat('en-GB', { weekday: 'short' }).format(date).toUpperCase(),
-    day: new Intl.DateTimeFormat('en-GB', { day: 'numeric' }).format(date),
-    month: new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(date).toUpperCase(),
-  };
 }
 
 function fixtureHasTeam(fixture: UpcomingFixture, teamNames: Set<string>): boolean {
@@ -139,38 +121,6 @@ function SectionAction({
   );
 }
 
-function UpcomingDate({ value }: { value: string | null }) {
-  const parts = formatDateParts(value);
-  return (
-    <span className="tt-leagues-date" aria-label={formatDate(value)}>
-      <span className="tt-leagues-date__weekday">{parts.weekday}</span>
-      <strong className="tt-leagues-date__day">{parts.day}</strong>
-      <span className="tt-leagues-date__month">{parts.month}</span>
-    </span>
-  );
-}
-
-function FixtureMetadata({
-  division,
-  side,
-  personal,
-  favourite,
-}: {
-  division: string;
-  side: 'Home' | 'Away' | null;
-  personal: boolean;
-  favourite: boolean;
-}) {
-  return (
-    <span className="tt-leagues-fixture-meta">
-      <span>{division}</span>
-      {side ? <span>{side}</span> : null}
-      {personal ? <Pill size="xs" tone="success">Your team</Pill> : null}
-      {!personal && favourite ? <Pill size="xs" tone="neutral">Favourite</Pill> : null}
-    </span>
-  );
-}
-
 function LeagueTrailing({
   personal,
   upcoming,
@@ -187,12 +137,12 @@ function LeagueTrailing({
   );
 }
 
-function PulseTitle({ name, personal, rank }: { name: string; personal: boolean; rank: number }) {
-  if (!personal) return name;
+function PulseTitle({ name, personal }: { name: string; personal: boolean; rank?: number }) {
+  if (!personal) return <>{name}</>;
   return (
     <span className="tt-leagues-you-title">
-      <strong>You</strong>
-      <span>· #{rank}</span>
+      <span>{name}</span>
+      <Pill size="xs" tone="accent">You</Pill>
     </span>
   );
 }
@@ -209,7 +159,6 @@ export function LeaguesTabContent({
 
   const [performanceMode, setPerformanceMode] = useState<PerformanceMode>('players');
   const [playerMode, setPlayerMode] = useState<PlayerMode>('ranked');
-  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
   const [showAllPulse, setShowAllPulse] = useState(false);
   const [showAllLeagues, setShowAllLeagues] = useState(false);
   const [showAllResults, setShowAllResults] = useState(false);
@@ -381,7 +330,6 @@ export function LeaguesTabContent({
     ?? (personalPlayed > 0 ? (personalWins / personalPlayed) * 100 : 0);
   const recentForm = profileQuery.data?.form.recent_results.slice(0, 6) ?? [];
 
-  const upcomingRows = prioritizedUpcoming.slice(0, showAllUpcoming ? prioritizedUpcoming.length : 3);
   const leagueRows = orderedLeagues.slice(0, showAllLeagues ? orderedLeagues.length : 3);
   const recentRows = (dashboard?.recent_results ?? []).slice(0, showAllResults ? 8 : 3);
   const teamRows = (dashboard?.top_teams ?? []).slice(0, showAllPulse ? 8 : 4);
@@ -389,31 +337,45 @@ export function LeaguesTabContent({
   return (
     <div className="tt-leagues-dashboard">
       {visibleLeagues.length > 0 ? (
-        <EntityHero
-          className="tt-leagues-dashboard-hero"
-          eyebrow="Active season"
-          title="Your leagues"
-          headingLevel={2}
-          subtitle={`${visibleLeagues.length} selected league${visibleLeagues.length === 1 ? '' : 's'} · Player and team performance`}
-          actions={(
+        <div className="tt-leagues-hero-card">
+          <div className="tt-leagues-hero-card__header">
+            <div className="tt-leagues-hero-card__main">
+              <span className="tt-leagues-hero-card__eyebrow">Active season</span>
+              <h2>Your leagues</h2>
+              <p>{visibleLeagues.length} selected league{visibleLeagues.length === 1 ? '' : 's'} · Player and team performance</p>
+            </div>
             <AppButton size="s" tone="outline" onClick={onOpenLeagueSelector}>
               <i className="fa fa-cog" aria-hidden="true" />
               Manage leagues
             </AppButton>
-          )}
-          highlights={dashboard ? (
-            <MetricGrid
-              density="compact"
-              columns={4}
-              metrics={[
-                { label: 'Divisions', value: formatNumber(dashboard.totals.divisions) },
-                { label: 'Teams', value: formatNumber(dashboard.totals.teams) },
-                { label: 'Played', value: formatNumber(dashboard.totals.matches_played) },
-                { label: 'Upcoming', value: formatNumber(dashboard.totals.upcoming_fixtures) },
-              ]}
-            />
+          </div>
+
+          {dashboard ? (
+            <div className="tt-leagues-hero-card__stats">
+              <div className="tt-leagues-hero-stat">
+                <i className="fa fa-sitemap" aria-hidden="true" />
+                <div className="tt-leagues-hero-stat__body">
+                  <strong>{formatNumber(dashboard.totals.divisions)}</strong>
+                  <span>Divisions</span>
+                </div>
+              </div>
+              <div className="tt-leagues-hero-stat">
+                <i className="fa fa-shield-alt" aria-hidden="true" />
+                <div className="tt-leagues-hero-stat__body">
+                  <strong>{formatNumber(dashboard.totals.teams)}</strong>
+                  <span>Teams</span>
+                </div>
+              </div>
+              <div className="tt-leagues-hero-stat">
+                <i className="fa fa-table-tennis" aria-hidden="true" />
+                <div className="tt-leagues-hero-stat__body">
+                  <strong>{formatNumber(dashboard.totals.matches_played)}</strong>
+                  <span>Played</span>
+                </div>
+              </div>
+            </div>
           ) : null}
-        />
+        </div>
       ) : null}
 
       {selectedLeagueIds.length === 0 ? (
@@ -449,7 +411,6 @@ export function LeaguesTabContent({
               surface="flat"
               density="compact"
               title="Your season"
-              meta={<Pill size="xs" tone="success">You</Pill>}
               action={(
                 <AppButton size="s" tone="ghost" onClick={() => navigateInTab('players', `player/${myPlayer.id}`)}>
                   View your profile
@@ -475,7 +436,7 @@ export function LeaguesTabContent({
                   />
                 </DesignList>
               ) : (
-                <>
+                <div className="tt-leagues-season-card">
                   <div className="tt-leagues-season__profile">
                     <DesignAvatar
                       size="hero"
@@ -484,37 +445,38 @@ export function LeaguesTabContent({
                     <div className="tt-leagues-season__identity">
                       <strong>{profileQuery.data?.player_name ?? myPlayer.name}</strong>
                       <span>{primaryAffiliation?.team_name} · {primaryAffiliation?.competition_name}</span>
-                      <span className="tt-leagues-season__team-tag">
-                        <i className="fa fa-users" aria-hidden="true" />
-                        Your team
-                      </span>
+                    </div>
+                    <div className="tt-leagues-season__badge">
+                      <Pill tone="accent">{Math.round(personalWinRate)}% Win Rate</Pill>
                     </div>
                   </div>
 
-                  <div className="tt-leagues-season__summary">
-                    <MetricGrid
-                      density="compact"
-                      columns={4}
-                      ariaLabel="Your selected-league season record"
-                      metrics={[
-                        { label: 'Played', value: personalPlayed },
-                        { label: 'Wins', value: personalWins },
-                        { label: 'Losses', value: personalLosses },
-                        { label: 'Win rate', value: `${Math.round(personalWinRate)}%` },
-                      ]}
-                    />
-                    <div className="tt-leagues-season__form">
-                      <span>Recent form (last {recentForm.length || 0})</span>
-                      {recentForm.length > 0 ? (
-                        <div className="tt-leagues-form-strip" aria-label="Recent form">
-                          {recentForm.map((result, index) => (
-                            <OutcomeBadge key={`${result}-${index}`} result={result} variant="badge" />
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="tt-leagues-muted">No recent singles</span>
-                      )}
+                  <div className="tt-leagues-season__stat-bar">
+                    <div className="tt-leagues-season__stat-item">
+                      <strong>{personalPlayed}</strong>
+                      <span>Played</span>
                     </div>
+                    <div className="tt-leagues-season__stat-item">
+                      <strong className="tt-text-success">{personalWins}</strong>
+                      <span>Wins</span>
+                    </div>
+                    <div className="tt-leagues-season__stat-item">
+                      <strong className="tt-text-danger">{personalLosses}</strong>
+                      <span>Losses</span>
+                    </div>
+                  </div>
+
+                  <div className="tt-leagues-season__form">
+                    <span>Recent form (last {recentForm.length || 0})</span>
+                    {recentForm.length > 0 ? (
+                      <div className="tt-leagues-form-strip" aria-label="Recent form">
+                        {recentForm.map((result, index) => (
+                          <OutcomeBadge key={`${result}-${index}`} result={result} variant="badge" />
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="tt-leagues-muted">No recent singles</span>
+                    )}
                   </div>
 
                   {personalNextFixture ? (
@@ -529,7 +491,7 @@ export function LeaguesTabContent({
                       </DesignList>
                     </div>
                   ) : null}
-                </>
+                </div>
               )}
             </PageSection>
           ) : (
@@ -556,49 +518,6 @@ export function LeaguesTabContent({
               </DesignList>
             </PageSection>
           )}
-
-          <PageSection
-            surface="flat"
-            density="compact"
-            title="Coming up"
-            action={(
-              <SectionAction
-                expanded={showAllUpcoming}
-                total={prioritizedUpcoming.length}
-                collapsedCount={3}
-                onClick={() => setShowAllUpcoming((value) => !value)}
-              />
-            )}
-            className="tt-leagues-dashboard-section tt-leagues-upcoming"
-          >
-            {upcomingRows.length > 0 ? (
-              <DesignList density="compact" divider="hairline" paginate={false}>
-                {upcomingRows.map((fixture) => {
-                  const personal = fixtureHasTeam(fixture, personalTeamNames);
-                  const favourite = fixtureHasTeam(fixture, favouriteTeamNames);
-                  return (
-                    <ListItem
-                      key={fixture.fixture_id}
-                      className="tt-leagues-upcoming-row"
-                      leading={<UpcomingDate value={fixture.date_played} />}
-                      title={formatFixtureTeams(fixture.home_team_name, fixture.away_team_name)}
-                      subtitle={(
-                        <FixtureMetadata
-                          division={fixture.division_name}
-                          side={fixtureSide(fixture, personalTeamNames)}
-                          personal={personal}
-                          favourite={favourite}
-                        />
-                      )}
-                      onClick={() => navigateInTab('leagues', `fixture/${fixture.fixture_id}`)}
-                    />
-                  );
-                })}
-              </DesignList>
-            ) : (
-              <EmptyState iconClassName="fa fa-calendar" title="Nothing scheduled" message="Upcoming fixtures from selected leagues will appear here." />
-            )}
-          </PageSection>
 
           <PageSection
             surface="flat"

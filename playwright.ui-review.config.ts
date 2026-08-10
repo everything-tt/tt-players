@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // First-visit discovery and returning-user story briefing review.
-  testMatch: 'zz-home-story-briefing.pw.ts',
+  // Signed-out section tune down and dedicated sign-in page review.
+  testMatch: 'zz-signed-out-sign-in-page.pw.ts',
 
   timeout: 120_000,
   expect: {
