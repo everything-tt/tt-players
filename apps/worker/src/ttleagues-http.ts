@@ -33,7 +33,7 @@ function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function isTTLeaguesUrl(input: RequestInfo | URL): boolean {
+export function isTTLeaguesUrl(input: RequestInfo | URL): boolean {
     let hostname: string;
     if (typeof input === 'string') {
         try {
@@ -69,9 +69,16 @@ function parseRetryAfterMs(header: string | null): number | null {
     return null;
 }
 
-function backoffDelayMs(attemptIndex: number, retryAfterHeader: string | null): number {
+function rateLimitDelayMs(retryAfterHeader: string | null): number {
     const retryAfterMs = parseRetryAfterMs(retryAfterHeader);
     if (retryAfterMs !== null) return retryAfterMs;
+
+    // The previous bundled scraper used a known-good 5s delay for 429s.
+    // Preserve that conservative fallback when the upstream omits Retry-After.
+    return envNumber('TTL_FETCH_429_RETRY_DELAY_MS', 5000);
+}
+
+function backoffDelayMs(attemptIndex: number): number {
     const baseMs = envNumber('TTL_FETCH_BACKOFF_BASE_MS', 1500);
     const jitterMs = envNumber('TTL_FETCH_BACKOFF_JITTER_MS', 250);
     return baseMs * (2 ** attemptIndex) + Math.floor(Math.random() * jitterMs);
@@ -82,7 +89,7 @@ function isRetryableError(error: unknown): boolean {
         && (error.name === 'AbortError' || error instanceof TypeError);
 }
 
-async function runTTLeaguesRateLimited<T>(fn: () => Promise<T>): Promise<T> {
+async function runTTLeaguesRateLimited(fn: () => Promise<Response>): Promise<Response> {
     let releaseQueue: (() => void) | null = null;
     const previous = ttlQueue;
     ttlQueue = new Promise<void>((resolve) => {
@@ -95,9 +102,20 @@ async function runTTLeaguesRateLimited<T>(fn: () => Promise<T>): Promise<T> {
         if (waitMs > 0) {
             await sleep(waitMs);
         }
+
         const minIntervalMs = envNumber('TTL_FETCH_MIN_INTERVAL_MS', 400);
         ttlNextAllowedAt = Date.now() + Math.max(0, minIntervalMs);
-        return await fn();
+
+        const response = await fn();
+        if (response.status === 429) {
+            // Apply the server-requested/fallback cooldown before releasing the
+            // queue so every caller in this process observes the same backoff.
+            ttlNextAllowedAt = Math.max(
+                ttlNextAllowedAt,
+                Date.now() + rateLimitDelayMs(response.headers.get('retry-after')),
+            );
+        }
+        return response;
     } finally {
         if (releaseQueue) {
             (releaseQueue as () => void)();
@@ -141,8 +159,9 @@ async function fetchWithTimeout(
 /**
  * Applies polite request policy to TT Leagues API endpoints:
  * - global in-process request spacing (default 400ms)
+ * - process-wide 429 cooldown (Retry-After, or 5s fallback)
  * - timeout guard
- * - bounded retry for transient statuses (429/5xx) with Retry-After support
+ * - bounded retry for transient statuses (429/5xx)
  *
  * Non-TT-Leagues URLs are fetched directly with no policy changes.
  */
@@ -176,15 +195,25 @@ export async function fetchWithTTLeaguesPolicy(
                 // Ignore body drain failures; we're retrying anyway.
             }
 
-            await sleep(backoffDelayMs(attempt - 1, response.headers.get('retry-after')));
+            // A 429 already extended the process-wide queue cooldown. The next
+            // attempt will wait there, allowing other callers to share the same
+            // upstream backoff rather than each sleeping independently.
+            if (response.status !== 429) {
+                await sleep(backoffDelayMs(attempt - 1));
+            }
         } catch (error) {
             lastError = error;
             if (!isRetryableError(error) || attempt === maxAttempts) {
                 throw error;
             }
-            await sleep(backoffDelayMs(attempt - 1, null));
+            await sleep(backoffDelayMs(attempt - 1));
         }
     }
 
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+export function __resetTTLeaguesHttpForTests(): void {
+    ttlQueue = Promise.resolve();
+    ttlNextAllowedAt = 0;
 }
