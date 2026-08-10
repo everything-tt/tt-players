@@ -1,7 +1,3 @@
-.tt-common-opponents-page {
-  padding-bottom: calc(24px + env(safe-area-inset-bottom));
-}
-
 .tt-common-opponents-controls {
   align-items: end;
   display: flex;
