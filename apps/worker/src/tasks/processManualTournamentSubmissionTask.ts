@@ -2,6 +2,10 @@ import type { Task } from 'graphile-worker';
 import type { Kysely } from 'kysely';
 import { db } from '@tt-players/db';
 import { syncTournamentEntryFormInspection } from '../entry-form-inspection.js';
+import {
+    applyManualTournamentSourceResolution,
+    resolveManualTournamentSource,
+} from '../manual-tournament-source-resolution.js';
 import { finalizeManualTournamentSubmission } from '../manual-tournament-submission.js';
 
 export interface ProcessManualTournamentSubmissionPayload {
@@ -74,11 +78,20 @@ export const processManualTournamentSubmissionTask: Task = async (payload, helpe
         return;
     }
 
+    const now = new Date();
+    const resolution = await resolveManualTournamentSource(competition.entry_url);
+    await applyManualTournamentSourceResolution(database, competitionId, resolution);
+    if (resolution.tteEvent) {
+        helpers.logger.info(
+            `processManualTournamentSubmissionTask: resolved TTE event page to ${resolution.entryUrl}`,
+        );
+    }
+
     const inspection = await syncTournamentEntryFormInspection(
         database,
         competitionId,
-        competition.entry_url,
-        new Date(),
+        resolution.entryUrl,
+        now,
         { force: true },
     );
 
@@ -95,7 +108,7 @@ export const processManualTournamentSubmissionTask: Task = async (payload, helpe
         return;
     }
 
-    const finalization = await finalizeManualTournamentSubmission(database, competitionId);
+    const finalization = await finalizeManualTournamentSubmission(database, competitionId, now);
     if (finalization.status === 'published' || finalization.status === 'merged') {
         await markSubmissionStatus(
             database,
