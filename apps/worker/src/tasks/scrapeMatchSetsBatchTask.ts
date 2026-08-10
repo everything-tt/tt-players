@@ -25,7 +25,9 @@ type TaskHelpers = Parameters<Task>[1];
 
 const TTL_API_BASE = 'https://ttleagues-api.azurewebsites.net/api';
 const TTL_SETS_FETCH_TIMEOUT_MS = Number(
-    process.env['TTL_SETS_FETCH_TIMEOUT_MS'] ?? '12000',
+    process.env['TTL_SETS_FETCH_TIMEOUT_MS']
+    ?? process.env['TTL_FETCH_TIMEOUT_MS']
+    ?? '15000',
 );
 const TTL_SETS_FETCH_DELAY_MS = Number(
     process.env['TTL_SETS_FETCH_DELAY_MS'] ?? '250',
