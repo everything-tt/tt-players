@@ -14,13 +14,6 @@ const inlineGeometryAllowlist = new Set([
   'H2HTabContent.tsx',
 ]);
 
-/* App.tsx owns the root-tab composition and is the only remaining mobile
- * screen allowed to use the legacy app-shell-content hook directly. Detail
- * routes must go through AppPageContent. */
-const legacyRawPageContentAllowlist = new Set([
-  'App.tsx',
-]);
-
 /* These files pre-date the package split and still act as canonical legacy
  * sources. New application CSS files must not be added here. */
 const legacyCanonicalCssOwners = new Set([
@@ -169,8 +162,8 @@ export function inspectTsxSource(relative, source) {
     }
   }
 
-  if (!legacyRawPageContentAllowlist.has(relative) && /\bapp-shell-content\b/.test(source)) {
-    failures.push(`${relative}: use AppPageContent instead of the legacy app-shell-content hook`);
+  if (/\bapp-shell-content\b/.test(source)) {
+    failures.push(`${relative}: use AppPageContent/design-system shell classes instead of the legacy app-shell-content hook`);
   }
 
   return { failures };
