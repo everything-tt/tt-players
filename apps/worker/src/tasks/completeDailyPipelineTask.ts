@@ -34,6 +34,13 @@ export interface DailyPipelinePayload {
     manual?: boolean;
 }
 
+export interface DailyPipelineInvocation {
+    /** Graphile Worker job ID, used to keep same-day manual runs distinct. */
+    jobId: string;
+    /** Time the Graphile Worker job was enqueued. */
+    createdAt: Date;
+}
+
 export interface IngestionQueueState {
     pending: number;
     failed: number;
@@ -88,12 +95,19 @@ function positiveIntegerEnvironment(name: string, fallback: number): number {
 export function normalizeDailyPipelinePayload(
     payload: DailyPipelinePayload | null | undefined,
     now: Date,
+    invocation?: DailyPipelineInvocation,
 ): Required<DailyPipelinePayload> {
-    const defaultRunKey = now.toISOString().slice(0, 10);
     const manual = payload?.manual ?? false;
-    const runKey = payload?.runKey || (manual ? `${defaultRunKey}-manual` : defaultRunKey);
+    const defaultRunKey = now.toISOString().slice(0, 10);
+    const manualTriggerTime = invocation?.createdAt ?? now;
+    const manualRunSuffix = invocation?.jobId ?? String(manualTriggerTime.getTime());
+    const runKey = payload?.runKey || (
+        manual
+            ? `${manualTriggerTime.toISOString().slice(0, 10)}-manual-${manualRunSuffix}`
+            : defaultRunKey
+    );
     const windowStart = payload?.windowStart
-        || (manual ? now.toISOString() : `${runKey}T00:00:00.000Z`);
+        || (manual ? manualTriggerTime.toISOString() : `${runKey}T00:00:00.000Z`);
     const stage = payload?.stage || 'wait-for-ingestion';
 
     if (!['wait-for-ingestion', 'reconcile', 'ratings', 'read-models'].includes(stage)) {
@@ -415,6 +429,10 @@ export const completeDailyPipelineTask: Task = async (payload, helpers) => {
     const normalized = normalizeDailyPipelinePayload(
         payload as DailyPipelinePayload | null | undefined,
         productionDependencies.now(),
+        {
+            jobId: helpers.job.id,
+            createdAt: helpers.job.created_at,
+        },
     );
     const log = (message: string) => helpers.logger.info(message);
 
