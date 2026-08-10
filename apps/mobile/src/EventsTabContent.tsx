@@ -28,13 +28,11 @@ import {
   readTournamentPreferences,
   writeTournamentPreferences,
 } from './tournament-preferences';
+import { TournamentListPicker } from './TournamentListPicker';
 import {
   AppButton,
-  AppListGroup,
-  AppListItem,
   AppSearchInput,
   AppToggleButton,
-  BottomSheet,
   DesignList,
   EmptyState,
   ErrorState,
@@ -753,39 +751,13 @@ export function EventsTabContent() {
         />
       )}
 
-      <BottomSheet
+      <TournamentListPicker
         isOpen={listPickerOpen}
+        value={listScope}
+        showSubmissions={Boolean(auth.session)}
         onClose={() => setListPickerOpen(false)}
-        title="Tournament list"
-        description="Choose which tournaments you want to see."
-        height="360px"
-      >
-        <AppListGroup size="large">
-          <AppListItem
-            iconClassName="fa fa-list-ul"
-            title="All tournaments"
-            subtitle="Browse every published tournament"
-            trailingElement={listScope === 'all' ? <i className="fa fa-check" aria-hidden="true" /> : null}
-            onClick={() => chooseListScope('all')}
-          />
-          <AppListItem
-            iconClassName="fa fa-heart"
-            title="Saved"
-            subtitle="Tournaments you’ve saved"
-            trailingElement={listScope === 'saved' ? <i className="fa fa-check" aria-hidden="true" /> : null}
-            onClick={() => chooseListScope('saved')}
-          />
-          {auth.session ? (
-            <AppListItem
-              iconClassName="fa fa-upload"
-              title="My submissions"
-              subtitle="Track tournaments you’ve posted"
-              trailingElement={listScope === 'submitted' ? <i className="fa fa-check" aria-hidden="true" /> : null}
-              onClick={() => chooseListScope('submitted')}
-            />
-          ) : null}
-        </AppListGroup>
-      </BottomSheet>
+        onChange={chooseListScope}
+      />
     </>
   );
 }
