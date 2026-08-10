@@ -245,10 +245,6 @@
   margin: 14px 16px 0;
 }
 
-.tt-about-page .page-content {
-  padding-top: 8px;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .tt-drawer {
     transition: none;
