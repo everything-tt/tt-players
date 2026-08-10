@@ -21,18 +21,35 @@ import { PlayerProfileHero } from './components/PlayerProfileHero';
 import { PlayerRivalryOrbit } from './components/PlayerRivalryOrbit';
 import { TabShellPage } from './TabShellPage';
 import {
+  AppButton,
   AppButtonLink,
   AppMessageCard,
   AppPageContent,
+  FilterBar,
   IconCircle,
   List,
   ListItem,
+  Pill,
 } from './ui/appkit';
 import { DetailHeader } from './components/DetailHeader';
 import { buildPlayerShareTarget } from './share-target';
 import { buildQuickJournalPath } from './player-match-list';
 
 const APP_NAME = 'TT Players';
+
+type PlayerMatchFilter =
+  | {
+      kind: 'team';
+      id: string;
+      label: string;
+      sourceLabel: string;
+    }
+  | {
+      kind: 'tournament';
+      id: string;
+      label: string;
+    };
+
 function setPageMeta(name: string, content: string): void {
   let tag = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
   if (!tag) {
@@ -131,6 +148,7 @@ export function PlayerPage() {
   const { isFavourite: isFavouritePlayer, toggle: toggleFavouritePlayer } = useFavouritePlayers();
   const { isMyPlayer, clear: clearMyPlayer } = useMyPlayer();
   const [seasonPanelMode, setSeasonPanelMode] = useState<'clubs' | 'tournaments'>('clubs');
+  const [matchFilter, setMatchFilter] = useState<PlayerMatchFilter | null>(null);
 
   const overviewQuery = usePlayerProfileOverviewQuery(playerId, Boolean(playerId));
   const recentMatchesState = usePagedPlayerMatches({
@@ -138,6 +156,12 @@ export function PlayerPage() {
     source: 'all',
     enabled: Boolean(playerId),
     pageSize: 20,
+  });
+  const filteredMatchesState = usePagedPlayerMatches({
+    playerId,
+    source: matchFilter?.kind === 'tournament' ? 'tournament' : 'league',
+    enabled: Boolean(playerId) && Boolean(matchFilter),
+    pageSize: 100,
   });
   const tournamentsQuery = usePlayerTournamentSummariesQuery(
     playerId,
@@ -159,6 +183,22 @@ export function PlayerPage() {
   const tournamentTotal = tournamentsQuery.data?.total ?? 0;
   const tournamentSummariesLoading = tournamentsQuery.isLoading;
   const tournamentSummariesError = tournamentsQuery.error instanceof Error ? tournamentsQuery.error.message : null;
+
+  const filteredMatches = useMemo(() => {
+    if (!matchFilter) return [];
+
+    if (matchFilter.kind === 'team') {
+      return filteredMatchesState.matches.filter((match) => (
+        match.source === 'league'
+        && (match.source_label ?? match.league) === matchFilter.sourceLabel
+      ));
+    }
+
+    return filteredMatchesState.matches.filter((match) => match.event_id === matchFilter.id);
+  }, [filteredMatchesState.matches, matchFilter]);
+
+  const displayedMatches = matchFilter ? filteredMatches : recentMatchesState.matches;
+  const displayedMatchesState = matchFilter ? filteredMatchesState : recentMatchesState;
 
   const winRate = useMemo(() => {
     if (!stats || stats.total <= 0) return 0;
@@ -223,6 +263,16 @@ export function PlayerPage() {
 
   const openQuickJournal = (match: RubberItem) => {
     navigateInActiveTab(buildQuickJournalPath(playerId, match));
+  };
+
+  const focusMatches = (filter: PlayerMatchFilter) => {
+    setMatchFilter(filter);
+    window.requestAnimationFrame(() => {
+      document.getElementById('tt-player-matches-title')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
   };
 
   return (
@@ -301,15 +351,40 @@ export function PlayerPage() {
                   <p className="tt-player-section-state">No active-season clubs found.</p>
                 ) : (
                   <List divider="hairline" size="lg" className="tt-player-list">
-                    {affiliations.map((affiliation: any) => (
-                      <ListItem
-                        key={`${affiliation.team_id}-${affiliation.competition_name}-${affiliation.season_id}`}
-                        leading={<IconCircle iconClassName="fa fa-table-tennis" tone="accent" />}
-                        title={affiliation.team_name}
-                        subtitle={`${affiliation.league_name} · ${affiliation.competition_name} · ${affiliation.season_name}`}
-                        onClick={() => navigateInTab('leagues', `team/${affiliation.team_id}`)}
-                      />
-                    ))}
+                    {affiliations.map((affiliation: any) => {
+                      const sourceLabel = `${affiliation.league_name} · ${affiliation.competition_name}`;
+                      const isActive = matchFilter?.kind === 'team'
+                        && matchFilter.id === affiliation.team_id
+                        && matchFilter.sourceLabel === sourceLabel;
+
+                      return (
+                        <ListItem
+                          key={`${affiliation.team_id}-${affiliation.competition_name}-${affiliation.season_id}`}
+                          leading={<IconCircle iconClassName="fa fa-table-tennis" tone="accent" />}
+                          title={affiliation.team_name}
+                          subtitle={`${sourceLabel} · ${affiliation.season_name}`}
+                          active={isActive}
+                          onClick={() => focusMatches({
+                            kind: 'team',
+                            id: affiliation.team_id,
+                            label: affiliation.team_name,
+                            sourceLabel,
+                          })}
+                          trailing={(
+                            <AppButton
+                              size="s"
+                              tone="ghost"
+                              iconOnly
+                              aria-label={`Open ${affiliation.team_name} team`}
+                              title={`Open ${affiliation.team_name} team`}
+                              onClick={() => navigateInTab('leagues', `team/${affiliation.team_id}`)}
+                            >
+                              <i className="fa fa-angle-right" aria-hidden="true" />
+                            </AppButton>
+                          )}
+                        />
+                      );
+                    })}
                   </List>
                 )
               ) : tournamentSummariesLoading ? (
@@ -324,13 +399,31 @@ export function PlayerPage() {
                     {tournamentSummaries.map((event) => {
                       const dateStr = formatDateOrUnknown(event.event_date);
                       const lossCount = event.played - event.wins;
+                      const isActive = matchFilter?.kind === 'tournament' && matchFilter.id === event.event_id;
                       return (
                         <ListItem
                           key={event.event_id}
                           leading={<IconCircle iconClassName="fa fa-trophy" tone="accent" />}
                           title={event.event_name}
                           subtitle={`${dateStr} · ${event.category ?? 'Tournament'} · ${event.wins}-${lossCount} from ${event.played}`}
-                          onClick={() => navigateInActiveTab(`event/${event.event_id}`)}
+                          active={isActive}
+                          onClick={() => focusMatches({
+                            kind: 'tournament',
+                            id: event.event_id,
+                            label: event.event_name,
+                          })}
+                          trailing={(
+                            <AppButton
+                              size="s"
+                              tone="ghost"
+                              iconOnly
+                              aria-label={`Open ${event.event_name} tournament`}
+                              title={`Open ${event.event_name} tournament`}
+                              onClick={() => navigateInActiveTab(`event/${event.event_id}`)}
+                            >
+                              <i className="fa fa-angle-right" aria-hidden="true" />
+                            </AppButton>
+                          )}
                         />
                       );
                     })}
@@ -351,27 +444,44 @@ export function PlayerPage() {
 
             <section className="tt-player-section" aria-labelledby="tt-player-matches-title">
               <div className="tt-player-section-header">
-                <h2 id="tt-player-matches-title" className="tt-player-section-title">Recent Matches</h2>
+                <h2 id="tt-player-matches-title" className="tt-player-section-title">
+                  {matchFilter ? 'Filtered Matches' : 'Recent Matches'}
+                </h2>
                 <span className="tt-player-section-note">
-                  {recentMatchesState.total > 0
-                    ? `${recentMatchesState.matches.length} of ${recentMatchesState.total}`
-                    : 'Latest results'}
+                  {matchFilter
+                    ? `${displayedMatches.length} matching`
+                    : recentMatchesState.total > 0
+                      ? `${recentMatchesState.matches.length} of ${recentMatchesState.total}`
+                      : 'Latest results'}
                 </span>
               </div>
+
+              {matchFilter ? (
+                <FilterBar ariaLabel="Active match filter" scrollable={false}>
+                  <Pill tone="accent" active>
+                    {matchFilter.kind === 'team' ? 'Team' : 'Tournament'} · {matchFilter.label}
+                  </Pill>
+                  <AppButton size="s" tone="ghost" onClick={() => setMatchFilter(null)}>
+                    Clear
+                  </AppButton>
+                </FilterBar>
+              ) : null}
+
               <PlayerMatchList
                 playerId={playerId}
-                matches={recentMatchesState.matches}
-                total={recentMatchesState.total}
-                hasMore={recentMatchesState.hasMore}
-                isLoadingInitial={recentMatchesState.isLoadingInitial}
-                isLoadingMore={recentMatchesState.isLoadingMore}
-                error={recentMatchesState.error}
+                matches={displayedMatches}
+                total={displayedMatchesState.total}
+                hasMore={displayedMatchesState.hasMore}
+                isLoadingInitial={displayedMatchesState.isLoadingInitial}
+                isLoadingMore={displayedMatchesState.isLoadingMore}
+                error={displayedMatchesState.error}
                 quickJournalEnabled={isCurrentUser}
+                showCount={!matchFilter}
                 onOpenMatch={openMatch}
                 onOpenOpponent={openOpponent}
                 onQuickJournal={openQuickJournal}
-                onLoadMore={recentMatchesState.loadMore}
-                onRetry={recentMatchesState.retry}
+                onLoadMore={displayedMatchesState.loadMore}
+                onRetry={displayedMatchesState.retry}
               />
             </section>
           </>
