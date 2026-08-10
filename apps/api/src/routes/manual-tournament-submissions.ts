@@ -22,10 +22,41 @@ const ResponseSchema = z.object({
     duplicate: z.boolean(),
 });
 
+const ManualSubmissionSchema = z.object({
+    submission_id: z.string().uuid(),
+    competition_id: z.string().uuid(),
+    status: z.enum(['processing', 'published', 'merged']),
+    submitted_at: z.string(),
+    source_url: z.string(),
+    name: z.string().nullable(),
+    start_date: z.string().nullable(),
+    venue_name: z.string().nullable(),
+    venue_town: z.string().nullable(),
+    venue_postcode: z.string().nullable(),
+    category: z.string().nullable(),
+    event_status: z.string(),
+});
+
+const ManualSubmissionsResponseSchema = z.object({
+    data: z.array(ManualSubmissionSchema),
+});
+
 const ErrorSchema = z.object({
     error: z.string(),
     statusCode: z.number().int(),
 });
+
+function dateOnly(value: unknown): string | null {
+    if (!value) return null;
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    const text = String(value).slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
+function timestamp(value: unknown): string {
+    if (value instanceof Date) return value.toISOString();
+    return new Date(String(value)).toISOString();
+}
 
 export function normalizeManualTournamentUrl(input: string): string {
     const url = new URL(input.trim());
@@ -186,6 +217,74 @@ async function enqueueOrServiceUnavailable(
 export function manualTournamentSubmissionRoutes(db: Kysely<any>): FastifyPluginAsync {
     return async function (fastify) {
         const app = fastify.withTypeProvider<ZodTypeProvider>();
+
+        app.get(
+            '/manual-submissions',
+            {
+                schema: {
+                    response: {
+                        200: ManualSubmissionsResponseSchema,
+                        401: ErrorSchema,
+                    },
+                },
+            },
+            async (request, reply) => {
+                const user = await requireSupabaseUser(request, reply);
+                if (!user) return;
+
+                reply.header('Cache-Control', 'private, no-store');
+
+                const rows = await db
+                    .selectFrom('tournament_sources as ts')
+                    .innerJoin('competitions as c', 'c.id', 'ts.competition_id')
+                    .select([
+                        'ts.id as submission_id',
+                        'ts.competition_id',
+                        'ts.source_url',
+                        'ts.first_seen_at as submitted_at',
+                        'c.source as competition_source',
+                        'c.name',
+                        'c.display_name',
+                        'c.start_date',
+                        'c.venue_name',
+                        'c.venue_town',
+                        'c.venue_postcode',
+                        'c.category',
+                        'c.event_status',
+                    ])
+                    .where('ts.provider', '=', MANUAL_SOURCE)
+                    .where('ts.source_type', '=', MANUAL_SOURCE_TYPE)
+                    .where('ts.submitted_by_user_id', '=', user.id)
+                    .where('c.deleted_at', 'is', null)
+                    .orderBy('ts.first_seen_at', 'desc')
+                    .execute();
+
+                return reply.send({
+                    data: rows.map((row: Record<string, any>) => ({
+                        submission_id: row.submission_id,
+                        competition_id: row.competition_id,
+                        status: row.competition_source !== MANUAL_SOURCE
+                            ? 'merged' as const
+                            : row.event_status === 'unpublished'
+                                ? 'processing' as const
+                                : 'published' as const,
+                        submitted_at: timestamp(row.submitted_at),
+                        source_url: row.source_url,
+                        name: row.display_name && row.display_name !== PENDING_NAME
+                            ? row.display_name
+                            : row.name && row.name !== PENDING_NAME
+                                ? row.name
+                                : null,
+                        start_date: dateOnly(row.start_date),
+                        venue_name: row.venue_name ?? null,
+                        venue_town: row.venue_town ?? null,
+                        venue_postcode: row.venue_postcode ?? null,
+                        category: row.category ?? null,
+                        event_status: row.event_status,
+                    })),
+                });
+            },
+        );
 
         app.post(
             '/manual-submit',
