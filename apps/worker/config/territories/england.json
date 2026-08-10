@@ -217,67 +217,6 @@
             ]
         },
         {
-            "key": "chelmsford-ttl",
-            "name": "Chelmsford TTL",
-            "platformName": "TT Leagues",
-            "platformBaseUrl": "https://ttleagues-api.azurewebsites.net/api",
-            "baseUrl": "https://chelmsford.ttleagues.com",
-            "adapterKey": "ttleagues",
-            "status": "active",
-            "enabled": true,
-            "ingestion": {
-                "mode": "league-config",
-                "externalId": "chelmsford-ttl",
-                "seasonName": "2025-26",
-                "seasonExtId": "2025-26",
-                "history": {
-                    "enabled": true,
-                    "maxSeasons": 6,
-                    "includeCups": false
-                },
-                "regions": [
-                    "England",
-                    "Essex"
-                ],
-                "divisions": [
-                    {
-                        "name": "Division 1",
-                        "divisionId": 10978
-                    },
-                    {
-                        "name": "Division 2",
-                        "divisionId": 10979
-                    },
-                    {
-                        "name": "Division 3",
-                        "divisionId": 10980
-                    },
-                    {
-                        "name": "Division 4",
-                        "divisionId": 10981
-                    },
-                    {
-                        "name": "Division 5",
-                        "divisionId": 10982
-                    }
-                ]
-            },
-            "config": {
-                "role": "local-league",
-                "migration": "legacy England configuration migrated mechanically to territory control",
-                "migratedFrom": "leagues.json"
-            },
-            "resources": [
-                {
-                    "resourceType": "league",
-                    "externalId": "chelmsford-ttl",
-                    "name": "Chelmsford TTL",
-                    "publicUrl": "https://chelmsford.ttleagues.com",
-                    "enabled": true
-                }
-            ]
-        },
-        {
             "key": "colchester-ttl",
             "name": "Colchester & District TTL",
             "platformName": "TT Leagues",
@@ -2534,61 +2473,6 @@
             ]
         },
         {
-            "key": "sunderland-tt365",
-            "name": "Sunderland Table Tennis League",
-            "platformName": "TableTennis365",
-            "platformBaseUrl": "https://www.tabletennis365.com",
-            "baseUrl": "https://www.tabletennis365.com/Sunderland",
-            "adapterKey": "tt365",
-            "status": "active",
-            "enabled": true,
-            "ingestion": {
-                "mode": "league-config",
-                "externalId": "sunderland-tt365",
-                "seasonName": "Winter - 24-25",
-                "seasonExtId": "winter-24-25",
-                "history": {
-                    "enabled": true,
-                    "maxSeasons": 6
-                },
-                "regions": [
-                    "England",
-                    "Durham"
-                ],
-                "divisions": [
-                    {
-                        "name": "Division 1",
-                        "season": "Winter_-_24-25",
-                        "slug": "Division_1"
-                    },
-                    {
-                        "name": "Division 2",
-                        "season": "Winter_-_24-25",
-                        "slug": "Division_2"
-                    },
-                    {
-                        "name": "Division 3",
-                        "season": "Winter_-_24-25",
-                        "slug": "Division_3"
-                    }
-                ]
-            },
-            "config": {
-                "role": "local-league",
-                "migration": "legacy England configuration migrated mechanically to territory control",
-                "migratedFrom": "uk-leagues.generated.json"
-            },
-            "resources": [
-                {
-                    "resourceType": "league",
-                    "externalId": "sunderland-tt365",
-                    "name": "Sunderland Table Tennis League",
-                    "publicUrl": "https://www.tabletennis365.com/Sunderland",
-                    "enabled": true
-                }
-            ]
-        },
-        {
             "key": "becontree-ttl",
             "name": "Becontree Table Tennis League",
             "platformName": "TT Leagues",
@@ -2649,51 +2533,6 @@
                     "externalId": "becontree-ttl",
                     "name": "Becontree Table Tennis League",
                     "publicUrl": "https://becontree.ttleagues.com",
-                    "enabled": true
-                }
-            ]
-        },
-        {
-            "key": "brentwood-ttl",
-            "name": "Brentwood Table Tennis League",
-            "platformName": "TT Leagues",
-            "platformBaseUrl": "https://ttleagues-api.azurewebsites.net/api",
-            "baseUrl": "https://brentwood.ttleagues.com",
-            "adapterKey": "ttleagues",
-            "status": "active",
-            "enabled": true,
-            "ingestion": {
-                "mode": "league-config",
-                "externalId": "brentwood-ttl",
-                "seasonName": "Brentwood Table Tennis League",
-                "seasonExtId": "brentwood-table-tennis-league",
-                "history": {
-                    "enabled": false,
-                    "maxSeasons": 6,
-                    "includeCups": false
-                },
-                "regions": [
-                    "England",
-                    "Essex"
-                ],
-                "divisions": [
-                    {
-                        "name": "Premier Division",
-                        "divisionId": 1632
-                    }
-                ]
-            },
-            "config": {
-                "role": "local-league",
-                "migration": "legacy England configuration migrated mechanically to territory control",
-                "migratedFrom": "uk-leagues.generated.json"
-            },
-            "resources": [
-                {
-                    "resourceType": "league",
-                    "externalId": "brentwood-ttl",
-                    "name": "Brentwood Table Tennis League",
-                    "publicUrl": "https://brentwood.ttleagues.com",
                     "enabled": true
                 }
             ]
@@ -4127,66 +3966,6 @@
                     "externalId": "isleofthanet-ttl",
                     "name": "Isle of Thanet Table Tennis League",
                     "publicUrl": "https://isleofthanet.ttleagues.com",
-                    "enabled": true
-                }
-            ]
-        },
-        {
-            "key": "maidstone-tt365",
-            "name": "Maidstone Table Tennis Association",
-            "platformName": "TableTennis365",
-            "platformBaseUrl": "https://www.tabletennis365.com",
-            "baseUrl": "https://www.tabletennis365.com/Maidstone",
-            "adapterKey": "tt365",
-            "status": "active",
-            "enabled": true,
-            "ingestion": {
-                "mode": "league-config",
-                "externalId": "maidstone-tt365",
-                "seasonName": "Allen Cooper 25-26",
-                "seasonExtId": "allen-cooper-25-26",
-                "history": {
-                    "enabled": true,
-                    "maxSeasons": 6
-                },
-                "regions": [
-                    "England",
-                    "Kent"
-                ],
-                "divisions": [
-                    {
-                        "name": "Consolation Cup",
-                        "season": "Allen_Cooper_25-26",
-                        "slug": "Consolation_Cup"
-                    },
-                    {
-                        "name": "Cooper Cup",
-                        "season": "Allen_Cooper_25-26",
-                        "slug": "Cooper_Cup"
-                    },
-                    {
-                        "name": "Groups 1 -4",
-                        "season": "Allen_Cooper_25-26",
-                        "slug": "Groups_1_-4"
-                    },
-                    {
-                        "name": "Groups 5 -8",
-                        "season": "Allen_Cooper_25-26",
-                        "slug": "Groups_5_-8"
-                    }
-                ]
-            },
-            "config": {
-                "role": "local-league",
-                "migration": "legacy England configuration migrated mechanically to territory control",
-                "migratedFrom": "uk-leagues.generated.json"
-            },
-            "resources": [
-                {
-                    "resourceType": "league",
-                    "externalId": "maidstone-tt365",
-                    "name": "Maidstone Table Tennis Association",
-                    "publicUrl": "https://www.tabletennis365.com/Maidstone",
                     "enabled": true
                 }
             ]
