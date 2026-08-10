@@ -66,12 +66,74 @@ function assertNoDuplicateConfiguredTargets(targets: ScrapeTarget[]): void {
             target.competitionId,
             target.divisionExtId,
             target.url,
+            target.fixturesUrl ?? '',
             target.isHistorical ? 'historical' : 'current',
         ].join('|');
         if (seen.has(identity)) {
             throw new Error(`Duplicate configured scrape target resolved: ${identity}`);
         }
         seen.add(identity);
+    }
+}
+
+function physicalRequestIdentities(target: ScrapeTarget): string[] {
+    const tenant = target.tenantHost ?? '';
+    const identities = [
+        [target.platformType, 'standings', tenant, target.url].join('|'),
+    ];
+    if (target.fixturesUrl) {
+        identities.push([
+            target.platformType,
+            'fixtures',
+            tenant,
+            target.fixturesUrl,
+        ].join('|'));
+    }
+    if (target.platformType === 'ttleagues') {
+        identities.push([
+            target.platformType,
+            'matches',
+            tenant,
+            target.divisionExtId,
+        ].join('|'));
+    }
+    return identities;
+}
+
+function assertNoDuplicatePhysicalRequests(targets: ScrapeTarget[]): void {
+    const owners = new Map<string, ScrapeTarget>();
+    for (const target of targets) {
+        for (const identity of physicalRequestIdentities(target)) {
+            const existing = owners.get(identity);
+            if (existing) {
+                throw new Error(
+                    `Duplicate physical scrape request resolved: ${identity}; `
+                    + `${existing.leagueName}/${existing.competitionId} and `
+                    + `${target.leagueName}/${target.competitionId}`,
+                );
+            }
+            owners.set(identity, target);
+        }
+    }
+}
+
+function assertEnabledTerritoryLeagueTargets(
+    territoryLeagueConfigs: LeagueConfig[],
+    targets: ScrapeTarget[],
+    requestedLeagueNames: Set<string> | null,
+): void {
+    const resolved = new Set(
+        targets.map((target) => `${target.platformType}|${target.leagueName}`),
+    );
+    const missing = territoryLeagueConfigs.filter((league) => {
+        if (requestedLeagueNames && !requestedLeagueNames.has(league.leagueName)) return false;
+        return !resolved.has(`${league.platform}|${league.leagueName}`);
+    });
+    if (missing.length > 0) {
+        throw new Error(
+            'Enabled territory league-config sources have no operational scrape targets: '
+            + missing.map((league) => `${league.leagueName} (${league.externalId})`).join(', '),
+        );
     }
 }
 
@@ -90,12 +152,19 @@ export async function resolveConfiguredLeagueTargets(
 
     const configuredTargets = await bootstrapLeagueConfigs(db, configuredLeagueConfigs, options);
     assertNoDuplicateConfiguredTargets(configuredTargets);
-    await linkTerritoryLeagueResources(db);
+    assertNoDuplicatePhysicalRequests(configuredTargets);
 
-    const configuredLeagueNames = new Set(configuredTargets.map((target) => target.leagueName));
     const requestedLeagueNames = options.leagueNames && options.leagueNames.length > 0
         ? new Set(options.leagueNames)
         : null;
+    assertEnabledTerritoryLeagueTargets(
+        territoryLeagueConfigs,
+        configuredTargets,
+        requestedLeagueNames,
+    );
+    await linkTerritoryLeagueResources(db);
+
+    const configuredLeagueNames = new Set(configuredTargets.map((target) => target.leagueName));
     const requiredLegacyLeagueNames = territoryCatalog.enabledLegacyLeagueNames.filter(
         (leagueName) => !requestedLeagueNames || requestedLeagueNames.has(leagueName),
     );
@@ -121,9 +190,14 @@ export async function resolveAllScrapeTargets(
         includeHistory: options.includeHistory,
         logger: options.logger,
     });
-    return [...configuredTargets, ...nationalTargets];
+    const targets = [...configuredTargets, ...nationalTargets];
+    assertNoDuplicatePhysicalRequests(targets);
+    return targets;
 }
 
 export const __internal = {
     mergeLegacyAndTerritoryLeagueConfigs,
+    assertNoDuplicateConfiguredTargets,
+    assertNoDuplicatePhysicalRequests,
+    assertEnabledTerritoryLeagueTargets,
 };
