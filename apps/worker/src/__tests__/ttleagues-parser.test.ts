@@ -168,3 +168,126 @@ describe('parseTTLeaguesData() player identity handling', () => {
         });
     });
 });
+
+
+const abandonedMatch = {
+    id: 960442,
+    date: '2026-01-29T11:00:00Z',
+    time: null,
+    week: 20,
+    name: 'Two',
+    venue: null,
+    competitionId: 4023,
+    divisionId: 11214,
+    leagueId: 207,
+    hasResults: true,
+    manual: false,
+    forfeit: null,
+    abandoned: '2026-01-28T10:00:00Z',
+    round: null,
+    home: team(104328, 84217, 'Stretford Harriers'),
+    away: team(104331, 84219, 'Altrincham Social Crabs'),
+};
+
+const upcomingMatch = {
+    id: 960443,
+    date: '2026-12-01T11:00:00Z',
+    time: null,
+    week: 20,
+    name: 'Two',
+    venue: null,
+    competitionId: 4023,
+    divisionId: 11214,
+    leagueId: 207,
+    hasResults: false,
+    manual: false,
+    forfeit: null,
+    abandoned: null,
+    round: null,
+    home: team(104328, 84217, 'Stretford Harriers'),
+    away: team(104331, 84219, 'Altrincham Social Crabs'),
+};
+
+describe('parseTTLeaguesData() abandoned and upcoming match filtering', () => {
+    it('skips sets from abandoned (postponed) matches', () => {
+        const result = parseTTLeaguesData({
+            standings: [],
+            matches: { groups: [], matches: [abandonedMatch] },
+            sets: {
+                '960442': [
+                    set(
+                        9634200,
+                        960442,
+                        [],
+                        [],
+                        0,
+                        0,
+                    ),
+                ],
+            },
+        });
+
+        // Fixture is still created with postponed status
+        expect(result.fixtures).toHaveLength(1);
+        expect(result.fixtures[0]).toMatchObject({ status: 'postponed' });
+        // But no rubbers should be created from the abandoned match sets
+        expect(result.rubbers).toHaveLength(0);
+    });
+
+    it('skips sets from upcoming matches (hasResults = false)', () => {
+        const result = parseTTLeaguesData({
+            standings: [],
+            matches: { groups: [], matches: [upcomingMatch] },
+            sets: {
+                '960443': [
+                    set(
+                        9634201,
+                        960443,
+                        [],
+                        [],
+                        3,
+                        0,
+                    ),
+                ],
+            },
+        });
+
+        expect(result.fixtures).toHaveLength(1);
+        expect(result.fixtures[0]).toMatchObject({ status: 'upcoming' });
+        expect(result.rubbers).toHaveLength(0);
+    });
+
+    it('still creates rubbers for completed matches with hasResults = true', () => {
+        const completedMatch = {
+            ...abandonedMatch,
+            id: 960444,
+            abandoned: null,
+            hasResults: true,
+        };
+        const result = parseTTLeaguesData({
+            standings: [],
+            matches: { groups: [], matches: [completedMatch] },
+            sets: {
+                '960444': [
+                    set(
+                        9634202,
+                        960444,
+                        [player(104328, 'user-1', 'Alice Smith', 1)],
+                        [player(104331, 'user-2', 'Bob Jones', 2)],
+                        3,
+                        1,
+                    ),
+                ],
+            },
+        });
+
+        expect(result.fixtures).toHaveLength(1);
+        expect(result.fixtures[0]).toMatchObject({ status: 'completed' });
+        expect(result.rubbers).toHaveLength(1);
+        expect(result.rubbers[0]).toMatchObject({
+            homePlayers: ['user-1'],
+            awayPlayers: ['user-2'],
+            outcomeType: 'normal',
+        });
+    });
+});

@@ -1,4 +1,4 @@
-import type { ParsedFixture, ParsedPlayer, ParsedRubber, ParsedTTLeaguesData } from './parser.js';
+import { normalizePlayerName, type ParsedFixture, type ParsedPlayer, type ParsedRubber, type ParsedTTLeaguesData } from './parser.js';
 
 export interface Sport80PlayerCell {
     category: string | null;
@@ -216,8 +216,8 @@ export function parseSport80EventResults(event: Sport80ParsedEvent): ParsedTTLea
 
         const homeExternalId = sport80PlayerExternalId(home);
         const awayExternalId = sport80PlayerExternalId(away);
-        players.set(homeExternalId, { externalId: homeExternalId, name: home.name });
-        players.set(awayExternalId, { externalId: awayExternalId, name: away.name });
+        players.set(homeExternalId, { externalId: homeExternalId, name: normalizePlayerName(home.name) });
+        players.set(awayExternalId, { externalId: awayExternalId, name: normalizePlayerName(away.name) });
 
         const { roundName, roundOrder } = parseSport80Round(row.round);
         const roundKey = roundName ?? 'unknown';

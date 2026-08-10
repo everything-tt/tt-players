@@ -1,11 +1,12 @@
 import * as cheerio from 'cheerio';
 import type { FixtureStatus, OutcomeType } from '@tt-players/db';
-import type {
-    ParsedTeam,
-    ParsedPlayer,
-    ParsedFixture,
-    ParsedRubber,
-    ParsedStanding,
+import {
+    normalizePlayerName,
+    type ParsedTeam,
+    type ParsedPlayer,
+    type ParsedFixture,
+    type ParsedRubber,
+    type ParsedStanding,
 } from './parser.js';
 
 /**
@@ -109,7 +110,7 @@ function collectTT365PlayerIds(
             const extId = extractPlayerIdFromHref(href);
             playerIds.push(extId);
             if (!playerMap.has(extId)) {
-                playerMap.set(extId, { externalId: extId, name });
+                playerMap.set(extId, { externalId: extId, name: normalizePlayerName(name) });
             }
         },
     );

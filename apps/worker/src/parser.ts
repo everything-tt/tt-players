@@ -8,6 +8,41 @@ import {
     type TTSet,
 } from './zod-schemas.js';
 
+// ─── Name Normalization ───────────────────────────────────────────────────────
+
+/**
+ * Normalises a player name for storage:
+ * - Collapses multiple spaces to a single space.
+ * - Trims leading/trailing whitespace.
+ * - Converts ALL CAPS or all lowercase names to title case.
+ * - For mixed-case names, capitalises individual all-lowercase words.
+ *
+ * Preserves legitimate capitalisation patterns such as "McEvoy",
+ * "O'Neill", or "Cindy LO".
+ */
+export function normalizePlayerName(name: string): string {
+    const collapsed = name.replace(/\s+/g, ' ').trim();
+    if (!collapsed) return collapsed;
+
+    const isAllUpper = collapsed === collapsed.toUpperCase() && collapsed !== collapsed.toLowerCase();
+    const isAllLower = collapsed === collapsed.toLowerCase() && collapsed !== collapsed.toUpperCase();
+
+    if (isAllUpper || isAllLower) {
+        return collapsed.split(' ').map((word) => {
+            if (word.length === 0) return word;
+            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+        }).join(' ');
+    }
+
+    // Mixed case: capitalise individual all-lowercase words (length > 1)
+    return collapsed.split(' ').map((word) => {
+        if (word.length > 1 && word === word.toLowerCase() && word !== word.toUpperCase()) {
+            return word.charAt(0).toUpperCase() + word.slice(1);
+        }
+        return word;
+    }).join(' ');
+}
+
 // ─── Output Types ─────────────────────────────────────────────────────────────
 
 export interface ParsedTeam {
@@ -122,7 +157,7 @@ export function parseTTLeaguesData(input: RawTTLeaguesInput): ParsedTTLeaguesDat
                 if (!playerMap.has(player.userId)) {
                     playerMap.set(player.userId, {
                         externalId: player.userId,
-                        name: player.name,
+                        name: normalizePlayerName(player.name),
                     });
                 }
             }
@@ -137,9 +172,21 @@ export function parseTTLeaguesData(input: RawTTLeaguesInput): ParsedTTLeaguesDat
         mapMatchToFixture(match),
     );
 
-    // 5. Extract rubbers from sets
+    // Match IDs whose sets should be skipped. The TT Leagues API returns
+    // set templates with default scores (e.g. 0-0 or 3-0) and no player
+    // assignments for abandoned (postponed) matches and for matches that
+    // have not yet been played (hasResults = false). Ingesting these as
+    // rubbers creates spurious "normal" results with no players.
+    const skippedMatchIds = new Set(
+        validMatches
+            .filter((m) => m.abandoned != null || !m.hasResults)
+            .map((m) => String(m.id)),
+    );
+
+    // 5. Extract rubbers from sets (skip sets from abandoned/upcoming matches)
     const rubbers: ParsedRubber[] = [];
-    for (const sets of Object.values(setsMap)) {
+    for (const [matchId, sets] of Object.entries(setsMap)) {
+        if (skippedMatchIds.has(matchId)) continue;
         for (const set of sets.filter(isScoredSet)) {
             rubbers.push(mapSetToRubber(set));
         }

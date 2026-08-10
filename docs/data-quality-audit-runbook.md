@@ -1866,3 +1866,109 @@ The audit is not complete until the report answers:
 > What concrete changes would most improve scraper reliability or data quality?
 
 > Which production examples should become regression tests?
+
+---
+
+## 32. Known-Valid Patterns (Do Not Flag as Errors)
+
+The following patterns have been investigated and confirmed as expected
+behaviour or known source limitations. Future audits should classify them
+as **INFO** at most, not WARNING or ERROR, unless the pattern changes
+materially from what is described here.
+
+### KVP-01 — Walkovers with missing player IDs
+
+**Check:** DATA-02
+
+A large volume of walkover rubbers (tens of thousands) will have one or
+both `home_player_1_id` / `away_player_1_id` set to NULL. This is expected:
+walkovers often list only the non-forfeiting player, and the TT Leagues API
+may omit both player IDs for team-level forfeits.
+
+**Action:** Report the count as INFO. Do not flag as ERROR.
+
+### KVP-02 — Normal rubbers with both players missing on completed fixtures
+
+**Check:** DATA-02
+
+A few thousand "normal" rubbers on completed TT Leagues fixtures will
+have both player IDs set to NULL despite having non-zero scores (e.g.
+3-0, 0-3, 3-1). These are cases where the TT Leagues API returned player
+entries with empty `userId` strings (unregistered/anonymous participants).
+The parser intentionally preserves the rubber and score even when player
+IDs cannot be linked, per the design documented in `parser.ts` and tested
+in `ttleagues-parser.test.ts`.
+
+**Action:** Report the count as INFO. Investigate only if the count
+increases sharply compared to the previous audit.
+
+### KVP-03 — TT Leagues `bundled=matches+sets` payload size drift
+
+**Check:** SCRAPER-DRIFT-01
+
+The TT Leagues API stopped including sets data in the
+`?bundled=matches+sets` endpoint response (the `sets` object is now
+empty). Historical payloads from this endpoint are much larger because
+they included full sets data. The current scraper fetches sets
+individually via `scrapeMatchSetsBatchTask` and no longer relies on the
+bundled endpoint for sets.
+
+**Action:** Exclude `bundled=matches+sets` endpoints from drift
+detection, or classify their size reduction as INFO. The payload drift
+is a known source API change, not a scraper bug.
+
+### KVP-04 — Sport80 score_source metrics
+
+**Check:** DATA-04
+
+Sport80 rubbers will show 0% for `score_source = 'games'` because
+Sport80 uses a different scoring model. Sport80 rubbers are 100% dated
+(`played_at` is always populated). TT Leagues and TableTennis365
+rubbers will show 0% for `played_at` because dates are stored on the
+fixture (`date_played`), not on individual rubbers.
+
+**Action:** Report per-platform metrics as INFO. Do not compare
+`score_source` percentages across platforms without accounting for
+their different scoring models.
+
+### KVP-05 — Sport80 duplicate rubber groups
+
+**Check:** DEDUP-01
+
+Sport80 tournament results will produce thousands of duplicate rubber
+groups (same two players, same competition, same day, same score). These
+are legitimate repeated matches in tournament round-robin group stages
+where players meet multiple times. The duplicate count is expected to be
+in the range of 9,000–10,000 groups.
+
+**Action:** Report the count as INFO. Investigate only if duplicates
+appear in league (non-tournament) competitions or if the count changes
+significantly.
+
+### KVP-06 — New season source resources with no fetches
+
+**Check:** SOURCE-01
+
+When new TT Leagues seasons (e.g. 2026-27) are discovered, source
+resources are registered with `last_fetched_at = NULL` and
+`consecutive_failures = 0`. These are newly discovered resources that
+have not yet been scraped. A large batch of unfetched resources for a
+new season is expected.
+
+**Action:** Classify as INFO if the resources are for a season that has
+not yet started. Classify as WARNING if the season is active and
+resources remain unfetched after 36 hours.
+
+### KVP-07 — Stale pending raw scrape logs from retired scraper paths
+
+**Check:** SCRAPE-01
+
+Raw scrape logs may accumulate in `pending` status from retired scraper
+paths (e.g. the old TT Leagues `bundled=matches+sets` endpoint, or
+TableTennis365 pages that were later re-scraped and processed through a
+newer pipeline). These logs are orphaned and will never be processed by
+the current pipeline.
+
+**Action:** Mark stale pending logs older than 2 hours as `failed`
+during cleanup. Do not flag as ERROR unless new pending logs are
+accumulating from currently active scraper paths.
