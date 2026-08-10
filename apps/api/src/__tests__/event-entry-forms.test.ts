@@ -66,7 +66,7 @@ describe('cached tournament entry forms', () => {
         expect(response.body).toEqual({ data: null });
     });
 
-    it('returns the blank form schema and semantic analysis stored by ingestion', async () => {
+    it('returns the current blank form schema and semantic analysis stored by ingestion', async () => {
         const inspectedAt = '2026-08-06T10:00:00.000Z';
         const payload = {
             version: 3,
@@ -79,7 +79,7 @@ describe('cached tournament entry forms', () => {
                 provider: 'google_forms',
                 form_url: 'https://docs.google.com/forms/d/e/form-id/viewform',
                 title: 'Tournament Entry',
-                public_text: 'Venue: Rowhedge Village Hall, CO5 7HL',
+                public_text: null,
                 fields: [
                     {
                         id: '123',
@@ -96,8 +96,8 @@ describe('cached tournament entry forms', () => {
                 status: 'ready',
                 provider: 'openai_compatible',
                 model: 'deepseek-v4-flash',
-                prompt_version: '2026-08-06.5',
-                analysis_key: '2026-08-06.5:deepseek-v4-flash',
+                prompt_version: '2026-08-07.2',
+                analysis_key: '2026-08-07.2:deepseek-v4-flash',
                 analyzed_at: inspectedAt,
                 mappings: [
                     {
@@ -109,11 +109,17 @@ describe('cached tournament entry forms', () => {
                 ],
                 event_details: [
                     {
-                        field: 'venue_postcode',
-                        value: 'CO5 7HL',
+                        field: 'entry_fee',
+                        value: '£12',
                         confidence: 0.95,
-                        evidence: 'Venue: Rowhedge Village Hall, CO5 7HL',
+                        evidence: 'Entry fee £12',
                         source_field_ids: [],
+                    },
+                ],
+                categories: [
+                    {
+                        name: 'Under 15 Boys',
+                        entry_fee: '£12',
                     },
                 ],
                 error_message: null,
