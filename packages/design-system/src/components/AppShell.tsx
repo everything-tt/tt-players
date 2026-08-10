@@ -68,7 +68,7 @@ export function AppHeaderSpacer({ size = 'medium' }: AppHeaderSpacerProps) {
 
 export function AppPageContent({ children, className, style }: AppPageContentProps) {
   return (
-    <main className={cx('page-content app-shell-content', 'tt-page-content', className)} style={style}>
+    <main className={cx('page-content', 'tt-page-content', className)} style={style}>
       {children}
     </main>
   );
