@@ -893,6 +893,186 @@ source profile URLs
 
 ---
 
+## 17b. CHECK IDENTITY-06 — Soft-deleted player aliases referenced by active rubbers
+
+A soft-deleted `external_players` row can still be referenced by active rubbers
+(rubbers retain source-specific player IDs). Read models and ratings filter
+`player.deleted_at IS NULL`, so those results silently disappear from player
+stats, active-league lists, and ratings.
+
+```sql
+SELECT
+    COUNT(DISTINCT alias.id) AS soft_deleted_aliases_with_rubbers,
+    COUNT(*) AS rubber_links
+FROM external_players alias
+JOIN rubbers r
+  ON r.home_player_1_id = alias.id
+  OR r.home_player_2_id = alias.id
+  OR r.away_player_1_id = alias.id
+  OR r.away_player_2_id = alias.id
+WHERE alias.deleted_at IS NOT NULL
+  AND r.deleted_at IS NULL;
+```
+
+#### Pass criteria
+
+```text
+0 rows
+```
+
+#### Severity
+
+```text
+ERROR
+```
+
+#### Remediation
+
+Restore the aliases (un-delete) and refresh read models:
+
+```sql
+UPDATE external_players
+SET deleted_at = NULL, updated_at = now()
+WHERE deleted_at IS NOT NULL
+  AND id IN (
+    SELECT DISTINCT alias.id
+    FROM external_players alias
+    JOIN rubbers r
+      ON r.home_player_1_id = alias.id
+      OR r.home_player_2_id = alias.id
+      OR r.away_player_1_id = alias.id
+      OR r.away_player_2_id = alias.id
+    WHERE r.deleted_at IS NULL
+  );
+```
+
+Then run the read-models refresh (`refreshApiReadModelsTask` or worker restart).
+
+#### Note on root convention
+
+Canonical roots are **self-pointing** (`canonical_player_id = id`). Any repair
+tooling that looks for roots with `canonical_player_id IS NULL` matches nothing
+and must accept self-pointing roots instead.
+
+---
+
+## 17c. CHECK IDENTITY-07 — Phantom team-placeholder players
+
+TT Leagues lists the **team** as the "player" in set data for forfeited
+matches: `userId` is empty, `entrantId` equals the match's home/away entrant
+id, and `name` is the team name. If the parser does not skip these, every
+forfeit match creates `external_players` rows with `external_id IS NULL` that
+are never referenced by rubbers. They pollute player search and inflate
+canonical-player counts.
+
+```sql
+SELECT pl.name AS platform, COUNT(*) AS phantom_players
+FROM external_players ep
+JOIN platforms pl ON pl.id = ep.platform_id
+WHERE ep.external_id IS NULL
+  AND ep.deleted_at IS NULL
+  AND NOT EXISTS (SELECT 1 FROM rubbers r WHERE r.home_player_1_id = ep.id)
+  AND NOT EXISTS (SELECT 1 FROM rubbers r WHERE r.home_player_2_id = ep.id)
+  AND NOT EXISTS (SELECT 1 FROM rubbers r WHERE r.away_player_1_id = ep.id)
+  AND NOT EXISTS (SELECT 1 FROM rubbers r WHERE r.away_player_2_id = ep.id)
+GROUP BY pl.name;
+```
+
+#### Pass criteria
+
+```text
+0 rows
+```
+
+#### Severity
+
+```text
+ERROR
+```
+
+#### Remediation
+
+1. Fix the parser to skip team-level placeholders (empty `userId` whose
+   `entrantId` matches the match's home/away entrant id) and to drop empty
+   userIds from rubber player arrays — forfeit rubbers stay walkovers with no
+   player references.
+2. Soft-delete the existing phantom rows:
+
+```sql
+UPDATE external_players
+SET deleted_at = now(), updated_at = now()
+WHERE external_id IS NULL AND deleted_at IS NULL;
+```
+
+3. Refresh read models afterwards.
+
+---
+
+## 17d. CHECK IDENTITY-08 — Duplicate canonical names
+
+Multiple canonical roots can share the same normalized name. Most are
+legitimate (common names, or team-name artifacts from IDENTITY-07), but
+cross-platform groups are the priority review candidates for missed merges.
+
+```sql
+WITH roots AS (
+    SELECT id, name, platform_id,
+           regexp_replace(lower(trim(name)), '[^a-z0-9]+', '', 'g') AS normalized_name
+    FROM external_players
+    WHERE deleted_at IS NULL AND canonical_player_id = id
+)
+SELECT normalized_name,
+       COUNT(*) AS canonical_people,
+       COUNT(DISTINCT platform_id) AS platforms
+FROM roots
+GROUP BY normalized_name
+HAVING COUNT(*) > 1
+ORDER BY canonical_people DESC;
+```
+
+#### Pass criteria
+
+No hard threshold — report the distribution and the cross-platform groups.
+
+#### Severity
+
+```text
+WARNING
+```
+
+#### Important
+
+Same name does **not** mean same person. These are review candidates only;
+never auto-merge. Team-name artifacts (IDENTITY-07) should be cleaned first,
+otherwise they dominate this check.
+
+---
+
+## 17e. CHECK IDENTITY-09 — Empty or placeholder player names
+
+```sql
+SELECT
+    COUNT(*) FILTER (WHERE name IS NULL OR btrim(name) = '') AS empty_names,
+    COUNT(*) FILTER (WHERE name IS NOT NULL AND char_length(btrim(name)) <= 2) AS short_names
+FROM external_players
+WHERE deleted_at IS NULL;
+```
+
+#### Pass criteria
+
+```text
+empty_names = 0
+```
+
+#### Severity
+
+```text
+ERROR if empty_names > 0
+INFO for short/placeholder names (e.g. two-letter initials)
+```
+
+---
+
 ## 18. Phase 6 — Cross-Source Result Deduplication
 
 ### CHECK DEDUP-01 — Probable duplicate rubbers
@@ -1524,6 +1704,10 @@ DATA-03
 IDENTITY-01
 IDENTITY-02
 IDENTITY-03
+IDENTITY-06
+IDENTITY-07
+IDENTITY-08
+IDENTITY-09
 DEDUP-02
 SCRAPER-DRIFT-01
 COVERAGE-01
@@ -1743,6 +1927,10 @@ Before completing an audit, verify:
 - [ ] Confirmed decision consistency checked.
 - [ ] Pending identity backlog measured.
 - [ ] Potential missed player matches sampled.
+- [ ] Soft-deleted player aliases referenced by active rubbers checked.
+- [ ] Phantom team-placeholder players checked.
+- [ ] Duplicate canonical names checked.
+- [ ] Empty/placeholder player names checked.
 - [ ] Probable duplicate rubbers sampled.
 - [ ] VETTS/source reconciliation health checked.
 - [ ] Payload drift checked.
