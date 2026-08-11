@@ -11,6 +11,7 @@ const { Pool } = pg;
 const TOURNAMENT_ID = '4af81622-d21a-47ed-a046-86c492b4cfe9';
 const EMPTY_TOURNAMENT_ID = '769534f2-8229-4b33-bf34-cd35c9cd7d73';
 const CANCELLED_TOURNAMENT_ID = '5a6c9ec0-27e3-424c-bc3c-39e141dd877e';
+const UPCOMING_TOURNAMENT_ID = '7fdf7523-4d43-4b43-b3a2-551f41e80f5b';
 const TOURNAMENT_URL = `https://vetts.tournamentsoftware.com/tournament/${TOURNAMENT_ID}`;
 const TEST_DATABASE_NAME = `tt_players_vetts_ingestion_${process.pid}`;
 const ADMIN_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/postgres';
@@ -33,6 +34,9 @@ const overviewHtml = `
 
 const emptyMatchesHtml = '<table class="matches"><tbody></tbody></table>';
 const cancelledOverviewHtml = overviewHtml.replaceAll('VETTS Nationals 2026', 'VETTS Northern 2020 CANCELLED');
+const upcomingOverviewHtml = overviewHtml
+    .replaceAll('VETTS Nationals 2026', 'VETTS North East Masters 2026')
+    .replace('16 May to 17 May', '29 December to 30 December');
 const matchesHtml = `
 <table class="matches">
 <tbody>
@@ -359,12 +363,13 @@ describe('VETTS ingestion integration', () => {
 
         const competition = await (db as Kysely<any>)
             .selectFrom('competitions')
-            .select(['event_status', 'publication_status', 'deleted_at'])
+            .select(['event_status', 'publication_status', 'record_kind', 'deleted_at'])
             .where('external_id', '=', `vetts:tournament:${CANCELLED_TOURNAMENT_ID}`)
             .executeTakeFirstOrThrow();
         expect(competition).toMatchObject({
-            event_status: 'completed',
+            event_status: 'cancelled',
             publication_status: 'cancelled',
+            record_kind: 'calendar',
             deleted_at: null,
         });
 
@@ -378,6 +383,40 @@ describe('VETTS ingestion integration', () => {
             consecutive_failures: 0,
             last_error: null,
             last_succeeded_at: expect.any(Date),
+        });
+    }, 120_000);
+
+    it('keeps a future tournament out of the completed result lifecycle', async () => {
+        const overviewUrl = `https://vetts.tournamentsoftware.com/tournament/${UPCOMING_TOURNAMENT_ID}`;
+        vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+            const url = String(input);
+            if (url === overviewUrl) {
+                return new Response(upcomingOverviewHtml, { status: 200 });
+            }
+            if (url === `${overviewUrl}/matches/20261229` || url === `${overviewUrl}/matches/20261230`) {
+                return new Response(emptyMatchesHtml, { status: 200 });
+            }
+            throw new Error(`Unexpected upcoming VETTS URL in integration test: ${url}`);
+        }));
+
+        const result = await syncVettsTournament(db, UPCOMING_TOURNAMENT_ID);
+        expect(result).toMatchObject({
+            tournamentId: UPCOMING_TOURNAMENT_ID,
+            matchRows: 0,
+            rejectedRows: 0,
+        });
+
+        const competition = await (db as Kysely<any>)
+            .selectFrom('competitions')
+            .select(['event_status', 'publication_status', 'record_kind', 'processed_at', 'deleted_at'])
+            .where('external_id', '=', `vetts:tournament:${UPCOMING_TOURNAMENT_ID}`)
+            .executeTakeFirstOrThrow();
+        expect(competition).toMatchObject({
+            event_status: 'upcoming',
+            publication_status: null,
+            record_kind: 'calendar',
+            processed_at: null,
+            deleted_at: null,
         });
     }, 120_000);
 });

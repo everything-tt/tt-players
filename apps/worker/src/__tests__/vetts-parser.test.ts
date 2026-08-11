@@ -9,7 +9,11 @@ import {
 import { vettsDuplicateCandidateMatches } from '../vetts-duplicate-reconciliation.js';
 import { vettsSourceAdapter } from '../vetts-adapter.js';
 import { vettsDiscoveryYears, vettsUrls } from '../vetts-client.js';
-import { deriveVettsEventStatus, isVettsCancelledTournament } from '../vetts-loader.js';
+import {
+    deriveVettsEventStatus,
+    deriveVettsRecordKind,
+    isVettsCancelledTournament,
+} from '../vetts-loader.js';
 import { stabilizeVettsPlayerIdentities } from '../vetts-player-identity.js';
 
 const TOURNAMENT_ID = '4af81622-d21a-47ed-a046-86c492b4cfe9';
@@ -250,6 +254,13 @@ describe('VETTS tournament parsing', () => {
             { startDate: '2026-08-29', endDate: '2026-08-30' },
             new Date('2026-08-31T12:00:00Z'),
         )).toBe('completed');
+    });
+
+    it('keeps non-completed and cancelled tournaments in the calendar lifecycle', () => {
+        expect(deriveVettsRecordKind('upcoming')).toBe('calendar');
+        expect(deriveVettsRecordKind('in_progress')).toBe('calendar');
+        expect(deriveVettsRecordKind('completed')).toBe('result');
+        expect(deriveVettsRecordKind('completed', true)).toBe('calendar');
     });
 
     it('recognizes cancelled VETTS tournament names', () => {

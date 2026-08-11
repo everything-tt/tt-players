@@ -23,6 +23,7 @@ import {
 } from './vetts-parser.js';
 import {
     deriveVettsEventStatus,
+    deriveVettsRecordKind,
     isVettsCancelledTournament,
     resolveVettsCompetition,
     upsertVettsLeague,
@@ -258,8 +259,12 @@ export async function syncVettsTournament(
             .updateTable('competitions')
             .set({
                 last_scraped_at: new Date(),
-                event_status: eventStatus,
-                ...(isCancelled ? { publication_status: 'cancelled' } : {}),
+                event_status: isCancelled ? 'cancelled' : eventStatus,
+                record_kind: deriveVettsRecordKind(eventStatus, isCancelled),
+                ...(deriveVettsRecordKind(eventStatus, isCancelled) === 'calendar'
+                    ? { processed_at: null }
+                    : {}),
+                publication_status: isCancelled ? 'cancelled' : null,
             })
             .where('id', '=', competitionId)
             .execute();

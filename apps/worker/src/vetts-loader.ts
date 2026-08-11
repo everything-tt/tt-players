@@ -35,6 +35,13 @@ export function deriveVettsEventStatus(
     return 'completed';
 }
 
+export function deriveVettsRecordKind(
+    eventStatus: 'upcoming' | 'in_progress' | 'completed',
+    isCancelled = false,
+): 'calendar' | 'result' {
+    return eventStatus === 'completed' && !isCancelled ? 'result' : 'calendar';
+}
+
 export async function upsertVettsPlatform(db: Kysely<Database>): Promise<string> {
     const existing = await db
         .selectFrom('platforms')
@@ -231,6 +238,9 @@ async function upsertSeparateCompetition(
         .where('external_id', '=', externalId)
         .executeTakeFirst();
 
+    const eventStatus = deriveVettsEventStatus(metadata);
+    const isCancelled = isVettsCancelledTournament(metadata);
+
     const values = {
         name: metadata.name,
         display_name: metadata.name,
@@ -244,7 +254,12 @@ async function upsertSeparateCompetition(
         category: VETTS_CATEGORY,
         source: 'vetts',
         source_url: metadata.sourceUrl,
-        event_status: deriveVettsEventStatus(metadata),
+        event_status: isCancelled ? 'cancelled' : eventStatus,
+        // Keep a newly discovered event in the calendar lifecycle until the
+        // result pass has completed successfully. This also keeps a failed
+        // zero-result scrape out of the completed section.
+        record_kind: 'calendar',
+        processed_at: null,
         deleted_at: null,
     } as const;
 
