@@ -356,17 +356,16 @@ export async function reconcileSamePlatformByLeague(
         const canonical = uniquePlayers.sort((a, b) =>
             effectivePlayerCanonicalId(a) < effectivePlayerCanonicalId(b) ? -1 : 1,
         )[0]!;
-        const canonicalTargetId = effectivePlayerCanonicalId(canonical);
 
         const leagueName = uniquePlayers[0]!.league_name;
 
         for (const source of uniquePlayers) {
             if (source.player_id === canonical.player_id) continue;
-            if (effectivePlayerCanonicalId(source) === canonicalTargetId) continue;
+            if (effectivePlayerCanonicalId(source) === effectivePlayerCanonicalId(canonical)) continue;
 
             samePlatformCandidates.push({
                 source_player_id: source.player_id,
-                canonical_player_id: canonicalTargetId,
+                canonical_player_id: canonical.player_id,
                 confidence: SAME_PLATFORM_SAME_LEAGUE_CONFIDENCE,
                 evidence: {
                     rule: 'same-platform-same-league',
@@ -375,8 +374,6 @@ export async function reconcileSamePlatformByLeague(
                     canonical_platform_id: canonical.platform_id,
                     source_external_id: source.external_id,
                     canonical_external_id: canonical.external_id,
-                    matched_canonical_player_id: canonical.player_id,
-                    resolved_canonical_player_id: canonicalTargetId,
                     league_name: leagueName,
                     reason: 'Same normalized name on same platform in same league',
                 },
