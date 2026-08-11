@@ -141,6 +141,10 @@ function isUnsupportedTeamCompetition(name: string | null): boolean {
     return /\bteam\b/i.test(name ?? '');
 }
 
+function isSyntheticTestCompetition(name: string | null): boolean {
+    return /\btest\b.*\b(?:organisation|organization)\b/i.test(name ?? '');
+}
+
 export function extractVettsTournamentId(value: string): string | null {
     const match = value.match(/(?:\/tournament\/|[?&]id=)([0-9a-f]{8}-[0-9a-f-]{27,})/i);
     return match?.[1]?.toLowerCase() ?? null;
@@ -159,7 +163,7 @@ export function parseVettsTournamentLinks(
         const tournamentId = extractVettsTournamentId(href);
         if (!tournamentId || links.has(tournamentId)) return;
         const name = cleanText($(element).text()) || null;
-        if (isUnsupportedTeamCompetition(name)) return;
+        if (isUnsupportedTeamCompetition(name) || isSyntheticTestCompetition(name)) return;
         links.set(tournamentId, {
             tournamentId,
             url: absoluteUrl(href, baseUrl),

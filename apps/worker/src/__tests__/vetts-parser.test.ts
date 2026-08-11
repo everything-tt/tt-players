@@ -148,6 +148,7 @@ describe('VETTS tournament parsing', () => {
           <a href="https://vetts.tournamentsoftware.com/tournament/${TOURNAMENT_ID}">Nationals</a>
           <a href="https://vetts.tournamentsoftware.com/sport/tournament.aspx?id=7ed3b6c4-2370-4fd2-a010-f3dfaa1d6f2e">Southern</a>
           <a href="https://vetts.tournamentsoftware.com/sport/tournament.aspx?id=769534f2-8229-4b33-bf34-cd35c9cd7d73">VETTS Super 50s TEAM Competition 2026</a>
+          <a href="https://vetts.tournamentsoftware.com/tournament/e3f588aa-1d8f-49f9-8bf2-a5a5335c8079">VETTS Test - Organization</a>
           <a href="https://vetts.tournamentsoftware.com/tournament/${TOURNAMENT_ID}">Duplicate</a>
         `, vettsUrls.discovery(2026));
         expect(links).toHaveLength(2);
