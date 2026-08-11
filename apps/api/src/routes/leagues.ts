@@ -126,6 +126,7 @@ const CollectionDashboardSchema = z.object({
         leagues: z.number().int(),
         divisions: z.number().int(),
         teams: z.number().int(),
+        players: z.number().int(),
         matches_played: z.number().int(),
         upcoming_fixtures: z.number().int(),
     }),
@@ -392,6 +393,7 @@ export function leaguesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                         leagues: number;
                         divisions: number;
                         teams: number;
+                        players: number;
                         matches_played: number;
                         upcoming_fixtures: number;
                     }>`
@@ -418,6 +420,23 @@ export function leaguesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                               ON ls.competition_id = sc.id
                              AND ls.deleted_at IS NULL
                         ),
+                        player_totals AS (
+                            SELECT COUNT(DISTINCT player_slot.player_id)::int AS players
+                            FROM selected_competitions sc
+                            JOIN fixtures f
+                              ON f.competition_id = sc.id
+                             AND f.deleted_at IS NULL
+                            JOIN rubbers r
+                              ON r.fixture_id = f.id
+                             AND r.deleted_at IS NULL
+                            CROSS JOIN LATERAL unnest(ARRAY[
+                                r.home_player_1_id,
+                                r.home_player_2_id,
+                                r.away_player_1_id,
+                                r.away_player_2_id
+                            ]) AS player_slot(player_id)
+                            WHERE player_slot.player_id IS NOT NULL
+                        ),
                         upcoming_totals AS (
                             SELECT COUNT(*)::int AS upcoming_fixtures
                             FROM selected_competitions sc
@@ -430,12 +449,14 @@ export function leaguesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                             COUNT(DISTINCT sc.league_id)::int AS leagues,
                             COUNT(DISTINCT sc.id)::int AS divisions,
                             st.teams,
+                            pt.players,
                             st.matches_played,
                             ut.upcoming_fixtures
                         FROM selected_competitions sc
                         CROSS JOIN standing_totals st
+                        CROSS JOIN player_totals pt
                         CROSS JOIN upcoming_totals ut
-                        GROUP BY st.teams, st.matches_played, ut.upcoming_fixtures
+                        GROUP BY st.teams, pt.players, st.matches_played, ut.upcoming_fixtures
                     `.execute(db),
                     sql<{
                         fixture_id: string;
@@ -568,6 +589,7 @@ export function leaguesRoutes(db: Kysely<Database>): FastifyPluginAsync {
                     leagues: 0,
                     divisions: 0,
                     teams: 0,
+                    players: 0,
                     matches_played: 0,
                     upcoming_fixtures: 0,
                 };
