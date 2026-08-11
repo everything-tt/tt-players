@@ -252,7 +252,7 @@ async function mockApi(page: Page) {
     if (url.pathname.endsWith('/api/leagues/dashboard')) {
       await route.fulfill({
         json: {
-          totals: { leagues: 12, divisions: 40, teams: 355, matches_played: 2910, upcoming_fixtures: 116 },
+          totals: { leagues: 12, divisions: 40, teams: 355, players: 842, matches_played: 2910, upcoming_fixtures: 116 },
           recent_results: recent,
           upcoming_fixtures: upcoming,
           top_teams: topTeams,
@@ -352,20 +352,22 @@ test('reviews the personalised dashboard, rating scopes, and empty league state'
   await page.goto(`${previewUrl}/tabs/leagues`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Your leagues' })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole('button', { name: /manage leagues/i })).toBeVisible();
+  await expect(page.getByText('842', { exact: true })).toBeVisible();
+  await expect(page.getByText('Players', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Your season' })).toBeVisible();
   await expect(page.getByText(playerName, { exact: true })).toBeVisible();
   await expect(page.getByText('Rowhedge K · Division 3', { exact: true })).toBeVisible();
   await expect(page.getByText('Rowhedge K vs Pegasus E', { exact: true }).first()).toBeVisible();
 
   const heroMetrics = page.locator('.tt-leagues-hero-card .tt-leagues-hero-stat');
-  await expect(heroMetrics).toHaveCount(3);
+  await expect(heroMetrics).toHaveCount(4);
   const metricTops = await heroMetrics.evaluateAll((elements) => elements.map((element) => Math.round(element.getBoundingClientRect().top)));
   expect(new Set(metricTops).size).toBe(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
 
   await page.evaluate(() => window.scrollTo(0, 0));
   await capture(page, testInfo, 'leagues-dashboard-personal-top', {
-    heroMetrics: 3,
+    heroMetrics: 4,
     claimedPlayer: playerName,
     upcomingPrioritised: true,
   });
