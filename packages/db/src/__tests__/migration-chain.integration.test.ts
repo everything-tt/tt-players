@@ -202,23 +202,25 @@ describe('production migration chain', () => {
     it('excludes non-completed fixtures from ratings and dirties ratings on status changes', async () => {
         const pool = new Pool({ connectionString: TEST_DATABASE_URL });
         try {
-            const migrationDown = spawnSync(
-                'pnpm',
-                ['exec', 'tsx', 'src/migrate-down.ts'],
-                {
-                    cwd: packageDirectory,
-                    env: {
-                        ...process.env,
-                        DATABASE_URL: TEST_DATABASE_URL,
+            for (let rollback = 0; rollback < 2; rollback += 1) {
+                const migrationDown = spawnSync(
+                    'pnpm',
+                    ['exec', 'tsx', 'src/migrate-down.ts'],
+                    {
+                        cwd: packageDirectory,
+                        env: {
+                            ...process.env,
+                            DATABASE_URL: TEST_DATABASE_URL,
+                        },
+                        encoding: 'utf8',
+                        timeout: 120_000,
                     },
-                    encoding: 'utf8',
-                    timeout: 120_000,
-                },
-            );
-            expect(
-                migrationDown.status,
-                `Migration rollback failed.\nstdout:\n${migrationDown.stdout}\nstderr:\n${migrationDown.stderr}`,
-            ).toBe(0);
+                );
+                expect(
+                    migrationDown.status,
+                    `Migration rollback failed.\nstdout:\n${migrationDown.stdout}\nstderr:\n${migrationDown.stderr}`,
+                ).toBe(0);
+            }
 
             const platform = await pool.query<{ id: string }>(`
                 INSERT INTO platforms (name, base_url)

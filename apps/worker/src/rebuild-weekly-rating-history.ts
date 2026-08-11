@@ -221,9 +221,19 @@ async function markFailed(modelKey: string, error: unknown): Promise<void> {
 async function prepareRebuildSource(startDate: string): Promise<void> {
     await db.transaction().execute(async (trx) => {
         await sql`SET LOCAL statement_timeout = '5min'`.execute(trx);
-        await sql`DROP TABLE IF EXISTS ${sql.raw(RATING_REBUILD_SOURCE_TABLE)}`.execute(trx);
         await sql`
-            CREATE UNLOGGED TABLE ${sql.raw(RATING_REBUILD_SOURCE_TABLE)} AS
+            DELETE FROM ${sql.raw(RATING_REBUILD_SOURCE_TABLE)}
+        `.execute(trx);
+        await sql`
+            INSERT INTO ${sql.raw(RATING_REBUILD_SOURCE_TABLE)} (
+                rubber_id,
+                effective_date,
+                home_canonical_player_id,
+                away_canonical_player_id,
+                home_games_won,
+                away_games_won,
+                eligibility_reason
+            )
             SELECT
                 rubber_id,
                 effective_date,
@@ -236,20 +246,6 @@ async function prepareRebuildSource(startDate: string): Promise<void> {
             WHERE eligibility_reason = 'eligible'
               AND effective_date >= ${startDate}::date
         `.execute(trx);
-        await sql`
-            CREATE INDEX rating_rebuild_matches_effective_date_idx
-            ON ${sql.raw(RATING_REBUILD_SOURCE_TABLE)} (effective_date, rubber_id)
-        `.execute(trx);
-        await sql`
-            CREATE INDEX rating_rebuild_matches_home_date_away_idx
-            ON ${sql.raw(RATING_REBUILD_SOURCE_TABLE)}
-                (home_canonical_player_id, effective_date, away_canonical_player_id)
-        `.execute(trx);
-        await sql`
-            CREATE INDEX rating_rebuild_matches_away_date_home_idx
-            ON ${sql.raw(RATING_REBUILD_SOURCE_TABLE)}
-                (away_canonical_player_id, effective_date, home_canonical_player_id)
-        `.execute(trx);
         await sql`ANALYZE ${sql.raw(RATING_REBUILD_SOURCE_TABLE)}`.execute(trx);
     });
 }
@@ -257,7 +253,7 @@ async function prepareRebuildSource(startDate: string): Promise<void> {
 async function cleanupRebuildSource(): Promise<void> {
     await db.transaction().execute(async (trx) => {
         await sql`SET LOCAL statement_timeout = '2min'`.execute(trx);
-        await sql`DROP TABLE IF EXISTS ${sql.raw(RATING_REBUILD_SOURCE_TABLE)}`.execute(trx);
+        await sql`DELETE FROM ${sql.raw(RATING_REBUILD_SOURCE_TABLE)}`.execute(trx);
     });
 }
 

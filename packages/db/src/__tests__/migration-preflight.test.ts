@@ -79,6 +79,7 @@ describe('migration preflight', () => {
             '052_add_raw_scrape_log_updated_at',
             '053_add_manual_tournament_submitter',
             '054_gate_ratings_by_fixture_status',
+            '055_create_rating_rebuild_work_table',
         ]);
     });
 });
