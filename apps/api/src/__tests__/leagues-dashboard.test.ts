@@ -86,6 +86,7 @@ describe('league overview and dashboard', () => {
                 leagues: 1,
                 divisions: 1,
                 teams: 1,
+                players: 2,
                 matches_played: 3,
             },
             recent_results: [

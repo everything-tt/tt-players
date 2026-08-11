@@ -188,6 +188,7 @@ export type LeagueCollectionDashboard = {
     leagues: number;
     divisions: number;
     teams: number;
+    players: number;
     matches_played: number;
     upcoming_fixtures: number;
   };
