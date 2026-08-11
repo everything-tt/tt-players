@@ -142,7 +142,7 @@ function isUnsupportedTeamCompetition(name: string | null): boolean {
 }
 
 function isSyntheticTestCompetition(name: string | null): boolean {
-    return /\btest\b.*\b(?:organisation|organization)\b/i.test(name ?? '');
+    return /\btest\b/i.test(name ?? '');
 }
 
 export function extractVettsTournamentId(value: string): string | null {
