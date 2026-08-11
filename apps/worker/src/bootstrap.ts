@@ -15,24 +15,24 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ─── Config Types ─────────────────────────────────────────────────────────────
 
-interface TT365Division {
+export interface TT365Division {
     name: string;
     season: string;   // e.g. "Winter_2025"
     slug: string;     // e.g. "Premier_Division"
 }
 
-interface TTLeaguesDivision {
+export interface TTLeaguesDivision {
     name: string;
     divisionId: number;
 }
 
-interface HistoryConfig {
+export interface HistoryConfig {
     enabled?: boolean;
     maxSeasons?: number;
     includeCups?: boolean;
 }
 
-interface LeagueConfig {
+export interface LeagueConfig {
     platform: 'tt365' | 'ttleagues';
     leagueName: string;
     externalId: string;
@@ -345,7 +345,7 @@ async function discoverTTLeaguesHistoricalTargets(
     return targets;
 }
 
-function readLeagueConfigs(): LeagueConfig[] {
+export function readLegacyLeagueConfigs(): LeagueConfig[] {
     const merged = new Map<string, LeagueConfig>();
 
     for (const relativePath of CONFIG_FILES) {
@@ -376,15 +376,16 @@ function readLeagueConfigs(): LeagueConfig[] {
  * Reads leagues.json, upserts DB records, and returns scrape targets.
  * This is idempotent — safe to call on every worker startup.
  */
-export async function bootstrap(
+export async function bootstrapLeagueConfigs(
     db: Kysely<Database>,
+    leagueConfigs: LeagueConfig[],
     options: BootstrapOptions = {},
 ): Promise<ScrapeTarget[]> {
     const { includeHistory = false, leagueNames } = options;
     const leagueNameFilter = leagueNames && leagueNames.length > 0
         ? new Set(leagueNames)
         : null;
-    const leagues = readLeagueConfigs().filter((league) =>
+    const leagues = leagueConfigs.filter((league) =>
         leagueNameFilter ? leagueNameFilter.has(league.leagueName) : true,
     );
 
@@ -487,6 +488,20 @@ export async function bootstrap(
     }
 
     return targets;
+}
+
+/**
+ * Backwards-compatible configured bootstrap entry point. Operational callers,
+ * including maintenance scripts, resolve territory-owned configs through the shared
+ * configured target resolver. Legacy parity remains available via
+ * readLegacyLeagueConfigs + bootstrapLeagueConfigs.
+ */
+export async function bootstrap(
+    db: Kysely<Database>,
+    options: BootstrapOptions = {},
+): Promise<ScrapeTarget[]> {
+    const { resolveConfiguredLeagueTargets } = await import('./all-scrape-targets.js');
+    return resolveConfiguredLeagueTargets(db, options);
 }
 
 // ─── Upsert helpers ───────────────────────────────────────────────────────────

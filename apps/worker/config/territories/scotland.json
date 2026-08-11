@@ -1,0 +1,291 @@
+{
+    "territory": "Scotland",
+    "sources": [
+        {
+            "key": "table-tennis-scotland",
+            "name": "Table Tennis Scotland competition catalogue",
+            "platformName": "Table Tennis Scotland",
+            "platformBaseUrl": "https://tabletennisscotland.co.uk",
+            "baseUrl": "https://tabletennisscotland.co.uk",
+            "adapterKey": "official-catalog",
+            "status": "discovery",
+            "enabled": false,
+            "notes": "Official discovery source for Scottish national competitions. Match data must come from the linked structured result platform, not news prose.",
+            "config": {
+                "role": "discovery",
+                "matchDataAuthority": false
+            },
+            "resources": [
+                {
+                    "resourceType": "directory",
+                    "externalId": "scotland-national-events",
+                    "name": "Table Tennis Scotland national competition catalogue",
+                    "publicUrl": "https://tabletennisscotland.co.uk/",
+                    "enabled": false,
+                    "refreshPolicy": {
+                        "cadence": "daily"
+                    }
+                }
+            ]
+        },
+        {
+            "key": "scotland-stadium-compete",
+            "name": "Scotland STADIUM Compete",
+            "platformName": "STADIUM Compete",
+            "platformBaseUrl": "https://stadiumcompete.com",
+            "baseUrl": "https://stadiumcompete.com",
+            "adapterKey": "stadium",
+            "status": "discovery",
+            "enabled": false,
+            "notes": "Table Tennis Scotland selected STADIUM Compete for modern league/tournament functionality. Public event/draw/match endpoints require a reusable adapter before enabling ingestion.",
+            "config": {
+                "role": "current-national-results",
+                "publicOnly": true
+            },
+            "resources": [
+                {
+                    "resourceType": "event",
+                    "externalId": "scotland-stadium-events",
+                    "name": "Scottish STADIUM events",
+                    "publicUrl": "https://stadiumcompete.com/",
+                    "enabled": false,
+                    "refreshPolicy": {
+                        "cadence": "event-window"
+                    }
+                }
+            ]
+        },
+        {
+            "key": "edinburgh-lothians-ttscore",
+            "name": "Edinburgh & Lothians Table Tennis League",
+            "platformName": "TTScore",
+            "platformBaseUrl": "https://elttl.interactive.co.uk",
+            "baseUrl": "https://elttl.interactive.co.uk",
+            "adapterKey": "ttscore",
+            "status": "discovery",
+            "enabled": false,
+            "notes": "Official Edinburgh & Lothians results application. Prefer its public structured requests over scraping the association content site.",
+            "config": {
+                "role": "local-league",
+                "publicOnly": true,
+                "officialSite": "https://www.edinburghtabletennis.com/"
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "edinburgh-lothians-league",
+                    "name": "Edinburgh & Lothians league competitions",
+                    "publicUrl": "https://elttl.interactive.co.uk/",
+                    "enabled": false,
+                    "refreshPolicy": {
+                        "cadence": "daily"
+                    }
+                }
+            ]
+        },
+        {
+            "key": "scottish-national-league-tt365",
+            "name": "Scottish National League",
+            "platformName": "TableTennis365",
+            "platformBaseUrl": "https://www.tabletennis365.com",
+            "baseUrl": "https://www.tabletennis365.com/ScottishNationalLeague",
+            "adapterKey": "tt365",
+            "status": "active",
+            "enabled": false,
+            "notes": "Verified public historical result source with team fixtures, player statistics and exact game scores. It remains catalogued for legacy/backfill, but is not marked schedulable until a concrete target bridge is configured.",
+            "config": {
+                "role": "national-league-history",
+                "canonicalThroughSeason": "2024-25",
+                "supersededBy": "scotland-stadium-compete",
+                "authorityBoundaryEnforced": false
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "scottish-national-league",
+                    "name": "Scottish National League TT365 history",
+                    "publicUrl": "https://www.tabletennis365.com/ScottishNationalLeague",
+                    "enabled": false,
+                    "refreshPolicy": {
+                        "cadence": "historical"
+                    }
+                }
+            ]
+        },
+        {
+            "key": "aberdeen-tt365",
+            "name": "Aberdeen & District Table Tennis Association",
+            "platformName": "TableTennis365",
+            "platformBaseUrl": "https://www.tabletennis365.com",
+            "baseUrl": "https://www.tabletennis365.com/Aberdeen",
+            "adapterKey": "tt365",
+            "status": "active",
+            "enabled": false,
+            "notes": "Verified TT365 source. Keep registered but disabled until a concrete current or historical scrape target is present in the operational bootstrap.",
+            "config": {
+                "role": "local-league-history"
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "aberdeen-local-league",
+                    "publicUrl": "https://www.tabletennis365.com/Aberdeen",
+                    "enabled": false
+                }
+            ]
+        },
+        {
+            "key": "dundee-ddtta",
+            "name": "Dundee & District Table Tennis Association current league",
+            "platformName": "Dundee & District Table Tennis Association",
+            "platformBaseUrl": "https://www.ddtta.co.uk",
+            "baseUrl": "https://www.ddtta.co.uk",
+            "adapterKey": "ddtta",
+            "status": "discovery",
+            "enabled": false,
+            "notes": "Current Dundee league tables and averages are published by the association site for 2025-26. Register this as the current authority candidate; enable only after a public adapter is captured and tested.",
+            "config": {
+                "role": "current-local-league",
+                "publicOnly": true
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "dundee-current-league",
+                    "publicUrl": "https://www.ddtta.co.uk/league/",
+                    "enabled": false,
+                    "refreshPolicy": {
+                        "cadence": "daily"
+                    }
+                }
+            ]
+        },
+        {
+            "key": "dundee-tt365",
+            "name": "Dundee & District Table Tennis League TT365 history",
+            "platformName": "TableTennis365",
+            "platformBaseUrl": "https://www.tabletennis365.com",
+            "baseUrl": "https://www.tabletennis365.com/dundee",
+            "adapterKey": "tt365",
+            "status": "active",
+            "enabled": false,
+            "notes": "Retain TT365 as a structured historical source. The DD TTA association site publishes current 2025-26 league data and should be treated as the current authority candidate.",
+            "config": {
+                "role": "local-league-history",
+                "currentAuthority": "dundee-ddtta",
+                "authorityBoundaryEnforced": false
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "dundee-local-league-history",
+                    "publicUrl": "https://www.tabletennis365.com/dundee",
+                    "enabled": false,
+                    "refreshPolicy": {
+                        "cadence": "historical"
+                    }
+                }
+            ]
+        },
+        {
+            "key": "dumfries-tt365",
+            "name": "Dumfries Table Tennis League",
+            "platformName": "TableTennis365",
+            "platformBaseUrl": "https://www.tabletennis365.com",
+            "baseUrl": "https://www.tabletennis365.com/Dumfries",
+            "adapterKey": "tt365",
+            "status": "active",
+            "enabled": true,
+            "ingestion": {
+                "mode": "legacy-config",
+                "legacyLeagueName": "Dumfries Table Tennis League"
+            },
+            "config": {
+                "role": "local-league",
+                "targetSource": "uk-leagues.generated.json",
+                "migration": "legacy-config bridge; move target definition into territory config in a follow-up"
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "dumfries-local-league",
+                    "publicUrl": "https://www.tabletennis365.com/Dumfries"
+                }
+            ]
+        },
+        {
+            "key": "perth-tt365",
+            "name": "Perth Table Tennis Association",
+            "platformName": "TableTennis365",
+            "platformBaseUrl": "https://www.tabletennis365.com",
+            "baseUrl": "https://www.tabletennis365.com/Perth",
+            "adapterKey": "tt365",
+            "status": "active",
+            "enabled": true,
+            "ingestion": {
+                "mode": "legacy-config",
+                "legacyLeagueName": "Perth Table Tennis Association"
+            },
+            "config": {
+                "role": "local-league",
+                "targetSource": "uk-leagues.generated.json",
+                "migration": "legacy-config bridge; move target definition into territory config in a follow-up"
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "perth-local-league",
+                    "publicUrl": "https://www.tabletennis365.com/Perth"
+                }
+            ]
+        },
+        {
+            "key": "smc-tt365",
+            "name": "Stirlingshire & Midland Counties Table Tennis League",
+            "platformName": "TableTennis365",
+            "platformBaseUrl": "https://www.tabletennis365.com",
+            "baseUrl": "https://www.tabletennis365.com/SMC",
+            "adapterKey": "tt365",
+            "status": "active",
+            "enabled": false,
+            "notes": "Verified TT365 source. Keep registered but disabled until a concrete current or historical scrape target is present in the operational bootstrap.",
+            "config": {
+                "role": "local-league-history"
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "smc-local-league",
+                    "publicUrl": "https://www.tabletennis365.com/SMC",
+                    "enabled": false
+                }
+            ]
+        },
+        {
+            "key": "west-of-scotland-tt365",
+            "name": "West of Scotland Table Tennis League",
+            "platformName": "TableTennis365",
+            "platformBaseUrl": "https://www.tabletennis365.com",
+            "baseUrl": "https://www.tabletennis365.com/WestofScotland",
+            "adapterKey": "tt365",
+            "status": "active",
+            "enabled": true,
+            "ingestion": {
+                "mode": "legacy-config",
+                "legacyLeagueName": "West of Scotland Table Tennis League"
+            },
+            "config": {
+                "role": "local-league-history",
+                "targetSource": "uk-leagues.generated.json",
+                "migration": "legacy-config bridge; move target definition into territory config in a follow-up"
+            },
+            "resources": [
+                {
+                    "resourceType": "league",
+                    "externalId": "west-of-scotland-local-league",
+                    "publicUrl": "https://www.tabletennis365.com/WestofScotland"
+                }
+            ]
+        }
+    ]
+}
