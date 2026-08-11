@@ -1,0 +1,153 @@
+name: Validate Parameter Manager Shadow Config
+
+on:
+  workflow_dispatch:
+
+jobs:
+  compare-runtime-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_PROJECT_ID: wudong-agent-master
+      TT_PLAYERS_RUNTIME_WIF_PROVIDER: projects/126174378735/locations/global/workloadIdentityPools/tt-players-actions/providers/runtime-config
+      TT_PLAYERS_RUNTIME_SERVICE_ACCOUNT: tt-players-runtime-reader@wudong-agent-master.iam.gserviceaccount.com
+      TT_PLAYERS_RUNTIME_PARAMETER: tt-players-runtime-prod
+      VPS_SSH_KEY_SECRET_ID: tt-players-hetzner-vps-deploy-key
+      LEGACY_VPS_HOST: ${{ vars.TT_PLAYERS_VPS_HOST }}
+      LEGACY_VPS_USER: ${{ vars.TT_PLAYERS_VPS_USER }}
+      LEGACY_VPS_HOST_KEY: ${{ vars.TT_PLAYERS_VPS_HOST_KEY }}
+      LEGACY_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+      LEGACY_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      SOURCE_ENTRY_FORM_LLM_BASE_URL: https://api.ollama.com
+      SOURCE_ENTRY_FORM_LLM_MODEL: deepseek-v4-flash:0731
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate as production runtime reader
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.TT_PLAYERS_RUNTIME_WIF_PROVIDER }}
+          service_account: ${{ env.TT_PLAYERS_RUNTIME_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Render runtime parameter securely
+        run: |
+          set -euo pipefail
+          umask 077
+          CONFIG_FILE="$(mktemp)"
+          SSH_KEY_FILE="$(mktemp)"
+          chmod 600 "$CONFIG_FILE" "$SSH_KEY_FILE"
+          printf 'CONFIG_FILE=%s\n' "$CONFIG_FILE" >> "$GITHUB_ENV"
+          printf 'SSH_KEY_FILE=%s\n' "$SSH_KEY_FILE" >> "$GITHUB_ENV"
+
+          gcloud parametermanager parameters versions render latest \
+            --project="$GCP_PROJECT_ID" \
+            --parameter="$TT_PLAYERS_RUNTIME_PARAMETER" \
+            --location=global \
+            --format="value(renderedPayload)" \
+            | base64 -d > "$CONFIG_FILE"
+
+          jq -e '
+            type == "object" and
+            .schema_version == 1 and
+            (.vps | type == "object") and
+            (.api | type == "object") and
+            (.entry_form_llm | type == "object") and
+            (.secrets | type == "object")
+          ' "$CONFIG_FILE" >/dev/null
+
+      - name: Compare non-secret production configuration
+        run: |
+          set -euo pipefail
+
+          compare_string() {
+            local label="$1"
+            local jq_path="$2"
+            local expected="$3"
+            local actual
+
+            test -n "$expected" || {
+              echo "::error::Legacy value for $label is empty; cannot perform a trustworthy shadow comparison."
+              exit 1
+            }
+
+            actual="$(jq -er "$jq_path | select(type == \"string\" and length > 0)" "$CONFIG_FILE")"
+            if [[ "$actual" != "$expected" ]]; then
+              echo "::error::$label differs between Parameter Manager and the current production source."
+              exit 1
+            fi
+          }
+
+          compare_string "VPS host" '.vps.host' "$LEGACY_VPS_HOST"
+          compare_string "VPS user" '.vps.user' "$LEGACY_VPS_USER"
+          compare_string "pinned VPS host key" '.vps.host_key' "$LEGACY_VPS_HOST_KEY"
+          compare_string "Supabase URL" '.api.supabase_url' "$LEGACY_SUPABASE_URL"
+          compare_string "Supabase publishable key" '.api.supabase_publishable_key' "$LEGACY_SUPABASE_PUBLISHABLE_KEY"
+          compare_string "entry-form LLM base URL" '.entry_form_llm.base_url' "$SOURCE_ENTRY_FORM_LLM_BASE_URL"
+          compare_string "entry-form LLM model" '.entry_form_llm.model' "$SOURCE_ENTRY_FORM_LLM_MODEL"
+
+      - name: Verify runtime secret resolution and direct SSH-key access
+        run: |
+          set -euo pipefail
+
+          require_rendered_secret() {
+            local label="$1"
+            local jq_path="$2"
+            jq -e "$jq_path | type == \"string\" and length > 0" "$CONFIG_FILE" >/dev/null || {
+              echo "::error::$label did not resolve to a non-empty value."
+              exit 1
+            }
+          }
+
+          require_rendered_secret "Cloudflare account ID" '.secrets.cloudflare_account_id'
+          require_rendered_secret "Cloudflare AI API token" '.secrets.cloudflare_ai_api_token'
+          require_rendered_secret "Ollama API key" '.secrets.ollama_api_key'
+
+          rendered_ssh_secret_id="$(jq -er '.secrets.vps_ssh_key_secret_id | select(type == "string" and length > 0)' "$CONFIG_FILE")"
+          if [[ "$rendered_ssh_secret_id" != "$VPS_SSH_KEY_SECRET_ID" ]]; then
+            echo "::error::VPS SSH Secret Manager ID differs from the reviewed bootstrap contract."
+            exit 1
+          fi
+
+          gcloud secrets versions access latest \
+            --project="$GCP_PROJECT_ID" \
+            --secret="$rendered_ssh_secret_id" > "$SSH_KEY_FILE"
+          test -s "$SSH_KEY_FILE" || {
+            echo "::error::Production runtime identity could not read a non-empty VPS SSH key."
+            exit 1
+          }
+          grep -q '^-----BEGIN OPENSSH PRIVATE KEY-----$' "$SSH_KEY_FILE" || {
+            echo "::error::VPS SSH key secret does not have the expected OpenSSH private-key format."
+            exit 1
+          }
+
+      - name: Shadow validation summary
+        run: |
+          {
+            echo "### TT Players Parameter Manager shadow validation"
+            echo "- Identity: production \`tt-players-runtime-reader\`"
+            echo "- Schema: \`1\`"
+            echo "- Non-secret runtime config: matches current production sources"
+            echo "- JSON-safe Parameter Manager secret references: resolved and non-empty"
+            echo "- Multiline VPS SSH key: direct Secret Manager access verified without logging contents"
+            echo "- Production deployment source: unchanged by this workflow"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Clean rendered config, SSH key, and Google credentials
+        if: always()
+        run: |
+          if [[ -n "${CONFIG_FILE:-}" ]]; then
+            rm -f "$CONFIG_FILE"
+          fi
+          if [[ -n "${SSH_KEY_FILE:-}" ]]; then
+            rm -f "$SSH_KEY_FILE"
+          fi
+          find "${RUNNER_TEMP:-/tmp}" -maxdepth 1 -type f -name 'gha-creds-*.json' -delete 2>/dev/null || true
