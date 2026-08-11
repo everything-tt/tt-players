@@ -133,6 +133,67 @@ async function createSamePlatformPair(name = 'Same Platform Player') {
     return { first, second };
 }
 
+async function createSamePlatformAliasPair(name = 'Aliased Same Platform Player') {
+    const root = await db
+        .insertInto('external_players')
+        .values({
+            id: '00000000-0000-0000-0000-000000000001',
+            platform_id: ttLeaguesPlatformId,
+            external_id: `ttl-root-${Math.random()}`,
+            name: `${name} Root`,
+        })
+        .returning(['id', 'canonical_player_id'])
+        .executeTakeFirstOrThrow();
+    await db
+        .updateTable('external_players')
+        .set({ canonical_player_id: root.id })
+        .where('id', '=', root.id)
+        .execute();
+
+    const alias = await db
+        .insertInto('external_players')
+        .values({
+            id: '00000000-0000-0000-0000-000000000002',
+            platform_id: tt365PlatformId,
+            external_id: `tt365-alias-${Math.random()}`,
+            canonical_player_id: root.id,
+            name,
+        })
+        .returning(['id', 'canonical_player_id'])
+        .executeTakeFirstOrThrow();
+    const source = await db
+        .insertInto('external_players')
+        .values({
+            id: 'ffffffff-ffff-ffff-ffff-ffffffffffff',
+            platform_id: tt365PlatformId,
+            external_id: `tt365-source-${Math.random()}`,
+            name,
+        })
+        .returning(['id', 'canonical_player_id'])
+        .executeTakeFirstOrThrow();
+    await db
+        .updateTable('external_players')
+        .set({ canonical_player_id: source.id })
+        .where('id', '=', source.id)
+        .execute();
+
+    await db
+        .insertInto('rubbers')
+        .values({
+            fixture_id: fixtureId,
+            external_id: `rubber-${Math.random()}`,
+            is_doubles: false,
+            home_player_1_id: alias.id,
+            away_player_1_id: source.id,
+            home_games_won: 3,
+            away_games_won: 1,
+            outcome_type: 'normal',
+        })
+        .execute();
+
+    return { root, alias, source };
+}
+
 describe('evidence-based player identity reconciliation', () => {
     beforeAll(async () => {
         await createTestDatabase();
@@ -281,6 +342,40 @@ describe('evidence-based player identity reconciliation', () => {
             rule: 'same-platform-same-league',
             league_name: 'League 1',
         });
+    });
+
+    it('preserves an existing canonical root when confirming an alias suggestion', async () => {
+        const { root, alias, source } = await createSamePlatformAliasPair();
+
+        const result = await reconcilePlayersByName(db);
+        expect(result.suggestedGroups).toBe(1);
+        expect(result.suggestedLinks).toBe(1);
+
+        const suggestion = await db
+            .selectFrom('player_identity_decisions')
+            .select(['source_player_id', 'canonical_player_id'])
+            .executeTakeFirstOrThrow();
+        expect(suggestion.source_player_id).toBe(source.id);
+        expect(suggestion.canonical_player_id).toBe(alias.id);
+
+        await confirmPlayerIdentity(
+            db,
+            suggestion.source_player_id,
+            suggestion.canonical_player_id,
+            { rule: 'manual-confirmation', reviewer: 'test' },
+        );
+
+        const players = await db
+            .selectFrom('external_players')
+            .select(['id', 'canonical_player_id'])
+            .where('id', 'in', [root.id, alias.id, source.id])
+            .execute();
+        const canonicalByPlayer = new Map(
+            players.map((player) => [player.id, player.canonical_player_id]),
+        );
+        expect(canonicalByPlayer.get(root.id)).toBe(root.id);
+        expect(canonicalByPlayer.get(alias.id)).toBe(root.id);
+        expect(canonicalByPlayer.get(source.id)).toBe(root.id);
     });
 
     it('applies only a confirmed decision and keeps rubber source IDs', async () => {
