@@ -15,6 +15,12 @@ export interface VettsCompetitionResolution {
     matchMethod: 'existing-source' | 'automatic' | 'review' | 'separate';
 }
 
+export function isVettsCancelledTournament(
+    metadata: Pick<VettsTournamentMetadata, 'name'>,
+): boolean {
+    return /\bcancel(?:led|ed)\b/i.test(metadata.name);
+}
+
 export function deriveVettsEventStatus(
     metadata: Pick<VettsTournamentMetadata, 'startDate' | 'endDate'>,
     now: Date = new Date(),

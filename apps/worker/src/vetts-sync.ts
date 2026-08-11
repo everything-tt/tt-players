@@ -23,6 +23,7 @@ import {
 } from './vetts-parser.js';
 import {
     deriveVettsEventStatus,
+    isVettsCancelledTournament,
     resolveVettsCompetition,
     upsertVettsLeague,
     upsertVettsPlatform,
@@ -194,6 +195,7 @@ export async function syncVettsTournament(
         let duplicateLinks = 0;
         let duplicateConflicts = 0;
         const eventStatus = deriveVettsEventStatus(metadata);
+        const isCancelled = isVettsCancelledTournament(metadata);
 
         for (const date of pages) {
             const matchesUrl = vettsUrls.matches(tournamentId, date);
@@ -248,7 +250,7 @@ export async function syncVettsTournament(
             );
         }
 
-        if (eventStatus === 'completed' && matchRows === 0) {
+        if (eventStatus === 'completed' && matchRows === 0 && !isCancelled) {
             throw new Error(`VETTS completed tournament ${tournamentId} produced no parsed matches`);
         }
 
@@ -257,6 +259,7 @@ export async function syncVettsTournament(
             .set({
                 last_scraped_at: new Date(),
                 event_status: eventStatus,
+                ...(isCancelled ? { publication_status: 'cancelled' } : {}),
             })
             .where('id', '=', competitionId)
             .execute();

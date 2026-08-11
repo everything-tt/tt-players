@@ -10,6 +10,7 @@ import { syncVettsTournament } from '../vetts-sync.js';
 const { Pool } = pg;
 const TOURNAMENT_ID = '4af81622-d21a-47ed-a046-86c492b4cfe9';
 const EMPTY_TOURNAMENT_ID = '769534f2-8229-4b33-bf34-cd35c9cd7d73';
+const CANCELLED_TOURNAMENT_ID = '5a6c9ec0-27e3-424c-bc3c-39e141dd877e';
 const TOURNAMENT_URL = `https://vetts.tournamentsoftware.com/tournament/${TOURNAMENT_ID}`;
 const TEST_DATABASE_NAME = `tt_players_vetts_ingestion_${process.pid}`;
 const ADMIN_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/postgres';
@@ -31,6 +32,7 @@ const overviewHtml = `
 </html>`;
 
 const emptyMatchesHtml = '<table class="matches"><tbody></tbody></table>';
+const cancelledOverviewHtml = overviewHtml.replaceAll('VETTS Nationals 2026', 'VETTS Northern 2020 CANCELLED');
 const matchesHtml = `
 <table class="matches">
 <tbody>
@@ -333,5 +335,49 @@ describe('VETTS ingestion integration', () => {
             .executeTakeFirstOrThrow();
         expect(resultsResource.consecutive_failures).toBe(1);
         expect(resultsResource.last_error).toContain('produced no parsed matches');
+    }, 120_000);
+
+    it('records dated cancelled tournaments without treating zero results as a parser failure', async () => {
+        const overviewUrl = `https://vetts.tournamentsoftware.com/tournament/${CANCELLED_TOURNAMENT_ID}`;
+        vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+            const url = String(input);
+            if (url === overviewUrl) {
+                return new Response(cancelledOverviewHtml, { status: 200 });
+            }
+            if (url === `${overviewUrl}/matches/20200516` || url === `${overviewUrl}/matches/20200517`) {
+                return new Response(emptyMatchesHtml, { status: 200 });
+            }
+            throw new Error(`Unexpected cancelled VETTS URL in integration test: ${url}`);
+        }));
+
+        const result = await syncVettsTournament(db, CANCELLED_TOURNAMENT_ID);
+        expect(result).toMatchObject({
+            tournamentId: CANCELLED_TOURNAMENT_ID,
+            matchRows: 0,
+            rejectedRows: 0,
+        });
+
+        const competition = await (db as Kysely<any>)
+            .selectFrom('competitions')
+            .select(['event_status', 'publication_status', 'deleted_at'])
+            .where('external_id', '=', `vetts:tournament:${CANCELLED_TOURNAMENT_ID}`)
+            .executeTakeFirstOrThrow();
+        expect(competition).toMatchObject({
+            event_status: 'completed',
+            publication_status: 'cancelled',
+            deleted_at: null,
+        });
+
+        const resultsResource = await db
+            .selectFrom('source_resources')
+            .select(['consecutive_failures', 'last_error', 'last_succeeded_at'])
+            .where('resource_type', '=', 'event-results')
+            .where('external_id', '=', `${CANCELLED_TOURNAMENT_ID}:matches`)
+            .executeTakeFirstOrThrow();
+        expect(resultsResource).toMatchObject({
+            consecutive_failures: 0,
+            last_error: null,
+            last_succeeded_at: expect.any(Date),
+        });
     }, 120_000);
 });
