@@ -69,7 +69,7 @@
   border-top: 1px solid color-mix(in oklch, var(--tt-border) 76%, transparent);
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-top: 12px;
   padding-top: 12px;
 }
@@ -345,6 +345,10 @@
     --tt-metric-compact-padding: 8px 3px;
     --tt-metric-value-size: 18px;
     --tt-metric-label-size: 9px;
+  }
+
+  .tt-leagues-hero-card__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .tt-leagues-season__summary {
