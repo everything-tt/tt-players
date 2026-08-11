@@ -281,22 +281,13 @@ export async function buildRatingAuditSnapshot(
         sql<NetworkHealthRow>`
             WITH eligible AS MATERIALIZED (
                 SELECT
-                    r.id,
-                    f.competition_id,
-                    COALESCE(r.played_at::date, CASE WHEN f.deleted_at IS NULL THEN f.date_played END) AS match_date,
-                    COALESCE(home_player.canonical_player_id, home_player.id) AS home_player_id,
-                    COALESCE(away_player.canonical_player_id, away_player.id) AS away_player_id
-                FROM rubbers r
-                LEFT JOIN fixtures f ON f.id = r.fixture_id
-                JOIN external_players home_player ON home_player.id = r.home_player_1_id
-                JOIN external_players away_player ON away_player.id = r.away_player_1_id
-                WHERE r.deleted_at IS NULL
-                  AND r.is_doubles = false
-                  AND r.outcome_type = 'normal'
-                  AND COALESCE(r.played_at::date, CASE WHEN f.deleted_at IS NULL THEN f.date_played END) IS NOT NULL
-                  AND r.home_games_won <> r.away_games_won
-                  AND COALESCE(home_player.canonical_player_id, home_player.id)
-                      <> COALESCE(away_player.canonical_player_id, away_player.id)
+                    classification.rubber_id AS id,
+                    classification.competition_id,
+                    classification.effective_date AS match_date,
+                    classification.home_canonical_player_id AS home_player_id,
+                    classification.away_canonical_player_id AS away_player_id
+                FROM rating_rubber_classification classification
+                WHERE classification.eligibility_reason = 'eligible'
             ),
             directed_edges AS MATERIALIZED (
                 SELECT home_player_id AS player_id, away_player_id AS opponent_id FROM eligible

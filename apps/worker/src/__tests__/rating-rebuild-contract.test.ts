@@ -6,6 +6,10 @@ const rebuildSource = readFileSync(
     fileURLToPath(new URL('../rebuild-weekly-rating-history.ts', import.meta.url)),
     'utf8',
 );
+const auditSnapshotSource = readFileSync(
+    fileURLToPath(new URL('../ratings/rating-audit-snapshot.ts', import.meta.url)),
+    'utf8',
+);
 const workflowSource = readFileSync(
     fileURLToPath(
         new URL('../../../../.github/workflows/rating-rebuild.yml', import.meta.url),
@@ -37,9 +41,20 @@ describe('full calculated-rating rebuild contract', () => {
         expect(workflowSource).toContain('systemctl stop ttp-worker');
         expect(workflowSource).toContain('--property=Environment=DB_QUERY_TIMEOUT_MS=360000');
         expect(workflowSource).toContain('--property=Environment=DB_STATEMENT_TIMEOUT_MS=300000');
+        expect(
+            workflowSource.match(/--property=Environment=DB_QUERY_TIMEOUT_MS=360000/g),
+        ).toHaveLength(2);
+        expect(
+            workflowSource.match(/--property=Environment=DB_STATEMENT_TIMEOUT_MS=300000/g),
+        ).toHaveLength(2);
         expect(workflowSource).toContain('Ensure worker is running');
         expect(workflowSource).toContain('src/refresh-rating-audit-snapshot.ts');
         expect(workflowSource).toContain("grep -q '^RATING_REBUILD='");
         expect(workflowSource).toContain("grep -q '^RATING_AUDIT_SNAPSHOT='");
+    });
+
+    it('uses the rating classification boundary for network audit metrics', () => {
+        expect(auditSnapshotSource).toContain('FROM rating_rubber_classification classification');
+        expect(auditSnapshotSource).toContain("classification.eligibility_reason = 'eligible'");
     });
 });
