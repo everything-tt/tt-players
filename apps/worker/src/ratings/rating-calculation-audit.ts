@@ -33,6 +33,8 @@ interface PeriodAuditIdRow {
     player_id: string;
 }
 
+const EXCLUDED_MATCH_AUDIT_BATCH_SIZE = 2_000;
+
 export interface RatingCalculationAuditRun {
     id: string;
     sourceDataCutoff: string | null;
@@ -475,57 +477,81 @@ async function recordExcludedMatches(
     lastProcessedDate: string | null,
     sourceDataCutoff: string | null,
 ): Promise<void> {
-    await sql`
-        INSERT INTO rating_match_audits (
-            run_id,
-            rating_date,
-            rubber_id,
-            side,
-            player_id,
-            opponent_id,
-            game_score,
-            included,
-            exclusion_reason
-        )
-        SELECT
-            ${runId}::uuid,
-            classification.effective_date,
-            classification.rubber_id,
-            side_data.side,
-            side_data.player_id,
-            side_data.opponent_id,
-            side_data.game_score,
-            false,
-            classification.eligibility_reason
-        FROM rating_rubber_classification classification
-        CROSS JOIN LATERAL (
-            VALUES
-                (
-                    'home'::varchar,
-                    classification.home_canonical_player_id,
-                    classification.away_canonical_player_id,
-                    concat(classification.home_games_won, '-', classification.away_games_won)
-                ),
-                (
-                    'away'::varchar,
-                    classification.away_canonical_player_id,
-                    classification.home_canonical_player_id,
-                    concat(classification.away_games_won, '-', classification.home_games_won)
-                )
-        ) AS side_data(side, player_id, opponent_id, game_score)
-        WHERE classification.eligibility_reason <> 'eligible'
-          AND (
-              ${lastProcessedDate}::date IS NULL
-              OR classification.effective_date IS NULL
-              OR classification.effective_date > ${lastProcessedDate}::date
-          )
-          AND (
-              ${sourceDataCutoff}::date IS NULL
-              OR classification.effective_date IS NULL
-              OR classification.effective_date <= ${sourceDataCutoff}::date
-          )
-        ORDER BY classification.effective_date NULLS FIRST, classification.rubber_id, side_data.side
-    `.execute(db);
+    let lastRubberId: string | null = null;
+
+    for (;;) {
+        const inserted = await sql<{ rubber_id: string }>`
+            WITH batch AS (
+                SELECT classification.*
+                FROM rating_rubber_classification classification
+                WHERE classification.eligibility_reason <> 'eligible'
+                  AND (
+                      ${lastProcessedDate}::date IS NULL
+                      OR classification.effective_date IS NULL
+                      OR classification.effective_date > ${lastProcessedDate}::date
+                  )
+                  AND (
+                      ${sourceDataCutoff}::date IS NULL
+                      OR classification.effective_date IS NULL
+                      OR classification.effective_date <= ${sourceDataCutoff}::date
+                  )
+                  AND (
+                      ${lastRubberId}::uuid IS NULL
+                      OR classification.rubber_id > ${lastRubberId}::uuid
+                  )
+                ORDER BY classification.rubber_id
+                LIMIT ${EXCLUDED_MATCH_AUDIT_BATCH_SIZE}
+            )
+            INSERT INTO rating_match_audits (
+                run_id,
+                rating_date,
+                rubber_id,
+                side,
+                player_id,
+                opponent_id,
+                game_score,
+                included,
+                exclusion_reason
+            )
+            SELECT
+                ${runId}::uuid,
+                batch.effective_date,
+                batch.rubber_id,
+                side_data.side,
+                side_data.player_id,
+                side_data.opponent_id,
+                side_data.game_score,
+                false,
+                batch.eligibility_reason
+            FROM batch
+            CROSS JOIN LATERAL (
+                VALUES
+                    (
+                        'home'::varchar,
+                        batch.home_canonical_player_id,
+                        batch.away_canonical_player_id,
+                        concat(batch.home_games_won, '-', batch.away_games_won)
+                    ),
+                    (
+                        'away'::varchar,
+                        batch.away_canonical_player_id,
+                        batch.home_canonical_player_id,
+                        concat(batch.away_games_won, '-', batch.home_games_won)
+                    )
+            ) AS side_data(side, player_id, opponent_id, game_score)
+            RETURNING rubber_id
+        `.execute(db);
+
+        if (inserted.rows.length === 0) break;
+
+        for (const row of inserted.rows) {
+            if (!lastRubberId || row.rubber_id > lastRubberId) {
+                lastRubberId = row.rubber_id;
+            }
+        }
+
+        if (inserted.rows.length < EXCLUDED_MATCH_AUDIT_BATCH_SIZE * 2) break;
+    }
 }
 
 export function resolveRatingCodeCommitSha(explicit?: string): string {
