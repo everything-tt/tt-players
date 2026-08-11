@@ -16,6 +16,8 @@ import {
     loadRatingAuditPublicRanks,
     loadUniqueOpponentCounts,
     recordRatingPeriodAudit,
+    ratingDataSourceTable,
+    type RatingDataSource,
 } from './rating-calculation-audit.js';
 
 const DEFAULT_MODEL_KEY = 'global-singles-glicko2-v1';
@@ -55,6 +57,10 @@ interface NextDateRow {
     next_date: string | Date | null;
 }
 
+interface PeriodDateRow {
+    period_date: string | Date | null;
+}
+
 interface CalculationConfig extends Glicko2Config {
     batchSize: number;
 }
@@ -78,6 +84,7 @@ export interface CalculateRatingsOptions {
     maxPeriods?: number;
     rebuild?: boolean;
     codeCommitSha?: string;
+    ratingSource?: RatingDataSource;
 }
 
 export interface CalculateRatingsResult {
@@ -97,6 +104,7 @@ export async function calculateRatings(
 ): Promise<CalculateRatingsResult> {
     const modelKey = options.modelKey ?? DEFAULT_MODEL_KEY;
     const maxPeriods = Math.max(1, Math.floor(options.maxPeriods ?? 31));
+    const ratingSource = options.ratingSource ?? 'classification-view';
 
     if (options.rebuild) {
         const reset = await resetModel(db, modelKey);
@@ -123,6 +131,12 @@ export async function calculateRatings(
         parameters: auditConfig,
         codeCommitSha: options.codeCommitSha,
     });
+    const periodDates = await loadPeriodDates(
+        db,
+        ratingSource,
+        auditRun.lastProcessedDate,
+        maxPeriods,
+    );
 
     let processedPeriods = 0;
     let processedMatches = 0;
@@ -130,7 +144,13 @@ export async function calculateRatings(
 
     try {
         while (processedPeriods < maxPeriods) {
-            const period = await processNextPeriod(db, modelKey, auditRun.id);
+            const period = await processNextPeriod(
+                db,
+                modelKey,
+                auditRun.id,
+                ratingSource,
+                periodDates[processedPeriods] ?? null,
+            );
 
             if (period.kind === 'busy') {
                 await finishRatingCalculationAudit(
@@ -255,6 +275,8 @@ async function processNextPeriod(
     db: Kysely<Database>,
     modelKey: string,
     auditRunId: string,
+    ratingSource: RatingDataSource,
+    requestedDate: string | null,
 ): Promise<
     | { kind: 'busy' }
     | { kind: 'complete'; lastProcessedDate: string | null }
@@ -282,13 +304,20 @@ async function processNextPeriod(
             stateResult.rows[0]?.last_processed_date ?? null,
         );
 
-        const nextDateResult = await sql<NextDateRow>`
-            SELECT MIN(effective_date) AS next_date
-            FROM rating_rubber_classification
-            WHERE eligibility_reason = 'eligible'
-              AND effective_date > COALESCE(${lastProcessedDate}::date, '-infinity'::date)
-        `.execute(trx);
-        const nextDate = toDateString(nextDateResult.rows[0]?.next_date ?? null);
+        const sourceTable = ratingDataSourceTable(ratingSource);
+        const requestedDateIsNext = requestedDate !== null
+            && (lastProcessedDate === null || requestedDate > lastProcessedDate);
+        let nextDate = requestedDateIsNext ? requestedDate : null;
+
+        if (!nextDate) {
+            const nextDateResult = await sql<NextDateRow>`
+                SELECT MIN(effective_date) AS next_date
+                FROM ${sourceTable}
+                WHERE eligibility_reason = 'eligible'
+                  AND effective_date > COALESCE(${lastProcessedDate}::date, '-infinity'::date)
+            `.execute(trx);
+            nextDate = toDateString(nextDateResult.rows[0]?.next_date ?? null);
+        }
 
         if (!nextDate) {
             await sql`
@@ -309,7 +338,7 @@ async function processNextPeriod(
                 away_canonical_player_id AS away_player_id,
                 home_games_won,
                 away_games_won
-            FROM rating_rubber_classification
+            FROM ${sourceTable}
             WHERE eligibility_reason = 'eligible'
               AND effective_date = ${nextDate}::date
             ORDER BY rubber_id
@@ -408,7 +437,12 @@ async function processNextPeriod(
             });
         }
 
-        const uniqueOpponentCounts = await loadUniqueOpponentCounts(trx, playerIds, nextDate);
+        const uniqueOpponentCounts = await loadUniqueOpponentCounts(
+            trx,
+            playerIds,
+            nextDate,
+            ratingSource,
+        );
 
         for (let offset = 0; offset < updates.length; offset += config.batchSize) {
             await upsertBatch(trx, model.id, updates.slice(offset, offset + config.batchSize));
@@ -479,6 +513,28 @@ async function processNextPeriod(
             players: playerIds.length,
         };
     });
+}
+
+async function loadPeriodDates(
+    db: Kysely<Database>,
+    ratingSource: RatingDataSource,
+    lastProcessedDate: string | null,
+    maxPeriods: number,
+): Promise<string[]> {
+    const sourceTable = ratingDataSourceTable(ratingSource);
+    const result = await sql<PeriodDateRow>`
+        SELECT effective_date AS period_date
+        FROM ${sourceTable}
+        WHERE eligibility_reason = 'eligible'
+          AND effective_date > COALESCE(${lastProcessedDate}::date, '-infinity'::date)
+        GROUP BY effective_date
+        ORDER BY effective_date
+        LIMIT ${maxPeriods}
+    `.execute(db);
+
+    return result.rows
+        .map((row) => toDateString(row.period_date))
+        .filter((date): date is string => date !== null);
 }
 
 async function acquireLock(trx: Transaction<Database>): Promise<boolean> {

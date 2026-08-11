@@ -9,6 +9,7 @@ const DEFAULT_MODEL_KEY = 'global-singles-glicko2-v1';
 const DEFAULT_YEARS = 10;
 const DEFAULT_MAX_PERIODS = 100000;
 const LOCK_KEY = 'tt-players:calculated-ratings';
+const RATING_REBUILD_SOURCE_TABLE = 'rating_rebuild_matches';
 
 interface DateRow {
     first_date: string | Date | null;
@@ -217,6 +218,49 @@ async function markFailed(modelKey: string, error: unknown): Promise<void> {
     `.execute(db);
 }
 
+async function prepareRebuildSource(startDate: string): Promise<void> {
+    await db.transaction().execute(async (trx) => {
+        await sql`SET LOCAL statement_timeout = '5min'`.execute(trx);
+        await sql`DROP TABLE IF EXISTS ${sql.raw(RATING_REBUILD_SOURCE_TABLE)}`.execute(trx);
+        await sql`
+            CREATE UNLOGGED TABLE ${sql.raw(RATING_REBUILD_SOURCE_TABLE)} AS
+            SELECT
+                rubber_id,
+                effective_date,
+                home_canonical_player_id,
+                away_canonical_player_id,
+                home_games_won,
+                away_games_won,
+                eligibility_reason
+            FROM rating_rubber_classification
+            WHERE eligibility_reason = 'eligible'
+              AND effective_date >= ${startDate}::date
+        `.execute(trx);
+        await sql`
+            CREATE INDEX rating_rebuild_matches_effective_date_idx
+            ON ${sql.raw(RATING_REBUILD_SOURCE_TABLE)} (effective_date, rubber_id)
+        `.execute(trx);
+        await sql`
+            CREATE INDEX rating_rebuild_matches_home_date_away_idx
+            ON ${sql.raw(RATING_REBUILD_SOURCE_TABLE)}
+                (home_canonical_player_id, effective_date, away_canonical_player_id)
+        `.execute(trx);
+        await sql`
+            CREATE INDEX rating_rebuild_matches_away_date_home_idx
+            ON ${sql.raw(RATING_REBUILD_SOURCE_TABLE)}
+                (away_canonical_player_id, effective_date, home_canonical_player_id)
+        `.execute(trx);
+        await sql`ANALYZE ${sql.raw(RATING_REBUILD_SOURCE_TABLE)}`.execute(trx);
+    });
+}
+
+async function cleanupRebuildSource(): Promise<void> {
+    await db.transaction().execute(async (trx) => {
+        await sql`SET LOCAL statement_timeout = '2min'`.execute(trx);
+        await sql`DROP TABLE IF EXISTS ${sql.raw(RATING_REBUILD_SOURCE_TABLE)}`.execute(trx);
+    });
+}
+
 async function rebuild(): Promise<void> {
     const modelKey = readArg('model') ?? DEFAULT_MODEL_KEY;
     if (!/^[a-zA-Z0-9._-]+$/.test(modelKey)) {
@@ -237,17 +281,25 @@ async function rebuild(): Promise<void> {
     console.log(`ratings history: rebuilding ${modelKey} from ${resolved.startDate}`);
     console.log(`ratings history: scope=${resolved.scope}`);
     console.log('ratings history: current ratings, current rankings, checkpoints, and weekly history for this model will be replaced');
-    await resetFromDate(modelKey, resolved.startDate);
 
     let totalPeriods = 0;
     let totalMatches = 0;
     let lastProcessedDate: string | null = null;
+    let sourcePrepared = false;
 
     try {
+        await resetFromDate(modelKey, resolved.startDate);
+        await prepareRebuildSource(resolved.startDate);
+        sourcePrepared = true;
+
         while (true) {
             const result = await calculateRatings(
                 db,
-                { modelKey, maxPeriods },
+                {
+                    modelKey,
+                    maxPeriods,
+                    ratingSource: 'rebuild-table',
+                },
                 console.log,
             );
 
@@ -263,8 +315,16 @@ async function rebuild(): Promise<void> {
 
             if (result.complete) break;
         }
+
+        await cleanupRebuildSource();
+        sourcePrepared = false;
     } catch (error) {
         await markFailed(modelKey, error);
+        if (sourcePrepared) {
+            await cleanupRebuildSource().catch((cleanupError) => {
+                console.error('ratings history: failed to clean up rebuild source', cleanupError);
+            });
+        }
         throw error;
     }
 

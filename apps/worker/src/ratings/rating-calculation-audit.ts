@@ -35,6 +35,16 @@ interface PeriodAuditIdRow {
 
 const EXCLUDED_MATCH_AUDIT_BATCH_SIZE = 2_000;
 
+export type RatingDataSource = 'classification-view' | 'rebuild-table';
+
+export function ratingDataSourceTable(source: RatingDataSource = 'classification-view') {
+    return sql.raw(
+        source === 'rebuild-table'
+            ? 'rating_rebuild_matches'
+            : 'rating_rubber_classification',
+    );
+}
+
 export interface RatingCalculationAuditRun {
     id: string;
     sourceDataCutoff: string | null;
@@ -200,32 +210,35 @@ export async function loadUniqueOpponentCounts(
     trx: Transaction<Database>,
     playerIds: string[],
     throughDate: string,
+    source: RatingDataSource = 'classification-view',
 ): Promise<Map<string, number>> {
     if (playerIds.length === 0) return new Map();
 
+    const sourceTable = ratingDataSourceTable(source);
     const result = await sql<OpponentCountRow>`
         WITH observations AS (
             SELECT
                 home_canonical_player_id AS player_id,
                 away_canonical_player_id AS opponent_id
-            FROM rating_rubber_classification
+            FROM ${sourceTable}
             WHERE eligibility_reason = 'eligible'
               AND effective_date <= ${throughDate}::date
+              AND home_canonical_player_id = ANY(${playerIds}::uuid[])
 
             UNION ALL
 
             SELECT
                 away_canonical_player_id AS player_id,
                 home_canonical_player_id AS opponent_id
-            FROM rating_rubber_classification
+            FROM ${sourceTable}
             WHERE eligibility_reason = 'eligible'
               AND effective_date <= ${throughDate}::date
+              AND away_canonical_player_id = ANY(${playerIds}::uuid[])
         )
         SELECT
             player_id,
             COUNT(DISTINCT opponent_id)::int AS unique_opponents
         FROM observations
-        WHERE player_id = ANY(${playerIds}::uuid[])
         GROUP BY player_id
     `.execute(trx);
 

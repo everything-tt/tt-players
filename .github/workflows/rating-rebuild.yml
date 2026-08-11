@@ -142,6 +142,7 @@ jobs:
             "test -f /opt/tt-players/current/apps/worker/src/rebuild-weekly-rating-history.ts && \
              test -x /opt/tt-players/current/apps/worker/node_modules/.bin/tsx && \
              grep -q \"hasFlag('all')\" /opt/tt-players/current/apps/worker/src/rebuild-weekly-rating-history.ts && \
+             grep -q 'rating_rebuild_matches' /opt/tt-players/current/apps/worker/src/rebuild-weekly-rating-history.ts && \
              grep -q 'RATING_REBUILD=' /opt/tt-players/current/apps/worker/src/rebuild-weekly-rating-history.ts"
 
       - name: Rebuild ratings and refresh audit read models
