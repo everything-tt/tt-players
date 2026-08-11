@@ -188,6 +188,8 @@ jobs:
             --uid=ttp \
             --gid=ttp \
             --property=EnvironmentFile=/etc/ttp/worker.env \
+            --property=Environment=DB_QUERY_TIMEOUT_MS=360000 \
+            --property=Environment=DB_STATEMENT_TIMEOUT_MS=300000 \
             --property=WorkingDirectory=/opt/tt-players/current/apps/worker \
             "${rebuild_args[@]}"
 

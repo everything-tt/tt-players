@@ -35,6 +35,8 @@ describe('full calculated-rating rebuild contract', () => {
         expect(workflowSource).toContain('REBUILD_RATINGS');
         expect(workflowSource).toContain('group: vps-production-ttp');
         expect(workflowSource).toContain('systemctl stop ttp-worker');
+        expect(workflowSource).toContain('--property=Environment=DB_QUERY_TIMEOUT_MS=360000');
+        expect(workflowSource).toContain('--property=Environment=DB_STATEMENT_TIMEOUT_MS=300000');
         expect(workflowSource).toContain('Ensure worker is running');
         expect(workflowSource).toContain('src/refresh-rating-audit-snapshot.ts');
         expect(workflowSource).toContain("grep -q '^RATING_REBUILD='");

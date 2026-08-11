@@ -315,7 +315,11 @@ async function rebuild(): Promise<void> {
         await cleanupRebuildSource();
         sourcePrepared = false;
     } catch (error) {
-        await markFailed(modelKey, error);
+        try {
+            await markFailed(modelKey, error);
+        } catch (markFailedError) {
+            console.error('ratings history: failed to record rebuild failure', markFailedError);
+        }
         if (sourcePrepared) {
             await cleanupRebuildSource().catch((cleanupError) => {
                 console.error('ratings history: failed to clean up rebuild source', cleanupError);
