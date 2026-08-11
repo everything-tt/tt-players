@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
 import * as cheerio from 'cheerio';
 import type { OutcomeType } from '@tt-players/db';
-import type {
-    ParsedFixture,
-    ParsedPlayer,
-    ParsedRubber,
-    ParsedTTLeaguesData,
+import {
+    normalizePlayerName,
+    type ParsedFixture,
+    type ParsedPlayer,
+    type ParsedRubber,
+    type ParsedTTLeaguesData,
 } from './parser.js';
 
 export interface VettsTournamentLink {
@@ -333,7 +334,10 @@ function playerFromAnchor($: cheerio.CheerioAPI, element: any): VettsPlayer | nu
     const playerId = queryParam(href, 'player') ?? href.match(/\/player\/([^/?#]+)/i)?.[1] ?? null;
     const name = cleanText($(element).text()).replace(/\s+\[(?:\d+(?:\/\d+)?)\]\s*$/, '');
     if (!playerId || !name) return null;
-    return { externalId: `tournamentsoftware:${playerId}`, name };
+    return {
+        externalId: `tournamentsoftware:${playerId}`,
+        name: normalizePlayerName(name),
+    };
 }
 
 function uniquePlayers(players: VettsPlayer[]): VettsPlayer[] {

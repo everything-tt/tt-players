@@ -55,60 +55,76 @@ function chooseCanonicalId(group: ExternalPlayerRow[]): string | null {
     return group.map((player) => player.id).sort()[0] ?? null;
 }
 
-async function upsertSuggestedDecision(
+interface SuggestedDecisionCandidate {
+    source_player_id: string;
+    canonical_player_id: string;
+    confidence: number;
+    evidence: IdentityEvidence;
+    group_key: string;
+}
+
+/**
+ * Insert new review suggestions in one batch. Existing confirmed/rejected
+ * decisions are immutable, and existing suggestions already contain the
+ * same deterministic evidence, so neither needs a per-pair write.
+ */
+async function insertReviewSuggestions(
     db: Kysely<Database>,
-    source: ExternalPlayerRow,
-    canonical: ExternalPlayerRow,
-    normalizedName: string,
-): Promise<boolean> {
+    candidates: SuggestedDecisionCandidate[],
+): Promise<{ suggestedGroups: number; suggestedLinks: number }> {
+    if (candidates.length === 0) {
+        return { suggestedGroups: 0, suggestedLinks: 0 };
+    }
+
+    const uniqueCandidates = new Map<string, SuggestedDecisionCandidate>();
+    for (const candidate of candidates) {
+        const key = `${candidate.source_player_id}:${candidate.canonical_player_id}`;
+        if (!uniqueCandidates.has(key)) uniqueCandidates.set(key, candidate);
+    }
+
     const existing = await db
         .selectFrom('player_identity_decisions')
-        .select(['id', 'status'])
-        .where('source_player_id', '=', source.id)
-        .where('canonical_player_id', '=', canonical.id)
-        .executeTakeFirst();
-
-    if (existing?.status === 'confirmed' || existing?.status === 'rejected') {
-        return false;
-    }
-
-    const now = new Date();
-    const evidence: IdentityEvidence = {
-        rule: 'exact-normalized-name',
-        normalized_name: normalizedName,
-        source_platform_id: source.platform_id,
-        canonical_platform_id: canonical.platform_id,
-        source_external_id: source.external_id,
-        canonical_external_id: canonical.external_id,
-    };
-
-    if (existing) {
-        await db
-            .updateTable('player_identity_decisions')
-            .set({
-                confidence: EXACT_NAME_CONFIDENCE,
-                evidence,
-                created_by: 'automatic',
-                updated_at: now,
-            })
-            .where('id', '=', existing.id)
-            .execute();
-        return false;
-    }
-
-    await db
-        .insertInto('player_identity_decisions')
-        .values({
-            source_player_id: source.id,
-            canonical_player_id: canonical.id,
-            status: 'suggested',
-            confidence: EXACT_NAME_CONFIDENCE,
-            evidence,
-            created_by: 'automatic',
-            updated_at: now,
-        })
+        .select(['source_player_id', 'canonical_player_id', 'status'])
         .execute();
-    return true;
+    const existingPairs = new Set(
+        existing.map((decision) => `${decision.source_player_id}:${decision.canonical_player_id}`),
+    );
+    const rows = Array.from(uniqueCandidates.entries())
+        .filter(([key]) => !existingPairs.has(key))
+        .map(([, candidate]) => ({
+            source_player_id: candidate.source_player_id,
+            canonical_player_id: candidate.canonical_player_id,
+            status: 'suggested' as const,
+            confidence: candidate.confidence,
+            evidence: candidate.evidence,
+            created_by: 'automatic' as const,
+            updated_at: new Date(),
+        }));
+
+    if (rows.length === 0) {
+        return { suggestedGroups: 0, suggestedLinks: 0 };
+    }
+
+    const inserted = await db
+        .insertInto('player_identity_decisions')
+        .values(rows)
+        .onConflict((conflict) =>
+            conflict.columns(['source_player_id', 'canonical_player_id']).doNothing()
+        )
+        .returning(['source_player_id', 'canonical_player_id'])
+        .execute();
+
+    const insertedGroups = new Set<string>();
+    for (const decision of inserted) {
+        const key = `${decision.source_player_id}:${decision.canonical_player_id}`;
+        const candidate = uniqueCandidates.get(key);
+        if (candidate) insertedGroups.add(candidate.group_key);
+    }
+
+    return {
+        suggestedGroups: insertedGroups.size,
+        suggestedLinks: inserted.length,
+    };
 }
 
 export async function applyConfirmedIdentityDecisions(
@@ -200,8 +216,7 @@ export async function reconcilePlayersByName(
         byNormalizedName.set(normalized, bucket);
     }
 
-    let suggestedGroups = 0;
-    let suggestedLinks = 0;
+    const crossPlatformCandidates: SuggestedDecisionCandidate[] = [];
 
     for (const [normalizedName, group] of byNormalizedName.entries()) {
         const platformCount = new Set(group.map((player) => player.platform_id)).size;
@@ -212,38 +227,42 @@ export async function reconcilePlayersByName(
         const canonical = group.find((player) => player.id === canonicalId);
         if (!canonical) continue;
 
-        let groupCreatedSuggestion = false;
         for (const source of group) {
             if (source.id === canonical.id) continue;
             if (source.canonical_player_id === canonical.id) continue;
             if (source.platform_id === canonical.platform_id) continue;
 
-            const created = await upsertSuggestedDecision(
-                db,
-                source,
-                canonical,
-                normalizedName,
-            );
-            if (created) {
-                suggestedLinks += 1;
-                groupCreatedSuggestion = true;
-            }
+            crossPlatformCandidates.push({
+                source_player_id: source.id,
+                canonical_player_id: canonical.id,
+                confidence: EXACT_NAME_CONFIDENCE,
+                evidence: {
+                    rule: 'exact-normalized-name',
+                    normalized_name: normalizedName,
+                    source_platform_id: source.platform_id,
+                    canonical_platform_id: canonical.platform_id,
+                    source_external_id: source.external_id,
+                    canonical_external_id: canonical.external_id,
+                },
+                group_key: normalizedName,
+            });
         }
-        if (groupCreatedSuggestion) suggestedGroups += 1;
     }
+
+    const crossPlatform = await insertReviewSuggestions(db, crossPlatformCandidates);
 
     // Same-platform pass: suggest merges for players with the same name
     // who play in the same league on the same platform.
     const samePlatform = await reconcileSamePlatformByLeague(db, logger);
 
     logger?.info(
-        `reconcilePlayersByName: applied ${applied.appliedLinks} confirmed links across ${applied.linkedGroups} groups, created ${suggestedLinks} cross-platform + ${samePlatform.suggestedLinks} same-platform suggestions, remapped 0 rubber refs`,
+        `reconcilePlayersByName: applied ${applied.appliedLinks} confirmed links across ${applied.linkedGroups} groups, created ${crossPlatform.suggestedLinks} cross-platform + ${samePlatform.suggestedLinks} same-platform suggestions, remapped 0 rubber refs`,
     );
 
     return {
         linkedGroups: applied.linkedGroups,
-        suggestedGroups: suggestedGroups + samePlatform.suggestedGroups,
-        suggestedLinks: suggestedLinks + samePlatform.suggestedLinks,
+        suggestedGroups: crossPlatform.suggestedGroups + samePlatform.suggestedGroups,
+        suggestedLinks: crossPlatform.suggestedLinks + samePlatform.suggestedLinks,
         remappedRubbers: 0,
     };
 }
@@ -268,6 +287,10 @@ interface PlayerLeagueRow {
     name: string;
     league_id: string;
     league_name: string;
+}
+
+function effectivePlayerCanonicalId(player: PlayerLeagueRow): string {
+    return player.canonical_player_id ?? player.player_id;
 }
 
 export async function reconcileSamePlatformByLeague(
@@ -332,8 +355,7 @@ export async function reconcileSamePlatformByLeague(
         groups.set(key, bucket);
     }
 
-    let suggestedGroups = 0;
-    let suggestedLinks = 0;
+    const samePlatformCandidates: SuggestedDecisionCandidate[] = [];
 
     for (const group of groups.values()) {
         // Deduplicate by player_id (a player may have multiple rubbers in the same league)
@@ -347,80 +369,46 @@ export async function reconcileSamePlatformByLeague(
         if (uniquePlayers.length < 2) continue;
 
         // Check if they have different canonical_player_ids
-        const canonicalIds = new Set(uniquePlayers.map((p) => p.canonical_player_id));
+        const canonicalIds = new Set(uniquePlayers.map(effectivePlayerCanonicalId));
         if (canonicalIds.size < 2) continue;
 
         // Pick canonical root: prefer the one with the most rubbers (most active)
         const canonical = uniquePlayers.sort((a, b) =>
-            a.canonical_player_id < b.canonical_player_id ? -1 : 1,
+            effectivePlayerCanonicalId(a) < effectivePlayerCanonicalId(b) ? -1 : 1,
         )[0]!;
 
         const leagueName = uniquePlayers[0]!.league_name;
-        let groupCreatedSuggestion = false;
 
         for (const source of uniquePlayers) {
             if (source.player_id === canonical.player_id) continue;
-            if (source.canonical_player_id === canonical.canonical_player_id) continue;
+            if (effectivePlayerCanonicalId(source) === effectivePlayerCanonicalId(canonical)) continue;
 
-            const existing = await db
-                .selectFrom('player_identity_decisions')
-                .select(['id', 'status'])
-                .where('source_player_id', '=', source.player_id)
-                .where('canonical_player_id', '=', canonical.player_id)
-                .executeTakeFirst();
-
-            if (existing?.status === 'confirmed' || existing?.status === 'rejected') {
-                continue;
-            }
-
-            const evidence: IdentityEvidence = {
-                rule: 'same-platform-same-league',
-                normalized_name: normalizePlayerName(source.name),
-                source_platform_id: source.platform_id,
-                canonical_platform_id: canonical.platform_id,
-                source_external_id: source.external_id,
-                canonical_external_id: canonical.external_id,
-                league_name: leagueName,
-                reason: 'Same normalized name on same platform in same league',
-            };
-
-            const now = new Date();
-            if (existing) {
-                await db
-                    .updateTable('player_identity_decisions')
-                    .set({
-                        confidence: SAME_PLATFORM_SAME_LEAGUE_CONFIDENCE,
-                        evidence,
-                        created_by: 'automatic',
-                        updated_at: now,
-                    })
-                    .where('id', '=', existing.id)
-                    .execute();
-            } else {
-                await db
-                    .insertInto('player_identity_decisions')
-                    .values({
-                        source_player_id: source.player_id,
-                        canonical_player_id: canonical.player_id,
-                        status: 'suggested',
-                        confidence: SAME_PLATFORM_SAME_LEAGUE_CONFIDENCE,
-                        evidence,
-                        created_by: 'automatic',
-                        updated_at: now,
-                    })
-                    .execute();
-                suggestedLinks += 1;
-                groupCreatedSuggestion = true;
-            }
+            samePlatformCandidates.push({
+                source_player_id: source.player_id,
+                canonical_player_id: canonical.player_id,
+                confidence: SAME_PLATFORM_SAME_LEAGUE_CONFIDENCE,
+                evidence: {
+                    rule: 'same-platform-same-league',
+                    normalized_name: normalizePlayerName(source.name),
+                    source_platform_id: source.platform_id,
+                    canonical_platform_id: canonical.platform_id,
+                    source_external_id: source.external_id,
+                    canonical_external_id: canonical.external_id,
+                    league_name: leagueName,
+                    reason: 'Same normalized name on same platform in same league',
+                },
+                group_key: `${source.platform_id}|${normalizePlayerName(source.name)}|${canonical.league_id}`,
+            });
         }
-        if (groupCreatedSuggestion) suggestedGroups += 1;
     }
 
+    const suggestions = await insertReviewSuggestions(db, samePlatformCandidates);
+
     logger?.info(
-        `reconcileSamePlatformByLeague: created ${suggestedLinks} same-platform suggestions across ${suggestedGroups} groups`,
+        `reconcileSamePlatformByLeague: created ${suggestions.suggestedLinks} same-platform suggestions across ${suggestions.suggestedGroups} groups`,
     );
 
-    return { suggestedGroups, suggestedLinks };
+    return suggestions;
 }
 
 async function assertActivePlayers(

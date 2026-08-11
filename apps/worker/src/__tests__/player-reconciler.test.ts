@@ -96,6 +96,43 @@ async function createPlayerPair(name = 'Andrew Jessop') {
     return { tt365Player, ttLeaguesPlayer };
 }
 
+async function createSamePlatformPair(name = 'Same Platform Player') {
+    const first = await db
+        .insertInto('external_players')
+        .values({
+            platform_id: tt365PlatformId,
+            external_id: `tt365-${Math.random()}`,
+            name,
+        })
+        .returning(['id', 'canonical_player_id'])
+        .executeTakeFirstOrThrow();
+    const second = await db
+        .insertInto('external_players')
+        .values({
+            platform_id: tt365PlatformId,
+            external_id: `tt365-${Math.random()}`,
+            name,
+        })
+        .returning(['id', 'canonical_player_id'])
+        .executeTakeFirstOrThrow();
+
+    await db
+        .insertInto('rubbers')
+        .values({
+            fixture_id: fixtureId,
+            external_id: `rubber-${Math.random()}`,
+            is_doubles: false,
+            home_player_1_id: first.id,
+            away_player_1_id: second.id,
+            home_games_won: 3,
+            away_games_won: 1,
+            outcome_type: 'normal',
+        })
+        .execute();
+
+    return { first, second };
+}
+
 describe('evidence-based player identity reconciliation', () => {
     beforeAll(async () => {
         await createTestDatabase();
@@ -223,6 +260,27 @@ describe('evidence-based player identity reconciliation', () => {
         expect(new Set([rubber.home_player_1_id, rubber.away_player_1_id])).toEqual(
             new Set([pair.tt365Player.id, pair.ttLeaguesPlayer.id]),
         );
+    });
+
+    it('creates a batched same-platform same-league suggestion without merging', async () => {
+        await createSamePlatformPair();
+
+        const result = await reconcilePlayersByName(db);
+
+        expect(result.linkedGroups).toBe(0);
+        expect(result.suggestedGroups).toBe(1);
+        expect(result.suggestedLinks).toBe(1);
+
+        const decision = await db
+            .selectFrom('player_identity_decisions')
+            .selectAll()
+            .executeTakeFirstOrThrow();
+        expect(decision.status).toBe('suggested');
+        expect(decision.confidence).toBe(0.8);
+        expect(decision.evidence).toMatchObject({
+            rule: 'same-platform-same-league',
+            league_name: 'League 1',
+        });
     });
 
     it('applies only a confirmed decision and keeps rubber source IDs', async () => {
