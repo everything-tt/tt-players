@@ -373,6 +373,13 @@ export function LeaguesTabContent({
                   <span>Played</span>
                 </div>
               </div>
+              <div className="tt-leagues-hero-stat">
+                <i className="fa fa-users" aria-hidden="true" />
+                <div className="tt-leagues-hero-stat__body">
+                  <strong>{formatNumber(dashboard.totals.players)}</strong>
+                  <span>Players</span>
+                </div>
+              </div>
             </div>
           ) : null}
         </div>
