@@ -64,9 +64,9 @@ interface SuggestedDecisionCandidate {
 }
 
 /**
- * Insert new review suggestions in one batch. Existing confirmed/rejected
- * decisions are immutable, and existing suggestions already contain the
- * same deterministic evidence, so neither needs a per-pair write.
+ * Insert new review suggestions in one batch. The unique pair constraint plus
+ * ON CONFLICT DO NOTHING keeps confirmed/rejected decisions immutable without
+ * reading the full decisions table before every reconciliation pass.
  */
 async function insertReviewSuggestions(
     db: Kysely<Database>,
@@ -82,28 +82,15 @@ async function insertReviewSuggestions(
         if (!uniqueCandidates.has(key)) uniqueCandidates.set(key, candidate);
     }
 
-    const existing = await db
-        .selectFrom('player_identity_decisions')
-        .select(['source_player_id', 'canonical_player_id', 'status'])
-        .execute();
-    const existingPairs = new Set(
-        existing.map((decision) => `${decision.source_player_id}:${decision.canonical_player_id}`),
-    );
-    const rows = Array.from(uniqueCandidates.entries())
-        .filter(([key]) => !existingPairs.has(key))
-        .map(([, candidate]) => ({
-            source_player_id: candidate.source_player_id,
-            canonical_player_id: candidate.canonical_player_id,
-            status: 'suggested' as const,
-            confidence: candidate.confidence,
-            evidence: candidate.evidence,
-            created_by: 'automatic' as const,
-            updated_at: new Date(),
-        }));
-
-    if (rows.length === 0) {
-        return { suggestedGroups: 0, suggestedLinks: 0 };
-    }
+    const rows = Array.from(uniqueCandidates.values()).map((candidate) => ({
+        source_player_id: candidate.source_player_id,
+        canonical_player_id: candidate.canonical_player_id,
+        status: 'suggested' as const,
+        confidence: candidate.confidence,
+        evidence: candidate.evidence,
+        created_by: 'automatic' as const,
+        updated_at: new Date(),
+    }));
 
     const inserted = await db
         .insertInto('player_identity_decisions')
@@ -139,6 +126,7 @@ export async function applyConfirmedIdentityDecisions(
             'decision.source_player_id',
             'decision.canonical_player_id',
             'source.canonical_player_id as current_canonical_player_id',
+            'canonical.canonical_player_id as target_canonical_player_id',
         ])
         .where('decision.status', '=', 'confirmed')
         .where('source.deleted_at', 'is', null)
@@ -149,24 +137,16 @@ export async function applyConfirmedIdentityDecisions(
     const linkedCanonicalIds = new Set<string>();
 
     for (const row of rows) {
-        if (row.current_canonical_player_id === row.canonical_player_id) continue;
+        const resolvedCanonicalPlayerId =
+            row.target_canonical_player_id ?? row.canonical_player_id;
+        if (row.current_canonical_player_id === resolvedCanonicalPlayerId) continue;
 
         const now = new Date();
         await db.transaction().execute(async (trx) => {
             await trx
                 .updateTable('external_players')
                 .set({
-                    canonical_player_id: row.canonical_player_id,
-                    deleted_at: null,
-                    updated_at: now,
-                })
-                .where('id', '=', row.canonical_player_id)
-                .execute();
-
-            await trx
-                .updateTable('external_players')
-                .set({
-                    canonical_player_id: row.canonical_player_id,
+                    canonical_player_id: resolvedCanonicalPlayerId,
                     deleted_at: null,
                     updated_at: now,
                 })
@@ -181,7 +161,7 @@ export async function applyConfirmedIdentityDecisions(
         });
 
         appliedLinks += 1;
-        linkedCanonicalIds.add(row.canonical_player_id);
+        linkedCanonicalIds.add(resolvedCanonicalPlayerId);
     }
 
     return {
@@ -283,7 +263,7 @@ interface PlayerLeagueRow {
     player_id: string;
     platform_id: string;
     external_id: string | null;
-    canonical_player_id: string;
+    canonical_player_id: string | null;
     name: string;
     league_id: string;
     league_name: string;
@@ -376,16 +356,17 @@ export async function reconcileSamePlatformByLeague(
         const canonical = uniquePlayers.sort((a, b) =>
             effectivePlayerCanonicalId(a) < effectivePlayerCanonicalId(b) ? -1 : 1,
         )[0]!;
+        const canonicalTargetId = effectivePlayerCanonicalId(canonical);
 
         const leagueName = uniquePlayers[0]!.league_name;
 
         for (const source of uniquePlayers) {
             if (source.player_id === canonical.player_id) continue;
-            if (effectivePlayerCanonicalId(source) === effectivePlayerCanonicalId(canonical)) continue;
+            if (effectivePlayerCanonicalId(source) === canonicalTargetId) continue;
 
             samePlatformCandidates.push({
                 source_player_id: source.player_id,
-                canonical_player_id: canonical.player_id,
+                canonical_player_id: canonicalTargetId,
                 confidence: SAME_PLATFORM_SAME_LEAGUE_CONFIDENCE,
                 evidence: {
                     rule: 'same-platform-same-league',
@@ -394,6 +375,8 @@ export async function reconcileSamePlatformByLeague(
                     canonical_platform_id: canonical.platform_id,
                     source_external_id: source.external_id,
                     canonical_external_id: canonical.external_id,
+                    matched_canonical_player_id: canonical.player_id,
+                    resolved_canonical_player_id: canonicalTargetId,
                     league_name: leagueName,
                     reason: 'Same normalized name on same platform in same league',
                 },
