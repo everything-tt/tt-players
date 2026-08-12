@@ -81,6 +81,8 @@ export interface DailyPipelineDependencies {
     pollIntervalMs: number;
 }
 
+const DEFAULT_STALE_PIPELINE_MS = 6 * 60 * 60 * 1000;
+
 function positiveIntegerEnvironment(name: string, fallback: number): number {
     const raw = process.env[name];
     if (raw === undefined || raw.trim() === '') return fallback;
@@ -271,6 +273,49 @@ function auditErrorMessage(error: unknown): string {
     return message.slice(0, 1_000);
 }
 
+export async function recoverStalePipelineAudits(
+    staleAfterMs: number,
+): Promise<{ runs: number; stages: number }> {
+    const message = 'Recovered stale running pipeline audit after worker termination or lost execution';
+
+    const stageResult = await sql<{ run_key: string; stage: DailyPipelineStage }>`
+        UPDATE scraping_pipeline_run_stages
+        SET
+            status = 'failed',
+            finished_at = now(),
+            duration_ms = GREATEST(
+                0,
+                FLOOR(EXTRACT(EPOCH FROM (now() - started_at)) * 1000)::bigint
+            ),
+            error_message = ${message},
+            updated_at = now()
+        WHERE status = 'running'
+          AND updated_at < now() - (${staleAfterMs} * INTERVAL '1 millisecond')
+        RETURNING run_key, stage
+    `.execute(db);
+
+    const runResult = await sql<{ run_key: string }>`
+        UPDATE scraping_pipeline_runs
+        SET
+            status = 'failed',
+            finished_at = now(),
+            duration_ms = GREATEST(
+                0,
+                FLOOR(EXTRACT(EPOCH FROM (now() - started_at)) * 1000)::bigint
+            ),
+            error_message = ${message},
+            updated_at = now()
+        WHERE status = 'running'
+          AND updated_at < now() - (${staleAfterMs} * INTERVAL '1 millisecond')
+        RETURNING run_key
+    `.execute(db);
+
+    return {
+        runs: runResult.rows.length,
+        stages: stageResult.rows.length,
+    };
+}
+
 async function beginPipelineRunAudit(payload: Required<DailyPipelinePayload>): Promise<void> {
     await sql`
         DELETE FROM scraping_pipeline_runs
@@ -435,6 +480,24 @@ export const completeDailyPipelineTask: Task = async (payload, helpers) => {
         },
     );
     const log = (message: string) => helpers.logger.info(message);
+
+    await safelyWriteAudit(
+        'stale recovery',
+        async () => {
+            const recovered = await recoverStalePipelineAudits(
+                positiveIntegerEnvironment(
+                    'DAILY_PIPELINE_STALE_RUN_MS',
+                    DEFAULT_STALE_PIPELINE_MS,
+                ),
+            );
+            if (recovered.runs > 0 || recovered.stages > 0) {
+                log(
+                    `daily pipeline audit recovered ${recovered.runs} stale runs and ${recovered.stages} stale stages`,
+                );
+            }
+        },
+        log,
+    );
 
     await safelyWriteAudit(
         'start',
