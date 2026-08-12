@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely';
-import type { Database } from '@tt-players/db';
+import type { Database, FixtureStatus } from '@tt-players/db';
 import type { ParsedTTLeaguesData } from './parser.js';
 
 // ─── Input Type ───────────────────────────────────────────────────────────────
@@ -9,6 +9,21 @@ export interface LoadTTLeaguesOptions {
     platformId: string;
     parsedData: ParsedTTLeaguesData;
     scrapeLogIds: string[];
+}
+
+export function resolveFixtureStatusForLoad(
+    incomingStatus: FixtureStatus,
+    hasRubbers: boolean,
+    existingStatus: FixtureStatus | null,
+): FixtureStatus {
+    if (
+        incomingStatus === 'upcoming'
+        && !hasRubbers
+        && existingStatus === 'completed'
+    ) {
+        return 'completed';
+    }
+    return incomingStatus;
 }
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
@@ -25,9 +40,35 @@ export async function loadTTLeaguesData(
     options: LoadTTLeaguesOptions,
 ): Promise<void> {
     const { competitionId, platformId, parsedData, scrapeLogIds } = options;
+    const fixtureExternalIdsWithRubbers = new Set(
+        parsedData.rubbers.map((rubber) => rubber.matchExternalId),
+    );
+    const ambiguousUpcomingFixtureExternalIds = parsedData.fixtures
+        .filter(
+            (fixture) => fixture.status === 'upcoming'
+                && !fixtureExternalIdsWithRubbers.has(fixture.externalId),
+        )
+        .map((fixture) => fixture.externalId);
 
     try {
         await db.transaction().execute(async (trx) => {
+            const existingFixtureStatusByExternalId = new Map<string, FixtureStatus>();
+            if (ambiguousUpcomingFixtureExternalIds.length > 0) {
+                const existingFixtures = await trx
+                    .selectFrom('fixtures')
+                    .select(['external_id', 'status'])
+                    .where('competition_id', '=', competitionId)
+                    .where('external_id', 'in', ambiguousUpcomingFixtureExternalIds)
+                    .execute();
+
+                for (const fixture of existingFixtures) {
+                    existingFixtureStatusByExternalId.set(
+                        fixture.external_id,
+                        fixture.status,
+                    );
+                }
+            }
+
             // ── 1. UPSERT teams ───────────────────────────────────────────
             const teamIdMap = new Map<string, string>(); // externalId → DB UUID
 
@@ -148,7 +189,11 @@ export async function loadTTLeaguesData(
                                 home_team_id: homeTeamId,
                                 away_team_id: awayTeamId,
                                 date_played: f.datePlayed,
-                                status: f.status,
+                                status: resolveFixtureStatusForLoad(
+                                    f.status,
+                                    fixtureExternalIdsWithRubbers.has(f.externalId),
+                                    existingFixtureStatusByExternalId.get(f.externalId) ?? null,
+                                ),
                                 round_name: f.roundName,
                                 round_order: f.roundOrder,
                                 updated_at: new Date(),
