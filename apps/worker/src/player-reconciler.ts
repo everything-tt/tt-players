@@ -287,39 +287,38 @@ export async function reconcileSamePlatformByLeague(
 ): Promise<{ suggestedGroups: number; suggestedLinks: number }> {
     const membershipQueryStartedAt = Date.now();
 
-    // Return distinct player/league memberships instead of one row per rubber.
-    // UNION (not UNION ALL) deduplicates the combined home/away result in
-    // PostgreSQL before any rows are materialized in the Node worker.
-    const homePlayerLeagues = db
-        .selectFrom('external_players as ep')
-        .innerJoin('rubbers as r', 'r.home_player_1_id', 'ep.id')
+    // First deduplicate the narrow (player_id, league_id) keys in PostgreSQL.
+    // This avoids sorting/hashing millions of repeated wide player rows and
+    // ensures Node only receives one row per player/league membership.
+    const homeMemberships = db
+        .selectFrom('rubbers as r')
         .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
         .innerJoin('competitions as c', 'c.id', 'f.competition_id')
         .innerJoin('seasons as s', 's.id', 'c.season_id')
-        .innerJoin('leagues as l', 'l.id', 's.league_id')
-        .where('ep.deleted_at', 'is', null)
         .where('r.deleted_at', 'is', null)
-        .where('ep.external_id', 'is not', null)
-        .where('ep.name', '!=', 'Unknown Player')
         .select([
-            'ep.id as player_id',
-            'ep.platform_id as platform_id',
-            'ep.external_id as external_id',
-            'ep.canonical_player_id as canonical_player_id',
-            'ep.name as name',
-            'l.id as league_id',
-            'l.name as league_name',
+            'r.home_player_1_id as player_id',
+            's.league_id as league_id',
         ]);
 
-    const allPlayerLeagues = await db
-        .selectFrom('external_players as ep')
-        .innerJoin('rubbers as r', 'r.away_player_1_id', 'ep.id')
+    const playerLeagueMemberships = db
+        .selectFrom('rubbers as r')
         .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
         .innerJoin('competitions as c', 'c.id', 'f.competition_id')
         .innerJoin('seasons as s', 's.id', 'c.season_id')
-        .innerJoin('leagues as l', 'l.id', 's.league_id')
-        .where('ep.deleted_at', 'is', null)
         .where('r.deleted_at', 'is', null)
+        .select([
+            'r.away_player_1_id as player_id',
+            's.league_id as league_id',
+        ])
+        .union(homeMemberships)
+        .as('membership');
+
+    const allPlayerLeagues = await db
+        .selectFrom(playerLeagueMemberships)
+        .innerJoin('external_players as ep', 'ep.id', 'membership.player_id')
+        .innerJoin('leagues as l', 'l.id', 'membership.league_id')
+        .where('ep.deleted_at', 'is', null)
         .where('ep.external_id', 'is not', null)
         .where('ep.name', '!=', 'Unknown Player')
         .select([
@@ -331,7 +330,6 @@ export async function reconcileSamePlatformByLeague(
             'l.id as league_id',
             'l.name as league_name',
         ])
-        .union(homePlayerLeagues)
         .execute() as PlayerLeagueRow[];
 
     const memory = process.memoryUsage();
