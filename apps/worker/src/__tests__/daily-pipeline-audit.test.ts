@@ -2,7 +2,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
 
-import type { Database } from '@tt-players/db';
 import * as m046 from '@tt-players/db/src/migrations/046_create_scraping_pipeline_run_history.js';
 import { recoverStalePipelineAudits } from '../tasks/completeDailyPipelineTask.js';
 
@@ -11,7 +10,9 @@ const TEST_DB_NAME = 'tt_daily_pipeline_audit_test';
 const ADMIN_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/postgres';
 const TEST_DATABASE_URL = `postgres://postgres:postgres@localhost:5432/${TEST_DB_NAME}`;
 
-let db: Kysely<Database>;
+// Migration 046 is not represented in the generated Database interface yet,
+// so this migration-focused test intentionally uses an untyped Kysely handle.
+let db: Kysely<any>;
 
 async function createTestDatabase(): Promise<void> {
     const admin = new Pool({ connectionString: ADMIN_DATABASE_URL });
@@ -74,7 +75,7 @@ async function insertAudit(options: {
 describe('daily pipeline audit recovery', () => {
     beforeAll(async () => {
         await createTestDatabase();
-        db = new Kysely<Database>({
+        db = new Kysely<any>({
             dialect: new PostgresDialect({
                 pool: new Pool({ connectionString: TEST_DATABASE_URL }),
             }),
