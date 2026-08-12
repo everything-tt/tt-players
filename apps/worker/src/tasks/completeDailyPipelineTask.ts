@@ -1,6 +1,6 @@
 import type { Task } from 'graphile-worker';
-import { sql } from 'kysely';
-import { db } from '@tt-players/db';
+import { sql, type Kysely } from 'kysely';
+import { db, type Database } from '@tt-players/db';
 import { PIPELINE_JOB_SPEC, stableJobKey } from '../job-policy.js';
 import { reconcilePlayersByName } from '../player-reconciler.js';
 import { refreshApiReadModels } from '../read-models.js';
@@ -82,6 +82,7 @@ export interface DailyPipelineDependencies {
 }
 
 const DEFAULT_STALE_PIPELINE_MS = 6 * 60 * 60 * 1000;
+const PIPELINE_AUDIT_HEARTBEAT_MS = 60 * 1000;
 
 function positiveIntegerEnvironment(name: string, fallback: number): number {
     const raw = process.env[name];
@@ -274,6 +275,7 @@ function auditErrorMessage(error: unknown): string {
 }
 
 export async function recoverStalePipelineAudits(
+    database: Kysely<Database>,
     staleAfterMs: number,
 ): Promise<{ runs: number; stages: number }> {
     const message = 'Recovered stale running pipeline audit after worker termination or lost execution';
@@ -292,7 +294,7 @@ export async function recoverStalePipelineAudits(
         WHERE status = 'running'
           AND updated_at < now() - (${staleAfterMs} * INTERVAL '1 millisecond')
         RETURNING run_key, stage
-    `.execute(db);
+    `.execute(database);
 
     const runResult = await sql<{ run_key: string }>`
         UPDATE scraping_pipeline_runs
@@ -308,12 +310,33 @@ export async function recoverStalePipelineAudits(
         WHERE status = 'running'
           AND updated_at < now() - (${staleAfterMs} * INTERVAL '1 millisecond')
         RETURNING run_key
-    `.execute(db);
+    `.execute(database);
 
     return {
         runs: runResult.rows.length,
         stages: stageResult.rows.length,
     };
+}
+
+async function heartbeatPipelineAudit(
+    database: Kysely<Database>,
+    payload: Required<DailyPipelinePayload>,
+): Promise<void> {
+    await sql`
+        UPDATE scraping_pipeline_run_stages
+        SET updated_at = now()
+        WHERE run_key = ${payload.runKey}
+          AND stage = ${payload.stage}
+          AND status = 'running'
+    `.execute(database);
+
+    await sql`
+        UPDATE scraping_pipeline_runs
+        SET updated_at = now()
+        WHERE run_key = ${payload.runKey}
+          AND current_stage = ${payload.stage}
+          AND status = 'running'
+    `.execute(database);
 }
 
 async function beginPipelineRunAudit(payload: Required<DailyPipelinePayload>): Promise<void> {
@@ -470,6 +493,21 @@ async function safelyWriteAudit(
     }
 }
 
+function startPipelineAuditHeartbeat(
+    payload: Required<DailyPipelinePayload>,
+    log: (message: string) => void,
+): () => void {
+    const timer = setInterval(() => {
+        void safelyWriteAudit(
+            'heartbeat',
+            () => heartbeatPipelineAudit(db, payload),
+            log,
+        );
+    }, PIPELINE_AUDIT_HEARTBEAT_MS);
+    timer.unref();
+    return () => clearInterval(timer);
+}
+
 export const completeDailyPipelineTask: Task = async (payload, helpers) => {
     const normalized = normalizeDailyPipelinePayload(
         payload as DailyPipelinePayload | null | undefined,
@@ -485,6 +523,7 @@ export const completeDailyPipelineTask: Task = async (payload, helpers) => {
         'stale recovery',
         async () => {
             const recovered = await recoverStalePipelineAudits(
+                db,
                 positiveIntegerEnvironment(
                     'DAILY_PIPELINE_STALE_RUN_MS',
                     DEFAULT_STALE_PIPELINE_MS,
@@ -505,6 +544,7 @@ export const completeDailyPipelineTask: Task = async (payload, helpers) => {
         log,
     );
 
+    const stopAuditHeartbeat = startPipelineAuditHeartbeat(normalized, log);
     try {
         const outcome = await runDailyPipelineStage(
             normalized,
@@ -523,5 +563,7 @@ export const completeDailyPipelineTask: Task = async (payload, helpers) => {
             log,
         );
         throw error;
+    } finally {
+        stopAuditHeartbeat();
     }
 };
