@@ -45,11 +45,15 @@ describe('mobile UI primitive contracts', () => {
     expect(markup).toContain('aria-hidden="true"');
   });
 
-  it('announces the selected tab and labels primary navigation', () => {
+  it('announces the selected tab and exposes the item count for tab-bar layout', () => {
     const markup = renderToStaticMarkup(
       <AppTabBar
         items={[
           { id: 'home', label: 'Home', iconClassName: 'fa fa-home' },
+          { id: 'time', label: 'Time', iconClassName: 'fa fa-clock' },
+          { id: 'tables', label: 'Tables', iconClassName: 'fa fa-table' },
+          { id: 'queue', label: 'Queue', iconClassName: 'fa fa-list' },
+          { id: 'competitions', label: 'Comps', iconClassName: 'fa fa-trophy' },
           { id: 'players', label: 'Players', iconClassName: 'fa fa-users' },
         ]}
         activeItemId="players"
@@ -60,6 +64,7 @@ describe('mobile UI primitive contracts', () => {
     expect(markup).toContain('aria-label="Primary navigation"');
     expect(markup).toContain('aria-current="page"');
     expect(markup).toContain('tt-tab-bar__item--active');
+    expect(markup).toContain('style="--tt-tab-count:6"');
   });
 
   it('renders empty and message actions as buttons rather than anchor actions', () => {

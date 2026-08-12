@@ -1,0 +1,6 @@
+/* AppTabBar supports a variable number of primary tabs. The component exposes
+ * the item count as a CSS custom property so the canonical shell geometry does
+ * not assume tt-players' five-tab navigation shape. */
+#footer-bar.tt-tab-bar {
+  grid-template-columns: repeat(var(--tt-tab-count, 5), minmax(0, 1fr)) !important;
+}

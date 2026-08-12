@@ -25,8 +25,17 @@ export function AppTabBar({
   id = 'footer-bar',
   ariaLabel = 'Primary navigation',
 }: AppTabBarProps) {
+  const tabBarStyle = {
+    '--tt-tab-count': String(Math.max(items.length, 1)),
+  } as React.CSSProperties;
+
   return (
-    <nav id={id} className={cx('footer-bar-3', 'tt-tab-bar', className)} aria-label={ariaLabel}>
+    <nav
+      id={id}
+      className={cx('footer-bar-3', 'tt-tab-bar', className)}
+      aria-label={ariaLabel}
+      style={tabBarStyle}
+    >
       {items.map((item) => {
         const selected = item.id === activeItemId;
         return (
