@@ -1,4 +1,4 @@
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import type {
     Database,
     PlayerIdentityDecisionCreator,
@@ -65,9 +65,9 @@ function chooseCanonicalId(group: ExternalPlayerRow[]): string | null {
 }
 
 /**
- * Insert review suggestions in bounded batches. The unique pair constraint and
- * ON CONFLICT DO NOTHING preserve confirmed/rejected decisions and avoid the
- * per-candidate read/write pattern that previously caused statement timeouts.
+ * Refresh pending review suggestions and insert new ones in bounded batches.
+ * Confirmed/rejected decisions are immutable, while existing suggested rows
+ * retain the previous reconciliation behavior of refreshing their evidence.
  */
 async function insertReviewSuggestions(
     db: Kysely<Database>,
@@ -89,6 +89,34 @@ async function insertReviewSuggestions(
 
     for (let offset = 0; offset < pending.length; offset += SUGGESTION_INSERT_BATCH_SIZE) {
         const batch = pending.slice(offset, offset + SUGGESTION_INSERT_BATCH_SIZE);
+        const now = new Date();
+        const refreshValues = batch.map((candidate) => sql`(
+            ${candidate.source_player_id}::uuid,
+            ${candidate.canonical_player_id}::uuid,
+            ${candidate.confidence}::double precision,
+            ${JSON.stringify(candidate.evidence)}::jsonb,
+            ${now}::timestamp
+        )`);
+
+        await sql`
+            UPDATE player_identity_decisions AS decision
+            SET
+                confidence = candidate.confidence,
+                evidence = candidate.evidence,
+                created_by = 'automatic',
+                updated_at = candidate.updated_at
+            FROM (VALUES ${sql.join(refreshValues)}) AS candidate(
+                source_player_id,
+                canonical_player_id,
+                confidence,
+                evidence,
+                updated_at
+            )
+            WHERE decision.source_player_id = candidate.source_player_id
+              AND decision.canonical_player_id = candidate.canonical_player_id
+              AND decision.status = 'suggested'
+        `.execute(db);
+
         const rows = batch.map((candidate) => ({
             source_player_id: candidate.source_player_id,
             canonical_player_id: candidate.canonical_player_id,
@@ -96,7 +124,7 @@ async function insertReviewSuggestions(
             confidence: candidate.confidence,
             evidence: candidate.evidence,
             created_by: 'automatic' as const,
-            updated_at: new Date(),
+            updated_at: now,
         }));
 
         const inserted = await db
@@ -287,50 +315,38 @@ export async function reconcileSamePlatformByLeague(
 ): Promise<{ suggestedGroups: number; suggestedLinks: number }> {
     const membershipQueryStartedAt = Date.now();
 
-    // First deduplicate the narrow (player_id, league_id) keys in PostgreSQL.
-    // This avoids sorting/hashing millions of repeated wide player rows and
-    // ensures Node only receives one row per player/league membership.
-    const homeMemberships = db
-        .selectFrom('rubbers as r')
-        .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
-        .innerJoin('competitions as c', 'c.id', 'f.competition_id')
-        .innerJoin('seasons as s', 's.id', 'c.season_id')
-        .where('r.deleted_at', 'is', null)
-        .select([
-            'r.home_player_1_id as player_id',
-            's.league_id as league_id',
-        ]);
-
-    const playerLeagueMemberships = db
-        .selectFrom('rubbers as r')
-        .innerJoin('fixtures as f', 'f.id', 'r.fixture_id')
-        .innerJoin('competitions as c', 'c.id', 'f.competition_id')
-        .innerJoin('seasons as s', 's.id', 'c.season_id')
-        .where('r.deleted_at', 'is', null)
-        .select([
-            'r.away_player_1_id as player_id',
-            's.league_id as league_id',
-        ])
-        .union(homeMemberships)
-        .as('membership');
-
-    const allPlayerLeagues = await db
-        .selectFrom(playerLeagueMemberships)
-        .innerJoin('external_players as ep', 'ep.id', 'membership.player_id')
-        .innerJoin('leagues as l', 'l.id', 'membership.league_id')
-        .where('ep.deleted_at', 'is', null)
-        .where('ep.external_id', 'is not', null)
-        .where('ep.name', '!=', 'Unknown Player')
-        .select([
-            'ep.id as player_id',
-            'ep.platform_id as platform_id',
-            'ep.external_id as external_id',
-            'ep.canonical_player_id as canonical_player_id',
-            'ep.name as name',
-            'l.id as league_id',
-            'l.name as league_name',
-        ])
-        .execute() as PlayerLeagueRow[];
+    // Scan rubber history once, expand the two singles-player columns, and
+    // deduplicate only the narrow (player_id, league_id) keys in PostgreSQL.
+    const membershipResult = await sql<PlayerLeagueRow>`
+        WITH player_leagues AS (
+            SELECT DISTINCT
+                player.player_id,
+                season.league_id
+            FROM rubbers rubber
+            JOIN fixtures fixture ON fixture.id = rubber.fixture_id
+            JOIN competitions competition ON competition.id = fixture.competition_id
+            JOIN seasons season ON season.id = competition.season_id
+            CROSS JOIN LATERAL (
+                VALUES (rubber.home_player_1_id), (rubber.away_player_1_id)
+            ) AS player(player_id)
+            WHERE rubber.deleted_at IS NULL
+        )
+        SELECT
+            external_player.id AS player_id,
+            external_player.platform_id,
+            external_player.external_id,
+            external_player.canonical_player_id,
+            external_player.name,
+            league.id AS league_id,
+            league.name AS league_name
+        FROM player_leagues membership
+        JOIN external_players external_player ON external_player.id = membership.player_id
+        JOIN leagues league ON league.id = membership.league_id
+        WHERE external_player.deleted_at IS NULL
+          AND external_player.external_id IS NOT NULL
+          AND external_player.name <> 'Unknown Player'
+    `.execute(db);
+    const allPlayerLeagues = membershipResult.rows;
 
     const memory = process.memoryUsage();
     logger?.info(
@@ -352,8 +368,8 @@ export async function reconcileSamePlatformByLeague(
     const samePlatformCandidates: SuggestedDecisionCandidate[] = [];
 
     for (const group of groups.values()) {
-        // UNION already deduplicates player/league memberships, but retain this
-        // guard so the grouping logic remains correct if the query evolves.
+        // The SQL already deduplicates player/league memberships, but retain
+        // this guard so grouping stays correct if the query evolves.
         const byPlayer = new Map<string, PlayerLeagueRow>();
         for (const row of group) {
             if (!byPlayer.has(row.player_id)) {
