@@ -29,13 +29,15 @@ try {
       '@wudong/tt-players-design-system': `file:${tarballPath}`,
       react: '^18.3.1',
       'react-dom': '^18.3.1',
-      vite: '^6.2.0',
     },
     devDependencies: {
+      '@tailwindcss/vite': '^4.1.11',
       '@types/react': '^18.3.18',
       '@types/react-dom': '^18.3.5',
       '@vitejs/plugin-react': '^4.3.4',
+      tailwindcss: '^4.1.11',
       typescript: '^5.7.3',
+      vite: '^6.2.0',
     },
   }, null, 2)}\n`);
 
@@ -54,8 +56,9 @@ try {
 
   writeFileSync(join(consumerRoot, 'vite.config.ts'), `import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
-export default defineConfig({ plugins: [react()] });
+export default defineConfig({ plugins: [tailwindcss(), react()] });
 `);
 
   mkdirSync(join(consumerRoot, 'src'));
