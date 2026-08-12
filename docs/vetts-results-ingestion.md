@@ -17,7 +17,7 @@ The year calendars are the discovery source because their tournament links are a
 
 Discovery currently targets individual VETTS competitions. Calendar links whose name identifies a team competition are excluded because Tournament Software exposes those through legacy team-match pages (`teammatch.aspx`/`legacymatches.aspx`), which do not provide the individual rubber format loaded by this adapter. An explicitly supplied team-competition UUID still fails closed rather than being marked as a successful empty scrape.
 
-The adapter key is `tournamentsoftware-vetts` and its current parser version is `1.3.0`. Its declared resource types are `directory`, `event`, and `event-results`. Recurring discovery, one-off backfills, tournament overviews, and result pages all execute through the adapter's `extract`/`transform` contract.
+The adapter key is `tournamentsoftware-vetts` and its current parser version is `1.4.0`. Its declared resource types are `directory`, `event`, and `event-results`. Recurring discovery, one-off backfills, tournament overviews, and result pages all execute through the adapter's `extract`/`transform` contract.
 
 ## Source hierarchy
 

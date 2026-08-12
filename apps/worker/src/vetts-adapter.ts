@@ -11,7 +11,7 @@ import {
 import { stabilizeVettsPlayerIdentities } from './vetts-player-identity.js';
 
 export const VETTS_ADAPTER_KEY = 'tournamentsoftware-vetts';
-export const VETTS_ADAPTER_VERSION = '1.3.0';
+export const VETTS_ADAPTER_VERSION = '1.4.0';
 
 interface VettsAdapterConfig {
     tournamentId?: string;
