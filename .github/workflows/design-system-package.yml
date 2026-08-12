@@ -60,7 +60,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pn`m
+          cache: pnpm
           registry-url: 'https://npm.pkg.github.com'
           scope: '@wudong'
 
@@ -83,7 +83,7 @@ jobs:
 
       - name: Test packed package as a consumer
         if: matrix.smoke
-        run: pn`m --filter "${{ matrix.workspace }}" smoke:consumer
+        run: pnpm --filter "${{ matrix.workspace }}" smoke:consumer
 
       - name: Publish to GitHub Packages
         if: github.event_name == 'push'
