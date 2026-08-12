@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Kysely, Migrator, PostgresDialect } from 'kysely';
 import type { Migration, MigrationProvider } from 'kysely';
 import pg from 'pg';
@@ -94,6 +94,46 @@ async function createPlayerPair(name = 'Andrew Jessop') {
         .execute();
 
     return { tt365Player, ttLeaguesPlayer };
+}
+
+async function createSamePlatformPair(
+    name = 'Same Platform Player',
+    rubberCount = 1,
+) {
+    const first = await db
+        .insertInto('external_players')
+        .values({
+            platform_id: tt365PlatformId,
+            external_id: `tt365-first-${Math.random()}`,
+            name,
+        })
+        .returning(['id', 'canonical_player_id'])
+        .executeTakeFirstOrThrow();
+    const second = await db
+        .insertInto('external_players')
+        .values({
+            platform_id: tt365PlatformId,
+            external_id: `tt365-second-${Math.random()}`,
+            name,
+        })
+        .returning(['id', 'canonical_player_id'])
+        .executeTakeFirstOrThrow();
+
+    await db
+        .insertInto('rubbers')
+        .values(Array.from({ length: rubberCount }, (_, index) => ({
+            fixture_id: fixtureId,
+            external_id: `same-platform-rubber-${index}-${Math.random()}`,
+            is_doubles: false,
+            home_player_1_id: first.id,
+            away_player_1_id: second.id,
+            home_games_won: 3,
+            away_games_won: 1,
+            outcome_type: 'normal' as const,
+        })))
+        .execute();
+
+    return { first, second };
 }
 
 describe('evidence-based player identity reconciliation', () => {
@@ -222,6 +262,40 @@ describe('evidence-based player identity reconciliation', () => {
             .executeTakeFirstOrThrow();
         expect(new Set([rubber.home_player_1_id, rubber.away_player_1_id])).toEqual(
             new Set([pair.tt365Player.id, pair.ttLeaguesPlayer.id]),
+        );
+    });
+
+    it('deduplicates repeated rubbers to distinct player/league memberships', async () => {
+        const pair = await createSamePlatformPair('Repeated Same Platform Player', 100);
+        const logger = { info: vi.fn() };
+
+        const result = await reconcilePlayersByName(db, logger);
+
+        expect(result.linkedGroups).toBe(0);
+        expect(result.suggestedGroups).toBe(1);
+        expect(result.suggestedLinks).toBe(1);
+        expect(logger.info).toHaveBeenCalledWith(
+            expect.stringContaining('loaded 2 distinct player/league memberships'),
+        );
+
+        const decision = await db
+            .selectFrom('player_identity_decisions')
+            .selectAll()
+            .executeTakeFirstOrThrow();
+        expect(decision.status).toBe('suggested');
+        expect(decision.confidence).toBe(0.8);
+        expect(decision.evidence).toMatchObject({
+            rule: 'same-platform-same-league',
+            league_name: 'League 1',
+        });
+
+        const rubberPlayers = await db
+            .selectFrom('rubbers')
+            .select(['home_player_1_id', 'away_player_1_id'])
+            .limit(1)
+            .executeTakeFirstOrThrow();
+        expect(new Set([rubberPlayers.home_player_1_id, rubberPlayers.away_player_1_id])).toEqual(
+            new Set([pair.first.id, pair.second.id]),
         );
     });
 
