@@ -34,7 +34,7 @@ jobs:
             directory: 'design-system'
             test: false
             coverage: false
-            smoke: false
+            smoke: true
           - workspace: '@tt-players/pwa'
             directory: 'pwa'
             test: true
@@ -60,7 +60,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+          cache: pn`m
           registry-url: 'https://npm.pkg.github.com'
           scope: '@wudong'
 
@@ -83,7 +83,7 @@ jobs:
 
       - name: Test packed package as a consumer
         if: matrix.smoke
-        run: pnpm --filter "${{ matrix.workspace }}" smoke:consumer
+        run: pn`m --filter "${{ matrix.workspace }}" smoke:consumer
 
       - name: Publish to GitHub Packages
         if: github.event_name == 'push'
