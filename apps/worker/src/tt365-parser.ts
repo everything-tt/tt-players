@@ -20,6 +20,11 @@ function isForfeitCellText(text: string): boolean {
     return normalizeText(text).toLowerCase().includes('forfeit');
 }
 
+function hasExplicitTT365FinalEvidence($: cheerio.CheerioAPI): boolean {
+    const text = normalizeText($.root().text());
+    return /adjudicated match card/i.test(text) && /\bscore\s*:/i.test(text);
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
@@ -587,7 +592,10 @@ export function parseTT365MatchCard(
 
     // ── Build fixture ─────────────────────────────────────────────────────
     const hasScores = rubbers.length > 0;
-    const status: FixtureStatus = hasScores ? 'completed' : 'upcoming';
+    const hasExplicitFinalEvidence = hasExplicitTT365FinalEvidence($);
+    const status: FixtureStatus = hasScores || hasExplicitFinalEvidence
+        ? 'completed'
+        : 'upcoming';
 
     const fixture: ParsedFixture = {
         externalId: matchExternalId,
