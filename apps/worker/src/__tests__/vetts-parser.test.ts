@@ -136,7 +136,7 @@ describe('VETTS tournament parsing', () => {
     it('publishes a source adapter manifest for every registered resource type', () => {
         expect(vettsSourceAdapter.manifest).toMatchObject({
             key: 'tournamentsoftware-vetts',
-            version: '1.3.0',
+            version: '1.4.0',
             supportedResourceTypes: ['directory', 'event', 'event-results'],
         });
     });
@@ -239,6 +239,20 @@ describe('VETTS tournament parsing', () => {
             scoreSource: 'win_loss_only',
             winnerSide: 'home',
         });
+    });
+
+    it('normalizes VETTS player names with the shared parser', () => {
+        const page = parseVettsMatchesPage(
+            matchesHtml.replace('Alan Pearse', 'ALAN PEARSE').replace('Raymond Sutton', 'raymond sutton'),
+            {
+                tournamentId: TOURNAMENT_ID,
+                sourceUrl: `${SOURCE_URL}/matches/20260517`,
+                date: '2026-05-17',
+            },
+        );
+
+        expect(page.matches[0]?.homePlayers[0]?.name).toBe('Alan Pearse');
+        expect(page.matches[0]?.awayPlayers[0]?.name).toBe('Raymond Sutton');
     });
 
     it('preserves upcoming and in-progress tournament lifecycle states', () => {
