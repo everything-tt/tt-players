@@ -2,6 +2,7 @@
 @import './tokens.css';
 @import './shadcn.css';
 @import './controls.css';
+@import './component-foundations.css';
 @import './primitives.css';
 @import './native-search.css';
 @import './variants.css';
