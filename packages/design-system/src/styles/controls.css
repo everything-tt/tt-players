@@ -55,19 +55,18 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: var(--tt-control-height);
-  padding-inline: 14px;
+  min-height: var(--tt-segmented-button-min-height, var(--tt-control-height));
+  padding-inline: var(--tt-segmented-button-padding-inline, 14px);
   border: 0;
   border-radius: calc(var(--radius-md) - 3px);
   background: transparent;
   color: var(--ink-muted);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--tt-segmented-button-font-size, 13px);
   font-weight: 650;
   cursor: pointer;
   transition: background-color var(--tt-motion-fast) var(--tt-ease-native), color var(--tt-motion-fast) var(--tt-ease-native);
 }
-.tt-segmented--compact .tt-segmented__btn { min-height: 38px; padding-inline: 6px; font-size: 12px; }
 .tt-segmented__btn--active,.tt-segmented__btn[data-state='on'] { background: var(--surface-strong); color: var(--ink); box-shadow: 0 1px 3px oklch(0% 0 0 / .1); }
 .tt-segmented--tab .tt-segmented__btn { min-height: 40px; padding: 10px 14px; border-bottom: 2px solid transparent; border-radius: 0; }
 .tt-segmented--tab .tt-segmented__btn--active,.tt-segmented--tab .tt-segmented__btn[data-state='on'] { border-bottom-color: var(--accent); background: transparent; color: var(--accent); box-shadow: none; }
