@@ -1,4 +1,5 @@
 import {
+  AppButton,
   BottomSheet,
   DesignList,
   IconCircle,
@@ -13,6 +14,7 @@ interface TournamentListPickerProps {
   showSubmissions: boolean;
   onClose: () => void;
   onChange: (scope: TournamentListScope) => void;
+  onPost?: () => void;
 }
 
 const OPTIONS: Array<{
@@ -47,6 +49,7 @@ export function TournamentListPicker({
   showSubmissions,
   onClose,
   onChange,
+  onPost,
 }: TournamentListPickerProps) {
   const options = showSubmissions
     ? OPTIONS
@@ -60,6 +63,20 @@ export function TournamentListPicker({
       description="Choose which tournaments you want to see."
       height="min(72dvh, 560px)"
     >
+      {onPost ? (
+        <div className="tt-tournament-list-picker__post">
+          <AppButton
+            tone="outline"
+            size="sm"
+            full
+            onClick={onPost}
+          >
+            <i className="fa fa-plus" aria-hidden="true" />
+            Post a tournament
+          </AppButton>
+        </div>
+      ) : null}
+
       <DesignList
         density="comfortable"
         surface="flat"
