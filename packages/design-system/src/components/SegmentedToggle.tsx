@@ -14,8 +14,6 @@ export interface SegmentedToggleProps<T extends string> {
   ariaLabel: string;
   /** Visual style: pill (default), tab (underline), chip (square). */
   variant?: 'pill' | 'tab' | 'chip';
-  /** Control density. Compact is intended for mixed-control toolbars. */
-  density?: 'default' | 'compact';
   /** Stretch to fill the container width (buttons flex:1). */
   full?: boolean;
   className?: string;
@@ -28,7 +26,6 @@ export function SegmentedToggle<T extends string>({
   onChange,
   ariaLabel,
   variant = 'pill',
-  density = 'default',
   full = false,
   className,
 }: SegmentedToggleProps<T>) {
@@ -62,7 +59,6 @@ export function SegmentedToggle<T extends string>({
       className={cn(
         'tt-segmented',
         `tt-segmented--${variant}`,
-        density === 'compact' && 'tt-segmented--compact',
         full && 'tt-segmented--full',
         className,
       )}
