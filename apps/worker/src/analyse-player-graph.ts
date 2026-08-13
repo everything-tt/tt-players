@@ -8,6 +8,11 @@ import {
     renderPlayerGraphMarkdown,
     type PlayerGraphMatch,
 } from './player-graph-analysis.js';
+import {
+    DEFAULT_PLAYER_GRAPH_HALF_LIFE_DAYS,
+    DEFAULT_PLAYER_GRAPH_WINDOW_DAYS,
+    resolvePlayerGraphDecay,
+} from './player-graph-run-config.js';
 
 dotenv.config();
 
@@ -28,8 +33,10 @@ interface MatchRow {
     away_team_name: string | null;
 }
 
-const windowDays = integerArgument('--window-days', 365);
-const halfLifeDays = positiveNumberArgument('--half-life-days', 180);
+const windowDays = integerArgument('--window-days', DEFAULT_PLAYER_GRAPH_WINDOW_DAYS);
+const noDecay = flagArgument('--no-decay');
+const halfLifeArgument = optionalPositiveNumberArgument('--half-life-days');
+const decay = resolvePlayerGraphDecay({ noDecay, halfLifeDays: halfLifeArgument });
 const minMatchCount = integerArgument('--min-match-count', 1);
 const minEdgeWeight = numberArgument('--min-edge-weight', 0);
 const endDate = argumentValue('--end-date') ?? todayUtc();
@@ -39,21 +46,47 @@ const outputMarkdown = resolve(argumentValue('--output-markdown') ?? 'player-gra
 
 try {
     console.log(`player graph: loading singles matches ${startDate} to ${endDate}`);
+    console.log(
+        decay.mode === 'none'
+            ? 'player graph: recency decay disabled'
+            : `player graph: recency half-life ${decay.halfLifeDays} days`,
+    );
     const matches = await loadPlayerGraphMatches(startDate, endDate);
     console.log(`player graph: loaded ${matches.length} matches`);
 
     const report = analysePlayerGraph(matches, {
         windowStart: startDate,
         windowEnd: endDate,
-        halfLifeDays,
+        halfLifeDays: decay.effectiveHalfLifeDays,
         minMatchCount,
         minEdgeWeight,
     });
 
+    if (decay.mode === 'none') {
+        report.methodology.notes.unshift(
+            'Recency decay was disabled for this run: every retained match contributes 1.0 to its player-pair edge.',
+        );
+    }
+
+    const jsonReport = {
+        ...report,
+        runConfig: {
+            windowDays,
+            decayMode: decay.mode,
+            halfLifeDays: decay.halfLifeDays,
+        },
+    };
+    const markdownReport = decay.mode === 'none'
+        ? renderPlayerGraphMarkdown(report).replace(
+            `Recency half-life: ${report.methodology.halfLifeDays} days`,
+            'Recency decay: disabled (each match weight = 1.0)',
+        )
+        : renderPlayerGraphMarkdown(report);
+
     await mkdir(dirname(outputJson), { recursive: true });
     await mkdir(dirname(outputMarkdown), { recursive: true });
-    await writeFile(outputJson, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-    await writeFile(outputMarkdown, renderPlayerGraphMarkdown(report), 'utf8');
+    await writeFile(outputJson, `${JSON.stringify(jsonReport, null, 2)}\n`, 'utf8');
+    await writeFile(outputMarkdown, markdownReport, 'utf8');
 
     console.log(`Player graph analysis generated at ${report.generatedAt}`);
     console.log(`Communities: ${report.totals.communities}`);
@@ -64,6 +97,9 @@ try {
         generatedAt: report.generatedAt,
         windowStart: startDate,
         windowEnd: endDate,
+        windowDays,
+        decayMode: decay.mode,
+        halfLifeDays: decay.halfLifeDays,
         matches: report.totals.matchesConsidered,
         activePlayers: report.totals.activePlayers,
         weightedEdges: report.totals.weightedEdges,
@@ -162,6 +198,10 @@ function argumentValue(name: string): string | undefined {
     return argument?.slice(name.length + 1) || undefined;
 }
 
+function flagArgument(name: string): boolean {
+    return process.argv.includes(name);
+}
+
 function integerArgument(name: string, fallback: number): number {
     const raw = argumentValue(name);
     const value = raw === undefined ? fallback : Number(raw);
@@ -171,9 +211,10 @@ function integerArgument(name: string, fallback: number): number {
     return value;
 }
 
-function positiveNumberArgument(name: string, fallback: number): number {
+function optionalPositiveNumberArgument(name: string): number | undefined {
     const raw = argumentValue(name);
-    const value = raw === undefined ? fallback : Number(raw);
+    if (raw === undefined) return undefined;
+    const value = Number(raw);
     if (!Number.isFinite(value) || value <= 0) {
         throw new Error(`${name} must be greater than zero`);
     }
