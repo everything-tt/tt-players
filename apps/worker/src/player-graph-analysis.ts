@@ -1,3 +1,5 @@
+import { DEFAULT_PLAYER_GRAPH_HALF_LIFE_DAYS } from './player-graph-run-config.js';
+
 export interface PlayerGraphMatch {
     rubberId: string;
     playedAt: string;
@@ -136,7 +138,6 @@ interface Graph {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DEFAULT_HALF_LIFE_DAYS = 180;
 const DEFAULT_MAX_COMMUNITIES = 20;
 const DEFAULT_MAX_BRIDGE_PLAYERS = 20;
 const DEFAULT_MAX_CROSS_COMMUNITY_EDGES = 20;
@@ -152,7 +153,11 @@ export function buildWeightedPlayerEdges(
         throw new Error('windowStart must be on or before windowEnd');
     }
 
-    const halfLifeDays = positiveNumber(options.halfLifeDays, DEFAULT_HALF_LIFE_DAYS, 'halfLifeDays');
+    const halfLifeDays = positiveNumber(
+        options.halfLifeDays,
+        DEFAULT_PLAYER_GRAPH_HALF_LIFE_DAYS,
+        'halfLifeDays',
+    );
     const minMatchCount = nonNegativeInteger(options.minMatchCount, 1, 'minMatchCount');
     const minEdgeWeight = nonNegativeNumber(options.minEdgeWeight, 0, 'minEdgeWeight');
     const accumulators = new Map<string, EdgeAccumulator>();
@@ -197,6 +202,7 @@ export function buildWeightedPlayerEdges(
         edge.leagues.add(match.leagueName);
         edge.competitions.add(match.competitionName);
 
+        // Equal game scores do not count as a win for either side (incomplete / anomalous rows).
         const homeWon = match.homeGamesWon > match.awayGamesWon;
         const awayWon = match.awayGamesWon > match.homeGamesWon;
         if (homeIsA) {
@@ -278,7 +284,11 @@ export function analysePlayerGraph(
     matches: PlayerGraphMatch[],
     options: PlayerGraphAnalysisOptions,
 ): PlayerGraphReport {
-    const halfLifeDays = positiveNumber(options.halfLifeDays, DEFAULT_HALF_LIFE_DAYS, 'halfLifeDays');
+    const halfLifeDays = positiveNumber(
+        options.halfLifeDays,
+        DEFAULT_PLAYER_GRAPH_HALF_LIFE_DAYS,
+        'halfLifeDays',
+    );
     const windowMatches = filterMatchesInWindow(matches, options.windowStart, options.windowEnd);
     const edges = buildWeightedPlayerEdges(windowMatches, { ...options, halfLifeDays });
     const { membershipByPlayer, modularity } = detectWeightedCommunities(edges);

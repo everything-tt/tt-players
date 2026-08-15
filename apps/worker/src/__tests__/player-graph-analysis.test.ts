@@ -6,6 +6,10 @@ import {
     renderPlayerGraphMarkdown,
     type PlayerGraphMatch,
 } from '../player-graph-analysis.js';
+import {
+    DEFAULT_PLAYER_GRAPH_HALF_LIFE_DAYS,
+    resolvePlayerGraphDecay,
+} from '../player-graph-run-config.js';
 
 function match(
     rubberId: string,
@@ -48,6 +52,33 @@ function densePair(
 }
 
 describe('player graph Stage 1 analysis', () => {
+    it('uses the Stage 1 run-config half-life default when none is provided', () => {
+        expect(DEFAULT_PLAYER_GRAPH_HALF_LIFE_DAYS).toBe(730);
+        expect(resolvePlayerGraphDecay().effectiveHalfLifeDays).toBe(
+            DEFAULT_PLAYER_GRAPH_HALF_LIFE_DAYS,
+        );
+
+        const edges = buildWeightedPlayerEdges([
+            match('recent', 'a', 'b'),
+            match('year-old', 'a', 'b', { playedAt: '2025-06-30' }),
+        ], {
+            windowStart: '2025-06-30',
+            windowEnd: '2026-06-30',
+        });
+
+        // 0 days old → 1.0; ~365 days old with 730-day half-life → ~0.707
+        expect(edges).toHaveLength(1);
+        expect(edges[0]!.weight).toBeCloseTo(1 + Math.pow(0.5, 365 / 730), 5);
+
+        const report = analysePlayerGraph([
+            match('recent', 'a', 'b'),
+        ], {
+            windowStart: '2026-06-01',
+            windowEnd: '2026-06-30',
+        });
+        expect(report.methodology.halfLifeDays).toBe(DEFAULT_PLAYER_GRAPH_HALF_LIFE_DAYS);
+    });
+
     it('aggregates repeated opponents with exponential recency weighting', () => {
         const edges = buildWeightedPlayerEdges([
             match('recent', 'a', 'b'),
@@ -74,6 +105,28 @@ describe('player graph Stage 1 analysis', () => {
             latestMatchAt: '2026-06-30',
         });
         expect(edges[0]!.weight).toBeCloseTo(1.5, 6);
+    });
+
+    it('does not count equal game scores as a win for either side', () => {
+        const edges = buildWeightedPlayerEdges([
+            match('tied', 'a', 'b', {
+                homeGamesWon: 2,
+                awayGamesWon: 2,
+            }),
+        ], {
+            windowStart: '2026-06-01',
+            windowEnd: '2026-06-30',
+            halfLifeDays: 180,
+        });
+
+        expect(edges).toHaveLength(1);
+        expect(edges[0]).toMatchObject({
+            matchCount: 1,
+            playerAWins: 0,
+            playerBWins: 0,
+            playerAGamesWon: 2,
+            playerBGamesWon: 2,
+        });
     });
 
     it('separates dense playing pools linked by a weak cross-community match', () => {
