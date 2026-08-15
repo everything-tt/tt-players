@@ -114,7 +114,7 @@ test.beforeAll(() => {
   mkdirSync(diagnosticsDir, { recursive: true });
 });
 
-test('reviews icon filters, category selection, and results-only completed tournaments', async ({ page }, testInfo) => {
+test('reviews compact filter rail, search toggle, category sheet, and results-only completed tournaments', async ({ page }, testInfo) => {
   const previewUrl = requirePreviewUrl();
   await prepareAppState(page);
 
@@ -128,19 +128,46 @@ test('reviews icon filters, category selection, and results-only completed tourn
   await page.goto(`${previewUrl}/tabs/events`, { waitUntil: 'domcontentloaded' });
   await upcomingResponse;
 
-  const savedButton = page.getByRole('button', { name: /show saved tournaments only/i });
-  const filterButton = page.getByRole('button', { name: /tournament category filters/i });
-  await expect(savedButton).toBeVisible();
-  await expect(filterButton).toBeVisible();
-  await expect(savedButton.locator('.tt-tournament-toolbar-icon__label')).toBeHidden();
-  await expect(filterButton.locator('.tt-tournament-toolbar-icon__label')).toBeHidden();
+  const filterRail = page.locator('.tt-tournament-filter-rail');
+  const statusToggle = page.getByRole('radiogroup', { name: 'Tournament status' });
+  const listButton = page.getByRole('button', { name: 'Tournament list: All tournaments' });
+  const filterButton = page.getByRole('button', { name: 'Tournament filters', exact: true });
+  const searchButton = page.getByRole('button', { name: 'Search tournaments', exact: true });
 
-  const widths = await Promise.all([
-    savedButton.evaluate((element) => element.getBoundingClientRect().width),
-    filterButton.evaluate((element) => element.getBoundingClientRect().width),
+  await expect(filterRail).toBeVisible();
+  await expect(statusToggle).toBeVisible();
+  await expect(listButton).toBeVisible();
+  await expect(filterButton).toBeVisible();
+  await expect(searchButton).toBeVisible();
+  await expect(filterRail.locator('.tt-tournament-toolbar-icon__label')).toBeHidden();
+
+  const railBounds = await filterRail.boundingBox();
+  const controlBounds = await Promise.all([
+    statusToggle.boundingBox(),
+    listButton.boundingBox(),
+    filterButton.boundingBox(),
+    searchButton.boundingBox(),
   ]);
-  expect(Math.abs(widths[0] - widths[1])).toBeLessThan(1);
-  expect(widths[0]).toBeGreaterThanOrEqual(48);
+  expect(railBounds).not.toBeNull();
+  for (const bounds of controlBounds) {
+    expect(bounds).not.toBeNull();
+    expect(Math.abs((bounds?.y ?? 0) - (railBounds?.y ?? 0))).toBeLessThan(12);
+  }
+
+  await searchButton.click();
+  await expect(filterRail).toHaveCount(0);
+  const searchInput = page.getByLabel('Search upcoming tournaments');
+  await expect(searchInput).toBeVisible();
+  await expect(searchInput).toBeFocused();
+  await searchInput.fill('regional');
+  await page.getByRole('button', { name: 'Close tournament search' }).click();
+  await expect(filterRail).toBeVisible();
+  // Closing search collapses the field but keeps the active query so results stay filtered.
+  await expect(page.getByRole('button', { name: /Search tournaments, active query regional/i })).toBeVisible();
+  await page.getByRole('button', { name: /Search tournaments, active query regional/i }).click();
+  await expect(page.getByLabel('Search upcoming tournaments')).toHaveValue('regional');
+  await page.getByRole('button', { name: 'Close tournament search' }).click();
+  await expect(filterRail).toBeVisible();
 
   await filterButton.click();
   const categoryFilters = page.getByRole('group', { name: 'Tournament category filters' });
@@ -165,11 +192,13 @@ test('reviews icon filters, category selection, and results-only completed tourn
   });
   await categoryFilters.getByRole('button', { name: 'Girls', exact: true }).click();
   await girlsResponse;
-  await expect(filterButton.locator('.tt-tournament-toolbar-icon__count')).toHaveText('2');
-  await capture(page, testInfo, 'tournaments-category-filters');
+  await expect(page.getByRole('button', { name: 'Tournament filters, 2 active' }).locator('.tt-tournament-toolbar-icon__count')).toHaveText('2');
+  await capture(page, testInfo, 'tournaments-category-filter-sheet');
 
-  await page.getByRole('button', { name: 'Clear', exact: true }).click();
-  await expect(filterButton.locator('.tt-tournament-toolbar-icon__count')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Clear filters', exact: true }).click();
+  await expect(page.locator('.tt-tournament-toolbar-icon__count')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(categoryFilters).toBeHidden();
 
   // Netlify previews use the currently deployed API. Mirror the PR's server-side
   // results-only contract here so this UI review remains deterministic until the
@@ -209,11 +238,10 @@ test('reviews icon filters, category selection, and results-only completed tourn
   await capture(page, testInfo, 'tournaments-completed-results-only');
 
   await page.setViewportSize({ width: 320, height: 844 });
-  await page.getByRole('button', { name: /hide tournament category filters/i }).click();
-  await expect(categoryFilters).toBeHidden();
+  await expect(filterRail).toBeVisible();
   const noOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
   expect(noOverflow).toBe(true);
-  await capture(page, testInfo, 'tournaments-icon-filters-320');
+  await capture(page, testInfo, 'tournaments-filter-rail-320');
 
   writeReportIndex(previewUrl);
 });

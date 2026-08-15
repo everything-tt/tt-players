@@ -33,6 +33,7 @@ import {
   AppButton,
   AppSearchInput,
   AppToggleButton,
+  BottomSheet,
   DesignList,
   EmptyState,
   ErrorState,
@@ -63,10 +64,10 @@ const LIST_SCOPE_LABELS: Record<TournamentListScope, string> = {
   submitted: 'My submissions',
 };
 
-const LIST_SCOPE_ICONS: Record<TournamentListScope, string> = {
-  all: 'fa fa-list-ul',
-  saved: 'fa fa-heart',
-  submitted: 'fa fa-upload',
+const LIST_SCOPE_SHORT_LABELS: Record<TournamentListScope, string> = {
+  all: 'All',
+  saved: 'Saved',
+  submitted: 'Submitted',
 };
 
 function formatVenue(event: TournamentEventItem): string | null {
@@ -456,6 +457,7 @@ export function EventsTabContent() {
   const [listPickerOpen, setListPickerOpen] = useState(false);
   const [categoryFiltersOpen, setCategoryFiltersOpen] = useState(false);
   const [categories, setCategories] = useState<TournamentCategoryFilter[]>(initialPreferences.categories);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [manualSubmitOpen, setManualSubmitOpen] = useState(false);
   const [manualSubmitUrl, setManualSubmitUrl] = useState('');
   const [manualSubmitState, setManualSubmitState] = useState<ManualSubmitState>('idle');
@@ -517,6 +519,19 @@ export function EventsTabContent() {
     if (scope === 'submitted') setCategoryFiltersOpen(false);
   };
 
+  const openManualSubmit = () => {
+    setListPickerOpen(false);
+    setManualSubmitOpen(true);
+    setManualSubmitState('idle');
+    setManualSubmitMessage('');
+  };
+
+  const closeSearch = () => {
+    // Keep the active query so closing search only collapses the field;
+    // results stay filtered until the user clears the query explicitly.
+    setSearchOpen(false);
+  };
+
   const submitManualTournament = async () => {
     const session = auth.session;
     const url = manualSubmitUrl.trim();
@@ -560,90 +575,101 @@ export function EventsTabContent() {
   return (
     <>
       <div className="tt-tournament-controls-panel">
-        {listScope !== 'submitted' ? (
-          <div className="tt-browse-controls tt-tournament-status-toggle">
-            <SegmentedToggle
-              full
-              ariaLabel="Tournament status"
-              value={status}
-              onChange={setStatus}
-              options={[
-                { value: 'upcoming', label: 'Upcoming' },
-                { value: 'completed', label: 'Completed' },
-              ]}
-            />
-          </div>
-        ) : null}
-
-        <SearchToolbar
-          ariaLabel={searchLabel}
-          className="tt-tournament-search-toolbar"
-          actions={(
-            <>
-              {auth.session ? (
-                <AppToggleButton
-                  pressed={manualSubmitOpen}
-                  variant="icon"
-                  iconClassName="fa fa-plus"
-                  className="tt-tournament-toolbar-icon"
-                  onClick={() => {
-                    setManualSubmitOpen((current) => !current);
-                    setManualSubmitState('idle');
-                    setManualSubmitMessage('');
-                  }}
-                  aria-label={manualSubmitOpen ? 'Hide tournament submission' : 'Post a tournament'}
-                  aria-expanded={manualSubmitOpen}
-                  aria-controls="tournament-manual-submit"
-                  title="Post a tournament"
-                >
-                  <span className="tt-tournament-toolbar-icon__label">Post</span>
-                </AppToggleButton>
-              ) : null}
+        {searchOpen ? (
+          <SearchToolbar
+            ariaLabel={searchLabel}
+            className="tt-tournament-search-toolbar"
+            actions={(
               <AppToggleButton
-                pressed={listPickerOpen || listScope !== 'all'}
+                pressed={false}
                 variant="icon"
-                iconClassName={LIST_SCOPE_ICONS[listScope]}
+                iconClassName="fa fa-times"
                 className="tt-tournament-toolbar-icon"
-                onClick={() => setListPickerOpen(true)}
-                aria-label={`Tournament list: ${LIST_SCOPE_LABELS[listScope]}`}
-                aria-expanded={listPickerOpen}
-                title={LIST_SCOPE_LABELS[listScope]}
+                onClick={closeSearch}
+                aria-label="Close tournament search"
+                title="Close search"
               >
-                <span className="tt-tournament-toolbar-icon__label">List</span>
+                <span className="tt-tournament-toolbar-icon__label">Close</span>
               </AppToggleButton>
-              {listScope !== 'submitted' ? (
-                <AppToggleButton
-                  pressed={categoryFiltersOpen || categoryFilterActive}
-                  variant="icon"
-                  iconClassName="fa fa-filter"
-                  className="tt-tournament-toolbar-icon"
-                  onClick={() => setCategoryFiltersOpen((current) => !current)}
-                  aria-label={categoryFiltersOpen ? 'Hide tournament category filters' : 'Show tournament category filters'}
-                  aria-expanded={categoryFiltersOpen}
-                  aria-controls="tournament-category-filters"
-                  title={categoryFiltersOpen ? 'Hide category filters' : 'Show category filters'}
-                >
-                  <span className="tt-tournament-toolbar-icon__label">Categories</span>
-                  {categoryFilterActive ? (
-                    <span className="tt-tournament-toolbar-icon__count" aria-hidden="true">
-                      {categories.length}
-                    </span>
-                  ) : null}
-                </AppToggleButton>
-              ) : null}
-            </>
-          )}
-        >
-          <AppSearchInput
-            inputMode="search"
-            enterKeyHint="search"
-            autoComplete="off"
-            placeholder={searchPlaceholder}
-            aria-label={searchLabel}
-            value={search.query}
-            onChange={(event) => search.setQuery(event.target.value)}
-          />
-        </SearchToolbar>
+            )}
+          >
+            <AppSearchInput
+              autoFocus
+              inputMode="search"
+              enterKeyHint="search"
+              autoComplete="off"
+              placeholder={searchPlaceholder}
+              aria-label={searchLabel}
+              value={search.query}
+              onChange={(event) => search.setQuery(event.target.value)}
+            />
+          </SearchToolbar>
+        ) : (
+          <div className="tt-tournament-filter-rail" role="group" aria-label="Tournament browse controls">
+            {listScope !== 'submitted' ? (
+              <SegmentedToggle
+                full
+                ariaLabel="Tournament status"
+                value={status}
+                onChange={setStatus}
+                className="tt-tournament-status-toggle"
+                options={[
+                  { value: 'upcoming', label: 'Upcoming' },
+                  { value: 'completed', label: 'Completed' },
+                ]}
+              />
+            ) : null}
+
+            <AppToggleButton
+              pressed={listPickerOpen || listScope !== 'all'}
+              variant="filter"
+              className="tt-tournament-scope-button"
+              onClick={() => setListPickerOpen(true)}
+              aria-label={`Tournament list: ${LIST_SCOPE_LABELS[listScope]}`}
+              aria-expanded={listPickerOpen}
+              title={LIST_SCOPE_LABELS[listScope]}
+            >
+              <span className="tt-tournament-scope-button__label">{LIST_SCOPE_SHORT_LABELS[listScope]}</span>
+              <i className="fa fa-chevron-down tt-tournament-scope-button__chevron" aria-hidden="true" />
+            </AppToggleButton>
+
+            {listScope !== 'submitted' ? (
+              <AppToggleButton
+                pressed={categoryFiltersOpen || categoryFilterActive}
+                variant="icon"
+                iconClassName="fa fa-filter"
+                className="tt-tournament-toolbar-icon"
+                onClick={() => setCategoryFiltersOpen(true)}
+                aria-label={categoryFilterActive
+                  ? `Tournament filters, ${categories.length} active`
+                  : 'Tournament filters'}
+                aria-expanded={categoryFiltersOpen}
+                title="Tournament filters"
+              >
+                <span className="tt-tournament-toolbar-icon__label">Filters</span>
+                {categoryFilterActive ? (
+                  <span className="tt-tournament-toolbar-icon__count" aria-hidden="true">
+                    {categories.length}
+                  </span>
+                ) : null}
+              </AppToggleButton>
+            ) : null}
+
+            <AppToggleButton
+              pressed={Boolean(search.query.trim())}
+              variant="icon"
+              iconClassName="fa fa-search"
+              className="tt-tournament-toolbar-icon"
+              onClick={() => setSearchOpen(true)}
+              aria-label={search.query.trim()
+                ? `Search tournaments, active query ${search.query.trim()}`
+                : 'Search tournaments'}
+              title="Search tournaments"
+            >
+              <span className="tt-tournament-toolbar-icon__label">Search</span>
+            </AppToggleButton>
+          </div>
+        )}
 
         {auth.session && manualSubmitOpen ? (
           <form
@@ -697,35 +723,6 @@ export function EventsTabContent() {
             ) : null}
           </form>
         ) : null}
-
-        {listScope !== 'submitted' && categoryFiltersOpen ? (
-          <div id="tournament-category-filters" className="tt-tournament-category-filters">
-            <FilterBar ariaLabel="Tournament category filters" className="tt-tournament-category-filters__options">
-              {TOURNAMENT_CATEGORY_OPTIONS.map((option) => (
-                <AppToggleButton
-                  key={option.value}
-                  pressed={categories.includes(option.value)}
-                  size="sm"
-                  variant="filter"
-                  className="tt-tournament-category-filter"
-                  onClick={() => setCategories((current) => toggleTournamentCategory(current, option.value))}
-                >
-                  {option.label}
-                </AppToggleButton>
-              ))}
-            </FilterBar>
-            {categoryFilterActive ? (
-              <AppButton
-                tone="ghost"
-                size="s"
-                className="tt-tournament-category-filters__clear"
-                onClick={() => setCategories([])}
-              >
-                Clear
-              </AppButton>
-            ) : null}
-          </div>
-        ) : null}
       </div>
 
       {listScope === 'submitted' ? (
@@ -757,7 +754,48 @@ export function EventsTabContent() {
         showSubmissions={Boolean(auth.session)}
         onClose={() => setListPickerOpen(false)}
         onChange={chooseListScope}
+        onPost={auth.session ? openManualSubmit : undefined}
       />
+
+      <BottomSheet
+        isOpen={categoryFiltersOpen && listScope !== 'submitted'}
+        onClose={() => setCategoryFiltersOpen(false)}
+        title="Tournament filters"
+        description="Choose the tournament categories you want to include."
+        height="min(58dvh, 440px)"
+      >
+        <div className="tt-tournament-category-filter-sheet">
+          <FilterBar
+            ariaLabel="Tournament category filters"
+            className="tt-tournament-category-filters__options"
+          >
+            {TOURNAMENT_CATEGORY_OPTIONS.map((option) => (
+              <AppToggleButton
+                key={option.value}
+                pressed={categories.includes(option.value)}
+                size="sm"
+                variant="filter"
+                className="tt-tournament-category-filter"
+                onClick={() => setCategories((current) => toggleTournamentCategory(current, option.value))}
+              >
+                {option.label}
+              </AppToggleButton>
+            ))}
+          </FilterBar>
+          <div className="tt-tournament-category-filter-sheet__footer">
+            {categoryFilterActive ? (
+              <AppButton
+                tone="ghost"
+                size="s"
+                className="tt-tournament-category-filters__clear"
+                onClick={() => setCategories([])}
+              >
+                Clear filters
+              </AppButton>
+            ) : null}
+          </div>
+        </div>
+      </BottomSheet>
     </>
   );
 }

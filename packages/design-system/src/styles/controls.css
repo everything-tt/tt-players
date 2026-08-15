@@ -55,14 +55,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: var(--tt-control-height);
-  padding-inline: 14px;
+  min-height: var(--tt-segmented-button-min-height, var(--tt-control-height));
+  padding-inline: var(--tt-segmented-button-padding-inline, 14px);
   border: 0;
   border-radius: calc(var(--radius-md) - 3px);
   background: transparent;
   color: var(--ink-muted);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--tt-segmented-button-font-size, 13px);
   font-weight: 650;
   cursor: pointer;
   transition: background-color var(--tt-motion-fast) var(--tt-ease-native), color var(--tt-motion-fast) var(--tt-ease-native);
