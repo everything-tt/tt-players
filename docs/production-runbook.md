@@ -254,6 +254,13 @@ Expected:
 - Exhausted jobs need investigation.
 - Deferred jobs are normal for retries/backoff.
 
+The scraping monitor keeps terminal queue rows visible for investigation but
+distinguishes failures last attempted in the current UTC day from historical
+exhausted rows. Historical failures alone should not be treated as an active
+backlog or prevent a later daily pipeline run from starting. Investigate the
+current-day failure count first, then classify older rows before retrying or
+archiving them.
+
 Inspect exhausted jobs:
 
 ```bash

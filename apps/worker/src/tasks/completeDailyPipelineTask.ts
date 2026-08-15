@@ -25,6 +25,8 @@ export interface DailyPipelinePayload {
     runKey?: string;
     windowStart?: string;
     stage?: DailyPipelineStage;
+    /** Stable owner token carried through every stage of one pipeline run. */
+    leaseOwner?: string;
     /**
      * Manual runs use their own window (the trigger time) instead of the
      * daily 00:00 window, so they are not blocked by ingestion jobs that
@@ -73,6 +75,8 @@ interface RatingRunResult {
 }
 
 export interface DailyPipelineDependencies {
+    claimActiveRun: (runKey: string, leaseOwner: string) => Promise<boolean>;
+    ownsActiveRun: (runKey: string, leaseOwner: string) => Promise<boolean>;
     inspectIngestion: (windowStart: Date) => Promise<IngestionQueueState>;
     reconcile: (log: (message: string) => void) => Promise<void>;
     calculateRatings: (log: (message: string) => void) => Promise<RatingRunResult>;
@@ -81,8 +85,9 @@ export interface DailyPipelineDependencies {
     pollIntervalMs: number;
 }
 
-const DEFAULT_STALE_PIPELINE_MS = 6 * 60 * 60 * 1000;
+export const DEFAULT_DAILY_PIPELINE_STALE_RUN_MS = 6 * 60 * 60 * 1000;
 const PIPELINE_AUDIT_HEARTBEAT_MS = 60 * 1000;
+const DAILY_PIPELINE_NAME = 'daily';
 
 function positiveIntegerEnvironment(name: string, fallback: number): number {
     const raw = process.env[name];
@@ -112,6 +117,7 @@ export function normalizeDailyPipelinePayload(
     const windowStart = payload?.windowStart
         || (manual ? manualTriggerTime.toISOString() : `${runKey}T00:00:00.000Z`);
     const stage = payload?.stage || 'wait-for-ingestion';
+    const leaseOwner = payload?.leaseOwner || invocation?.jobId || `run-${runKey}`;
 
     if (!['wait-for-ingestion', 'reconcile', 'ratings', 'read-models'].includes(stage)) {
         throw new Error(`Unsupported daily pipeline stage: ${stage}`);
@@ -120,7 +126,7 @@ export function normalizeDailyPipelinePayload(
         throw new Error(`Invalid daily pipeline window start: ${windowStart}`);
     }
 
-    return { runKey, windowStart, stage, manual };
+    return { runKey, windowStart, stage, leaseOwner, manual };
 }
 
 async function queuePipelineStage(
@@ -139,6 +145,118 @@ async function queuePipelineStage(
     });
 }
 
+export async function claimDailyPipelineRun(
+    database: Kysely<Database>,
+    runKey: string,
+    leaseOwner: string,
+    staleAfterMs: number,
+): Promise<boolean> {
+    const result = await sql<{ run_key: string }>`
+        INSERT INTO scraping_pipeline_active_runs (
+            pipeline_name,
+            run_key,
+            lease_owner,
+            claimed_at,
+            heartbeat_at
+        ) VALUES (
+            ${DAILY_PIPELINE_NAME},
+            ${runKey},
+            ${leaseOwner},
+            now(),
+            now()
+        )
+        ON CONFLICT (pipeline_name) DO UPDATE SET
+            run_key = EXCLUDED.run_key,
+            lease_owner = EXCLUDED.lease_owner,
+            claimed_at = now(),
+            heartbeat_at = now()
+        WHERE (
+                scraping_pipeline_active_runs.run_key = EXCLUDED.run_key
+            AND scraping_pipeline_active_runs.lease_owner = EXCLUDED.lease_owner
+        )
+           OR scraping_pipeline_active_runs.heartbeat_at
+                < now() - (${staleAfterMs} * INTERVAL '1 millisecond')
+        RETURNING run_key
+    `.execute(database);
+
+    return result.rows.length > 0;
+}
+
+export async function heartbeatDailyPipelineRun(
+    database: Kysely<Database>,
+    runKey: string,
+    leaseOwner: string,
+): Promise<void> {
+    await sql`
+        UPDATE scraping_pipeline_active_runs
+        SET heartbeat_at = now()
+        WHERE pipeline_name = ${DAILY_PIPELINE_NAME}
+          AND run_key = ${runKey}
+          AND lease_owner = ${leaseOwner}
+    `.execute(database);
+}
+
+export async function ownsDailyPipelineRun(
+    database: Kysely<Database>,
+    runKey: string,
+    leaseOwner: string,
+): Promise<boolean> {
+    const result = await sql<{ owned: boolean }>`
+        SELECT EXISTS (
+            SELECT 1
+            FROM scraping_pipeline_active_runs
+            WHERE pipeline_name = ${DAILY_PIPELINE_NAME}
+              AND run_key = ${runKey}
+              AND lease_owner = ${leaseOwner}
+        ) AS owned
+    `.execute(database);
+    return result.rows[0]?.owned === true;
+}
+
+export async function releaseDailyPipelineRun(
+    database: Kysely<Database>,
+    runKey: string,
+    leaseOwner: string,
+): Promise<void> {
+    await sql`
+        DELETE FROM scraping_pipeline_active_runs
+        WHERE pipeline_name = ${DAILY_PIPELINE_NAME}
+          AND run_key = ${runKey}
+          AND lease_owner = ${leaseOwner}
+    `.execute(database);
+}
+
+const DAILY_PIPELINE_ADVISORY_LOCK = 'tt-players:daily-pipeline';
+
+export async function withDailyPipelineExecutionLock<T>(
+    database: Kysely<Database>,
+    action: () => Promise<T>,
+): Promise<T> {
+    return database.connection().execute(async (connection) => {
+        await sql`SELECT pg_advisory_lock(hashtextextended(${DAILY_PIPELINE_ADVISORY_LOCK}, 0))`
+            .execute(connection);
+        try {
+            return await action();
+        } finally {
+            await sql`SELECT pg_advisory_unlock(hashtextextended(${DAILY_PIPELINE_ADVISORY_LOCK}, 0))`
+                .execute(connection);
+        }
+    });
+}
+
+export function isFinalJobAttempt(job: { attempts: number; max_attempts: number }): boolean {
+    return job.attempts >= job.max_attempts;
+}
+
+async function assertDailyPipelineLease(
+    payload: Required<DailyPipelinePayload>,
+    dependencies: DailyPipelineDependencies,
+): Promise<void> {
+    if (!await dependencies.ownsActiveRun(payload.runKey, payload.leaseOwner)) {
+        throw new Error(`daily pipeline ${payload.runKey} lost active-run lease`);
+    }
+}
+
 export async function runDailyPipelineStage(
     payload: DailyPipelinePayload | null | undefined,
     helpers: PipelineHelpers,
@@ -147,6 +265,19 @@ export async function runDailyPipelineStage(
     const now = dependencies.now();
     const normalized = normalizeDailyPipelinePayload(payload, now);
     const log = (message: string) => helpers.logger.info(message);
+
+    const claimed = await dependencies.claimActiveRun(normalized.runKey, normalized.leaseOwner);
+    if (!claimed) {
+        const runAt = new Date(now.getTime() + dependencies.pollIntervalMs);
+        log(`daily pipeline ${normalized.runKey}: waiting for another active daily pipeline`);
+        await queuePipelineStage(helpers, normalized, normalized.stage, runAt);
+        return {
+            stage: normalized.stage,
+            status: 'waiting',
+            nextStage: normalized.stage,
+            summary: { active_pipeline: true },
+        };
+    }
 
     if (normalized.stage === 'wait-for-ingestion') {
         const queue = await dependencies.inspectIngestion(new Date(normalized.windowStart));
@@ -157,6 +288,7 @@ export async function runDailyPipelineStage(
         }
 
         if (queue.pending > 0) {
+            await assertDailyPipelineLease(normalized, dependencies);
             log(`daily pipeline ${normalized.runKey}: waiting for ${queue.pending} ingestion jobs`);
             await queuePipelineStage(
                 helpers,
@@ -173,6 +305,7 @@ export async function runDailyPipelineStage(
         }
 
         log(`daily pipeline ${normalized.runKey}: ingestion complete`);
+        await assertDailyPipelineLease(normalized, dependencies);
         await queuePipelineStage(helpers, normalized, 'reconcile');
         return {
             stage: normalized.stage,
@@ -184,6 +317,7 @@ export async function runDailyPipelineStage(
 
     if (normalized.stage === 'reconcile') {
         await dependencies.reconcile(log);
+        await assertDailyPipelineLease(normalized, dependencies);
         await queuePipelineStage(helpers, normalized, 'ratings');
         return {
             stage: normalized.stage,
@@ -210,6 +344,7 @@ export async function runDailyPipelineStage(
         };
 
         if (result.busy || !result.complete) {
+            await assertDailyPipelineLease(normalized, dependencies);
             await queuePipelineStage(
                 helpers,
                 normalized,
@@ -224,6 +359,7 @@ export async function runDailyPipelineStage(
             };
         }
 
+        await assertDailyPipelineLease(normalized, dependencies);
         await queuePipelineStage(helpers, normalized, 'read-models');
         return {
             stage: normalized.stage,
@@ -234,6 +370,7 @@ export async function runDailyPipelineStage(
     }
 
     await dependencies.refreshReadModels(log);
+    await assertDailyPipelineLease(normalized, dependencies);
     log(`daily pipeline ${normalized.runKey}: derived data refresh complete`);
     return {
         stage: normalized.stage,
@@ -244,6 +381,15 @@ export async function runDailyPipelineStage(
 }
 
 const productionDependencies: DailyPipelineDependencies = {
+    claimActiveRun: async (runKey, leaseOwner) => claimDailyPipelineRun(
+        db,
+        runKey,
+        leaseOwner,
+        positiveIntegerEnvironment(
+            'DAILY_PIPELINE_STALE_RUN_MS',
+            DEFAULT_DAILY_PIPELINE_STALE_RUN_MS,
+        ),
+    ),
     inspectIngestion: async (windowStart) => {
         const identifiers = INGESTION_TASK_IDENTIFIERS.map((identifier) => sql`${identifier}`);
         const result = await sql<{ pending: number | string; failed: number | string }>`
@@ -260,6 +406,7 @@ const productionDependencies: DailyPipelineDependencies = {
             failed: Number(row?.failed ?? 0),
         };
     },
+    ownsActiveRun: async (runKey, leaseOwner) => ownsDailyPipelineRun(db, runKey, leaseOwner),
     reconcile: async (log) => {
         await reconcilePlayersByName(db, { info: log });
     },
@@ -337,6 +484,8 @@ async function heartbeatPipelineAudit(
           AND current_stage = ${payload.stage}
           AND status = 'running'
     `.execute(database);
+
+    await heartbeatDailyPipelineRun(database, payload.runKey, payload.leaseOwner);
 }
 
 async function beginPipelineRunAudit(payload: Required<DailyPipelinePayload>): Promise<void> {
@@ -526,7 +675,7 @@ export const completeDailyPipelineTask: Task = async (payload, helpers) => {
                 db,
                 positiveIntegerEnvironment(
                     'DAILY_PIPELINE_STALE_RUN_MS',
-                    DEFAULT_STALE_PIPELINE_MS,
+                    DEFAULT_DAILY_PIPELINE_STALE_RUN_MS,
                 ),
             );
             if (recovered.runs > 0 || recovered.stages > 0) {
@@ -538,32 +687,48 @@ export const completeDailyPipelineTask: Task = async (payload, helpers) => {
         log,
     );
 
-    await safelyWriteAudit(
-        'start',
-        () => beginPipelineRunAudit(normalized),
-        log,
-    );
+    await withDailyPipelineExecutionLock(db, async () => {
+        await safelyWriteAudit(
+            'start',
+            () => beginPipelineRunAudit(normalized),
+            log,
+        );
 
-    const stopAuditHeartbeat = startPipelineAuditHeartbeat(normalized, log);
-    try {
-        const outcome = await runDailyPipelineStage(
-            normalized,
-            helpers,
-            productionDependencies,
-        );
-        await safelyWriteAudit(
-            'completion',
-            () => completePipelineStageAudit(normalized, outcome),
-            log,
-        );
-    } catch (error) {
-        await safelyWriteAudit(
-            'failure',
-            () => failPipelineStageAudit(normalized, error),
-            log,
-        );
-        throw error;
-    } finally {
-        stopAuditHeartbeat();
-    }
+        const stopAuditHeartbeat = startPipelineAuditHeartbeat(normalized, log);
+        try {
+            const stageOutcome = await runDailyPipelineStage(
+                normalized,
+                helpers,
+                productionDependencies,
+            );
+            await safelyWriteAudit(
+                'completion',
+                () => completePipelineStageAudit(normalized, stageOutcome),
+                log,
+            );
+            if (stageOutcome.status === 'complete') {
+                await safelyWriteAudit(
+                    'active run release',
+                    () => releaseDailyPipelineRun(db, normalized.runKey, normalized.leaseOwner),
+                    log,
+                );
+            }
+        } catch (error) {
+            await safelyWriteAudit(
+                'failure',
+                () => failPipelineStageAudit(normalized, error),
+                log,
+            );
+            if (isFinalJobAttempt(helpers.job)) {
+                await safelyWriteAudit(
+                    'terminal failure active run release',
+                    () => releaseDailyPipelineRun(db, normalized.runKey, normalized.leaseOwner),
+                    log,
+                );
+            }
+            throw error;
+        } finally {
+            stopAuditHeartbeat();
+        }
+    });
 };

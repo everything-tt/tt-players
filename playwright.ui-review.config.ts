@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // Signed-out section tune down and dedicated sign-in page review.
-  testMatch: 'zz-signed-out-sign-in-page.pw.ts',
+  // Current PR scenario: historical queue failures are distinct from active work.
+  testMatch: 'zz-scraping-monitor-queue.pw.ts',
 
   timeout: 120_000,
   expect: {

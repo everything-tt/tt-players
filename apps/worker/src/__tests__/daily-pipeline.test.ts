@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
     normalizeDailyPipelinePayload,
+    isFinalJobAttempt,
     runDailyPipelineStage,
     type DailyPipelineDependencies,
 } from '../tasks/completeDailyPipelineTask.js';
@@ -12,6 +13,8 @@ function dependencies(
     overrides: Partial<DailyPipelineDependencies> = {},
 ): DailyPipelineDependencies {
     return {
+        claimActiveRun: vi.fn(async () => true),
+        ownsActiveRun: vi.fn(async () => true),
         inspectIngestion: vi.fn(async () => ({ pending: 0, failed: 0 })),
         reconcile: vi.fn(async () => undefined),
         calculateRatings: vi.fn(async () => ({
@@ -36,6 +39,56 @@ function helpers() {
 }
 
 describe('daily pipeline', () => {
+    it('distinguishes retryable and terminal Graphile Worker attempts', () => {
+        expect(isFinalJobAttempt({ attempts: 2, max_attempts: 3 })).toBe(false);
+        expect(isFinalJobAttempt({ attempts: 3, max_attempts: 3 })).toBe(true);
+    });
+
+    it('waits for another active daily pipeline before running a stage', async () => {
+        const deps = dependencies({
+            claimActiveRun: vi.fn(async () => false),
+        });
+        const taskHelpers = helpers();
+
+        const outcome = await runDailyPipelineStage({
+            runKey: '2026-07-31',
+            windowStart: '2026-07-31T00:00:00.000Z',
+            stage: 'reconcile',
+            leaseOwner: 'job-a',
+        }, taskHelpers, deps);
+
+        expect(outcome).toEqual({
+            stage: 'reconcile',
+            status: 'waiting',
+            nextStage: 'reconcile',
+            summary: { active_pipeline: true },
+        });
+        expect(deps.inspectIngestion).not.toHaveBeenCalled();
+        expect(deps.reconcile).not.toHaveBeenCalled();
+        expect(taskHelpers.addJob).toHaveBeenCalledWith(
+            'completeDailyPipelineTask',
+            expect.objectContaining({ stage: 'reconcile', leaseOwner: 'job-a' }),
+            expect.objectContaining({ runAt: new Date('2026-07-31T03:50:00.000Z') }),
+        );
+    });
+
+    it('does not queue a successor after losing lease ownership during a stage', async () => {
+        const deps = dependencies({
+            ownsActiveRun: vi.fn(async () => false),
+        });
+        const taskHelpers = helpers();
+
+        await expect(runDailyPipelineStage({
+            runKey: '2026-07-31',
+            windowStart: '2026-07-31T00:00:00.000Z',
+            stage: 'reconcile',
+            leaseOwner: 'job-a',
+        }, taskHelpers, deps)).rejects.toThrow('lost active-run lease');
+
+        expect(deps.reconcile).toHaveBeenCalledTimes(1);
+        expect(taskHelpers.addJob).not.toHaveBeenCalled();
+    });
+
     it('waits while current-window ingestion jobs remain', async () => {
         const deps = dependencies({
             inspectIngestion: vi.fn(async () => ({ pending: 2, failed: 0 })),

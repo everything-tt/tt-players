@@ -1,9 +1,17 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { Kysely, PostgresDialect } from 'kysely';
+import { Kysely, PostgresDialect, sql } from 'kysely';
 import pg from 'pg';
 
 import * as m046 from '@tt-players/db/src/migrations/046_create_scraping_pipeline_run_history.js';
-import { recoverStalePipelineAudits } from '../tasks/completeDailyPipelineTask.js';
+import * as m056 from '@tt-players/db/src/migrations/056_create_scraping_pipeline_active_run.js';
+import {
+    claimDailyPipelineRun,
+    heartbeatDailyPipelineRun,
+    ownsDailyPipelineRun,
+    recoverStalePipelineAudits,
+    releaseDailyPipelineRun,
+    withDailyPipelineExecutionLock,
+} from '../tasks/completeDailyPipelineTask.js';
 
 const { Pool } = pg;
 const TEST_DB_NAME = 'tt_daily_pipeline_audit_test';
@@ -81,9 +89,11 @@ describe('daily pipeline audit recovery', () => {
             }),
         });
         await m046.up(db);
+        await m056.up(db);
     }, 30_000);
 
     beforeEach(async () => {
+        await db.deleteFrom('scraping_pipeline_active_runs').execute();
         await db.deleteFrom('scraping_pipeline_run_stages').execute();
         await db.deleteFrom('scraping_pipeline_runs').execute();
     });
@@ -160,5 +170,70 @@ describe('daily pipeline audit recovery', () => {
         expect(run.status).toBe('running');
         expect(run.finished_at).toBeNull();
         expect(run.error_message).toBeNull();
+    });
+
+    it('allows one active daily run and replaces only a stale lease', async () => {
+        const now = new Date();
+        await insertAudit({ runKey: 'run-a', startedAt: now, updatedAt: now });
+        await insertAudit({ runKey: 'run-b', startedAt: now, updatedAt: now });
+
+        await expect(claimDailyPipelineRun(db, 'run-a', 'owner-a', 60_000)).resolves.toBe(true);
+        await expect(claimDailyPipelineRun(db, 'run-a', 'owner-b', 60_000)).resolves.toBe(false);
+        await expect(claimDailyPipelineRun(db, 'run-b', 'owner-b', 60_000)).resolves.toBe(false);
+
+        await heartbeatDailyPipelineRun(db, 'run-a', 'owner-a');
+        await expect(ownsDailyPipelineRun(db, 'run-a', 'owner-a')).resolves.toBe(true);
+        await expect(ownsDailyPipelineRun(db, 'run-a', 'owner-b')).resolves.toBe(false);
+        const active = await db
+            .selectFrom('scraping_pipeline_active_runs')
+            .select(['run_key'])
+            .executeTakeFirstOrThrow();
+        expect(active.run_key).toBe('run-a');
+
+        await db
+            .updateTable('scraping_pipeline_active_runs')
+            .set({ heartbeat_at: new Date(Date.now() - 120_000) })
+            .where('pipeline_name', '=', 'daily')
+            .execute();
+
+        await expect(claimDailyPipelineRun(db, 'run-b', 'owner-b', 60_000)).resolves.toBe(true);
+        await releaseDailyPipelineRun(db, 'run-a', 'owner-a');
+        await expect(ownsDailyPipelineRun(db, 'run-b', 'owner-b')).resolves.toBe(true);
+        await releaseDailyPipelineRun(db, 'run-b', 'owner-b');
+        await expect(
+            db.selectFrom('scraping_pipeline_active_runs').selectAll().execute(),
+        ).resolves.toEqual([]);
+    });
+
+    it('holds a database advisory lock for the complete stage execution', async () => {
+        let releaseFirst!: () => void;
+        let markEntered!: () => void;
+        const entered = new Promise<void>((resolve) => {
+            markEntered = resolve;
+        });
+        const hold = new Promise<void>((resolve) => {
+            releaseFirst = resolve;
+        });
+
+        const first = withDailyPipelineExecutionLock(db, async () => {
+            markEntered();
+            await hold;
+        });
+        await entered;
+
+        try {
+            const competing = await db.connection().execute(async (connection) => {
+                const result = await sql<{ acquired: boolean }>`
+                    SELECT pg_try_advisory_lock(
+                        hashtextextended('tt-players:daily-pipeline', 0)
+                    ) AS acquired
+                `.execute(connection);
+                return result.rows[0]?.acquired ?? false;
+            });
+            expect(competing).toBe(false);
+        } finally {
+            releaseFirst();
+            await first;
+        }
     });
 });

@@ -202,7 +202,12 @@ describe('production migration chain', () => {
     it('excludes non-completed fixtures from ratings and dirties ratings on status changes', async () => {
         const pool = new Pool({ connectionString: TEST_DATABASE_URL });
         try {
-            for (let rollback = 0; rollback < 2; rollback += 1) {
+            const executed = await executedMigrationNames();
+            const targetIndex = executed.indexOf('054_gate_ratings_by_fixture_status');
+            expect(targetIndex).toBeGreaterThanOrEqual(0);
+            const rollbackCount = executed.length - targetIndex;
+
+            for (let rollback = 0; rollback < rollbackCount; rollback += 1) {
                 const migrationDown = spawnSync(
                     'pnpm',
                     ['exec', 'tsx', 'src/migrate-down.ts'],

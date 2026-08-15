@@ -245,12 +245,13 @@ export function ScrapingMonitorPage() {
 
               <DesignList density="compact" divider="hairline" paginate={false}>
                 <ListItem
-                  leading={<IconCircle iconClassName="fa fa-list-check" tone={data.queue.failed > 0 ? 'danger' : 'accent'} />}
+                  leading={<IconCircle iconClassName="fa fa-list-check" tone={data.queue.active_failed > 0 ? 'danger' : 'accent'} />}
                   title={countSummary([
                     [data.queue.running, 'running'],
                     [data.queue.ready, 'ready'],
                     [data.queue.scheduled, 'scheduled'],
-                    [data.queue.failed, 'failed'],
+                    [data.queue.active_failed, 'active failed'],
+                    [data.queue.historical_failed, 'historical failed'],
                   ])}
                   subtitle={data.queue.available ? `Graphile queue · ${formatNumber(data.queue.total)} monitored jobs` : 'Graphile queue is not available in this environment'}
                   hideChevron
@@ -346,7 +347,7 @@ export function ScrapingMonitorPage() {
               )}
             </PageSection>
 
-            <PageSection surface="flat" density="compact" title="Queue by Task" note={`${data.tasks.length} active task types`}>
+            <PageSection surface="flat" density="compact" title="Queue by Task" note={`${data.tasks.length} monitored task types`}>
               {data.tasks.length === 0 ? (
                 <EmptyState iconClassName="fa fa-check" title="Queue is clear" message="No monitored scraping or pipeline tasks are waiting." />
               ) : (
@@ -354,19 +355,19 @@ export function ScrapingMonitorPage() {
                   {data.tasks.map((task) => (
                     <ListItem
                       key={task.task_identifier}
-                      leading={<IconCircle iconClassName={task.failed > 0 ? 'fa fa-exclamation' : task.running > 0 ? 'fa fa-sync fa-spin' : 'fa fa-layer-group'} tone={task.failed > 0 ? 'danger' : task.running > 0 ? 'accent' : 'neutral'} />}
+                      leading={<IconCircle iconClassName={task.active_failed > 0 ? 'fa fa-exclamation' : task.running > 0 ? 'fa fa-sync fa-spin' : 'fa fa-layer-group'} tone={task.active_failed > 0 ? 'danger' : task.running > 0 ? 'accent' : 'neutral'} />}
                       title={taskLabel(task.task_identifier)}
-                      subtitle={`${countSummary([[task.running, 'running'], [task.ready, 'ready'], [task.scheduled, 'scheduled'], [task.failed, 'failed']])}${task.latest_error ? ` · ${task.latest_error}` : ''}`}
-                      trailing={<Pill tone={task.failed > 0 ? 'danger' : task.running > 0 ? 'accent' : 'neutral'}>{formatNumber(task.total)}</Pill>}
+                      subtitle={`${countSummary([[task.running, 'running'], [task.ready, 'ready'], [task.scheduled, 'scheduled'], [task.active_failed, 'active failed'], [task.historical_failed, 'historical failed']])}${task.latest_error ? ` · ${task.latest_error}` : ''}`}
+                      trailing={<Pill tone={task.active_failed > 0 ? 'danger' : task.running > 0 ? 'accent' : 'neutral'}>{formatNumber(task.total)}</Pill>}
                     />
                   ))}
                 </DesignList>
               )}
             </PageSection>
 
-            <PageSection surface="flat" density="compact" title="Queue Audit" note={`${data.recent_jobs.length} current jobs`}>
+            <PageSection surface="flat" density="compact" title="Queue Audit" note={`${data.recent_jobs.length} retained queue rows`}>
               {data.recent_jobs.length === 0 ? (
-                <EmptyState iconClassName="fa fa-inbox" title="No queued jobs" message="Completed Graphile jobs are removed from the queue; completed pipeline runs remain in Previous Runs." />
+                <EmptyState iconClassName="fa fa-inbox" title="No retained queue rows" message="Runnable jobs drain from the queue; terminal failures remain here for investigation." />
               ) : (
                 <DesignList density="compact" divider="hairline" pageSize={12}>
                   {data.recent_jobs.map((job) => {

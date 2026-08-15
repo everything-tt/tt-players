@@ -156,6 +156,25 @@ Recovery actions:
 Feature switch:
 - `SCRAPE_STARTUP_RECOVERY_ENABLED=0` disables recovery.
 
+Daily pipeline coordination:
+- Daily runs keep a per-run key such as `daily-pipeline:<run date>` so the
+  audit history remains traceable by day.
+- A database-backed `daily` active-run lease allows only one daily pipeline
+  run to execute at a time. A newer run waits while another run has a fresh
+  heartbeat instead of replacing its continuation.
+- Every run carries a lease-owner token, and a PostgreSQL advisory lock covers
+  each complete stage execution. A stale or duplicate task therefore cannot
+  overlap reconciliation, rating, or read-model writes with its replacement.
+- The lease is refreshed by the pipeline audit heartbeat and may be claimed
+  by a newer run only after `DAILY_PIPELINE_STALE_RUN_MS` (default `6h`) has
+  elapsed. This handles worker termination without silently running two
+  pipelines concurrently.
+- The monitor reports terminal queue failures as either current-day failures
+  or historical failures using the job's latest activity time. A historical
+  job retried and exhausted again today is therefore active again. Historical
+  exhausted rows remain available for investigation and are not treated as
+  active backlog.
+
 ## 9. Operational Controls (Env Vars)
 
 General:
@@ -175,6 +194,9 @@ Startup recovery:
 - `SCRAPE_STARTUP_RECOVERY_ENABLED` (default enabled)
 - `SCRAPE_STALE_LOCK_MINUTES` (default `20`)
 - `SCRAPE_TRANSIENT_RETRY_BATCH_LIMIT` (default `300`)
+
+Daily pipeline coordination:
+- `DAILY_PIPELINE_STALE_RUN_MS` (default `6h`)
 
 ## 10. Common Failure Modes
 

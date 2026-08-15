@@ -14,6 +14,8 @@ export interface ScrapingQueueSummary {
   ready: number;
   scheduled: number;
   failed: number;
+  active_failed: number;
+  historical_failed: number;
   oldest_pending_at: string | null;
 }
 
@@ -34,6 +36,8 @@ export interface ScrapingQueueTask {
   ready: number;
   scheduled: number;
   failed: number;
+  active_failed: number;
+  historical_failed: number;
   oldest_created_at: string | null;
   latest_updated_at: string | null;
   latest_error: string | null;

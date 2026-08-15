@@ -16,6 +16,8 @@ const QueueSummarySchema = z.object({
     ready: z.number().int().nonnegative(),
     scheduled: z.number().int().nonnegative(),
     failed: z.number().int().nonnegative(),
+    active_failed: z.number().int().nonnegative(),
+    historical_failed: z.number().int().nonnegative(),
     oldest_pending_at: z.string().nullable(),
 });
 
@@ -36,6 +38,8 @@ const QueueTaskSchema = z.object({
     ready: z.number().int().nonnegative(),
     scheduled: z.number().int().nonnegative(),
     failed: z.number().int().nonnegative(),
+    active_failed: z.number().int().nonnegative(),
+    historical_failed: z.number().int().nonnegative(),
     oldest_created_at: z.string().nullable(),
     latest_updated_at: z.string().nullable(),
     latest_error: z.string().nullable(),
@@ -148,6 +152,8 @@ interface QueueSummaryRow {
     ready: string | number;
     scheduled: string | number;
     failed: string | number;
+    active_failed: string | number;
+    historical_failed: string | number;
     oldest_pending_at: Date | string | null;
 }
 
@@ -254,7 +260,7 @@ function monitoredTaskSql() {
     return sql.join(MONITORED_TASK_IDENTIFIERS.map((identifier) => sql`${identifier}`));
 }
 
-async function loadQueueSnapshot(db: Kysely<Database>, limit: number) {
+export async function loadQueueSnapshot(db: Kysely<Database>, limit: number) {
     try {
         const [summaryResult, tasksResult, jobsResult] = await Promise.all([
             sql<QueueSummaryRow>`
@@ -272,6 +278,14 @@ async function loadQueueSnapshot(db: Kysely<Database>, limit: number) {
                           AND run_at > now()
                     )::text AS scheduled,
                     COUNT(*) FILTER (WHERE attempts >= max_attempts)::text AS failed,
+                    COUNT(*) FILTER (
+                        WHERE attempts >= max_attempts
+                          AND updated_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+                    )::text AS active_failed,
+                    COUNT(*) FILTER (
+                        WHERE attempts >= max_attempts
+                          AND updated_at < date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+                    )::text AS historical_failed,
                     MIN(created_at) FILTER (WHERE attempts < max_attempts) AS oldest_pending_at
                 FROM graphile_worker.jobs
                 WHERE task_identifier IN (${monitoredTaskSql()})
@@ -292,6 +306,14 @@ async function loadQueueSnapshot(db: Kysely<Database>, limit: number) {
                           AND run_at > now()
                     )::text AS scheduled,
                     COUNT(*) FILTER (WHERE attempts >= max_attempts)::text AS failed,
+                    COUNT(*) FILTER (
+                        WHERE attempts >= max_attempts
+                          AND updated_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+                    )::text AS active_failed,
+                    COUNT(*) FILTER (
+                        WHERE attempts >= max_attempts
+                          AND updated_at < date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+                    )::text AS historical_failed,
                     MIN(created_at) AS oldest_created_at,
                     MAX(updated_at) AS latest_updated_at,
                     MAX(LEFT(last_error, 500)) FILTER (WHERE last_error IS NOT NULL) AS latest_error
@@ -344,6 +366,8 @@ async function loadQueueSnapshot(db: Kysely<Database>, limit: number) {
                 ready: numberValue(summaryRow?.ready),
                 scheduled: numberValue(summaryRow?.scheduled),
                 failed: numberValue(summaryRow?.failed),
+                active_failed: numberValue(summaryRow?.active_failed),
+                historical_failed: numberValue(summaryRow?.historical_failed),
                 oldest_pending_at: isoValue(summaryRow?.oldest_pending_at),
             },
             tasks: tasksResult.rows.map((row) => ({
@@ -353,6 +377,8 @@ async function loadQueueSnapshot(db: Kysely<Database>, limit: number) {
                 ready: numberValue(row.ready),
                 scheduled: numberValue(row.scheduled),
                 failed: numberValue(row.failed),
+                active_failed: numberValue(row.active_failed),
+                historical_failed: numberValue(row.historical_failed),
                 oldest_created_at: isoValue(row.oldest_created_at),
                 latest_updated_at: isoValue(row.latest_updated_at),
                 latest_error: row.latest_error,
@@ -382,6 +408,8 @@ async function loadQueueSnapshot(db: Kysely<Database>, limit: number) {
                 ready: 0,
                 scheduled: 0,
                 failed: 0,
+                active_failed: 0,
+                historical_failed: 0,
                 oldest_pending_at: null,
             },
             tasks: [],
@@ -494,15 +522,14 @@ export function scrapingMonitorRoutes(db: Kysely<Database>): FastifyPluginAsync 
         }, async (request, reply) => {
             const { hours, limit } = QuerySchema.parse(request.query);
 
+            const pipelineHistory = await loadPipelineHistory(db, hours, limit);
             const [
                 queue,
-                pipelineHistory,
                 scrapeSummaryResult,
                 recentScrapesResult,
                 resourceFailuresResult,
             ] = await Promise.all([
                 loadQueueSnapshot(db, limit),
-                loadPipelineHistory(db, hours, limit),
                 sql<ScrapeSummaryRow>`
                     SELECT
                         COUNT(*)::text AS total,
@@ -561,7 +588,7 @@ export function scrapingMonitorRoutes(db: Kysely<Database>): FastifyPluginAsync 
             const activeResourceFailures = numberValue(resourceFailuresResult.rows[0]?.total_count);
             const latestPipelineRun = pipelineHistory.runs[0];
 
-            const state = queue.summary.failed > 0
+            const state = queue.summary.active_failed > 0
                 || activeResourceFailures > 0
                 || latestPipelineRun?.status === 'failed'
                 ? 'attention' as const
