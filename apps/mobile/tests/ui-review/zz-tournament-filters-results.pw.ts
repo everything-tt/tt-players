@@ -159,6 +159,13 @@ test('reviews compact filter rail, search toggle, category sheet, and results-on
   const searchInput = page.getByLabel('Search upcoming tournaments');
   await expect(searchInput).toBeVisible();
   await expect(searchInput).toBeFocused();
+  await searchInput.fill('regional');
+  await page.getByRole('button', { name: 'Close tournament search' }).click();
+  await expect(filterRail).toBeVisible();
+  // Closing search collapses the field but keeps the active query so results stay filtered.
+  await expect(page.getByRole('button', { name: /Search tournaments, active query regional/i })).toBeVisible();
+  await page.getByRole('button', { name: /Search tournaments, active query regional/i }).click();
+  await expect(page.getByLabel('Search upcoming tournaments')).toHaveValue('regional');
   await page.getByRole('button', { name: 'Close tournament search' }).click();
   await expect(filterRail).toBeVisible();
 

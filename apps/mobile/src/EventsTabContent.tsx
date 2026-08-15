@@ -65,7 +65,7 @@ const LIST_SCOPE_LABELS: Record<TournamentListScope, string> = {
 };
 
 const LIST_SCOPE_SHORT_LABELS: Record<TournamentListScope, string> = {
-  all: 'All events',
+  all: 'All',
   saved: 'Saved',
   submitted: 'Submitted',
 };
@@ -527,7 +527,8 @@ export function EventsTabContent() {
   };
 
   const closeSearch = () => {
-    search.setQuery('');
+    // Keep the active query so closing search only collapses the field;
+    // results stay filtered until the user clears the query explicitly.
     setSearchOpen(false);
   };
 
@@ -655,12 +656,14 @@ export function EventsTabContent() {
             ) : null}
 
             <AppToggleButton
-              pressed={false}
+              pressed={Boolean(search.query.trim())}
               variant="icon"
               iconClassName="fa fa-search"
               className="tt-tournament-toolbar-icon"
               onClick={() => setSearchOpen(true)}
-              aria-label="Search tournaments"
+              aria-label={search.query.trim()
+                ? `Search tournaments, active query ${search.query.trim()}`
+                : 'Search tournaments'}
               title="Search tournaments"
             >
               <span className="tt-tournament-toolbar-icon__label">Search</span>
