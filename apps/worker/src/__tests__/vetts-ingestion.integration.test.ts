@@ -14,8 +14,9 @@ const CANCELLED_TOURNAMENT_ID = '5a6c9ec0-27e3-424c-bc3c-39e141dd877e';
 const UPCOMING_TOURNAMENT_ID = '7fdf7523-4d43-4b43-b3a2-551f41e80f5b';
 const TOURNAMENT_URL = `https://vetts.tournamentsoftware.com/tournament/${TOURNAMENT_ID}`;
 const TEST_DATABASE_NAME = `tt_players_vetts_ingestion_${process.pid}`;
-const ADMIN_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/postgres';
-const TEST_DATABASE_URL = `postgres://postgres:postgres@localhost:5432/${TEST_DATABASE_NAME}`;
+const TEST_DATABASE_BASE_URL = process.env.TEST_DATABASE_BASE_URL ?? 'postgres://postgres:postgres@localhost:5432';
+const ADMIN_DATABASE_URL = `${TEST_DATABASE_BASE_URL}/postgres`;
+const TEST_DATABASE_URL = `${TEST_DATABASE_BASE_URL}/${TEST_DATABASE_NAME}`;
 const dbPackageDirectory = path.resolve(import.meta.dirname, '..', '..', '..', '..', 'packages', 'db');
 
 let db: Kysely<Database>;

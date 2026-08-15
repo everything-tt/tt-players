@@ -17,8 +17,9 @@ import { buildApp } from '../app.js';
 
 const { Pool } = pg;
 const TEST_DB_NAME = `tt_players_rivals_${process.pid}_${process.env.VITEST_POOL_ID ?? 'main'}`;
-const ADMIN_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/postgres';
-const TEST_DATABASE_URL = `postgres://postgres:postgres@localhost:5432/${TEST_DB_NAME}`;
+const TEST_DATABASE_BASE_URL = process.env.TEST_DATABASE_BASE_URL ?? 'postgres://postgres:postgres@localhost:5432';
+const ADMIN_DATABASE_URL = `${TEST_DATABASE_BASE_URL}/postgres`;
+const TEST_DATABASE_URL = `${TEST_DATABASE_BASE_URL}/${TEST_DB_NAME}`;
 
 let db: Kysely<Database>;
 let app: Awaited<ReturnType<typeof buildApp>>;

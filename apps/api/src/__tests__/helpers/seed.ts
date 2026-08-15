@@ -42,8 +42,9 @@ import * as m052 from '../../../../../packages/db/src/migrations/052_add_raw_scr
 const { Pool } = pg;
 
 const TEST_DB_NAME = `tt_players_api_test_${process.pid}_${process.env.VITEST_POOL_ID ?? 'main'}`;
-const ADMIN_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/postgres';
-export const TEST_DATABASE_URL = `postgres://postgres:postgres@localhost:5432/${TEST_DB_NAME}`;
+const TEST_DATABASE_BASE_URL = process.env.TEST_DATABASE_BASE_URL ?? 'postgres://postgres:postgres@localhost:5432';
+const ADMIN_DATABASE_URL = `${TEST_DATABASE_BASE_URL}/postgres`;
+export const TEST_DATABASE_URL = `${TEST_DATABASE_BASE_URL}/${TEST_DB_NAME}`;
 
 class StaticMigrationProvider implements MigrationProvider {
     async getMigrations(): Promise<Record<string, Migration>> {

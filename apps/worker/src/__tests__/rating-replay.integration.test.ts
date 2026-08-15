@@ -19,8 +19,9 @@ import { calculateRatingsWithReplay } from '../ratings/calculate-ratings-with-re
 
 const { Pool } = pg;
 const TEST_DB_NAME = 'tt_players_rating_replay_test';
-const ADMIN_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/postgres';
-const TEST_DATABASE_URL = `postgres://postgres:postgres@localhost:5432/${TEST_DB_NAME}`;
+const TEST_DATABASE_BASE_URL = process.env.TEST_DATABASE_BASE_URL ?? 'postgres://postgres:postgres@localhost:5432';
+const ADMIN_DATABASE_URL = `${TEST_DATABASE_BASE_URL}/postgres`;
+const TEST_DATABASE_URL = `${TEST_DATABASE_BASE_URL}/${TEST_DB_NAME}`;
 const TEST_COMMIT_SHA = 'test-rating-audit-sha';
 
 let db: Kysely<Database>;

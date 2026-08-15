@@ -32,8 +32,9 @@ import type { ScrapeMatchesPayload } from '../tasks/scrapeMatchesTask.js';
 const { Pool } = pg;
 
 const TEST_DB_NAME = 'tt_scrape_matches_task_test';
-const ADMIN_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/postgres';
-const TEST_DATABASE_URL = `postgres://postgres:postgres@localhost:5432/${TEST_DB_NAME}`;
+const TEST_DATABASE_BASE_URL = process.env.TEST_DATABASE_BASE_URL ?? 'postgres://postgres:postgres@localhost:5432';
+const ADMIN_DATABASE_URL = `${TEST_DATABASE_BASE_URL}/postgres`;
+const TEST_DATABASE_URL = `${TEST_DATABASE_BASE_URL}/${TEST_DB_NAME}`;
 const MATCHES_URL = 'https://ttleagues-api.azurewebsites.net/api/divisions/1632/matches';
 
 class StaticMigrationProvider implements MigrationProvider {

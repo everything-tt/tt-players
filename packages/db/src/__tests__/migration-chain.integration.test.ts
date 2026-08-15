@@ -7,8 +7,9 @@ import pg from 'pg';
 const { Pool } = pg;
 
 const TEST_DATABASE_NAME = 'tt_players_migration_chain_test';
-const ADMIN_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/postgres';
-const TEST_DATABASE_URL = `postgres://postgres:postgres@localhost:5432/${TEST_DATABASE_NAME}`;
+const TEST_DATABASE_BASE_URL = process.env.TEST_DATABASE_BASE_URL ?? 'postgres://postgres:postgres@localhost:5432';
+const ADMIN_DATABASE_URL = `${TEST_DATABASE_BASE_URL}/postgres`;
+const TEST_DATABASE_URL = `${TEST_DATABASE_BASE_URL}/${TEST_DATABASE_NAME}`;
 const packageDirectory = path.resolve(import.meta.dirname, '..', '..');
 const migrationDirectory = path.resolve(import.meta.dirname, '..', 'migrations');
 
