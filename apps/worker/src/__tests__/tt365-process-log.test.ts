@@ -235,9 +235,9 @@ async function stageQueuedEvidence(
     queue: ReturnType<typeof vi.fn>,
     date: string,
 ): Promise<void> {
-    const queued = queue.mock.calls
-        .filter(([identifier]) => identifier === 'scrapeUrlTask')
-        .map(([, payload]) => payload as QueuedEvidence);
+    const queued = (queue.mock.calls as unknown[][])
+        .filter((call) => call[0] === 'scrapeUrlTask')
+        .map((call) => call[1] as QueuedEvidence);
 
     expect(queued.length).toBeGreaterThan(0);
     for (const evidence of queued) {
@@ -422,7 +422,7 @@ describe('processLogTask TT365 modes', () => {
         }, { addJob, logger: { info: () => undefined } });
 
         expect(network).not.toHaveBeenCalled();
-        expect(addJob.mock.calls.every(([name]) => name === 'scrapeUrlTask')).toBe(true);
+        expect((addJob.mock.calls as unknown[][]).every((call) => call[0] === 'scrapeUrlTask')).toBe(true);
         const waiting = await testDb
             .selectFrom('raw_scrape_logs')
             .select('status')
