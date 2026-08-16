@@ -1,4 +1,4 @@
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import {
     parseTT365MatchCard,
     parseTT365PlayerResultsForMatch,
@@ -60,7 +60,7 @@ export async function ensureTT365PlayerStatsEvidenceDependencies(
             conflict
                 .columns(['parent_log_id', 'evidence_type', 'requirement_key'])
                 .doUpdateSet({
-                    endpoint_url: (eb) => eb.ref('excluded.endpoint_url'),
+                    endpoint_url: sql`excluded.endpoint_url`,
                     updated_at: new Date(),
                 }),
         )
@@ -117,8 +117,6 @@ export async function pinTT365PlayerStatsEvidence(
         .where('id', '=', parentLogId)
         .executeTakeFirst();
 
-    // Once the parent transform is complete, late duplicate evidence must not
-    // silently change the evidence set that produced the canonical output.
     if (!parent || parent.status === 'processed') return;
 
     await database
