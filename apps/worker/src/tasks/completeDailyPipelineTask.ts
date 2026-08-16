@@ -46,6 +46,19 @@ export interface DailyPipelineInvocation {
 export interface IngestionQueueState {
     pending: number;
     failed: number;
+    queuePending?: number;
+    queueFailed?: number;
+    stagedPending?: number;
+    stagedFailed?: number;
+}
+
+export interface IngestionBarrierComponents {
+    queuePending: number;
+    queueFailed: number;
+    rawPending: number;
+    rawFailed: number;
+    resourcePending: number;
+    resourceFailed: number;
 }
 
 export interface DailyPipelineStageOutcome {
@@ -248,6 +261,22 @@ export function isFinalJobAttempt(job: { attempts: number; max_attempts: number 
     return job.attempts >= job.max_attempts;
 }
 
+export function summarizeIngestionBarrier(
+    components: IngestionBarrierComponents,
+): IngestionQueueState {
+    const stagedPending = components.rawPending + components.resourcePending;
+    const stagedFailed = components.rawFailed + components.resourceFailed;
+
+    return {
+        pending: components.queuePending + stagedPending,
+        failed: components.queueFailed + stagedFailed,
+        queuePending: components.queuePending,
+        queueFailed: components.queueFailed,
+        stagedPending,
+        stagedFailed,
+    };
+}
+
 async function assertDailyPipelineLease(
     payload: Required<DailyPipelinePayload>,
     dependencies: DailyPipelineDependencies,
@@ -283,13 +312,13 @@ export async function runDailyPipelineStage(
         const queue = await dependencies.inspectIngestion(new Date(normalized.windowStart));
         if (queue.failed > 0) {
             throw new Error(
-                `daily pipeline ${normalized.runKey} blocked by ${queue.failed} permanently failed ingestion jobs`,
+                `daily pipeline ${normalized.runKey} blocked by ${queue.failed} permanently failed ingestion jobs/resources`,
             );
         }
 
         if (queue.pending > 0) {
             await assertDailyPipelineLease(normalized, dependencies);
-            log(`daily pipeline ${normalized.runKey}: waiting for ${queue.pending} ingestion jobs`);
+            log(`daily pipeline ${normalized.runKey}: waiting for ${queue.pending} ingestion jobs/resources`);
             await queuePipelineStage(
                 helpers,
                 normalized,
@@ -392,7 +421,7 @@ const productionDependencies: DailyPipelineDependencies = {
     ),
     inspectIngestion: async (windowStart) => {
         const identifiers = INGESTION_TASK_IDENTIFIERS.map((identifier) => sql`${identifier}`);
-        const result = await sql<{ pending: number | string; failed: number | string }>`
+        const queueResult = await sql<{ pending: number | string; failed: number | string }>`
             SELECT
                 COUNT(*) FILTER (WHERE attempts < max_attempts)::int AS pending,
                 COUNT(*) FILTER (WHERE attempts >= max_attempts)::int AS failed
@@ -400,11 +429,35 @@ const productionDependencies: DailyPipelineDependencies = {
             WHERE task_identifier IN (${sql.join(identifiers)})
               AND created_at >= ${windowStart}
         `.execute(db);
-        const row = result.rows[0];
-        return {
-            pending: Number(row?.pending ?? 0),
-            failed: Number(row?.failed ?? 0),
-        };
+
+        const rawResult = await sql<{ pending: number | string; failed: number | string }>`
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
+                COUNT(*) FILTER (WHERE status = 'failed')::int AS failed
+            FROM staging.raw_scrape_logs
+            WHERE scraped_at >= ${windowStart}
+        `.execute(db);
+
+        const resourceResult = await sql<{ pending: number | string; failed: number | string }>`
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
+                COUNT(*) FILTER (WHERE status = 'failed')::int AS failed
+            FROM staging.sport80_event_scrape_state
+            WHERE updated_at >= ${windowStart}
+        `.execute(db);
+
+        const queueRow = queueResult.rows[0];
+        const rawRow = rawResult.rows[0];
+        const resourceRow = resourceResult.rows[0];
+
+        return summarizeIngestionBarrier({
+            queuePending: Number(queueRow?.pending ?? 0),
+            queueFailed: Number(queueRow?.failed ?? 0),
+            rawPending: Number(rawRow?.pending ?? 0),
+            rawFailed: Number(rawRow?.failed ?? 0),
+            resourcePending: Number(resourceRow?.pending ?? 0),
+            resourceFailed: Number(resourceRow?.failed ?? 0),
+        });
     },
     ownsActiveRun: async (runKey, leaseOwner) => ownsDailyPipelineRun(db, runKey, leaseOwner),
     reconcile: async (log) => {
