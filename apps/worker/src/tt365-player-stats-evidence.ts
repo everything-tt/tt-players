@@ -112,9 +112,6 @@ export async function pinTT365PlayerStatsEvidence(
     evidenceLogId: string,
 ): Promise<boolean> {
     return database.transaction().execute(async (transaction) => {
-        // Serialize evidence pinning against parent completion. If the parent
-        // wins the row lock first and completes, late evidence cannot mutate
-        // the evidence set that produced canonical output.
         const parent = await transaction
             .selectFrom('staging.raw_scrape_logs')
             .select(['status', 'platform_id'])
@@ -134,6 +131,7 @@ export async function pinTT365PlayerStatsEvidence(
             WHERE dependency.parent_log_id = ${parentLogId}
               AND dependency.evidence_type = ${TT365_PLAYER_STATS_EVIDENCE_TYPE}
               AND dependency.requirement_key = ${requirementKey}
+              AND dependency.evidence_log_id IS NULL
               AND evidence.id = ${evidenceLogId}
               AND evidence.platform_id = ${parent.platform_id}
               AND evidence.endpoint_url = dependency.endpoint_url
