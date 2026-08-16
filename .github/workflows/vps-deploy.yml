@@ -289,13 +289,29 @@ jobs:
           RELEASE_SHA: ${{ github.sha }}
           DATABASE_CHANGED: ${{ steps.database.outputs.database_changed }}
           DB_FINGERPRINT: ${{ steps.database.outputs.db_fingerprint }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
+          umask 077
+          local_auth="$(mktemp)"
+          remote_auth="/tmp/ttp-npm-auth-${GITHUB_RUN_ID}"
+          trap 'rm -f "$local_auth"' EXIT
+          printf 'NODE_AUTH_TOKEN=%s\n' "$NODE_AUTH_TOKEN" > "$local_auth"
+          scp "$local_auth" "$VPS_USER@$VPS_HOST:$remote_auth"
           ssh "$VPS_USER@$VPS_HOST" \
-            "bash /opt/tt-players/releases/$RELEASE_SHA/scripts/deploy-vps-release.sh \
-              /opt/tt-players/releases/$RELEASE_SHA \
-              '$RELEASE_SHA' \
-              '$DB_FINGERPRINT' \
-              '$DATABASE_CHANGED'"
+            "REMOTE_AUTH='$remote_auth' RELEASE_SHA='$RELEASE_SHA' DB_FINGERPRINT='$DB_FINGERPRINT' DATABASE_CHANGED='$DATABASE_CHANGED' bash -s" <<'REMOTE'
+          set -euo pipefail
+          auth_file="$REMOTE_AUTH"
+          trap 'rm -f "$auth_file"' EXIT
+          set -a
+          . "$auth_file"
+          set +a
+          bash "/opt/tt-players/releases/$RELEASE_SHA/scripts/deploy-vps-release.sh" \
+            "/opt/tt-players/releases/$RELEASE_SHA" \
+            "$RELEASE_SHA" \
+            "$DB_FINGERPRINT" \
+            "$DATABASE_CHANGED"
+          REMOTE
 
       - name: Verify production health
         run: |
@@ -330,6 +346,7 @@ jobs:
             /tmp/ttp-api-env-${{ github.run_id }}
             /tmp/ttp-worker-cloudflare-${{ github.run_id }}
             /tmp/ttp-worker-ollama-${{ github.run_id }}
+            /tmp/ttp-npm-auth-${{ github.run_id }}
         run: |
           if [[ -n "${VPS_HOST:-}" && -n "${VPS_USER:-}" ]]; then
             ssh "$VPS_USER@$VPS_HOST" "rm -f $REMOTE_PATCHES" || true
