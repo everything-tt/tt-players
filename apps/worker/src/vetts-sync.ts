@@ -2,6 +2,7 @@ import type { Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
 import { storeScrapePayload } from './extractor.js';
 import { loadTTLeaguesData } from './loader.js';
+import { enumerateCompleteSourceDates } from './source-date-range.js';
 import {
     recordSourceResourceFailure,
     recordSourceResourceSuccess,
@@ -16,7 +17,6 @@ import {
 } from './vetts-adapter.js';
 import { vettsUrls } from './vetts-client.js';
 import {
-    enumerateTournamentDates,
     vettsMatchesToParsedData,
     type VettsMatchesPage,
     type VettsTournamentMetadata,
@@ -196,22 +196,14 @@ export async function syncVettsTournament(
         activeResource = 'results';
         resultsAttemptedAt = new Date();
 
-        const dates = enumerateTournamentDates(metadata.startDate, metadata.endDate, 7);
-        const pages = dates.length > 0 ? dates : [null];
-        let matchRows = 0;
-        let rejectedRows = 0;
-        let duplicateLinks = 0;
-        let duplicateConflicts = 0;
-        const eventStatus = deriveVettsEventStatus(metadata);
-        const isCancelled = isVettsCancelledTournament(metadata);
-
+        const pages = enumerateCompleteSourceDates(metadata.startDate, metadata.endDate);
         for (const date of pages) {
             const matchesUrl = vettsUrls.matches(tournamentId, date);
             const resultsContext: SourceAdapterContext = {
                 sourceInstanceId: sourceInstance.id,
                 sourceResourceId: resultsResource.id,
                 resourceType: 'event-results',
-                externalId: `${tournamentId}:matches${date ? `:${date}` : ''}`,
+                externalId: `${tournamentId}:matches:${date}`,
                 url: matchesUrl,
                 config: { tournamentId, date },
             };
@@ -253,7 +245,7 @@ export async function syncVettsTournament(
             duplicateConflicts += duplicateResult.conflicts;
 
             logger.info?.(
-                `VETTS ${tournamentId}${date ? ` ${date}` : ''}: ${parsedPage.matches.length} matches, ` +
+                `VETTS ${tournamentId} ${date}: ${parsedPage.matches.length} matches, ` +
                 `${parsedPage.issues.length} rejected, ${duplicateResult.linked} duplicate links`,
             );
         }
