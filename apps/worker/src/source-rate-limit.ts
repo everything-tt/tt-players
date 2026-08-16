@@ -19,8 +19,6 @@ function sleep(ms: number): Promise<void> {
 
 function distributedRateLimitEnabled(): boolean {
     if (process.env['SOURCE_DISTRIBUTED_RATE_LIMIT'] === '0') return false;
-    // Unit tests for individual HTTP policies use fake timers and mock fetch.
-    // The PostgreSQL lease algorithm has its own integration coverage.
     return process.env['NODE_ENV'] !== 'test';
 }
 
@@ -34,7 +32,7 @@ export async function tryAcquireSourceRequestLease(
 
     return database.transaction().execute(async (trx) => {
         await sql`
-            INSERT INTO source_request_limits (source_key)
+            INSERT INTO staging.source_request_limits (source_key)
             VALUES (${sourceKey})
             ON CONFLICT (source_key) DO NOTHING
         `.execute(trx);
@@ -50,7 +48,7 @@ export async function tryAcquireSourceRequestLease(
                 lease_token,
                 lease_expires_at,
                 now()::timestamp AS now
-            FROM source_request_limits
+            FROM staging.source_request_limits
             WHERE source_key = ${sourceKey}
             FOR UPDATE
         `.execute(trx).then((result) => result.rows[0]);
@@ -74,7 +72,7 @@ export async function tryAcquireSourceRequestLease(
 
         const leaseExpiresAt = new Date(now.getTime() + safeLeaseMs);
         await sql`
-            UPDATE source_request_limits
+            UPDATE staging.source_request_limits
             SET
                 lease_token = ${token}::uuid,
                 lease_expires_at = ${leaseExpiresAt},
@@ -115,7 +113,7 @@ export async function releaseSourceRequestLease(
     );
 
     await sql`
-        UPDATE source_request_limits
+        UPDATE staging.source_request_limits
         SET
             lease_token = NULL,
             lease_expires_at = NULL,

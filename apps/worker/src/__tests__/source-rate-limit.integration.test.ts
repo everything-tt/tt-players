@@ -68,11 +68,11 @@ describe('distributed source request leases', () => {
         expect(second.lease).not.toBeNull();
         expect(second.lease!.token).not.toBe(first.lease!.token);
 
-        // A duplicated/stale release from the first worker must not clear the
-        // second worker's current lease because release is token-conditional.
         await releaseSourceRequestLease(firstDb, first.lease!, 0, 60_000);
         const row = await sql<{ lease_token: string | null }>`
-            SELECT lease_token FROM source_request_limits WHERE source_key = ${sourceKey}
+            SELECT lease_token
+            FROM staging.source_request_limits
+            WHERE source_key = ${sourceKey}
         `.execute(firstDb).then((result) => result.rows[0]);
         expect(row?.lease_token).toBe(second.lease!.token);
 
