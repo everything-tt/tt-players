@@ -242,6 +242,11 @@ export interface RawScrapeLogsTable {
     endpoint_url: string;
     raw_payload: string;
     payload_hash: string;
+    source_resource_id: ColumnType<string | null, string | null | undefined, string | null>;
+    source_scope: ColumnType<string | null, string | null | undefined, string | null>;
+    request_fingerprint: ColumnType<string | null, string | null | undefined, string | null>;
+    adapter_version: ColumnType<string | null, string | null | undefined, string | null>;
+    http_status: ColumnType<number | null, number | null | undefined, number | null>;
     scraped_at: Generated<Date>;
     status: ScrapeStatus;
     updated_at: ColumnType<Date, Date | undefined, Date>;

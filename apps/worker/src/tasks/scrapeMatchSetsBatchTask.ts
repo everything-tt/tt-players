@@ -1,6 +1,6 @@
 import type { Task } from 'graphile-worker';
 import { db } from '@tt-players/db';
-import { storeScrapePayload } from '../extractor.js';
+import { createRequestFingerprint, storeScrapePayload } from '../extractor.js';
 import { fetchWithTTLeaguesPolicy } from '../ttleagues-http.js';
 import { RETRYABLE_JOB_SPEC, stableJobKey } from '../job-policy.js';
 import { SetsResponseSchema, type Match } from '../zod-schemas.js';
@@ -109,7 +109,10 @@ async function scrapeOneMatchResult(
         matches: { groups: [], matches: [match] },
         sets: { [String(match.id)]: parsedSets },
     });
-    const logId = await storeScrapePayload(url, platformId, body, db);
+    const logId = await storeScrapePayload(url, platformId, body, db, {
+        requestFingerprint: createRequestFingerprint(url, { headers }),
+        httpStatus: response.status,
+    });
 
     helpers.logger.info(
         `scrapeMatchSetsBatchTask: stored result for match ${match.id} in log ${logId}`,

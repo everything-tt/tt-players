@@ -1,7 +1,7 @@
 import type { Task } from 'graphile-worker';
 import { db } from '@tt-players/db';
 import { chunkItems } from '../batches.js';
-import { storeScrapePayload } from '../extractor.js';
+import { createRequestFingerprint, storeScrapePayload } from '../extractor.js';
 import { RETRYABLE_JOB_SPEC, stableJobKey } from '../job-policy.js';
 import { selectMatchesNeedingResults } from '../match-batch-planner.js';
 import { fetchWithTTLeaguesPolicy } from '../ttleagues-http.js';
@@ -55,6 +55,10 @@ export const scrapeMatchesTask: Task = async (payload, helpers) => {
         platformId,
         snapshotBody,
         db,
+        {
+            requestFingerprint: createRequestFingerprint(matchesUrl, { headers }),
+            httpStatus: response.status,
+        },
     );
 
     await helpers.addJob('processLogTask', {
