@@ -7,6 +7,7 @@ import {
     sport80PlayerExternalId,
     sport80Timestamp,
 } from './sport80-parser.js';
+import { ensureSourcePlatform } from './source-platform.js';
 
 export const SPORT80_PLATFORM_NAME = 'Sport:80 Table Tennis England Rankings';
 export const SPORT80_PLATFORM_BASE_URL = 'https://tabletennisengland.sport80.com/public/rankings';
@@ -19,46 +20,56 @@ function jsonPayload(value: unknown): unknown {
 }
 
 export async function upsertSport80Platform(db: Kysely<Database>): Promise<string> {
-    const existing = await db
-        .selectFrom('platforms')
-        .select('id')
-        .where('name', '=', SPORT80_PLATFORM_NAME)
-        .executeTakeFirst();
-    if (existing) return existing.id;
-
-    const row = await db
-        .insertInto('platforms')
-        .values({
-            name: SPORT80_PLATFORM_NAME,
-            base_url: SPORT80_PLATFORM_BASE_URL,
-        })
-        .returning('id')
-        .executeTakeFirstOrThrow();
-    return row.id;
+    return ensureSourcePlatform(db, SPORT80_PLATFORM_NAME, SPORT80_PLATFORM_BASE_URL);
 }
 
 export async function upsertSport80League(
     db: Kysely<Database>,
     platformId: string,
 ): Promise<string> {
-    const existing = await db
-        .selectFrom('leagues')
-        .select('id')
-        .where('platform_id', '=', platformId)
-        .where('external_id', '=', SPORT80_LEAGUE_EXTERNAL_ID)
-        .executeTakeFirst();
-    if (existing) return existing.id;
-
-    const row = await db
+    return db
         .insertInto('leagues')
         .values({
             platform_id: platformId,
             external_id: SPORT80_LEAGUE_EXTERNAL_ID,
             name: SPORT80_LEAGUE_NAME,
         })
+        .onConflict((oc) =>
+            oc.columns(['platform_id', 'external_id']).doUpdateSet({
+                name: SPORT80_LEAGUE_NAME,
+            }),
+        )
         .returning('id')
-        .executeTakeFirstOrThrow();
-    return row.id;
+        .executeTakeFirstOrThrow()
+        .then((row) => row.id);
+}
+
+export async function upsertSport80Season(
+    db: Kysely<Database>,
+    leagueId: string,
+    eventDate: string | null,
+): Promise<string> {
+    const year = eventDate?.match(/^(\d{4})/)?.[1] ?? 'unknown';
+    const externalId = `sport80-${year}`;
+    const name = year === 'unknown' ? 'Sport:80 Unknown Season' : `Sport:80 ${year}`;
+
+    return db
+        .insertInto('seasons')
+        .values({
+            league_id: leagueId,
+            external_id: externalId,
+            name,
+            is_active: year !== 'unknown',
+        })
+        .onConflict((oc) =>
+            oc.columns(['league_id', 'external_id']).doUpdateSet({
+                name,
+                is_active: year !== 'unknown',
+            }),
+        )
+        .returning('id')
+        .executeTakeFirstOrThrow()
+        .then((row) => row.id);
 }
 
 export async function upsertSport80Player(
