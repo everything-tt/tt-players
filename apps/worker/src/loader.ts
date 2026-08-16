@@ -15,9 +15,8 @@ export function resolveFixtureStatusForLoad(
     existingStatus: FixtureStatus | null,
 ): FixtureStatus {
     if (
-        incomingStatus === 'upcoming'
-        && !hasRubbers
-        && existingStatus === 'completed'
+        existingStatus === 'completed'
+        && incomingStatus !== 'completed'
     ) {
         return 'completed';
     }
@@ -140,12 +139,14 @@ export async function loadTTLeaguesData(
                             home_team_id: (eb) => eb.ref('excluded.home_team_id'),
                             away_team_id: (eb) => eb.ref('excluded.away_team_id'),
                             date_played: (eb) => eb.ref('excluded.date_played'),
-                            // A stale fixtures snapshot must never regress a result
-                            // already known to be completed. Keeping this decision
-                            // in the UPSERT makes it safe across worker replicas.
+                            // Scraper writes are monotonic once a fixture is
+                            // completed. Reopening/correction is an explicit
+                            // operator/domain action, never an effect of a stale
+                            // source snapshot. Keeping this in SQL makes the
+                            // rule replica-safe regardless of writer ordering.
                             status: sql<FixtureStatus>`case
                                 when fixtures.status = 'completed'
-                                 and excluded.status = 'upcoming'
+                                 and excluded.status <> 'completed'
                                 then fixtures.status
                                 else excluded.status
                             end`,
@@ -273,9 +274,6 @@ export async function loadTTLeaguesData(
         });
     } catch (error) {
         if (scrapeLogIds.length > 0) {
-            // A duplicate/stale invocation may fail after another worker has
-            // already committed the same evidence. Never regress processed
-            // evidence back to failed.
             await db
                 .updateTable('staging.raw_scrape_logs')
                 .set({ status: 'failed', updated_at: new Date() })

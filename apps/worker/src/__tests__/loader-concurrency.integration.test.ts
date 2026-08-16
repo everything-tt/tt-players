@@ -102,6 +102,17 @@ async function load(data: ParsedTTLeaguesData, logIds: string[]) {
     });
 }
 
+function withFixtureStatus(
+    status: 'upcoming' | 'completed' | 'postponed',
+    rubbers = baseData.rubbers,
+): ParsedTTLeaguesData {
+    return {
+        ...baseData,
+        fixtures: baseData.fixtures.map((fixture) => ({ ...fixture, status })),
+        rubbers,
+    };
+}
+
 describe('shared loader concurrency contracts', () => {
     beforeAll(async () => {
         const admin = new Pool({ connectionString: ADMIN_URL });
@@ -172,19 +183,30 @@ describe('shared loader concurrency contracts', () => {
         expect(await database.selectFrom('rubbers').selectAll().execute()).toHaveLength(1);
     });
 
-    it('a stale upcoming snapshot cannot regress a completed fixture', async () => {
+    it('concurrent completed and stale snapshots always converge to completed', async () => {
+        const completed = await rawLog('race-completed');
+        const stale = await rawLog('race-stale');
+
+        await Promise.all([
+            load(withFixtureStatus('completed'), [completed.id]),
+            load(withFixtureStatus('postponed', []), [stale.id]),
+        ]);
+
+        const fixture = await database.selectFrom('fixtures')
+            .select('status')
+            .where('external_id', '=', 'fixture-1')
+            .executeTakeFirstOrThrow();
+        expect(fixture.status).toBe('completed');
+    });
+
+    it('stale upcoming or postponed snapshots cannot regress a completed fixture', async () => {
         const completedLog = await rawLog('completed');
         await load(baseData, [completedLog.id]);
 
-        const staleLog = await rawLog('stale-upcoming');
-        await load({
-            ...baseData,
-            fixtures: baseData.fixtures.map((fixture) => ({
-                ...fixture,
-                status: 'upcoming' as const,
-            })),
-            rubbers: [],
-        }, [staleLog.id]);
+        for (const status of ['upcoming', 'postponed'] as const) {
+            const staleLog = await rawLog(`stale-${status}`);
+            await load(withFixtureStatus(status, []), [staleLog.id]);
+        }
 
         const fixture = await database.selectFrom('fixtures')
             .select('status')
