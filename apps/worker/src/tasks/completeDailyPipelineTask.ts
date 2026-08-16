@@ -48,6 +48,16 @@ export interface IngestionQueueState {
     failed: number;
 }
 
+export function combineIngestionStates(
+    queue: IngestionQueueState,
+    staged: IngestionQueueState,
+): IngestionQueueState {
+    return {
+        pending: queue.pending + staged.pending,
+        failed: queue.failed + staged.failed,
+    };
+}
+
 export interface DailyPipelineStageOutcome {
     stage: DailyPipelineStage;
     status: DailyPipelineStageOutcomeStatus;
@@ -392,7 +402,7 @@ const productionDependencies: DailyPipelineDependencies = {
     ),
     inspectIngestion: async (windowStart) => {
         const identifiers = INGESTION_TASK_IDENTIFIERS.map((identifier) => sql`${identifier}`);
-        const result = await sql<{ pending: number | string; failed: number | string }>`
+        const queueResult = await sql<{ pending: number | string; failed: number | string }>`
             SELECT
                 COUNT(*) FILTER (WHERE attempts < max_attempts)::int AS pending,
                 COUNT(*) FILTER (WHERE attempts >= max_attempts)::int AS failed
@@ -400,11 +410,31 @@ const productionDependencies: DailyPipelineDependencies = {
             WHERE task_identifier IN (${sql.join(identifiers)})
               AND created_at >= ${windowStart}
         `.execute(db);
-        const row = result.rows[0];
-        return {
-            pending: Number(row?.pending ?? 0),
-            failed: Number(row?.failed ?? 0),
-        };
+        const queueRow = queueResult.rows[0];
+
+        // Queue state alone is not authoritative: a transform job can finish
+        // successfully after recording its staged payload as failed. Gate the
+        // derived stages on the staged evidence itself as well, which also
+        // catches future ingestion task types that are not yet in the allowlist.
+        const stagedResult = await sql<{ pending: number | string; failed: number | string }>`
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
+                COUNT(*) FILTER (WHERE status = 'failed')::int AS failed
+            FROM staging.raw_scrape_logs
+            WHERE scraped_at >= ${windowStart}
+        `.execute(db);
+        const stagedRow = stagedResult.rows[0];
+
+        return combineIngestionStates(
+            {
+                pending: Number(queueRow?.pending ?? 0),
+                failed: Number(queueRow?.failed ?? 0),
+            },
+            {
+                pending: Number(stagedRow?.pending ?? 0),
+                failed: Number(stagedRow?.failed ?? 0),
+            },
+        );
     },
     ownsActiveRun: async (runKey, leaseOwner) => ownsDailyPipelineRun(db, runKey, leaseOwner),
     reconcile: async (log) => {
