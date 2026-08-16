@@ -137,10 +137,7 @@ describe('raw scrape evidence identity', () => {
     });
 
     it('keeps identical URL/content separate for different Tenant headers', async () => {
-        vi.stubGlobal(
-            'fetch',
-            vi.fn(async () => new Response(BODY, { status: 200 })),
-        );
+        vi.stubGlobal('fetch', vi.fn(async () => new Response(BODY, { status: 200 })));
 
         await extractAndStore(URL, platformId, testDb, {
             headers: { Tenant: 'brentwood.ttleagues.com', Entry: '1' },
@@ -163,10 +160,7 @@ describe('raw scrape evidence identity', () => {
     });
 
     it('deduplicates equivalent requests regardless of header casing/order', async () => {
-        vi.stubGlobal(
-            'fetch',
-            vi.fn(async () => new Response(BODY, { status: 200 })),
-        );
+        vi.stubGlobal('fetch', vi.fn(async () => new Response(BODY, { status: 200 })));
 
         const first = await extractAndStore(URL, platformId, testDb, {
             headers: { Tenant: 'brentwood.ttleagues.com', Entry: '1' },
@@ -181,6 +175,38 @@ describe('raw scrape evidence identity', () => {
             .select((eb) => eb.fn.countAll<string>().as('count'))
             .executeTakeFirstOrThrow();
         expect(Number(count.count)).toBe(1);
+    });
+
+    it('does not let rotating credentials change logical request identity', () => {
+        const first = createRequestFingerprint(URL, {
+            headers: {
+                Tenant: 'brentwood.ttleagues.com',
+                Authorization: 'Bearer token-one',
+                Cookie: 'session=one',
+            },
+        });
+        const second = createRequestFingerprint(URL, {
+            headers: {
+                tenant: 'brentwood.ttleagues.com',
+                authorization: 'Bearer token-two',
+                cookie: 'session=two',
+            },
+        });
+
+        expect(second).toBe(first);
+    });
+
+    it('includes deterministic request bodies in logical request identity', () => {
+        const first = createRequestFingerprint(URL, {
+            method: 'POST',
+            body: new URLSearchParams({ page: '1' }),
+        });
+        const second = createRequestFingerprint(URL, {
+            method: 'POST',
+            body: new URLSearchParams({ page: '2' }),
+        });
+
+        expect(second).not.toBe(first);
     });
 
     it('scopes identical request/content to distinct source resources', async () => {
