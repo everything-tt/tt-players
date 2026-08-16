@@ -110,26 +110,38 @@ export async function pinTT365PlayerStatsEvidence(
     parentLogId: string,
     requirementKey: string,
     evidenceLogId: string,
-): Promise<void> {
-    const parent = await database
-        .selectFrom('staging.raw_scrape_logs')
-        .select('status')
-        .where('id', '=', parentLogId)
-        .executeTakeFirst();
+): Promise<boolean> {
+    return database.transaction().execute(async (transaction) => {
+        // Serialize evidence pinning against parent completion. If the parent
+        // wins the row lock first and completes, late evidence cannot mutate
+        // the evidence set that produced canonical output.
+        const parent = await transaction
+            .selectFrom('staging.raw_scrape_logs')
+            .select(['status', 'platform_id'])
+            .where('id', '=', parentLogId)
+            .forUpdate()
+            .executeTakeFirst();
 
-    if (!parent || parent.status === 'processed') return;
+        if (!parent || parent.status === 'processed') return false;
 
-    await database
-        .updateTable('staging.raw_scrape_evidence_dependencies')
-        .set({
-            evidence_log_id: evidenceLogId,
-            status: 'processed',
-            updated_at: new Date(),
-        })
-        .where('parent_log_id', '=', parentLogId)
-        .where('evidence_type', '=', TT365_PLAYER_STATS_EVIDENCE_TYPE)
-        .where('requirement_key', '=', requirementKey)
-        .execute();
+        const result = await sql<{ id: string }>`
+            UPDATE staging.raw_scrape_evidence_dependencies AS dependency
+            SET
+                evidence_log_id = ${evidenceLogId},
+                status = 'processed',
+                updated_at = now()
+            FROM staging.raw_scrape_logs AS evidence
+            WHERE dependency.parent_log_id = ${parentLogId}
+              AND dependency.evidence_type = ${TT365_PLAYER_STATS_EVIDENCE_TYPE}
+              AND dependency.requirement_key = ${requirementKey}
+              AND evidence.id = ${evidenceLogId}
+              AND evidence.platform_id = ${parent.platform_id}
+              AND evidence.endpoint_url = dependency.endpoint_url
+            RETURNING dependency.id
+        `.execute(transaction);
+
+        return result.rows.length === 1;
+    });
 }
 
 function isUsablePlayerStatsScore(
