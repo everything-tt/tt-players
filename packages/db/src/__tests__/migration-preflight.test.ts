@@ -81,6 +81,7 @@ describe('migration preflight', () => {
             '054_gate_ratings_by_fixture_status',
             '055_create_rating_rebuild_work_table',
             '056_create_scraping_pipeline_active_run',
+            '057_scope_raw_scrape_evidence',
         ]);
     });
 });

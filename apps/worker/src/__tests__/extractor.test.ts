@@ -26,7 +26,9 @@ import * as m018 from '@tt-players/db/src/migrations/018_add_competition_event_d
 import * as m019 from '@tt-players/db/src/migrations/019_add_competition_source_fields.js';
 import * as m020 from '@tt-players/db/src/migrations/020_create_staging_schema.js';
 import * as m021 from '@tt-players/db/src/migrations/021_create_feedback_table.js';
+import * as m029 from '@tt-players/db/src/migrations/029_create_source_registry.js';
 import * as m052 from '@tt-players/db/src/migrations/052_add_raw_scrape_log_updated_at.js';
+import * as m057 from '@tt-players/db/src/migrations/057_scope_raw_scrape_evidence.js';
 
 import type { Database } from '@tt-players/db';
 
@@ -67,7 +69,9 @@ class StaticMigrationProvider implements MigrationProvider {
             '019_add_competition_source_fields': m019,
             '020_create_staging_schema': m020,
             '021_create_feedback_table': m021,
+            '029_create_source_registry': m029,
             '052_add_raw_scrape_log_updated_at': m052,
+            '057_scope_raw_scrape_evidence': m057,
         };
     }
 }
@@ -191,6 +195,9 @@ describe('Extractor: extractAndStore()', () => {
         expect(rows[0].payload_hash).toBe(EXPECTED_HASH);
         expect(rows[0].raw_payload).toBe(MOCK_RESPONSE_BODY);
         expect(rows[0].platform_id).toBe(TEST_PLATFORM_ID);
+        expect(rows[0].source_scope).toBe(`platform:${TEST_PLATFORM_ID}`);
+        expect(rows[0].request_fingerprint).toBeTruthy();
+        expect(rows[0].http_status).toBe(200);
         expect(rows[0].status).toBe('pending');
     });
 
