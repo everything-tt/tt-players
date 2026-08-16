@@ -74,6 +74,7 @@ async function markRawLogFailed(
         .updateTable('staging.raw_scrape_logs')
         .set({ status: 'failed' })
         .where('id', '=', rawLogId)
+        .where('status', '!=', 'processed')
         .execute();
 }
 
@@ -114,6 +115,8 @@ export async function syncVettsTournament(
         refreshPolicy: { cadence: 'daily-during-event-weekly-after' },
     });
     let activeResource: 'overview' | 'results' = 'overview';
+    let overviewAttemptedAt = new Date();
+    let resultsAttemptedAt = overviewAttemptedAt;
 
     try {
         const overviewContext: SourceAdapterContext = {
@@ -124,6 +127,7 @@ export async function syncVettsTournament(
             url: overviewUrl,
             config: { tournamentId },
         };
+        overviewAttemptedAt = new Date();
         const overviewHtml = await vettsSourceAdapter.extract(overviewContext);
         const overviewLogId = await storeScrapePayload(
             overviewUrl,
@@ -186,8 +190,11 @@ export async function syncVettsTournament(
             .set({ status: 'processed' })
             .where('id', '=', overviewLogId)
             .execute();
-        await recordSourceResourceSuccess(database, overviewResource.id);
+        await recordSourceResourceSuccess(database, overviewResource.id, {
+            attemptedAt: overviewAttemptedAt,
+        });
         activeResource = 'results';
+        resultsAttemptedAt = new Date();
 
         const dates = enumerateTournamentDates(metadata.startDate, metadata.endDate, 7);
         const pages = dates.length > 0 ? dates : [null];
@@ -268,7 +275,9 @@ export async function syncVettsTournament(
             })
             .where('id', '=', competitionId)
             .execute();
-        await recordSourceResourceSuccess(database, resultsResource.id);
+        await recordSourceResourceSuccess(database, resultsResource.id, {
+            attemptedAt: resultsAttemptedAt,
+        });
 
         return {
             tournamentId,
@@ -280,9 +289,19 @@ export async function syncVettsTournament(
         };
     } catch (error) {
         if (activeResource === 'overview') {
-            await recordSourceResourceFailure(database, overviewResource.id, error);
+            await recordSourceResourceFailure(
+                database,
+                overviewResource.id,
+                error,
+                overviewAttemptedAt,
+            );
         } else {
-            await recordSourceResourceFailure(database, resultsResource.id, error);
+            await recordSourceResourceFailure(
+                database,
+                resultsResource.id,
+                error,
+                resultsAttemptedAt,
+            );
         }
         throw error;
     }
