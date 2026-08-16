@@ -213,7 +213,7 @@ async function recordReviewCandidate(
         .execute();
 }
 
-async function upsertSeparateCompetition(
+export async function upsertVettsSeparateCompetition(
     database: Kysely<any>,
     seasonId: string,
     metadata: VettsTournamentMetadata,
@@ -221,25 +221,7 @@ async function upsertSeparateCompetition(
     const externalId = `vetts:tournament:${metadata.tournamentId}`;
     const eventStatus = deriveVettsEventStatus(metadata);
     const isCancelled = isVettsCancelledTournament(metadata);
-
-    const values = {
-        name: metadata.name,
-        display_name: metadata.name,
-        event_date: metadata.startDate,
-        start_date: metadata.startDate,
-        end_date: metadata.endDate,
-        venue_name: metadata.venueName,
-        venue_address: metadata.venueAddress,
-        venue_town: metadata.venueTown,
-        venue_postcode: metadata.venuePostcode,
-        category: VETTS_CATEGORY,
-        source: 'vetts',
-        source_url: metadata.sourceUrl,
-        event_status: isCancelled ? 'cancelled' : eventStatus,
-        record_kind: 'calendar',
-        processed_at: null,
-        deleted_at: null,
-    } as const;
+    const incomingStatus = isCancelled ? 'cancelled' : eventStatus;
 
     return database
         .insertInto('competitions')
@@ -247,10 +229,54 @@ async function upsertSeparateCompetition(
             season_id: seasonId,
             external_id: externalId,
             type: 'individual',
-            ...values,
+            name: metadata.name,
+            display_name: metadata.name,
+            event_date: metadata.startDate,
+            start_date: metadata.startDate,
+            end_date: metadata.endDate,
+            venue_name: metadata.venueName,
+            venue_address: metadata.venueAddress,
+            venue_town: metadata.venueTown,
+            venue_postcode: metadata.venuePostcode,
+            category: VETTS_CATEGORY,
+            source: 'vetts',
+            source_url: metadata.sourceUrl,
+            event_status: incomingStatus,
+            record_kind: 'calendar',
+            processed_at: null,
+            deleted_at: null,
         })
         .onConflict((conflict: any) =>
-            conflict.columns(['season_id', 'external_id']).doUpdateSet(values),
+            conflict.columns(['season_id', 'external_id']).doUpdateSet({
+                name: metadata.name,
+                display_name: metadata.name,
+                event_date: metadata.startDate,
+                start_date: metadata.startDate,
+                end_date: metadata.endDate,
+                venue_name: metadata.venueName,
+                venue_address: metadata.venueAddress,
+                venue_town: metadata.venueTown,
+                venue_postcode: metadata.venuePostcode,
+                category: VETTS_CATEGORY,
+                source: 'vetts',
+                source_url: metadata.sourceUrl,
+                event_status: sql`case
+                    when competitions.record_kind = 'result'
+                    then competitions.event_status
+                    else excluded.event_status
+                end`,
+                record_kind: sql`case
+                    when competitions.record_kind = 'result'
+                    then competitions.record_kind
+                    else excluded.record_kind
+                end`,
+                processed_at: sql`case
+                    when competitions.record_kind = 'result'
+                    then competitions.processed_at
+                    else excluded.processed_at
+                end`,
+                deleted_at: null,
+            }),
         )
         .returning('id')
         .executeTakeFirstOrThrow()
@@ -297,7 +323,7 @@ export async function resolveVettsCompetition(
         return { competitionId: choice.candidate.id, matchMethod: 'automatic' };
     }
 
-    const separateCompetitionId = await upsertSeparateCompetition(database, seasonId, metadata);
+    const separateCompetitionId = await upsertVettsSeparateCompetition(database, seasonId, metadata);
     if (choice.decision === 'review' && choice.candidate && choice.score) {
         await recordReviewCandidate(database, metadata, {
             id: choice.candidate.id,
