@@ -97,7 +97,7 @@ describe('TT365 evidence pinning', () => {
         database = new Kysely<Database>({
             dialect: new PostgresDialect({ pool: new Pool({ connectionString: TEST_URL }) }),
         });
-        const result = await new Migrator({ database, provider: new Provider() }).migrateToLatest();
+        const result = await new Migrator({ db: database, provider: new Provider() }).migrateToLatest();
         if (result.error) throw result.error;
 
         platformId = (await database.insertInto('platforms').values({
