@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import {
     buildTteCompetitionArchiveUrl,
     fetchTtePage,
@@ -9,6 +9,7 @@ import {
     type TteCalendarEvent,
 } from './tte-events-client.js';
 import { normalizeTournamentName, normalizeVenue } from './tournament-normalization.js';
+import { ensureSourcePlatform } from './source-platform.js';
 
 export interface DiscoverTteCalendarEventsOptions {
     startMonth: string;
@@ -220,70 +221,62 @@ function payloadHash(event: TteCalendarEvent): string {
     return createHash('sha256').update(JSON.stringify(event)).digest('hex');
 }
 
-function toDate(value: unknown): string | null {
-    if (!value) return null;
-    if (value instanceof Date) return value.toISOString().slice(0, 10);
-    return String(value).slice(0, 10);
-}
-
 async function ensureHierarchy(db: Kysely<any>, event: TteCalendarEvent): Promise<string> {
-    let platform = await db
-        .selectFrom('platforms')
-        .select('id')
-        .where('base_url', '=', 'https://www.tabletennisengland.co.uk')
-        .executeTakeFirst();
-    if (!platform) {
-        platform = await db
-            .insertInto('platforms')
-            .values({
-                name: 'Table Tennis England',
-                base_url: 'https://www.tabletennisengland.co.uk',
-            })
-            .returning('id')
-            .executeTakeFirstOrThrow();
-    }
+    const platformId = await ensureSourcePlatform(
+        db,
+        'Table Tennis England',
+        'https://www.tabletennisengland.co.uk',
+    );
 
-    let league = await db
-        .selectFrom('leagues')
-        .select('id')
-        .where('platform_id', '=', platform.id)
-        .where('external_id', '=', 'tte-calendar-events')
-        .executeTakeFirst();
-    if (!league) {
-        league = await db
-            .insertInto('leagues')
-            .values({
-                platform_id: platform.id,
-                external_id: 'tte-calendar-events',
+    const leagueId = (await db
+        .insertInto('leagues')
+        .values({
+            platform_id: platformId,
+            external_id: 'tte-calendar-events',
+            name: 'Table Tennis England Competition Events',
+        })
+        .onConflict((oc: any) =>
+            oc.columns(['platform_id', 'external_id']).doUpdateSet({
                 name: 'Table Tennis England Competition Events',
-            })
-            .returning('id')
-            .executeTakeFirstOrThrow();
-    }
+            }),
+        )
+        .returning('id')
+        .executeTakeFirstOrThrow()).id;
 
     const season = seasonIdentity(event.startDate);
-    let seasonRow = await db
-        .selectFrom('seasons')
-        .select('id')
-        .where('league_id', '=', league.id)
-        .where('external_id', '=', season.externalId)
-        .executeTakeFirst();
-    if (!seasonRow) {
-        seasonRow = await db
-            .insertInto('seasons')
-            .values({
-                league_id: league.id,
-                external_id: season.externalId,
+    return db
+        .insertInto('seasons')
+        .values({
+            league_id: leagueId,
+            external_id: season.externalId,
+            name: season.name,
+            is_active: true,
+        })
+        .onConflict((oc: any) =>
+            oc.columns(['league_id', 'external_id']).doUpdateSet({
                 name: season.name,
                 is_active: true,
-            })
-            .returning('id')
-            .executeTakeFirstOrThrow();
-    }
-    return seasonRow.id;
+            }),
+        )
+        .returning('id')
+        .executeTakeFirstOrThrow()
+        .then((row: { id: string }) => row.id);
 }
 
-async function upsertCalendarEvent(
+export async function upsertCalendarEvent(
+    db: Kysely<any>,
+    event: TteCalendarEvent,
+    now: Date,
+): Promise<'created' | 'updated' | 'unchanged'> {
+    return db.transaction().execute(async (trx: Kysely<any>) => {
+        await sql`
+            SELECT pg_advisory_xact_lock(hashtext(${`tte-calendar:${event.sourceKey}`}))
+        `.execute(trx);
+        return upsertCalendarEventLocked(trx, event, now);
+    });
+}
+
+async function upsertCalendarEventLocked(
     db: Kysely<any>,
     event: TteCalendarEvent,
     now: Date,

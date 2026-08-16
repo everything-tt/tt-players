@@ -97,16 +97,26 @@ export async function upsertSourceResource(
         .executeTakeFirstOrThrow();
 }
 
+/**
+ * Source-resource health is ordered by fetch-attempt start time. This prevents
+ * an older attempt that finishes late from overwriting the health outcome of a
+ * newer attempt on another worker replica.
+ */
 export async function recordSourceResourceSuccess(
     db: Kysely<Database>,
     sourceResourceId: string,
-    options: { fetchedAt?: Date; parsedAt?: Date } = {},
+    options: {
+        attemptedAt?: Date;
+        fetchedAt?: Date;
+        parsedAt?: Date;
+    } = {},
 ): Promise<void> {
     const now = new Date();
+    const attemptedAt = options.attemptedAt ?? options.fetchedAt ?? now;
     await db
         .updateTable('source_resources')
         .set({
-            last_fetched_at: options.fetchedAt ?? now,
+            last_fetched_at: attemptedAt,
             last_succeeded_at: now,
             last_parsed_at: options.parsedAt ?? now,
             last_error: null,
@@ -114,6 +124,10 @@ export async function recordSourceResourceSuccess(
             updated_at: now,
         })
         .where('id', '=', sourceResourceId)
+        .where((eb) => eb.or([
+            eb('last_fetched_at', 'is', null),
+            eb('last_fetched_at', '<=', attemptedAt),
+        ]))
         .executeTakeFirst();
 }
 
@@ -121,17 +135,21 @@ export async function recordSourceResourceFailure(
     db: Kysely<Database>,
     sourceResourceId: string,
     error: unknown,
-    fetchedAt: Date = new Date(),
+    attemptedAt: Date = new Date(),
 ): Promise<void> {
     const message = error instanceof Error ? error.message : String(error);
     await db
         .updateTable('source_resources')
         .set((eb) => ({
-            last_fetched_at: fetchedAt,
+            last_fetched_at: attemptedAt,
             last_error: message,
             consecutive_failures: eb('consecutive_failures', '+', 1),
             updated_at: new Date(),
         }))
         .where('id', '=', sourceResourceId)
+        .where((eb) => eb.or([
+            eb('last_fetched_at', 'is', null),
+            eb('last_fetched_at', '<=', attemptedAt),
+        ]))
         .executeTakeFirst();
 }
