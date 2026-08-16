@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { createPWAPlugin } from '@tt-players/pwa/vite';
@@ -53,6 +53,16 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:4003',
         changeOrigin: true,
+      },
+    },
+  },
+  test: {
+    server: {
+      deps: {
+        // The published package uses extensionless ESM imports. Inline it so
+        // Vitest resolves those imports through Vite instead of Node's native
+        // ESM loader.
+        inline: ['@everything-tt/tt-players-design-system'],
       },
     },
   },

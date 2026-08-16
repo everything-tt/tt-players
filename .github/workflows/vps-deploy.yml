@@ -38,6 +38,7 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: read
+      packages: read
       id-token: write
     env:
       CI_POSTGRES_HOST: ci-postgres-18
@@ -72,6 +73,8 @@ jobs:
           exit 1
 
       - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
         run: pnpm install --frozen-lockfile
 
       - name: Backend quality gate

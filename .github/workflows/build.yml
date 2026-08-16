@@ -28,6 +28,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: netlify-${{ github.event.pull_request.number || github.ref }}
@@ -52,6 +53,8 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
         run: pnpm install --frozen-lockfile
 
       - name: Build frontend
@@ -81,6 +84,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      packages: read
       pull-requests: write
     outputs:
       deploy_url: ${{ steps.netlify.outputs.deploy-url }}
@@ -215,6 +219,8 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
         run: pnpm install --frozen-lockfile
 
       - name: Install Chromium

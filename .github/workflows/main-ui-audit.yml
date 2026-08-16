@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: main-ui-audit-manual
@@ -45,6 +46,8 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
         run: pnpm install --frozen-lockfile
 
       - name: Install Chromium

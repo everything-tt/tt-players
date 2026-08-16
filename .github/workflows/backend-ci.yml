@@ -59,6 +59,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   validate-pull-request:
@@ -95,6 +96,8 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
         run: pnpm install --frozen-lockfile
 
       - name: Backend quality gate
@@ -148,6 +151,8 @@ jobs:
           exit 1
 
       - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
         run: pnpm install --frozen-lockfile
 
       - name: Backend quality gate

@@ -65,15 +65,15 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@everything-tt/tt-players-design-system':
+        specifier: 0.1.6
+        version: 0.1.6(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@supabase/supabase-js':
         specifier: ^2.110.8
         version: 2.111.0
       '@tanstack/react-query':
         specifier: ^5.67.2
         version: 5.90.21(react@18.3.1)
-      '@tt-players/design-system':
-        specifier: workspace:*
-        version: link:../../packages/design-system
       '@tt-players/pwa':
         specifier: workspace:*
         version: link:../../packages/pwa
@@ -1098,6 +1098,13 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@everything-tt/tt-players-design-system@0.1.6':
+    resolution: {integrity: sha512-+gYs9wgudrBBw8Gd1xr/5O49N1F21cL/DxdI9Kpwt8EY/cAI5QRceByx6wSwR08mC4rAPEOJGCuR9Sty+nD1aw==, tarball: https://npm.pkg.github.com/download/@everything-tt/tt-players-design-system/0.1.6/18b2ace20147616845d0956cae2de457a62f0bf5}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      react: '>=18.0.0'
+      react-dom: '>=18.0.0'
 
   '@fastify/accept-negotiator@2.0.1':
     resolution: {integrity: sha512-/c/TW2bO/v9JeEgoD/g1G5GxGeCF1Hafdf79WPmUlgYiBXummY0oX3VVq4yFkKKVBKDNlaDUYoab7g38RpPqCQ==}
@@ -4645,6 +4652,22 @@ snapshots:
 
   '@esbuild/win32-x64@0.27.3':
     optional: true
+
+  '@everything-tt/tt-players-design-system@0.1.6(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      '@radix-ui/react-dialog': 1.1.23(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@radix-ui/react-slot': 1.3.3(@types/react@18.3.28)(react@18.3.1)
+      '@radix-ui/react-switch': 1.3.7(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@radix-ui/react-toggle-group': 1.1.19(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      class-variance-authority: 0.7.1
+      clsx: 2.1.1
+      lucide-react: 0.468.0(react@18.3.1)
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+      tailwind-merge: 3.6.0
+    transitivePeerDependencies:
+      - '@types/react'
+      - '@types/react-dom'
 
   '@fastify/accept-negotiator@2.0.1': {}
 

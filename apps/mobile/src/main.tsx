@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './index.css';
 import './design-tokens.css';
-import '@tt-players/design-system/styles.css';
+import '@everything-tt/tt-players-design-system/styles.css';
 import './native-mobile.css';
 import './density-pass.css';
 import './uncarded-density.css';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getCollapsibleHeaderState } from '@tt-players/design-system';
+import { getCollapsibleHeaderState } from '@everything-tt/tt-players-design-system';
 
 describe('getCollapsibleHeaderState', () => {
   it('collapses after the browse-page threshold', () => {

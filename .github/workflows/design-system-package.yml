@@ -62,9 +62,11 @@ jobs:
           node-version: 22
           cache: pnpm
           registry-url: 'https://npm.pkg.github.com'
-          scope: '@wudong'
+          scope: '@everything-tt'
 
       - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
         run: pnpm install --frozen-lockfile
 
       - name: Test package
