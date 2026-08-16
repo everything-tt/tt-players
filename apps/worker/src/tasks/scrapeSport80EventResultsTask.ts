@@ -1,6 +1,6 @@
 import type { Task } from 'graphile-worker';
 import { sql, type Kysely } from 'kysely';
-import { db, type Database } from '@tt-players/db';
+import { db } from '@tt-players/db';
 import {
     chooseTournamentCandidateWithEmbeddings,
     type TournamentEmbeddingMatchScore,
@@ -12,6 +12,7 @@ import { parseSport80EventName, parseSport80EventResults } from '../sport80-pars
 import {
     upsertSport80League,
     upsertSport80Platform,
+    upsertSport80Season,
     upsertSport80SourceEvent,
     upsertSport80SourceEventResultRows,
 } from '../sport80-loader.js';
@@ -44,36 +45,6 @@ interface TournamentMatchEvidence {
     embeddingDimensions: number | null;
     embeddingError?: string;
     scores?: TournamentEmbeddingMatchScore;
-}
-
-async function upsertSeason(
-    db: Kysely<Database>,
-    leagueId: string,
-    eventDate: string | null,
-): Promise<string> {
-    const year = eventDate?.match(/^(\d{4})/)?.[1] ?? 'unknown';
-    const externalId = `sport80-${year}`;
-    const name = year === 'unknown' ? 'Sport:80 Unknown Season' : `Sport:80 ${year}`;
-
-    const existing = await db
-        .selectFrom('seasons')
-        .select('id')
-        .where('league_id', '=', leagueId)
-        .where('external_id', '=', externalId)
-        .executeTakeFirst();
-    if (existing) return existing.id;
-
-    const row = await db
-        .insertInto('seasons')
-        .values({
-            league_id: leagueId,
-            external_id: externalId,
-            name,
-            is_active: year !== 'unknown',
-        })
-        .returning('id')
-        .executeTakeFirstOrThrow();
-    return row.id;
 }
 
 async function saveSport80SourceMapping(
@@ -140,16 +111,6 @@ async function recordReviewCandidate(
     score: TournamentEmbeddingMatchScore,
     evidence: TournamentMatchEvidence,
 ): Promise<void> {
-    const existing = await database
-        .selectFrom('tournament_match_candidates')
-        .select('id')
-        .where('incoming_provider', '=', 'sport80')
-        .where('incoming_external_id', '=', eventId)
-        .where('candidate_competition_id', '=', candidateId)
-        .where('status', '=', 'pending')
-        .executeTakeFirst();
-    if (existing) return;
-
     await database
         .insertInto('tournament_match_candidates')
         .values({
@@ -168,6 +129,13 @@ async function recordReviewCandidate(
             score_evidence: evidence,
             status: 'pending',
         })
+        .onConflict((conflict: any) =>
+            conflict
+                .columns(['incoming_provider', 'incoming_external_id', 'candidate_competition_id'])
+                .where('status', '=', 'pending')
+                .where('incoming_external_id', 'is not', null)
+                .doNothing(),
+        )
         .execute();
 }
 
@@ -220,51 +188,34 @@ async function upsertResultCompetition(
     const normalizedEventDate = eventDate ?? parsedName.dateFromName;
     const normalizedCategory = category ?? parsedName.category;
     const sourceUrl = sport80Urls.eventResultsTable(eventId);
-    const existing = await database
-        .selectFrom('competitions')
-        .select('id')
-        .where('external_id', '=', externalId)
-        .executeTakeFirst();
-    if (existing) {
-        await database
-            .updateTable('competitions')
-            .set({
-                name: eventName,
-                display_name: displayName,
-                event_date: normalizedEventDate,
-                start_date: normalizedEventDate,
-                category: normalizedCategory,
-                source: 'sport80',
-                source_url: sourceUrl,
-                record_kind: 'result',
-                event_status: 'completed',
-                matched_calendar_competition_id: matchedCalendarCompetitionId,
-            })
-            .where('id', '=', existing.id)
-            .execute();
-        return existing.id;
-    }
+    const values = {
+        name: eventName,
+        display_name: displayName,
+        event_date: normalizedEventDate,
+        start_date: normalizedEventDate,
+        category: normalizedCategory,
+        source: 'sport80',
+        source_url: sourceUrl,
+        record_kind: 'result',
+        event_status: 'completed',
+        matched_calendar_competition_id: matchedCalendarCompetitionId,
+        deleted_at: null,
+    } as const;
 
-    const row = await database
+    return database
         .insertInto('competitions')
         .values({
             season_id: seasonId,
             external_id: externalId,
-            name: eventName,
-            display_name: displayName,
-            event_date: normalizedEventDate,
-            start_date: normalizedEventDate,
-            category: normalizedCategory,
             type: 'individual',
-            source: 'sport80',
-            source_url: sourceUrl,
-            record_kind: 'result',
-            event_status: 'completed',
-            matched_calendar_competition_id: matchedCalendarCompetitionId,
+            ...values,
         })
+        .onConflict((conflict: any) =>
+            conflict.columns(['season_id', 'external_id']).doUpdateSet(values),
+        )
         .returning('id')
-        .executeTakeFirstOrThrow();
-    return row.id;
+        .executeTakeFirstOrThrow()
+        .then((row: { id: string }) => row.id);
 }
 
 async function resolveCompetition(
@@ -396,18 +347,9 @@ async function resolveCompetition(
 
 export const scrapeSport80EventResultsTask: Task = async (payload, helpers) => {
     const { eventId, eventName, eventDate, category, force = false } = payload as ScrapeSport80EventResultsPayload;
+    const claimTime = new Date();
 
-    const existing = await db
-        .selectFrom('staging.sport80_event_scrape_state')
-        .select('status')
-        .where('event_id', '=', eventId)
-        .executeTakeFirst();
-    if (!force && existing?.status === 'processed') {
-        helpers.logger.info(`scrapeSport80EventResultsTask: event ${eventId} already processed, skipping`);
-        return;
-    }
-
-    await db
+    const claim = await db
         .insertInto('staging.sport80_event_scrape_state')
         .values({
             event_id: eventId,
@@ -415,21 +357,45 @@ export const scrapeSport80EventResultsTask: Task = async (payload, helpers) => {
             event_date: eventDate ?? null,
             category: category ?? null,
             status: 'pending',
-            last_attempted_at: new Date(),
-            updated_at: new Date(),
+            last_attempted_at: claimTime,
+            updated_at: claimTime,
         })
         .onConflict((oc) =>
             oc.column('event_id').doUpdateSet({
                 event_name: (eb) => eb.ref('excluded.event_name'),
                 event_date: (eb) => eb.ref('excluded.event_date'),
                 category: (eb) => eb.ref('excluded.category'),
-                status: 'pending',
-                last_attempted_at: new Date(),
-                last_error: null,
-                updated_at: new Date(),
+                status: force
+                    ? 'pending'
+                    : sql`case
+                        when sport80_event_scrape_state.status = 'processed'
+                        then sport80_event_scrape_state.status
+                        else 'pending'::scrape_status
+                    end`,
+                last_attempted_at: force
+                    ? claimTime
+                    : sql`case
+                        when sport80_event_scrape_state.status = 'processed'
+                        then sport80_event_scrape_state.last_attempted_at
+                        else excluded.last_attempted_at
+                    end`,
+                last_error: force
+                    ? null
+                    : sql`case
+                        when sport80_event_scrape_state.status = 'processed'
+                        then sport80_event_scrape_state.last_error
+                        else null
+                    end`,
+                updated_at: claimTime,
             }),
         )
-        .execute();
+        .returning('status')
+        .executeTakeFirstOrThrow();
+
+    if (!force && claim.status === 'processed') {
+        helpers.logger.info(`scrapeSport80EventResultsTask: event ${eventId} already processed, skipping`);
+        return;
+    }
 
     try {
         const result = await fetchSport80EventResults(eventId);
@@ -440,7 +406,7 @@ export const scrapeSport80EventResultsTask: Task = async (payload, helpers) => {
         const resolvedName = eventName ?? `Sport:80 Event ${eventId}`;
         const platformId = await upsertSport80Platform(db);
         const leagueId = await upsertSport80League(db, platformId);
-        const seasonId = await upsertSeason(db, leagueId, eventDate ?? null);
+        const seasonId = await upsertSport80Season(db, leagueId, eventDate ?? null);
         const resolution = await resolveCompetition(
             db as Kysely<any>,
             seasonId,
@@ -521,6 +487,7 @@ export const scrapeSport80EventResultsTask: Task = async (payload, helpers) => {
                 updated_at: new Date(),
             })
             .where('event_id', '=', eventId)
+            .where('status', '!=', 'processed')
             .execute();
         throw error;
     }
