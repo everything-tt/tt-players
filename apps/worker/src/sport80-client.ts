@@ -1,37 +1,89 @@
 import { runSourceRateLimited } from './source-rate-limit.js';
 
-const SPORT80_BASE_URL = 'https://tabletennisengland.sport80.com';
+const SPORT80_API_BASE = 'https://admin-tte-rankings.sport80.com/api';
+const SPORT80_PUBLIC_BASE = 'https://tabletennisengland.sport80.com/public/rankings';
+const SPORT80_API_TOKEN = process.env['SPORT80_API_TOKEN'] ?? '14ced0f3-421f-4acf-94ad-cc63a371af19';
 const SPORT80_SOURCE_RATE_KEY = 'sport80';
-const SPORT80_MIN_INTERVAL_MS = Number(process.env['SPORT80_FETCH_MIN_INTERVAL_MS'] ?? '500');
-const SPORT80_TIMEOUT_MS = Number(process.env['SPORT80_FETCH_TIMEOUT_MS'] ?? '30000');
-
-export interface Sport80EventTableRow {
-    id: number | string;
-    date: string | null;
-    name: string;
-    category?: string | null;
-    [key: string]: unknown;
-}
-
-export interface Sport80EventResultTableRow {
-    id: number | string;
-    date_and_time: string;
-    round: string | number | null;
-    home: string;
-    away: string;
-    [key: string]: unknown;
-}
+const SPORT80_FETCH_MIN_INTERVAL_MS = Number(process.env['SPORT80_FETCH_MIN_INTERVAL_MS'] ?? '500');
+const SPORT80_FETCH_TIMEOUT_MS = Number(process.env['SPORT80_FETCH_TIMEOUT_MS'] ?? '30000');
 
 export interface Sport80TableResponse<T> {
     data: T[];
+    items_per_page?: number;
+    page?: number;
     total: number;
-    [key: string]: unknown;
 }
 
-function authHeaders(): Record<string, string> {
-    const token = process.env['SPORT80_ADMIN_BEARER_TOKEN'];
-    return token ? { Authorization: `Bearer ${token}` } : {};
+export interface Sport80EventTableRow {
+    id: number;
+    date: string;
+    name: string;
+    category: string;
 }
+
+export interface Sport80EventResultTableRow {
+    id: number;
+    date_and_time: string | null;
+    round: string | { type?: string } | null;
+    home: string;
+    away: string;
+}
+
+export interface Sport80FeaturedCategoryResponse {
+    cards?: Array<{
+        title?: string;
+        actions?: Array<{ route?: string }>;
+    }>;
+}
+
+export interface Sport80FilterItem {
+    text?: string;
+    label?: string;
+    value: number | string;
+}
+
+export interface Sport80TableFilter {
+    name?: string;
+    key?: string;
+    items?: Sport80FilterItem[];
+}
+
+export interface Sport80RankingTableMetadata {
+    title?: string;
+    filters?: Sport80TableFilter[];
+}
+
+export interface Sport80RankingTableRow {
+    id: number;
+    rank: number | string | null;
+    name: unknown;
+    county_country?: string | null;
+    points?: number | string | null;
+    inactive_periods?: number | string | null;
+    is_initial_rating?: string | boolean | null;
+    action?: unknown;
+}
+
+export const sport80Urls = {
+    eventsTable(page: number, limit: number): string {
+        return `${SPORT80_API_BASE}/events/table?data=1&p=${page}&l=${limit}&sort=&d=asc&s=&st=`;
+    },
+    eventResultsTable(eventId: string | number): string {
+        return `${SPORT80_API_BASE}/events/${eventId}/table?data=1`;
+    },
+    featuredCategories(): string {
+        return `${SPORT80_API_BASE}/categories/featured`;
+    },
+    rankingMetadata(categoryEndpointId: string | number): string {
+        return `${SPORT80_API_BASE}/categories/${categoryEndpointId}/rankings/table`;
+    },
+    rankingTable(categoryEndpointId: string | number): string {
+        return `${SPORT80_API_BASE}/categories/${categoryEndpointId}/rankings/table?data=1`;
+    },
+    publicEvent(eventId: string | number): string {
+        return `${SPORT80_PUBLIC_BASE}/results/${eventId}`;
+    },
+};
 
 function retryAfterMs(response: Response): number {
     const value = response.headers.get('retry-after');
@@ -42,52 +94,100 @@ function retryAfterMs(response: Response): number {
     return Number.isNaN(timestamp) ? 30_000 : Math.max(0, timestamp - Date.now());
 }
 
-async function fetchSport80(url: string): Promise<Response> {
+async function fetchSport80(url: string, init: RequestInit): Promise<Response> {
     return runSourceRateLimited(
         SPORT80_SOURCE_RATE_KEY,
-        Math.max(0, SPORT80_MIN_INTERVAL_MS),
-        Math.max(1_000, SPORT80_TIMEOUT_MS + 10_000),
+        Math.max(0, SPORT80_FETCH_MIN_INTERVAL_MS),
+        Math.max(1_000, SPORT80_FETCH_TIMEOUT_MS + 10_000),
         () => fetch(url, {
-            headers: {
-                Accept: 'application/json',
-                ...authHeaders(),
-            },
-            signal: AbortSignal.timeout(SPORT80_TIMEOUT_MS),
+            ...init,
+            signal: AbortSignal.timeout(SPORT80_FETCH_TIMEOUT_MS),
         }),
         (response) => response.status === 429 ? retryAfterMs(response) : 0,
     );
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-    const response = await fetchSport80(url);
-    if (!response.ok) {
-        throw new Error(`Sport80 HTTP ${response.status} ${response.statusText} for ${url}`);
-    }
-    return response.json() as Promise<T>;
+function sport80Headers(): Record<string, string> {
+    return {
+        'x-api-token': SPORT80_API_TOKEN,
+        'x-requested-with': 'XMLHttpRequest',
+        'x-keep-session': 'keepsession',
+    };
 }
 
-export const sport80Urls = {
-    eventsTable: (params: { page?: number; limit?: number; category?: number } = {}) => {
-        const query = new URLSearchParams({
-            page: String(params.page ?? 0),
-            limit: String(params.limit ?? 100),
-            order: 'asc',
-        });
-        if (params.category != null) query.set('category', String(params.category));
-        return `${SPORT80_BASE_URL}/api/public/rankings/events?${query}`;
-    },
-    eventResultsTable: (eventId: string | number) =>
-        `${SPORT80_BASE_URL}/api/public/rankings/results/${eventId}`,
-};
+async function postSport80Json<T>(url: string, body: unknown): Promise<T> {
+    const res = await fetchSport80(url, {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json',
+            ...sport80Headers(),
+        },
+        body: JSON.stringify(body),
+    });
 
-export async function fetchSport80EventsPage(
-    params: { page?: number; limit?: number; category?: number } = {},
-): Promise<Sport80TableResponse<Sport80EventTableRow>> {
-    return fetchJson(sport80Urls.eventsTable(params));
+    if (!res.ok) {
+        throw new Error(`Sport80 HTTP ${res.status} ${res.statusText} for ${url}`);
+    }
+
+    return res.json() as Promise<T>;
+}
+
+export async function fetchSport80EventsPage(options: {
+    page: number;
+    limit: number;
+    category?: number;
+}): Promise<Sport80TableResponse<Sport80EventTableRow>> {
+    const filters = options.category == null ? {} : { category: options.category };
+    return postSport80Json<Sport80TableResponse<Sport80EventTableRow>>(
+        sport80Urls.eventsTable(options.page, options.limit),
+        { columns: [], filters },
+    );
 }
 
 export async function fetchSport80EventResults(
     eventId: string | number,
 ): Promise<Sport80TableResponse<Sport80EventResultTableRow>> {
-    return fetchJson(sport80Urls.eventResultsTable(eventId));
+    return postSport80Json<Sport80TableResponse<Sport80EventResultTableRow>>(
+        sport80Urls.eventResultsTable(eventId),
+        { columns: [] },
+    );
+}
+
+export async function fetchSport80FeaturedCategories(): Promise<Sport80FeaturedCategoryResponse> {
+    const url = sport80Urls.featuredCategories();
+    const res = await fetchSport80(url, { headers: sport80Headers() });
+
+    if (!res.ok) {
+        throw new Error(`Sport80 HTTP ${res.status} ${res.statusText} for ${url}`);
+    }
+
+    return res.json() as Promise<Sport80FeaturedCategoryResponse>;
+}
+
+export async function fetchSport80RankingMetadata(
+    categoryEndpointId: string | number,
+): Promise<Sport80RankingTableMetadata> {
+    return postSport80Json<Sport80RankingTableMetadata>(
+        sport80Urls.rankingMetadata(categoryEndpointId),
+        { columns: [] },
+    );
+}
+
+export async function fetchSport80RankingTable(options: {
+    categoryEndpointId: string | number;
+    period: string | number;
+    subcategory: string | number;
+    showRatingsList: 0 | 1;
+}): Promise<Sport80TableResponse<Sport80RankingTableRow>> {
+    return postSport80Json<Sport80TableResponse<Sport80RankingTableRow>>(
+        sport80Urls.rankingTable(options.categoryEndpointId),
+        {
+            columns: [],
+            filters: {
+                period: Number(options.period),
+                subcategory: Number(options.subcategory),
+                show_ratings_list: options.showRatingsList,
+            },
+        },
+    );
 }
