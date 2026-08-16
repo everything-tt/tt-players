@@ -137,7 +137,10 @@ describe('raw scrape evidence identity', () => {
     });
 
     it('keeps identical URL/content separate for different Tenant headers', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(BODY, { status: 200 })));
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => new Response(BODY, { status: 200 })),
+        );
 
         await extractAndStore(URL, platformId, testDb, {
             headers: { Tenant: 'brentwood.ttleagues.com', Entry: '1' },
@@ -160,7 +163,10 @@ describe('raw scrape evidence identity', () => {
     });
 
     it('deduplicates equivalent requests regardless of header casing/order', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(BODY, { status: 200 })));
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => new Response(BODY, { status: 200 })),
+        );
 
         const first = await extractAndStore(URL, platformId, testDb, {
             headers: { Tenant: 'brentwood.ttleagues.com', Entry: '1' },

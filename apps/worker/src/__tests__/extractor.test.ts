@@ -26,18 +26,13 @@ import * as m018 from '@tt-players/db/src/migrations/018_add_competition_event_d
 import * as m019 from '@tt-players/db/src/migrations/019_add_competition_source_fields.js';
 import * as m020 from '@tt-players/db/src/migrations/020_create_staging_schema.js';
 import * as m021 from '@tt-players/db/src/migrations/021_create_feedback_table.js';
+import * as m029 from '@tt-players/db/src/migrations/029_create_source_registry.js';
 import * as m052 from '@tt-players/db/src/migrations/052_add_raw_scrape_log_updated_at.js';
+import * as m057 from '@tt-players/db/src/migrations/057_scope_raw_scrape_evidence.js';
 
 import type { Database } from '@tt-players/db';
 
-// ─── We import the function under test dynamically in each test ─────────────
-// Dynamic imports via `await import()` are used inside each test so that
-// vi.stubGlobal('fetch', ...) takes effect before the module loads.
-
 const { Pool } = pg;
-
-// ─── Test Database Setup ──────────────────────────────────────────────────────
-
 const TEST_DB_NAME = 'tt_workers_test';
 const TEST_DATABASE_BASE_URL = process.env.TEST_DATABASE_BASE_URL ?? 'postgres://postgres:postgres@localhost:5432';
 const ADMIN_DATABASE_URL = `${TEST_DATABASE_BASE_URL}/postgres`;
@@ -67,7 +62,9 @@ class StaticMigrationProvider implements MigrationProvider {
             '019_add_competition_source_fields': m019,
             '020_create_staging_schema': m020,
             '021_create_feedback_table': m021,
+            '029_create_source_registry': m029,
             '052_add_raw_scrape_log_updated_at': m052,
+            '057_scope_raw_scrape_evidence': m057,
         };
     }
 }
@@ -83,9 +80,7 @@ async function createTestDatabase(): Promise<void> {
 }
 
 async function dropTestDatabase(): Promise<void> {
-    if (testDb) {
-        await testDb.destroy();
-    }
+    if (testDb) await testDb.destroy();
     const adminPool = new Pool({ connectionString: ADMIN_DATABASE_URL });
     await adminPool.query(`
         SELECT pg_terminate_backend(pg_stat_activity.pid)
@@ -106,48 +101,30 @@ function createTestDb(): Kysely<Database> {
 }
 
 async function runMigrations(db: Kysely<Database>): Promise<void> {
-    const migrator = new Migrator({
-        db,
-        provider: new StaticMigrationProvider(),
-    });
+    const migrator = new Migrator({ db, provider: new StaticMigrationProvider() });
     const { error } = await migrator.migrateToLatest();
     if (error) throw error;
 }
-
-// ─── Test Constants ───────────────────────────────────────────────────────────
 
 const MOCK_RESPONSE_BODY = JSON.stringify({
     league: 'Brentwood',
     standings: [{ team: 'Hutton A', points: 42 }],
 });
-
-const EXPECTED_HASH = createHash('sha256')
-    .update(MOCK_RESPONSE_BODY)
-    .digest('hex');
-
+const EXPECTED_HASH = createHash('sha256').update(MOCK_RESPONSE_BODY).digest('hex');
 const TEST_URL_1 = 'https://brentwood.ttleagues.com/api/standings/div1';
 const TEST_URL_2 = 'https://chelmsford.ttleagues.com/api/standings/div1';
-
 let TEST_PLATFORM_ID: string;
-
-// ─── Test Suite ───────────────────────────────────────────────────────────────
 
 describe('Extractor: extractAndStore()', () => {
     beforeAll(async () => {
         await createTestDatabase();
         testDb = createTestDb();
         await runMigrations(testDb);
-
-        // Seed a platform row (required FK for raw_scrape_logs.platform_id)
         const result = await testDb
             .insertInto('platforms')
-            .values({
-                name: 'TT Leagues',
-                base_url: 'https://brentwood.ttleagues.com',
-            })
+            .values({ name: 'TT Leagues', base_url: 'https://brentwood.ttleagues.com' })
             .returning('id')
             .executeTakeFirstOrThrow();
-
         TEST_PLATFORM_ID = result.id;
     }, 30_000);
 
@@ -156,182 +133,93 @@ describe('Extractor: extractAndStore()', () => {
     }, 15_000);
 
     beforeEach(async () => {
-        // Clear scrape logs between tests so each scenario starts clean
         await testDb.deleteFrom('raw_scrape_logs').execute();
-
-        // Reset the global fetch mock
         vi.restoreAllMocks();
     });
 
-    // ── Scenario 1: New URL + hash → INSERT ──────────────────────────────────
-
     it('should INSERT a new row when URL+hash does not exist', async () => {
-        // Arrange: mock fetch to return our test body
-        vi.stubGlobal(
-            'fetch',
-            vi.fn().mockResolvedValue({
-                ok: true,
-                status: 200,
-                text: () => Promise.resolve(MOCK_RESPONSE_BODY),
-            }),
-        );
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            text: () => Promise.resolve(MOCK_RESPONSE_BODY),
+        }));
 
-        // Act
         const { extractAndStore } = await import('../extractor.js');
         await extractAndStore(TEST_URL_1, TEST_PLATFORM_ID, testDb);
 
-        // Assert: exactly 1 row with correct data
-        const rows = await testDb
-            .selectFrom('raw_scrape_logs')
-            .selectAll()
-            .execute();
-
+        const rows = await testDb.selectFrom('raw_scrape_logs').selectAll().execute();
         expect(rows).toHaveLength(1);
         expect(rows[0].endpoint_url).toBe(TEST_URL_1);
         expect(rows[0].payload_hash).toBe(EXPECTED_HASH);
         expect(rows[0].raw_payload).toBe(MOCK_RESPONSE_BODY);
         expect(rows[0].platform_id).toBe(TEST_PLATFORM_ID);
+        expect(rows[0].source_scope).toBe(`platform:${TEST_PLATFORM_ID}`);
+        expect(rows[0].request_fingerprint).toBeTruthy();
+        expect(rows[0].http_status).toBe(200);
         expect(rows[0].status).toBe('pending');
     });
 
-    // ── Scenario 2: Same URL + same hash → UPDATE extraction timestamps ───────
-
     it('should UPDATE extraction timestamps (not duplicate) when the same URL returns the same data', async () => {
-        // Arrange: mock fetch
-        vi.stubGlobal(
-            'fetch',
-            vi.fn().mockResolvedValue({
-                ok: true,
-                status: 200,
-                text: () => Promise.resolve(MOCK_RESPONSE_BODY),
-            }),
-        );
-
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            text: () => Promise.resolve(MOCK_RESPONSE_BODY),
+        }));
         const { extractAndStore } = await import('../extractor.js');
-
-        // Act: first call — inserts
         await extractAndStore(TEST_URL_1, TEST_PLATFORM_ID, testDb);
-
-        // Grab the initial scraped_at
-        const firstRows = await testDb
-            .selectFrom('raw_scrape_logs')
-            .selectAll()
-            .execute();
+        const firstRows = await testDb.selectFrom('raw_scrape_logs').selectAll().execute();
         expect(firstRows).toHaveLength(1);
         const firstScrapedAt = firstRows[0].scraped_at;
         const firstUpdatedAt = firstRows[0].updated_at;
-
-        // Small delay so timestamp can differ
         await new Promise((r) => setTimeout(r, 50));
-
-        // Act: second call — same URL, same body → should upsert
         await extractAndStore(TEST_URL_1, TEST_PLATFORM_ID, testDb);
-
-        // Assert: still exactly 1 row
-        const secondRows = await testDb
-            .selectFrom('raw_scrape_logs')
-            .selectAll()
-            .execute();
+        const secondRows = await testDb.selectFrom('raw_scrape_logs').selectAll().execute();
         expect(secondRows).toHaveLength(1);
-
-        // The scraped_at should have been updated
         expect(new Date(secondRows[0].scraped_at).getTime())
             .toBeGreaterThanOrEqual(new Date(firstScrapedAt).getTime());
         expect(new Date(secondRows[0].updated_at).getTime())
             .toBeGreaterThanOrEqual(new Date(firstUpdatedAt).getTime());
-
-        // Same data should be preserved
         expect(secondRows[0].endpoint_url).toBe(TEST_URL_1);
         expect(secondRows[0].payload_hash).toBe(EXPECTED_HASH);
     });
 
-    // ── Scenario 3: Different URL, same hash → separate INSERT ───────────────
-
     it('should INSERT a separate row when a different URL returns the same data (same hash)', async () => {
-        // Arrange: mock fetch
-        vi.stubGlobal(
-            'fetch',
-            vi.fn().mockResolvedValue({
-                ok: true,
-                status: 200,
-                text: () => Promise.resolve(MOCK_RESPONSE_BODY),
-            }),
-        );
-
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            text: () => Promise.resolve(MOCK_RESPONSE_BODY),
+        }));
         const { extractAndStore } = await import('../extractor.js');
-
-        // Act: insert for URL 1
         await extractAndStore(TEST_URL_1, TEST_PLATFORM_ID, testDb);
-
-        // Act: insert for URL 2 (same body → same hash)
         await extractAndStore(TEST_URL_2, TEST_PLATFORM_ID, testDb);
-
-        // Assert: 2 distinct rows
         const rows = await testDb
             .selectFrom('raw_scrape_logs')
             .selectAll()
             .orderBy('endpoint_url', 'asc')
             .execute();
-
         expect(rows).toHaveLength(2);
-
-        // Both share the same hash but have different URLs
         expect(rows[0].endpoint_url).toBe(TEST_URL_1);
         expect(rows[1].endpoint_url).toBe(TEST_URL_2);
         expect(rows[0].payload_hash).toBe(EXPECTED_HASH);
         expect(rows[1].payload_hash).toBe(EXPECTED_HASH);
     });
 
-    // ── Scenario 4: HTTP error → throws (allows Graphile Worker to retry) ────
-
     it('should throw on HTTP error so Graphile Worker can retry', async () => {
-        // Arrange: mock fetch to return 403
-        vi.stubGlobal(
-            'fetch',
-            vi.fn().mockResolvedValue({
-                ok: false,
-                status: 403,
-                statusText: 'Forbidden',
-                text: () => Promise.resolve('Access denied'),
-            }),
-        );
-
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: false,
+            status: 403,
+            statusText: 'Forbidden',
+            text: () => Promise.resolve('Access denied'),
+        }));
         const { extractAndStore } = await import('../extractor.js');
-
-        // Act & Assert
-        await expect(
-            extractAndStore(TEST_URL_1, TEST_PLATFORM_ID, testDb),
-        ).rejects.toThrow(/403/);
-
-        // No row should be inserted
-        const rows = await testDb
-            .selectFrom('raw_scrape_logs')
-            .selectAll()
-            .execute();
-        expect(rows).toHaveLength(0);
+        await expect(extractAndStore(TEST_URL_1, TEST_PLATFORM_ID, testDb)).rejects.toThrow(/403/);
+        expect(await testDb.selectFrom('raw_scrape_logs').selectAll().execute()).toHaveLength(0);
     });
 
-    // ── Scenario 5: Network failure → throws ─────────────────────────────────
-
     it('should throw on network failure (DNS, timeout) so Graphile Worker can retry', async () => {
-        // Arrange: mock fetch to reject (simulating DNS failure)
-        vi.stubGlobal(
-            'fetch',
-            vi.fn().mockRejectedValue(new Error('getaddrinfo ENOTFOUND example.com')),
-        );
-
+        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('getaddrinfo ENOTFOUND example.com')));
         const { extractAndStore } = await import('../extractor.js');
-
-        // Act & Assert
-        await expect(
-            extractAndStore(TEST_URL_1, TEST_PLATFORM_ID, testDb),
-        ).rejects.toThrow(/ENOTFOUND/);
-
-        // No row should be inserted
-        const rows = await testDb
-            .selectFrom('raw_scrape_logs')
-            .selectAll()
-            .execute();
-        expect(rows).toHaveLength(0);
+        await expect(extractAndStore(TEST_URL_1, TEST_PLATFORM_ID, testDb)).rejects.toThrow(/ENOTFOUND/);
+        expect(await testDb.selectFrom('raw_scrape_logs').selectAll().execute()).toHaveLength(0);
     });
 });

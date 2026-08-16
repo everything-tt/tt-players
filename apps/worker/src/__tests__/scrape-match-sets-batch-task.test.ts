@@ -3,9 +3,10 @@ import type { Match } from '../zod-schemas.js';
 import { __resetTTLeaguesHttpForTests } from '../ttleagues-http.js';
 
 const storeScrapePayload = vi.hoisted(() => vi.fn());
+const createRequestFingerprint = vi.hoisted(() => vi.fn(() => 'request-fingerprint'));
 
 vi.mock('@tt-players/db', () => ({ db: {} }));
-vi.mock('../extractor.js', () => ({ storeScrapePayload }));
+vi.mock('../extractor.js', () => ({ storeScrapePayload, createRequestFingerprint }));
 
 import {
     scrapeMatchSetsBatchTask,
@@ -116,12 +117,20 @@ describe('scrapeMatchSetsBatchTask', () => {
 
         expect(settled.map((entry) => entry.status)).toEqual(['rejected', 'fulfilled']);
         expect(fetch).toHaveBeenCalledTimes(2);
+        expect(createRequestFingerprint).toHaveBeenCalledWith(
+            expect.stringContaining('/matches/1002/sets'),
+            { headers: { Tenant: 'example.ttleagues.com', Entry: '1' } },
+        );
         expect(storeScrapePayload).toHaveBeenCalledTimes(1);
         expect(storeScrapePayload).toHaveBeenCalledWith(
             expect.stringContaining('/matches/1002/sets'),
             '00000000-0000-4000-8000-000000000001',
             expect.stringContaining('"1002"'),
             expect.anything(),
+            {
+                requestFingerprint: 'request-fingerprint',
+                httpStatus: 200,
+            },
         );
         expect(addJob).toHaveBeenCalledWith(
             'processMatchSetsBatchTask',

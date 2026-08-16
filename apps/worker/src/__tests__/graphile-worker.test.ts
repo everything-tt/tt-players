@@ -3,9 +3,7 @@ import { Kysely, Migrator, PostgresDialect, sql } from 'kysely';
 import type { MigrationProvider, Migration } from 'kysely';
 import { runMigrations, runOnce } from 'graphile-worker';
 import pg from 'pg';
-import { createHash } from 'node:crypto';
 
-// Import Kysely migrations
 import * as m001 from '@tt-players/db/src/migrations/001_create_enums.js';
 import * as m002 from '@tt-players/db/src/migrations/002_create_core_tables.js';
 import * as m003 from '@tt-players/db/src/migrations/003_create_match_tables.js';
@@ -27,17 +25,13 @@ import * as m018 from '@tt-players/db/src/migrations/018_add_competition_event_d
 import * as m019 from '@tt-players/db/src/migrations/019_add_competition_source_fields.js';
 import * as m020 from '@tt-players/db/src/migrations/020_create_staging_schema.js';
 import * as m021 from '@tt-players/db/src/migrations/021_create_feedback_table.js';
+import * as m029 from '@tt-players/db/src/migrations/029_create_source_registry.js';
 import * as m052 from '@tt-players/db/src/migrations/052_add_raw_scrape_log_updated_at.js';
-
+import * as m057 from '@tt-players/db/src/migrations/057_scope_raw_scrape_evidence.js';
 import type { Database } from '@tt-players/db';
-
-// Import mock data (same mock used by Wave 3 tests)
 import mockData from './mock_tt_leagues.json' with { type: 'json' };
 
 const { Pool } = pg;
-
-// ─── Test Database Setup ──────────────────────────────────────────────────────
-
 const TEST_DB_NAME = 'tt_graphile_worker_test';
 const TEST_DATABASE_BASE_URL = process.env.TEST_DATABASE_BASE_URL ?? 'postgres://postgres:postgres@localhost:5432';
 const ADMIN_DATABASE_URL = `${TEST_DATABASE_BASE_URL}/postgres`;
@@ -67,7 +61,9 @@ class StaticMigrationProvider implements MigrationProvider {
             '019_add_competition_source_fields': m019,
             '020_create_staging_schema': m020,
             '021_create_feedback_table': m021,
+            '029_create_source_registry': m029,
             '052_add_raw_scrape_log_updated_at': m052,
+            '057_scope_raw_scrape_evidence': m057,
         };
     }
 }
@@ -83,9 +79,7 @@ async function createTestDatabase(): Promise<void> {
 }
 
 async function dropTestDatabase(): Promise<void> {
-    if (testDb) {
-        await testDb.destroy();
-    }
+    if (testDb) await testDb.destroy();
     const adminPool = new Pool({ connectionString: ADMIN_DATABASE_URL });
     await adminPool.query(`
         SELECT pg_terminate_backend(pg_stat_activity.pid)
@@ -99,94 +93,55 @@ async function dropTestDatabase(): Promise<void> {
 
 function createTestDb(): Kysely<Database> {
     return new Kysely<Database>({
-        dialect: new PostgresDialect({
-            pool: new Pool({ connectionString: TEST_DATABASE_URL }),
-        }),
+        dialect: new PostgresDialect({ pool: new Pool({ connectionString: TEST_DATABASE_URL }) }),
     });
 }
 
 async function runAppMigrations(db: Kysely<Database>): Promise<void> {
-    const migrator = new Migrator({
-        db,
-        provider: new StaticMigrationProvider(),
-    });
+    const migrator = new Migrator({ db, provider: new StaticMigrationProvider() });
     const { error } = await migrator.migrateToLatest();
     if (error) throw error;
 }
 
-// ─── Mock Response ────────────────────────────────────────────────────────────
-
-// Build a combined JSON payload that matches what processLogTask expects
 const COMBINED_PAYLOAD = JSON.stringify({
     standings: mockData.standings,
     matches: mockData.matches,
     sets: mockData.sets,
 });
 
-// ─── Seed Data IDs ────────────────────────────────────────────────────────────
-
 let PLATFORM_ID: string;
 let LEAGUE_ID: string;
 let SEASON_ID: string;
 let COMPETITION_ID: string;
 
-// ─── Test Suite ───────────────────────────────────────────────────────────────
-
 describe('Wave 4: Graphile Worker Integration', () => {
     beforeAll(async () => {
-        // 1. Create the test database
         await createTestDatabase();
         testDb = createTestDb();
-
-        // 2. Run Kysely app migrations (schema tables)
         await runAppMigrations(testDb);
+        await runMigrations({ connectionString: TEST_DATABASE_URL });
 
-        // 3. Run Graphile Worker migrations (graphile_worker schema)
-        await runMigrations({
-            connectionString: TEST_DATABASE_URL,
-        });
-
-        // 4. Seed the organization hierarchy
         const platform = await testDb
             .insertInto('platforms')
-            .values({
-                name: 'TT Leagues',
-                base_url: 'https://brentwood.ttleagues.com',
-            })
+            .values({ name: 'TT Leagues', base_url: 'https://brentwood.ttleagues.com' })
             .returning('id')
             .executeTakeFirstOrThrow();
         PLATFORM_ID = platform.id;
-
         const league = await testDb
             .insertInto('leagues')
-            .values({
-                platform_id: PLATFORM_ID,
-                external_id: '25',
-                name: 'Brentwood & District League',
-            })
+            .values({ platform_id: PLATFORM_ID, external_id: '25', name: 'Brentwood & District League' })
             .returning('id')
             .executeTakeFirstOrThrow();
         LEAGUE_ID = league.id;
-
         const season = await testDb
             .insertInto('seasons')
-            .values({
-                league_id: LEAGUE_ID,
-                external_id: '2019-2020',
-                name: 'Winter 2019/2020',
-            })
+            .values({ league_id: LEAGUE_ID, external_id: '2019-2020', name: 'Winter 2019/2020' })
             .returning('id')
             .executeTakeFirstOrThrow();
         SEASON_ID = season.id;
-
         const competition = await testDb
             .insertInto('competitions')
-            .values({
-                season_id: SEASON_ID,
-                external_id: '613',
-                name: 'Premier Division',
-                type: 'league',
-            })
+            .values({ season_id: SEASON_ID, external_id: '613', name: 'Premier Division', type: 'league' })
             .returning('id')
             .executeTakeFirstOrThrow();
         COMPETITION_ID = competition.id;
@@ -197,7 +152,6 @@ describe('Wave 4: Graphile Worker Integration', () => {
     }, 15_000);
 
     beforeEach(async () => {
-        // Clear job queue + relational data between tests
         await sql`DELETE FROM graphile_worker._private_jobs`.execute(testDb);
         await testDb.deleteFrom('rubbers').execute();
         await testDb.deleteFrom('league_standings').execute();
@@ -209,18 +163,11 @@ describe('Wave 4: Graphile Worker Integration', () => {
     });
 
     it('should execute scrapeUrlTask, populate raw_scrape_logs, and chain a processLogTask job', async () => {
-        // ── Arrange ──────────────────────────────────────────────────────
-        // Mock global fetch to return a valid combined TT Leagues payload
-        vi.stubGlobal(
-            'fetch',
-            vi.fn().mockResolvedValue({
-                ok: true,
-                status: 200,
-                text: () => Promise.resolve(COMBINED_PAYLOAD),
-            }),
-        );
-
-        // Manually insert a scrapeUrlTask job into the Graphile queue
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            text: () => Promise.resolve(COMBINED_PAYLOAD),
+        }));
         await sql`
             SELECT graphile_worker.add_job(
                 'scrapeUrlTask',
@@ -232,9 +179,6 @@ describe('Wave 4: Graphile Worker Integration', () => {
             )
         `.execute(testDb);
 
-        // ── Act: Run the worker once (processes scrapeUrlTask) ────────────
-        // We need to provide the task list since we're using library mode.
-        // Import the tasks dynamically to pick up the mocked fetch.
         const { extractAndStore } = await import('../extractor.js');
         const { parseTTLeaguesData } = await import('../parser.js');
         const { loadTTLeaguesData } = await import('../loader.js');
@@ -248,15 +192,10 @@ describe('Wave 4: Graphile Worker Integration', () => {
                         platformId: string;
                         competitionId: string;
                     };
-                    // Use the test database instead of the default db
                     const logId = await extractAndStore(url, platformId, testDb);
-                    await helpers.addJob('processLogTask', {
-                        logId,
-                        competitionId,
-                        platformId,
-                    });
+                    await helpers.addJob('processLogTask', { logId, competitionId, platformId });
                 },
-                processLogTask: async (payload, helpers) => {
+                processLogTask: async (payload) => {
                     const { logId, competitionId, platformId } = payload as {
                         logId: string;
                         competitionId: string;
@@ -269,14 +208,12 @@ describe('Wave 4: Graphile Worker Integration', () => {
                         .executeTakeFirst();
                     if (!log) throw new Error(`Log not found: ${logId}`);
                     if (log.status === 'processed') return;
-
                     const rawJson = JSON.parse(log.raw_payload);
                     const parsedData = parseTTLeaguesData({
                         standings: rawJson.standings,
                         matches: rawJson.matches,
                         sets: rawJson.sets ?? {},
                     });
-
                     await loadTTLeaguesData(testDb, {
                         competitionId,
                         platformId,
@@ -287,40 +224,20 @@ describe('Wave 4: Graphile Worker Integration', () => {
             },
         });
 
-        // ── Assert: Phase 1 results ──────────────────────────────────────
-        // 1. raw_scrape_logs should have exactly 1 row
-        const scrapeLogs = await testDb
-            .selectFrom('raw_scrape_logs')
-            .selectAll()
-            .execute();
+        const scrapeLogs = await testDb.selectFrom('raw_scrape_logs').selectAll().execute();
         expect(scrapeLogs).toHaveLength(1);
         expect(scrapeLogs[0].endpoint_url).toBe(
             'https://brentwood.ttleagues.com/api/divisions/1632/data',
         );
         expect(scrapeLogs[0].raw_payload).toBe(COMBINED_PAYLOAD);
+        expect(scrapeLogs[0].source_scope).toBe(`platform:${PLATFORM_ID}`);
         expect(scrapeLogs[0].status).toBe('processed');
-
-        // 2. fetch was called exactly once
         expect(vi.mocked(fetch)).toHaveBeenCalledOnce();
-
-        // ── Assert: Phase 2 results (chained processLogTask ran) ─────────
-        // The processLogTask should have been picked up by runOnce and processed
-        const teams = await testDb.selectFrom('teams').selectAll().execute();
-        expect(teams).toHaveLength(3);
-
-        const players = await testDb.selectFrom('external_players').selectAll().execute();
-        expect(players).toHaveLength(6);
-
-        const fixtures = await testDb.selectFrom('fixtures').selectAll().execute();
-        expect(fixtures).toHaveLength(2);
-
-        const rubbers = await testDb.selectFrom('rubbers').selectAll().execute();
-        expect(rubbers).toHaveLength(10);
-
-        const standings = await testDb.selectFrom('league_standings').selectAll().execute();
-        expect(standings).toHaveLength(3);
-
-        // 3. Log status should be 'processed'
+        expect(await testDb.selectFrom('teams').selectAll().execute()).toHaveLength(3);
+        expect(await testDb.selectFrom('external_players').selectAll().execute()).toHaveLength(6);
+        expect(await testDb.selectFrom('fixtures').selectAll().execute()).toHaveLength(2);
+        expect(await testDb.selectFrom('rubbers').selectAll().execute()).toHaveLength(10);
+        expect(await testDb.selectFrom('league_standings').selectAll().execute()).toHaveLength(3);
         const updatedLog = await testDb
             .selectFrom('raw_scrape_logs')
             .select(['id', 'status'])
@@ -329,20 +246,12 @@ describe('Wave 4: Graphile Worker Integration', () => {
     }, 60_000);
 
     it('should chain: scrapeUrlTask adds a processLogTask to the queue', async () => {
-        // ── Arrange ──────────────────────────────────────────────────────
-        vi.stubGlobal(
-            'fetch',
-            vi.fn().mockResolvedValue({
-                ok: true,
-                status: 200,
-                text: () => Promise.resolve(COMBINED_PAYLOAD),
-            }),
-        );
-
-        // Import extractor dynamically
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            text: () => Promise.resolve(COMBINED_PAYLOAD),
+        }));
         const { extractAndStore } = await import('../extractor.js');
-
-        // Manually insert a scrapeUrlTask job
         await sql`
             SELECT graphile_worker.add_job(
                 'scrapeUrlTask',
@@ -353,10 +262,7 @@ describe('Wave 4: Graphile Worker Integration', () => {
         })}::json
             )
         `.execute(testDb);
-
-        // ── Act: Run ONLY scrapeUrlTask (processLogTask is a no-op) ──────
         let chainedPayload: unknown = null;
-
         await runOnce({
             connectionString: TEST_DATABASE_URL,
             taskList: {
@@ -367,35 +273,19 @@ describe('Wave 4: Graphile Worker Integration', () => {
                         competitionId: string;
                     };
                     const logId = await extractAndStore(url, platformId, testDb);
-                    await helpers.addJob('processLogTask', {
-                        logId,
-                        competitionId,
-                        platformId,
-                    });
+                    await helpers.addJob('processLogTask', { logId, competitionId, platformId });
                 },
                 processLogTask: async (payload) => {
-                    // Capture the payload but don't actually process
                     chainedPayload = payload;
                 },
             },
         });
 
-        // ── Assert ───────────────────────────────────────────────────────
-        // 1. raw_scrape_logs populated
-        const scrapeLogs = await testDb
-            .selectFrom('raw_scrape_logs')
-            .selectAll()
-            .execute();
+        const scrapeLogs = await testDb.selectFrom('raw_scrape_logs').selectAll().execute();
         expect(scrapeLogs).toHaveLength(1);
         expect(scrapeLogs[0].status).toBe('pending');
-
-        // 2. processLogTask was chained with correct payload
         expect(chainedPayload).toBeTruthy();
-        const typed = chainedPayload as {
-            logId: string;
-            competitionId: string;
-            platformId: string;
-        };
+        const typed = chainedPayload as { logId: string; competitionId: string; platformId: string };
         expect(typed.logId).toBe(scrapeLogs[0].id);
         expect(typed.competitionId).toBe(COMPETITION_ID);
         expect(typed.platformId).toBe(PLATFORM_ID);

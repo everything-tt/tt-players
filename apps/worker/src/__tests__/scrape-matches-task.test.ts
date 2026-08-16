@@ -24,13 +24,14 @@ import * as m018 from '@tt-players/db/src/migrations/018_add_competition_event_d
 import * as m019 from '@tt-players/db/src/migrations/019_add_competition_source_fields.js';
 import * as m020 from '@tt-players/db/src/migrations/020_create_staging_schema.js';
 import * as m021 from '@tt-players/db/src/migrations/021_create_feedback_table.js';
+import * as m029 from '@tt-players/db/src/migrations/029_create_source_registry.js';
 import * as m052 from '@tt-players/db/src/migrations/052_add_raw_scrape_log_updated_at.js';
+import * as m057 from '@tt-players/db/src/migrations/057_scope_raw_scrape_evidence.js';
 
 import type { Database } from '@tt-players/db';
 import type { ScrapeMatchesPayload } from '../tasks/scrapeMatchesTask.js';
 
 const { Pool } = pg;
-
 const TEST_DB_NAME = 'tt_scrape_matches_task_test';
 const TEST_DATABASE_BASE_URL = process.env.TEST_DATABASE_BASE_URL ?? 'postgres://postgres:postgres@localhost:5432';
 const ADMIN_DATABASE_URL = `${TEST_DATABASE_BASE_URL}/postgres`;
@@ -61,7 +62,9 @@ class StaticMigrationProvider implements MigrationProvider {
             '019_add_competition_source_fields': m019,
             '020_create_staging_schema': m020,
             '021_create_feedback_table': m021,
+            '029_create_source_registry': m029,
             '052_add_raw_scrape_log_updated_at': m052,
+            '057_scope_raw_scrape_evidence': m057,
         };
     }
 }
@@ -140,9 +143,7 @@ async function dropTestDatabase(): Promise<void> {
 
 function createTestDb(): Kysely<Database> {
     return new Kysely<Database>({
-        dialect: new PostgresDialect({
-            pool: new Pool({ connectionString: TEST_DATABASE_URL }),
-        }),
+        dialect: new PostgresDialect({ pool: new Pool({ connectionString: TEST_DATABASE_URL }) }),
     });
 }
 
@@ -157,47 +158,28 @@ describe('scrapeMatchesTask batching', () => {
         await createTestDatabase();
         testDb = createTestDb();
         await runMigrations(testDb);
-
         const platform = await testDb
             .insertInto('platforms')
-            .values({
-                name: 'TT Leagues',
-                base_url: 'https://ttleagues-api.azurewebsites.net/api',
-            })
+            .values({ name: 'TT Leagues', base_url: 'https://ttleagues-api.azurewebsites.net/api' })
             .returning('id')
             .executeTakeFirstOrThrow();
         platformId = platform.id;
-
         const league = await testDb
             .insertInto('leagues')
-            .values({
-                platform_id: platformId,
-                external_id: 'chelmsford-ttl',
-                name: 'Chelmsford TTL',
-            })
+            .values({ platform_id: platformId, external_id: 'chelmsford-ttl', name: 'Chelmsford TTL' })
             .returning('id')
             .executeTakeFirstOrThrow();
         const season = await testDb
             .insertInto('seasons')
-            .values({
-                league_id: league.id,
-                external_id: '2025-26',
-                name: '2025-26',
-            })
+            .values({ league_id: league.id, external_id: '2025-26', name: '2025-26' })
             .returning('id')
             .executeTakeFirstOrThrow();
         const competition = await testDb
             .insertInto('competitions')
-            .values({
-                season_id: season.id,
-                external_id: '1632',
-                name: 'Division 1',
-                type: 'league',
-            })
+            .values({ season_id: season.id, external_id: '1632', name: 'Division 1', type: 'league' })
             .returning('id')
             .executeTakeFirstOrThrow();
         competitionId = competition.id;
-
         process.env['DATABASE_URL'] = TEST_DATABASE_URL;
         ({ scrapeMatchesTask } = await import('../tasks/scrapeMatchesTask.js'));
         ({ db: appDb } = await import('@tt-players/db'));
@@ -229,10 +211,7 @@ describe('scrapeMatchesTask batching', () => {
             })
             .executeTakeFirstOrThrow();
 
-        const matchesJson = {
-            groups: [],
-            matches: [buildMatch(1001), buildMatch(1002)],
-        };
+        const matchesJson = { groups: [], matches: [buildMatch(1001), buildMatch(1002)] };
         vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => {
             if (String(url) !== MATCHES_URL) throw new Error(`Unexpected fetch URL: ${url}`);
             return { ok: true, status: 200, json: async () => matchesJson } as Response;
@@ -246,11 +225,7 @@ describe('scrapeMatchesTask batching', () => {
             platformType: 'ttleagues',
             competitionId,
         };
-
-        await scrapeMatchesTask(payload, {
-            addJob,
-            logger: { info: () => undefined },
-        });
+        await scrapeMatchesTask(payload, { addJob, logger: { info: () => undefined } });
 
         expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
         expect(vi.mocked(fetch)).toHaveBeenCalledWith(MATCHES_URL, expect.anything());
@@ -258,21 +233,16 @@ describe('scrapeMatchesTask batching', () => {
             1,
             'processLogTask',
             expect.objectContaining({ platformType: 'ttleagues-bundle' }),
-            expect.objectContaining({
-                maxAttempts: 3,
-                jobKeyMode: 'unsafe_dedupe',
-            }),
+            expect.objectContaining({ maxAttempts: 3, jobKeyMode: 'unsafe_dedupe' }),
         );
         expect(addJob).toHaveBeenNthCalledWith(
             2,
             'scrapeMatchSetsBatchTask',
-            [
-                expect.objectContaining({
-                    divisionId: '1632',
-                    competitionId,
-                    match: expect.objectContaining({ id: 1002 }),
-                }),
-            ],
+            [expect.objectContaining({
+                divisionId: '1632',
+                competitionId,
+                match: expect.objectContaining({ id: 1002 }),
+            })],
             expect.objectContaining({
                 maxAttempts: 3,
                 jobKeyMode: 'unsafe_dedupe',
@@ -282,7 +252,7 @@ describe('scrapeMatchesTask batching', () => {
 
         const log = await testDb
             .selectFrom('raw_scrape_logs')
-            .select(['raw_payload'])
+            .select(['raw_payload', 'request_fingerprint', 'http_status'])
             .where('endpoint_url', 'like', '%snapshot=fixtures')
             .executeTakeFirstOrThrow();
         const snapshot = JSON.parse(log.raw_payload) as {
@@ -291,6 +261,8 @@ describe('scrapeMatchesTask batching', () => {
         };
         expect(snapshot.matches.matches.map(({ id }) => id)).toEqual([1001, 1002]);
         expect(snapshot.sets).toEqual({});
+        expect(log.request_fingerprint).toBeTruthy();
+        expect(log.http_status).toBe(200);
     });
 
     it('queues stale completed fixtures for bounded result fetching', async () => {
@@ -326,15 +298,8 @@ describe('scrapeMatchesTask batching', () => {
         expect(addJob).toHaveBeenNthCalledWith(
             2,
             'scrapeMatchSetsBatchTask',
-            [
-                expect.objectContaining({
-                    match: expect.objectContaining({ id: 1001 }),
-                }),
-            ],
-            expect.objectContaining({
-                maxAttempts: 3,
-                jobKeyMode: 'unsafe_dedupe',
-            }),
+            [expect.objectContaining({ match: expect.objectContaining({ id: 1001 }) })],
+            expect.objectContaining({ maxAttempts: 3, jobKeyMode: 'unsafe_dedupe' }),
         );
     });
 });
