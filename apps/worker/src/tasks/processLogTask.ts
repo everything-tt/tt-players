@@ -10,7 +10,6 @@ import {
 } from '../tt365-parser.js';
 import { fetchWithTT365Policy } from '../tt365-http.js';
 import { loadTTLeaguesData } from '../loader.js';
-import { reconcilePlayersByName } from '../player-reconciler.js';
 
 const TT365_RECHECK_UPCOMING_MS = 12 * 60 * 60 * 1000; // 12h
 const TT365_RECHECK_POSTPONED_MS = 2 * 24 * 60 * 60 * 1000; // 2d
@@ -213,10 +212,6 @@ async function processTTLeagues(
             parsedData,
             scrapeLogIds: [logId],
         });
-
-        if (parsedData.players.length > 0) {
-            await reconcilePlayersByName(db, helpers.logger);
-        }
     }
 
     helpers.logger.info(`processLogTask: TT Leagues log ${logId} processed successfully`);
