@@ -1,8 +1,6 @@
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import type { Database, FixtureStatus } from '@tt-players/db';
 import type { ParsedTTLeaguesData } from './parser.js';
-
-// ─── Input Type ───────────────────────────────────────────────────────────────
 
 export interface LoadTTLeaguesOptions {
     competitionId: string;
@@ -17,73 +15,44 @@ export function resolveFixtureStatusForLoad(
     existingStatus: FixtureStatus | null,
 ): FixtureStatus {
     if (
-        incomingStatus === 'upcoming'
-        && !hasRubbers
-        && existingStatus === 'completed'
+        existingStatus === 'completed'
+        && incomingStatus !== 'completed'
     ) {
         return 'completed';
     }
     return incomingStatus;
 }
 
-// ─── Loader ───────────────────────────────────────────────────────────────────
-
 /**
- * Loads parsed TT Leagues data into the database using a single transaction.
- * All UPSERTs use composite unique constraints for idempotency.
+ * Loads normalized result data atomically.
  *
- * On success: marks raw_scrape_logs as 'processed'.
- * On failure: marks raw_scrape_logs as 'failed' (outside the rolled-back tx).
+ * Identity-bearing rows are written with database-enforced UPSERTs so retries
+ * and concurrent workers converge. Source players without a stable external ID
+ * are deliberately not materialized: callers must provide a stable source ID
+ * before a player can participate in the canonical player graph.
  */
 export async function loadTTLeaguesData(
     db: Kysely<Database>,
     options: LoadTTLeaguesOptions,
 ): Promise<void> {
     const { competitionId, platformId, parsedData, scrapeLogIds } = options;
-    const fixtureExternalIdsWithRubbers = new Set(
-        parsedData.rubbers.map((rubber) => rubber.matchExternalId),
-    );
-    const ambiguousUpcomingFixtureExternalIds = parsedData.fixtures
-        .filter(
-            (fixture) => fixture.status === 'upcoming'
-                && !fixtureExternalIdsWithRubbers.has(fixture.externalId),
-        )
-        .map((fixture) => fixture.externalId);
 
     try {
         await db.transaction().execute(async (trx) => {
-            const existingFixtureStatusByExternalId = new Map<string, FixtureStatus>();
-            if (ambiguousUpcomingFixtureExternalIds.length > 0) {
-                const existingFixtures = await trx
-                    .selectFrom('fixtures')
-                    .select(['external_id', 'status'])
-                    .where('competition_id', '=', competitionId)
-                    .where('external_id', 'in', ambiguousUpcomingFixtureExternalIds)
-                    .execute();
-
-                for (const fixture of existingFixtures) {
-                    existingFixtureStatusByExternalId.set(
-                        fixture.external_id,
-                        fixture.status,
-                    );
-                }
-            }
-
-            // ── 1. UPSERT teams ───────────────────────────────────────────
-            const teamIdMap = new Map<string, string>(); // externalId → DB UUID
+            const teamIdMap = new Map<string, string>();
 
             if (parsedData.teams.length > 0) {
                 const teamRows = await trx
                     .insertInto('teams')
                     .values(
-                        parsedData.teams.map((t) => ({
+                        parsedData.teams.map((team) => ({
                             competition_id: competitionId,
-                            external_id: t.externalId,
-                            name: t.name,
+                            external_id: team.externalId,
+                            name: team.name,
                         })),
                     )
-                    .onConflict((oc) =>
-                        oc.columns(['competition_id', 'external_id']).doUpdateSet({
+                    .onConflict((conflict) =>
+                        conflict.columns(['competition_id', 'external_id']).doUpdateSet({
                             name: (eb) => eb.ref('excluded.name'),
                         }),
                     )
@@ -95,117 +64,92 @@ export async function loadTTLeaguesData(
                 }
             }
 
-            // ── 2. UPSERT external_players ────────────────────────────────
-            const playerIdMap = new Map<string, string>(); // externalId → DB UUID
+            const playerIdMap = new Map<string, string>();
+            const sourceLinkedPlayers = parsedData.players.filter(
+                (player) => player.externalId != null && player.externalId !== '',
+            );
 
-            if (parsedData.players.length > 0) {
-                // Split players with external_id from those without
-                const playersWithExtId = parsedData.players.filter(
-                    (p) => p.externalId != null && p.externalId !== '',
-                );
-                const playersWithoutExtId = parsedData.players.filter(
-                    (p) => p.externalId == null || p.externalId === '',
-                );
-
-                // UPSERT players with external_id (use partial unique index)
-                if (playersWithExtId.length > 0) {
-                    const playerRows = await trx
-                        .insertInto('external_players')
-                        .values(
-                            playersWithExtId.map((p) => ({
-                                platform_id: platformId,
-                                external_id: p.externalId,
-                                name: p.name,
+            if (sourceLinkedPlayers.length > 0) {
+                const playerRows = await trx
+                    .insertInto('external_players')
+                    .values(
+                        sourceLinkedPlayers.map((player) => ({
+                            platform_id: platformId,
+                            external_id: player.externalId,
+                            name: player.name,
+                            updated_at: new Date(),
+                        })),
+                    )
+                    .onConflict((conflict) =>
+                        conflict
+                            .columns(['platform_id', 'external_id'])
+                            .where('external_id', 'is not', null)
+                            .doUpdateSet({
+                                name: (eb) => eb.ref('excluded.name'),
                                 updated_at: new Date(),
-                            })),
-                        )
-                        .onConflict((oc) =>
-                            oc
-                                .columns(['platform_id', 'external_id'])
-                                .where('external_id', 'is not', null)
-                                .doUpdateSet({
-                                    name: (eb) => eb.ref('excluded.name'),
-                                    updated_at: new Date(),
-                                }),
-                        )
-                        .returning(['id', 'external_id'])
-                        .execute();
+                            }),
+                    )
+                    .returning(['id', 'external_id'])
+                    .execute();
 
-                    for (const row of playerRows) {
-                        if (row.external_id) {
-                            playerIdMap.set(row.external_id, row.id);
-                        }
-                    }
-                }
-
-                // INSERT players without external_id (no dedup possible)
-                if (playersWithoutExtId.length > 0) {
-                    const playerRows = await trx
-                        .insertInto('external_players')
-                        .values(
-                            playersWithoutExtId.map((p) => ({
-                                platform_id: platformId,
-                                external_id: null,
-                                name: p.name,
-                                updated_at: new Date(),
-                            })),
-                        )
-                        .returning(['id', 'name'])
-                        .execute();
-
-                    // Map by name as fallback for unnamed players
-                    for (const row of playerRows) {
-                        playerIdMap.set(`unnamed_${row.name}`, row.id);
-                    }
+                for (const row of playerRows) {
+                    if (row.external_id) playerIdMap.set(row.external_id, row.id);
                 }
             }
 
-            // ── 3. UPSERT fixtures ────────────────────────────────────────
-            const fixtureIdMap = new Map<string, string>(); // externalId → DB UUID
-
+            const fixtureIdMap = new Map<string, string>();
             if (parsedData.fixtures.length > 0) {
                 const fixtureRows = await trx
                     .insertInto('fixtures')
                     .values(
-                        parsedData.fixtures.map((f) => {
-                            const homeTeamId = f.homeTeamExternalId
-                                ? teamIdMap.get(f.homeTeamExternalId)
+                        parsedData.fixtures.map((fixture) => {
+                            const homeTeamId = fixture.homeTeamExternalId
+                                ? teamIdMap.get(fixture.homeTeamExternalId)
                                 : null;
-                            const awayTeamId = f.awayTeamExternalId
-                                ? teamIdMap.get(f.awayTeamExternalId)
+                            const awayTeamId = fixture.awayTeamExternalId
+                                ? teamIdMap.get(fixture.awayTeamExternalId)
                                 : null;
 
-                            if ((f.homeTeamExternalId && !homeTeamId) || (f.awayTeamExternalId && !awayTeamId)) {
+                            if (
+                                (fixture.homeTeamExternalId && !homeTeamId)
+                                || (fixture.awayTeamExternalId && !awayTeamId)
+                            ) {
                                 throw new Error(
-                                    `Team not found for fixture ${f.externalId}: ` +
-                                    `home=${f.homeTeamExternalId} (${homeTeamId}), ` +
-                                    `away=${f.awayTeamExternalId} (${awayTeamId})`,
+                                    `Team not found for fixture ${fixture.externalId}: `
+                                    + `home=${fixture.homeTeamExternalId} (${homeTeamId}), `
+                                    + `away=${fixture.awayTeamExternalId} (${awayTeamId})`,
                                 );
                             }
 
                             return {
                                 competition_id: competitionId,
-                                external_id: f.externalId,
+                                external_id: fixture.externalId,
                                 home_team_id: homeTeamId,
                                 away_team_id: awayTeamId,
-                                date_played: f.datePlayed,
-                                status: resolveFixtureStatusForLoad(
-                                    f.status,
-                                    fixtureExternalIdsWithRubbers.has(f.externalId),
-                                    existingFixtureStatusByExternalId.get(f.externalId) ?? null,
-                                ),
-                                round_name: f.roundName,
-                                round_order: f.roundOrder,
+                                date_played: fixture.datePlayed,
+                                status: fixture.status,
+                                round_name: fixture.roundName,
+                                round_order: fixture.roundOrder,
                                 updated_at: new Date(),
                             };
                         }),
                     )
-                    .onConflict((oc) =>
-                        oc.columns(['competition_id', 'external_id']).doUpdateSet({
+                    .onConflict((conflict) =>
+                        conflict.columns(['competition_id', 'external_id']).doUpdateSet({
                             home_team_id: (eb) => eb.ref('excluded.home_team_id'),
                             away_team_id: (eb) => eb.ref('excluded.away_team_id'),
                             date_played: (eb) => eb.ref('excluded.date_played'),
-                            status: (eb) => eb.ref('excluded.status'),
+                            // Scraper writes are monotonic once a fixture is
+                            // completed. Reopening/correction is an explicit
+                            // operator/domain action, never an effect of a stale
+                            // source snapshot. Keeping this in SQL makes the
+                            // rule replica-safe regardless of writer ordering.
+                            status: sql<FixtureStatus>`case
+                                when fixtures.status = 'completed'
+                                 and excluded.status <> 'completed'
+                                then fixtures.status
+                                else excluded.status
+                            end`,
                             round_name: (eb) => eb.ref('excluded.round_name'),
                             round_order: (eb) => eb.ref('excluded.round_order'),
                             updated_at: new Date(),
@@ -219,55 +163,53 @@ export async function loadTTLeaguesData(
                 }
             }
 
-            // ── 4. UPSERT rubbers ─────────────────────────────────────────
             if (parsedData.rubbers.length > 0) {
                 await trx
                     .insertInto('rubbers')
                     .values(
-                        parsedData.rubbers.map((r) => {
-                            const fixtureId = fixtureIdMap.get(r.matchExternalId);
+                        parsedData.rubbers.map((rubber) => {
+                            const fixtureId = fixtureIdMap.get(rubber.matchExternalId);
                             if (!fixtureId) {
                                 throw new Error(
-                                    `Fixture not found for rubber ${r.externalId}: ` +
-                                    `matchExternalId=${r.matchExternalId}`,
+                                    `Fixture not found for rubber ${rubber.externalId}: `
+                                    + `matchExternalId=${rubber.matchExternalId}`,
                                 );
                             }
 
-                            const homePlayer1Id = r.homePlayers[0]
-                                ? playerIdMap.get(r.homePlayers[0]) ?? null
+                            const homePlayer1Id = rubber.homePlayers[0]
+                                ? playerIdMap.get(rubber.homePlayers[0]) ?? null
                                 : null;
-                            const awayPlayer1Id = r.awayPlayers[0]
-                                ? playerIdMap.get(r.awayPlayers[0]) ?? null
+                            const awayPlayer1Id = rubber.awayPlayers[0]
+                                ? playerIdMap.get(rubber.awayPlayers[0]) ?? null
                                 : null;
-
-                            const homePlayer2Id = r.isDoubles && r.homePlayers[1]
-                                ? playerIdMap.get(r.homePlayers[1]) ?? null
+                            const homePlayer2Id = rubber.isDoubles && rubber.homePlayers[1]
+                                ? playerIdMap.get(rubber.homePlayers[1]) ?? null
                                 : null;
-                            const awayPlayer2Id = r.isDoubles && r.awayPlayers[1]
-                                ? playerIdMap.get(r.awayPlayers[1]) ?? null
+                            const awayPlayer2Id = rubber.isDoubles && rubber.awayPlayers[1]
+                                ? playerIdMap.get(rubber.awayPlayers[1]) ?? null
                                 : null;
 
                             return {
                                 fixture_id: fixtureId,
-                                external_id: r.externalId,
-                                is_doubles: r.isDoubles,
+                                external_id: rubber.externalId,
+                                is_doubles: rubber.isDoubles,
                                 home_player_1_id: homePlayer1Id,
                                 home_player_2_id: homePlayer2Id,
                                 away_player_1_id: awayPlayer1Id,
                                 away_player_2_id: awayPlayer2Id,
-                                home_games_won: r.homeGamesWon,
-                                away_games_won: r.awayGamesWon,
+                                home_games_won: rubber.homeGamesWon,
+                                away_games_won: rubber.awayGamesWon,
                                 home_points_scored: null,
                                 away_points_scored: null,
-                                outcome_type: r.outcomeType,
-                                score_source: r.scoreSource ?? 'games',
-                                played_at: r.playedAt ?? null,
+                                outcome_type: rubber.outcomeType,
+                                score_source: rubber.scoreSource ?? 'games',
+                                played_at: rubber.playedAt ?? null,
                                 updated_at: new Date(),
                             };
                         }),
                     )
-                    .onConflict((oc) =>
-                        oc.columns(['fixture_id', 'external_id']).doUpdateSet({
+                    .onConflict((conflict) =>
+                        conflict.columns(['fixture_id', 'external_id']).doUpdateSet({
                             is_doubles: (eb) => eb.ref('excluded.is_doubles'),
                             home_player_1_id: (eb) => eb.ref('excluded.home_player_1_id'),
                             home_player_2_id: (eb) => eb.ref('excluded.home_player_2_id'),
@@ -284,34 +226,32 @@ export async function loadTTLeaguesData(
                     .execute();
             }
 
-            // ── 5. UPSERT league_standings ────────────────────────────────
             if (parsedData.standings.length > 0) {
                 await trx
                     .insertInto('league_standings')
                     .values(
-                        parsedData.standings.map((s) => {
-                            const teamId = teamIdMap.get(s.teamExternalId);
+                        parsedData.standings.map((standing) => {
+                            const teamId = teamIdMap.get(standing.teamExternalId);
                             if (!teamId) {
                                 throw new Error(
-                                    `Team not found for standing: teamExternalId=${s.teamExternalId}`,
+                                    `Team not found for standing: teamExternalId=${standing.teamExternalId}`,
                                 );
                             }
-
                             return {
                                 competition_id: competitionId,
                                 team_id: teamId,
-                                position: s.position,
-                                played: s.played,
-                                won: s.won,
-                                drawn: s.drawn,
-                                lost: s.lost,
-                                points: s.points,
+                                position: standing.position,
+                                played: standing.played,
+                                won: standing.won,
+                                drawn: standing.drawn,
+                                lost: standing.lost,
+                                points: standing.points,
                                 updated_at: new Date(),
                             };
                         }),
                     )
-                    .onConflict((oc) =>
-                        oc.columns(['competition_id', 'team_id']).doUpdateSet({
+                    .onConflict((conflict) =>
+                        conflict.columns(['competition_id', 'team_id']).doUpdateSet({
                             position: (eb) => eb.ref('excluded.position'),
                             played: (eb) => eb.ref('excluded.played'),
                             won: (eb) => eb.ref('excluded.won'),
@@ -324,7 +264,6 @@ export async function loadTTLeaguesData(
                     .execute();
             }
 
-            // ── 6. Mark scrape logs as processed ──────────────────────────
             if (scrapeLogIds.length > 0) {
                 await trx
                     .updateTable('staging.raw_scrape_logs')
@@ -334,15 +273,14 @@ export async function loadTTLeaguesData(
             }
         });
     } catch (error) {
-        // Transaction rolled back — mark scrape logs as 'failed' outside the tx
         if (scrapeLogIds.length > 0) {
             await db
                 .updateTable('staging.raw_scrape_logs')
                 .set({ status: 'failed', updated_at: new Date() })
                 .where('id', 'in', scrapeLogIds)
+                .where('status', '!=', 'processed')
                 .execute();
         }
-
         throw error;
     }
 }
