@@ -30,7 +30,17 @@ export async function up(db: Kysely<any>): Promise<void> {
     await sql`
         ALTER TABLE staging.raw_scrape_logs
             ADD CONSTRAINT ck_raw_scrape_logs_http_status
-            CHECK (http_status IS NULL OR http_status BETWEEN 100 AND 599)
+            CHECK (http_status IS NULL OR http_status BETWEEN 100 AND 599),
+            ADD CONSTRAINT ck_raw_scrape_logs_identity_pair
+            CHECK ((source_scope IS NULL) = (request_fingerprint IS NULL)),
+            ADD CONSTRAINT ck_raw_scrape_logs_resource_scope
+            CHECK (
+                source_resource_id IS NULL
+                OR (
+                    source_scope IS NOT NULL
+                    AND source_scope = 'resource:' || source_resource_id::text
+                )
+            )
     `.execute(db);
 
     // Preserve the old no-header GET identity for existing evidence so the
@@ -80,18 +90,20 @@ export async function down(db: Kysely<any>): Promise<void> {
     await sql`
         ALTER TABLE staging.raw_scrape_logs
             DROP CONSTRAINT IF EXISTS uq_raw_scrape_logs_source_request_hash,
+            DROP CONSTRAINT IF EXISTS ck_raw_scrape_logs_resource_scope,
+            DROP CONSTRAINT IF EXISTS ck_raw_scrape_logs_identity_pair,
             DROP CONSTRAINT IF EXISTS ck_raw_scrape_logs_http_status,
             DROP CONSTRAINT IF EXISTS fk_raw_scrape_logs_source_resource
     `.execute(db);
 
     // The old schema cannot represent two source-scoped rows with the same
-    // URL/content pair. Collapse only for an explicit downgrade.
+    // URL/content pair. Retain the most recently observed row on downgrade.
     await sql`
-        DELETE FROM staging.raw_scrape_logs newer
-        USING staging.raw_scrape_logs older
-        WHERE newer.endpoint_url = older.endpoint_url
-          AND newer.payload_hash = older.payload_hash
-          AND (newer.scraped_at, newer.id::text) > (older.scraped_at, older.id::text)
+        DELETE FROM staging.raw_scrape_logs older
+        USING staging.raw_scrape_logs newer
+        WHERE older.endpoint_url = newer.endpoint_url
+          AND older.payload_hash = newer.payload_hash
+          AND (older.scraped_at, older.id::text) < (newer.scraped_at, newer.id::text)
     `.execute(db);
 
     await sql`

@@ -209,6 +209,69 @@ describe('raw scrape evidence identity', () => {
         expect(second).not.toBe(first);
     });
 
+    it('rejects a partially populated source/request identity', async () => {
+        await expect(
+            testDb
+                .insertInto('staging.raw_scrape_logs')
+                .values({
+                    platform_id: platformId,
+                    endpoint_url: `${URL}?partial-identity=1`,
+                    raw_payload: BODY,
+                    payload_hash: 'a'.repeat(64),
+                    source_scope: `platform:${platformId}`,
+                    request_fingerprint: null,
+                    status: 'pending',
+                    updated_at: new Date(),
+                })
+                .execute(),
+        ).rejects.toThrow(/ck_raw_scrape_logs_identity_pair/);
+    });
+
+    it('rejects source resources paired with a conflicting source scope', async () => {
+        const instance = await testDb
+            .insertInto('source_instances')
+            .values({
+                platform_id: platformId,
+                key: 'tt-leagues-scope-test',
+                name: 'TT Leagues scope test',
+                base_url: 'https://ttleagues-api.azurewebsites.net',
+                adapter_key: 'tt-leagues',
+                config: {},
+            })
+            .returning('id')
+            .executeTakeFirstOrThrow();
+        const resource = await testDb
+            .insertInto('source_resources')
+            .values({
+                source_instance_id: instance.id,
+                resource_type: 'fixtures',
+                external_id: 'division-scope-test',
+                name: 'Division scope test',
+                public_url: URL,
+                adapter_version: '1.0.0',
+                refresh_policy: {},
+            })
+            .returning('id')
+            .executeTakeFirstOrThrow();
+
+        await expect(
+            testDb
+                .insertInto('staging.raw_scrape_logs')
+                .values({
+                    platform_id: platformId,
+                    endpoint_url: `${URL}?scope-mismatch=1`,
+                    raw_payload: BODY,
+                    payload_hash: 'b'.repeat(64),
+                    source_resource_id: resource.id,
+                    source_scope: `platform:${platformId}`,
+                    request_fingerprint: 'scope-mismatch',
+                    status: 'pending',
+                    updated_at: new Date(),
+                })
+                .execute(),
+        ).rejects.toThrow(/ck_raw_scrape_logs_resource_scope/);
+    });
+
     it('scopes identical request/content to distinct source resources', async () => {
         const instance = await testDb
             .insertInto('source_instances')
@@ -277,5 +340,55 @@ describe('raw scrape evidence identity', () => {
         );
         expect(rows.every((row) => row.adapter_version === '1.0.0')).toBe(true);
         expect(rows.every((row) => row.http_status === 200)).toBe(true);
+    });
+
+    it('retains the most recent duplicate when rolling back source-aware identity', async () => {
+        const rollbackUrl = `${URL}?rollback=1`;
+        const oldTime = new Date('2026-01-01T00:00:00.000Z');
+        const newTime = new Date('2026-01-02T00:00:00.000Z');
+        const payloadHash = 'c'.repeat(64);
+
+        await testDb
+            .insertInto('staging.raw_scrape_logs')
+            .values([
+                {
+                    platform_id: platformId,
+                    endpoint_url: rollbackUrl,
+                    raw_payload: BODY,
+                    payload_hash: payloadHash,
+                    source_scope: 'rollback:old',
+                    request_fingerprint: 'same-request',
+                    scraped_at: oldTime,
+                    status: 'failed',
+                    updated_at: oldTime,
+                },
+                {
+                    platform_id: platformId,
+                    endpoint_url: rollbackUrl,
+                    raw_payload: BODY,
+                    payload_hash: payloadHash,
+                    source_scope: 'rollback:new',
+                    request_fingerprint: 'same-request',
+                    scraped_at: newTime,
+                    status: 'processed',
+                    updated_at: newTime,
+                },
+            ])
+            .execute();
+
+        try {
+            await m057.down(testDb);
+            const rows = await testDb
+                .selectFrom('raw_scrape_logs')
+                .select(['status', 'scraped_at'])
+                .where('endpoint_url', '=', rollbackUrl)
+                .execute();
+
+            expect(rows).toHaveLength(1);
+            expect(rows[0].status).toBe('processed');
+            expect(new Date(rows[0].scraped_at).getTime()).toBe(newTime.getTime());
+        } finally {
+            await m057.up(testDb);
+        }
     });
 });
