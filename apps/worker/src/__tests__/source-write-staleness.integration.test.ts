@@ -8,10 +8,7 @@ import {
     recordSourceResourceFailure,
     recordSourceResourceSuccess,
 } from '../sources/registry.js';
-import {
-    upsertVettsSeparateCompetition,
-    type VettsCompetitionResolution,
-} from '../vetts-loader.js';
+import { upsertVettsSeparateCompetition } from '../vetts-loader.js';
 import type { VettsTournamentMetadata } from '../vetts-parser.js';
 
 const { Pool } = pg;
@@ -206,12 +203,13 @@ describe('source write stale-writer contracts', () => {
         expect(outcomes.filter((outcome) => outcome === 'created')).toHaveLength(1);
         expect(outcomes.filter((outcome) => outcome === 'unchanged')).toHaveLength(7);
 
-        const competitions = await database
+        const dynamicDb = database as Kysely<any>;
+        const competitions = await dynamicDb
             .selectFrom('competitions')
             .select(['id', 'external_id'])
             .where('external_id', '=', `tte:event:${tteEvent.sourceKey}`)
             .execute();
-        const sources = await database
+        const sources = await dynamicDb
             .selectFrom('tournament_sources')
             .select(['competition_id'])
             .where('provider', '=', 'tte')
@@ -226,30 +224,31 @@ describe('source write stale-writer contracts', () => {
 
     it('does not let a late VETTS bootstrap refresh regress an established result lifecycle', async () => {
         const seasonId = await seedSeason();
+        const dynamicDb = database as Kysely<any>;
         const competitionId = await upsertVettsSeparateCompetition(
-            database as Kysely<any>,
+            dynamicDb,
             seasonId,
             vettsMetadata,
         );
         const processedAt = new Date('2026-01-12T10:00:00Z');
 
-        await database
+        await dynamicDb
             .updateTable('competitions')
             .set({
-                record_kind: 'result' as never,
-                event_status: 'completed' as never,
+                record_kind: 'result',
+                event_status: 'completed',
                 processed_at: processedAt,
             })
             .where('id', '=', competitionId)
             .execute();
 
         await upsertVettsSeparateCompetition(
-            database as Kysely<any>,
+            dynamicDb,
             seasonId,
             { ...vettsMetadata, name: 'VETTS Test Tournament Updated' },
         );
 
-        const row = await database
+        const row = await dynamicDb
             .selectFrom('competitions')
             .select(['name', 'record_kind', 'event_status', 'processed_at'])
             .where('id', '=', competitionId)
@@ -257,7 +256,7 @@ describe('source write stale-writer contracts', () => {
         expect(row.name).toBe('VETTS Test Tournament Updated');
         expect(row.record_kind).toBe('result');
         expect(row.event_status).toBe('completed');
-        expect(new Date(row.processed_at!).getTime()).toBe(processedAt.getTime());
+        expect(new Date(row.processed_at).getTime()).toBe(processedAt.getTime());
     });
 
     it('ignores an older source failure after a newer success', async () => {
