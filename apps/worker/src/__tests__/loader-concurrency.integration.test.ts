@@ -11,7 +11,10 @@ import * as m004 from '@tt-players/db/src/migrations/004_create_raw_scrape_logs.
 import * as m005 from '@tt-players/db/src/migrations/005_make_rubber_players_nullable.js';
 import * as m006 from '@tt-players/db/src/migrations/006_add_canonical_player_id_to_external_players.js';
 import * as m013 from '@tt-players/db/src/migrations/013_add_rubber_score_source.js';
+import * as m014 from '@tt-players/db/src/migrations/014_create_ranking_history_tables.js';
 import * as m015 from '@tt-players/db/src/migrations/015_add_rubber_played_at.js';
+import * as m016 from '@tt-players/db/src/migrations/016_create_sport80_event_scrape_state.js';
+import * as m017 from '@tt-players/db/src/migrations/017_create_source_event_staging_tables.js';
 import * as m020 from '@tt-players/db/src/migrations/020_create_staging_schema.js';
 import * as m052 from '@tt-players/db/src/migrations/052_add_raw_scrape_log_updated_at.js';
 import type { Database } from '@tt-players/db';
@@ -34,7 +37,10 @@ class Provider implements MigrationProvider {
             '005_make_rubber_players_nullable': m005,
             '006_add_canonical_player_id_to_external_players': m006,
             '013_add_rubber_score_source': m013,
+            '014_create_ranking_history_tables': m014,
             '015_add_rubber_played_at': m015,
+            '016_create_sport80_event_scrape_state': m016,
+            '017_create_source_event_staging_tables': m017,
             '020_create_staging_schema': m020,
             '052_add_raw_scrape_log_updated_at': m052,
         };
@@ -209,20 +215,15 @@ describe('shared loader concurrency contracts', () => {
 
     it('does not materialize players without stable source identity', async () => {
         const log = await rawLog('anonymous');
-        await load({
+        const data: ParsedTTLeaguesData = {
             ...baseData,
             players: [
                 ...baseData.players,
                 { externalId: null, name: 'Unregistered Reserve' },
             ],
-        }, [log.id]);
-        await load({
-            ...baseData,
-            players: [
-                ...baseData.players,
-                { externalId: null, name: 'Unregistered Reserve' },
-            ],
-        }, [log.id]);
+        };
+        await load(data, [log.id]);
+        await load(data, [log.id]);
 
         const players = await database.selectFrom('external_players')
             .select(['external_id', 'name'])
