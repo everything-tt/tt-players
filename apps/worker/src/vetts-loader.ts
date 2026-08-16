@@ -2,6 +2,7 @@ import { sql, type Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
 import { chooseTournamentCandidate } from './tournament-reconciliation.js';
 import type { VettsMatchResult, VettsTournamentMetadata } from './vetts-parser.js';
+import { ensureSourcePlatform } from './source-platform.js';
 
 export const VETTS_PLATFORM_NAME = 'Tournament Software';
 export const VETTS_PLATFORM_BASE_URL = 'https://www.tournamentsoftware.com';
@@ -43,33 +44,13 @@ export function deriveVettsRecordKind(
 }
 
 export async function upsertVettsPlatform(db: Kysely<Database>): Promise<string> {
-    const existing = await db
-        .selectFrom('platforms')
-        .select('id')
-        .where('base_url', '=', VETTS_PLATFORM_BASE_URL)
-        .executeTakeFirst();
-    if (existing) return existing.id;
-
-    return db
-        .insertInto('platforms')
-        .values({ name: VETTS_PLATFORM_NAME, base_url: VETTS_PLATFORM_BASE_URL })
-        .returning('id')
-        .executeTakeFirstOrThrow()
-        .then((row) => row.id);
+    return ensureSourcePlatform(db, VETTS_PLATFORM_NAME, VETTS_PLATFORM_BASE_URL);
 }
 
 export async function upsertVettsLeague(
     db: Kysely<Database>,
     platformId: string,
 ): Promise<string> {
-    const existing = await db
-        .selectFrom('leagues')
-        .select('id')
-        .where('platform_id', '=', platformId)
-        .where('external_id', '=', VETTS_LEAGUE_EXTERNAL_ID)
-        .executeTakeFirst();
-    if (existing) return existing.id;
-
     return db
         .insertInto('leagues')
         .values({
@@ -77,6 +58,11 @@ export async function upsertVettsLeague(
             external_id: VETTS_LEAGUE_EXTERNAL_ID,
             name: VETTS_LEAGUE_NAME,
         })
+        .onConflict((oc) =>
+            oc.columns(['platform_id', 'external_id']).doUpdateSet({
+                name: VETTS_LEAGUE_NAME,
+            }),
+        )
         .returning('id')
         .executeTakeFirstOrThrow()
         .then((row) => row.id);
@@ -90,17 +76,21 @@ export async function upsertVettsSeason(
     const year = startDate?.match(/^(\d{4})/)?.[1] ?? 'unknown';
     const externalId = `vetts-${year}`;
     const name = year === 'unknown' ? 'VETTS Unknown Season' : `VETTS ${year}`;
-    const existing = await db
-        .selectFrom('seasons')
-        .select('id')
-        .where('league_id', '=', leagueId)
-        .where('external_id', '=', externalId)
-        .executeTakeFirst();
-    if (existing) return existing.id;
 
     return db
         .insertInto('seasons')
-        .values({ league_id: leagueId, external_id: externalId, name, is_active: year !== 'unknown' })
+        .values({
+            league_id: leagueId,
+            external_id: externalId,
+            name,
+            is_active: year !== 'unknown',
+        })
+        .onConflict((oc) =>
+            oc.columns(['league_id', 'external_id']).doUpdateSet({
+                name,
+                is_active: year !== 'unknown',
+            }),
+        )
         .returning('id')
         .executeTakeFirstOrThrow()
         .then((row) => row.id);
@@ -195,16 +185,6 @@ async function recordReviewCandidate(
     candidate: { id: string; venue: string | null },
     score: { name: number; date: number; venue: number; category: number; total: number },
 ): Promise<void> {
-    const existing = await database
-        .selectFrom('tournament_match_candidates')
-        .select('id')
-        .where('incoming_provider', '=', 'vetts')
-        .where('incoming_external_id', '=', metadata.tournamentId)
-        .where('candidate_competition_id', '=', candidate.id)
-        .where('status', '=', 'pending')
-        .executeTakeFirst();
-    if (existing) return;
-
     await database
         .insertInto('tournament_match_candidates')
         .values({
@@ -223,6 +203,13 @@ async function recordReviewCandidate(
             total_score: score.total,
             status: 'pending',
         })
+        .onConflict((conflict: any) =>
+            conflict
+                .columns(['incoming_provider', 'incoming_external_id', 'candidate_competition_id'])
+                .where('status', '=', 'pending')
+                .where('incoming_external_id', 'is not', null)
+                .doNothing(),
+        )
         .execute();
 }
 
@@ -232,12 +219,6 @@ async function upsertSeparateCompetition(
     metadata: VettsTournamentMetadata,
 ): Promise<string> {
     const externalId = `vetts:tournament:${metadata.tournamentId}`;
-    const existing = await database
-        .selectFrom('competitions')
-        .select('id')
-        .where('external_id', '=', externalId)
-        .executeTakeFirst();
-
     const eventStatus = deriveVettsEventStatus(metadata);
     const isCancelled = isVettsCancelledTournament(metadata);
 
@@ -255,18 +236,10 @@ async function upsertSeparateCompetition(
         source: 'vetts',
         source_url: metadata.sourceUrl,
         event_status: isCancelled ? 'cancelled' : eventStatus,
-        // Keep a newly discovered event in the calendar lifecycle until the
-        // result pass has completed successfully. This also keeps a failed
-        // zero-result scrape out of the completed section.
         record_kind: 'calendar',
         processed_at: null,
         deleted_at: null,
     } as const;
-
-    if (existing) {
-        await database.updateTable('competitions').set(values).where('id', '=', existing.id).execute();
-        return existing.id;
-    }
 
     return database
         .insertInto('competitions')
@@ -276,6 +249,9 @@ async function upsertSeparateCompetition(
             type: 'individual',
             ...values,
         })
+        .onConflict((conflict: any) =>
+            conflict.columns(['season_id', 'external_id']).doUpdateSet(values),
+        )
         .returning('id')
         .executeTakeFirstOrThrow()
         .then((row: { id: string }) => row.id);
