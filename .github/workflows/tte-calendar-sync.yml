@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   sync-and-verify:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64, everything-tt]
     timeout-minutes: 25
     permissions:
       contents: read

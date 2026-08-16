@@ -44,7 +44,7 @@ concurrency:
 
 jobs:
   rebuild:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64, everything-tt]
     timeout-minutes: 360
     permissions:
       contents: read

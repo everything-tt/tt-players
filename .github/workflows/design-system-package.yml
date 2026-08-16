@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   package:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64, everything-tt]
     strategy:
       fail-fast: false
       matrix:

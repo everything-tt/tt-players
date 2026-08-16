@@ -36,7 +36,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64, everything-tt]
     timeout-minutes: 15
 
     steps:
@@ -80,7 +80,7 @@ jobs:
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64, everything-tt]
     timeout-minutes: 10
     permissions:
       contents: read
@@ -126,7 +126,7 @@ jobs:
   deploy-production:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64, everything-tt]
     timeout-minutes: 10
     permissions:
       contents: read
@@ -191,7 +191,7 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       needs.preview-deploy.outputs.deploy_url != ''
     needs: preview-deploy
-    runs-on: [self-hosted, Linux, ARM64, docker-ui-screenshot, playwright]
+    runs-on: [self-hosted, Linux, ARM64, everything-tt]
     timeout-minutes: 60
     permissions:
       contents: read
@@ -286,7 +286,7 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       needs.ui-screenshots.result != 'cancelled'
     needs: [preview-deploy, ui-screenshots]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64, everything-tt]
     timeout-minutes: 10
     permissions:
       contents: read

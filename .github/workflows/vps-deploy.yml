@@ -34,7 +34,7 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, Linux, ARM64, tt-players-ci]
+    runs-on: [self-hosted, Linux, ARM64, everything-tt]
     timeout-minutes: 25
     permissions:
       contents: read
