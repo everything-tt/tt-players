@@ -75,15 +75,21 @@ describe('TT365 adjudicated match-card status', () => {
 });
 
 describe('fixture status refresh guard', () => {
-    it('does not downgrade completed from an ambiguous result-less refresh', () => {
+    it('keeps completed monotonic for all scraper refreshes', () => {
         expect(resolveFixtureStatusForLoad('upcoming', false, 'completed'))
+            .toBe('completed');
+        expect(resolveFixtureStatusForLoad('upcoming', true, 'completed'))
+            .toBe('completed');
+        expect(resolveFixtureStatusForLoad('postponed', false, 'completed'))
             .toBe('completed');
     });
 
-    it('allows non-ambiguous incoming status to win', () => {
-        expect(resolveFixtureStatusForLoad('upcoming', true, 'completed'))
-            .toBe('upcoming');
-        expect(resolveFixtureStatusForLoad('postponed', false, 'completed'))
+    it('allows non-completed fixture states to advance normally', () => {
+        expect(resolveFixtureStatusForLoad('completed', true, 'upcoming'))
+            .toBe('completed');
+        expect(resolveFixtureStatusForLoad('postponed', false, 'upcoming'))
             .toBe('postponed');
+        expect(resolveFixtureStatusForLoad('upcoming', false, null))
+            .toBe('upcoming');
     });
 });
