@@ -1,3 +1,5 @@
+import { runSourceRateLimited } from './source-rate-limit.js';
+
 /**
  * Polite request policy for the TT Leagues API
  * (https://ttleagues-api.azurewebsites.net).
@@ -11,6 +13,7 @@
  */
 
 const TTL_API_HOST = 'ttleagues-api.azurewebsites.net';
+const TTLEAGUES_SOURCE_RATE_KEY = 'ttleagues-api';
 
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 
@@ -89,7 +92,10 @@ function isRetryableError(error: unknown): boolean {
         && (error.name === 'AbortError' || error instanceof TypeError);
 }
 
-async function runTTLeaguesRateLimited(fn: () => Promise<Response>): Promise<Response> {
+async function runTTLeaguesRateLimited(
+    fn: () => Promise<Response>,
+    leaseMs: number,
+): Promise<Response> {
     let releaseQueue: (() => void) | null = null;
     const previous = ttlQueue;
     ttlQueue = new Promise<void>((resolve) => {
@@ -106,10 +112,19 @@ async function runTTLeaguesRateLimited(fn: () => Promise<Response>): Promise<Res
         const minIntervalMs = envNumber('TTL_FETCH_MIN_INTERVAL_MS', 400);
         ttlNextAllowedAt = Date.now() + Math.max(0, minIntervalMs);
 
-        const response = await fn();
+        const response = await runSourceRateLimited(
+            TTLEAGUES_SOURCE_RATE_KEY,
+            minIntervalMs,
+            leaseMs,
+            fn,
+            (result) => result.status === 429
+                ? rateLimitDelayMs(result.headers.get('retry-after'))
+                : 0,
+        );
         if (response.status === 429) {
             // Apply the server-requested/fallback cooldown before releasing the
-            // queue so every caller in this process observes the same backoff.
+            // local queue. The same cooldown is persisted by the distributed
+            // gate, so callers on every replica observe it.
             ttlNextAllowedAt = Math.max(
                 ttlNextAllowedAt,
                 Date.now() + rateLimitDelayMs(response.headers.get('retry-after')),
@@ -159,7 +174,8 @@ async function fetchWithTimeout(
 /**
  * Applies polite request policy to TT Leagues API endpoints:
  * - global in-process request spacing (default 400ms)
- * - process-wide 429 cooldown (Retry-After, or 5s fallback)
+ * - cross-replica request spacing via PostgreSQL source lease
+ * - shared 429 cooldown (Retry-After, or 5s fallback)
  * - timeout guard
  * - bounded retry for transient statuses (429/5xx)
  *
@@ -181,8 +197,9 @@ export async function fetchWithTTLeaguesPolicy(
     let lastError: unknown;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         try {
-            const response = await runTTLeaguesRateLimited(() =>
-                fetchWithTimeout(input, init, timeoutMs),
+            const response = await runTTLeaguesRateLimited(
+                () => fetchWithTimeout(input, init, timeoutMs),
+                Math.max(1_000, timeoutMs + 10_000),
             );
 
             if (!RETRYABLE_STATUSES.has(response.status) || attempt === maxAttempts) {
@@ -195,9 +212,8 @@ export async function fetchWithTTLeaguesPolicy(
                 // Ignore body drain failures; we're retrying anyway.
             }
 
-            // A 429 already extended the process-wide queue cooldown. The next
-            // attempt will wait there, allowing other callers to share the same
-            // upstream backoff rather than each sleeping independently.
+            // A 429 already extended both local and distributed cooldowns. The
+            // next attempt waits in runTTLeaguesRateLimited().
             if (response.status !== 429) {
                 await sleep(backoffDelayMs(attempt - 1));
             }

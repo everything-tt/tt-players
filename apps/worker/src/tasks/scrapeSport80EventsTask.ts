@@ -3,13 +3,118 @@ import { db } from '@tt-players/db';
 import { RETRYABLE_JOB_SPEC, stableJobKey } from '../job-policy.js';
 import { fetchSport80EventsPage } from '../sport80-client.js';
 import { upsertSport80Platform, upsertSport80SourceEvent } from '../sport80-loader.js';
+import {
+    boundedRefreshIntervalMs,
+    isSourceRefreshDue,
+} from '../source-freshness.js';
+
+const DEFAULT_SPORT80_PROCESSED_REFRESH_MS = 7 * 24 * 60 * 60 * 1_000;
 
 export interface ScrapeSport80EventsPayload {
     page?: number;
     limit?: number;
     category?: number;
+    /**
+     * Optional diagnostic guard. Discovery no longer has a default page cap;
+     * if callers set one and the API reports more rows, the task fails loudly
+     * instead of silently treating a truncated discovery as complete.
+     */
     maxPages?: number;
     force?: boolean;
+}
+
+export interface Sport80PaginationInput {
+    page: number;
+    limit: number;
+    rowCount: number;
+    total: number;
+    maxPages?: number;
+}
+
+export interface Sport80RefreshState {
+    status: 'pending' | 'processed' | 'failed' | undefined;
+    processedAt: Date | string | null | undefined;
+}
+
+export interface Sport80PolicyRefreshContext {
+    refreshProcessed?: true;
+    refreshObservedProcessedAt?: string | null;
+}
+
+export function sport80ProcessedRefreshIntervalMs(): number {
+    return boundedRefreshIntervalMs(
+        process.env['SPORT80_PROCESSED_REFRESH_MS'],
+        DEFAULT_SPORT80_PROCESSED_REFRESH_MS,
+    );
+}
+
+export function shouldQueueSport80Event(
+    state: Sport80RefreshState,
+    options: { force: boolean; now?: Date; refreshIntervalMs?: number },
+): boolean {
+    if (options.force) return true;
+    if (state.status !== 'processed') return true;
+    return isSourceRefreshDue(
+        state.processedAt,
+        {
+            minRefreshIntervalMs: options.refreshIntervalMs
+                ?? sport80ProcessedRefreshIntervalMs(),
+        },
+        options.now,
+    );
+}
+
+export function sport80PolicyRefreshContext(
+    state: Sport80RefreshState,
+    force: boolean,
+): Sport80PolicyRefreshContext {
+    if (force || state.status !== 'processed') return {};
+    if (state.processedAt == null) {
+        return { refreshProcessed: true, refreshObservedProcessedAt: null };
+    }
+    const observed = new Date(state.processedAt);
+    return {
+        refreshProcessed: true,
+        refreshObservedProcessedAt: Number.isNaN(observed.getTime())
+            ? null
+            : observed.toISOString(),
+    };
+}
+
+export function nextSport80EventsPage(input: Sport80PaginationInput): number | null {
+    const { page, limit, rowCount, total, maxPages } = input;
+    if (!Number.isInteger(page) || page < 0) throw new Error(`invalid Sport80 page ${page}`);
+    if (!Number.isInteger(limit) || limit <= 0) throw new Error(`invalid Sport80 page limit ${limit}`);
+    if (!Number.isInteger(rowCount) || rowCount < 0 || rowCount > limit) {
+        throw new Error(`invalid Sport80 row count ${rowCount} for limit ${limit}`);
+    }
+    if (!Number.isInteger(total) || total < 0) throw new Error(`invalid Sport80 total ${total}`);
+    if (maxPages !== undefined && (!Number.isInteger(maxPages) || maxPages <= 0)) {
+        throw new Error(`invalid Sport80 maxPages ${maxPages}`);
+    }
+
+    const alreadyBeforePage = page * limit;
+    const fetched = alreadyBeforePage + rowCount;
+    if (fetched >= total) return null;
+
+    if (rowCount === 0) {
+        throw new Error(
+            `Sport80 pagination incomplete: page ${page} returned no rows after ${alreadyBeforePage}/${total}`,
+        );
+    }
+    if (rowCount < limit) {
+        throw new Error(
+            `Sport80 pagination incomplete: page ${page} returned ${rowCount}/${limit} rows but API reports ${total} total`,
+        );
+    }
+
+    const nextPage = page + 1;
+    if (maxPages !== undefined && nextPage >= maxPages) {
+        throw new Error(
+            `Sport80 pagination incomplete: explicit maxPages=${maxPages} would stop after ${fetched}/${total} rows`,
+        );
+    }
+    return nextPage;
 }
 
 export const scrapeSport80EventsTask: Task = async (payload, helpers) => {
@@ -17,7 +122,7 @@ export const scrapeSport80EventsTask: Task = async (payload, helpers) => {
         page = 0,
         limit = 100,
         category,
-        maxPages = 3,
+        maxPages,
         force = false,
     } = payload as ScrapeSport80EventsPayload;
 
@@ -31,15 +136,21 @@ export const scrapeSport80EventsTask: Task = async (payload, helpers) => {
     const existingRows = eventIds.length > 0
         ? await db
             .selectFrom('staging.sport80_event_scrape_state')
-            .select(['event_id', 'status'])
+            .select(['event_id', 'status', 'processed_at'])
             .where('event_id', 'in', eventIds)
             .execute()
         : [];
-    const existingById = new Map(existingRows.map((row) => [row.event_id, row.status]));
+    const existingById = new Map(existingRows.map((row) => [row.event_id, row]));
+    const now = new Date();
+    const refreshIntervalMs = sport80ProcessedRefreshIntervalMs();
 
     for (const event of result.data) {
         const eventId = String(event.id);
-        const existingStatus = existingById.get(eventId);
+        const existing = existingById.get(eventId);
+        const refreshState: Sport80RefreshState = {
+            status: existing?.status,
+            processedAt: existing?.processed_at,
+        };
 
         await upsertSport80SourceEvent(db, platformId, {
             id: eventId,
@@ -57,20 +168,25 @@ export const scrapeSport80EventsTask: Task = async (payload, helpers) => {
                 event_date: event.date,
                 category: event.category,
                 status: 'pending',
-                updated_at: new Date(),
+                updated_at: now,
             })
             .onConflict((conflict) =>
                 conflict.column('event_id').doUpdateSet({
                     event_name: (eb) => eb.ref('excluded.event_name'),
                     event_date: (eb) => eb.ref('excluded.event_date'),
                     category: (eb) => eb.ref('excluded.category'),
-                    updated_at: new Date(),
+                    updated_at: now,
                 }),
             )
             .execute();
 
-        if (!force && existingStatus === 'processed') {
-            helpers.logger.info(`scrapeSport80EventsTask: skipping processed event ${eventId}`);
+        if (!shouldQueueSport80Event(
+            refreshState,
+            { force, now, refreshIntervalMs },
+        )) {
+            helpers.logger.info(
+                `scrapeSport80EventsTask: event ${eventId} is fresh; skipping result refresh`,
+            );
             continue;
         }
 
@@ -80,20 +196,26 @@ export const scrapeSport80EventsTask: Task = async (payload, helpers) => {
             eventDate: event.date,
             category: event.category,
             force,
+            ...sport80PolicyRefreshContext(refreshState, force),
         }, {
             ...RETRYABLE_JOB_SPEC,
             jobKey: stableJobKey('sport80-event-results', eventId),
         });
     }
 
-    const nextPage = page + 1;
-    const fetched = nextPage * limit;
-    if (nextPage < maxPages && fetched < result.total) {
+    const nextPage = nextSport80EventsPage({
+        page,
+        limit,
+        rowCount: result.data.length,
+        total: result.total,
+        maxPages,
+    });
+    if (nextPage !== null) {
         await helpers.addJob('scrapeSport80EventsTask', {
             page: nextPage,
             limit,
             category,
-            maxPages,
+            ...(maxPages === undefined ? {} : { maxPages }),
             force,
         }, {
             ...RETRYABLE_JOB_SPEC,

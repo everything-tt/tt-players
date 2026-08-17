@@ -1,6 +1,11 @@
+import { runSourceRateLimited } from './source-rate-limit.js';
+
 const SPORT80_API_BASE = 'https://admin-tte-rankings.sport80.com/api';
 const SPORT80_PUBLIC_BASE = 'https://tabletennisengland.sport80.com/public/rankings';
 const SPORT80_API_TOKEN = process.env['SPORT80_API_TOKEN'] ?? '14ced0f3-421f-4acf-94ad-cc63a371af19';
+const SPORT80_SOURCE_RATE_KEY = 'sport80';
+const SPORT80_FETCH_MIN_INTERVAL_MS = Number(process.env['SPORT80_FETCH_MIN_INTERVAL_MS'] ?? '500');
+const SPORT80_FETCH_TIMEOUT_MS = Number(process.env['SPORT80_FETCH_TIMEOUT_MS'] ?? '30000');
 
 export interface Sport80TableResponse<T> {
     data: T[];
@@ -80,14 +85,42 @@ export const sport80Urls = {
     },
 };
 
+function retryAfterMs(response: Response): number {
+    const value = response.headers.get('retry-after');
+    if (!value) return 30_000;
+    const seconds = Number(value);
+    if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000;
+    const timestamp = Date.parse(value);
+    return Number.isNaN(timestamp) ? 30_000 : Math.max(0, timestamp - Date.now());
+}
+
+async function fetchSport80(url: string, init: RequestInit): Promise<Response> {
+    return runSourceRateLimited(
+        SPORT80_SOURCE_RATE_KEY,
+        Math.max(0, SPORT80_FETCH_MIN_INTERVAL_MS),
+        Math.max(1_000, SPORT80_FETCH_TIMEOUT_MS + 10_000),
+        () => fetch(url, {
+            ...init,
+            signal: AbortSignal.timeout(SPORT80_FETCH_TIMEOUT_MS),
+        }),
+        (response) => response.status === 429 ? retryAfterMs(response) : 0,
+    );
+}
+
+function sport80Headers(): Record<string, string> {
+    return {
+        'x-api-token': SPORT80_API_TOKEN,
+        'x-requested-with': 'XMLHttpRequest',
+        'x-keep-session': 'keepsession',
+    };
+}
+
 async function postSport80Json<T>(url: string, body: unknown): Promise<T> {
-    const res = await fetch(url, {
+    const res = await fetchSport80(url, {
         method: 'POST',
         headers: {
             'content-type': 'application/json',
-            'x-api-token': SPORT80_API_TOKEN,
-            'x-requested-with': 'XMLHttpRequest',
-            'x-keep-session': 'keepsession',
+            ...sport80Headers(),
         },
         body: JSON.stringify(body),
     });
@@ -121,16 +154,11 @@ export async function fetchSport80EventResults(
 }
 
 export async function fetchSport80FeaturedCategories(): Promise<Sport80FeaturedCategoryResponse> {
-    const res = await fetch(sport80Urls.featuredCategories(), {
-        headers: {
-            'x-api-token': SPORT80_API_TOKEN,
-            'x-requested-with': 'XMLHttpRequest',
-            'x-keep-session': 'keepsession',
-        },
-    });
+    const url = sport80Urls.featuredCategories();
+    const res = await fetchSport80(url, { headers: sport80Headers() });
 
     if (!res.ok) {
-        throw new Error(`Sport80 HTTP ${res.status} ${res.statusText} for ${sport80Urls.featuredCategories()}`);
+        throw new Error(`Sport80 HTTP ${res.status} ${res.statusText} for ${url}`);
     }
 
     return res.json() as Promise<Sport80FeaturedCategoryResponse>;

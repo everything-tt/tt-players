@@ -3,6 +3,7 @@ import type { Database } from '@tt-players/db';
 import { chooseTournamentCandidate } from './tournament-reconciliation.js';
 import type { VettsMatchResult, VettsTournamentMetadata } from './vetts-parser.js';
 import { ensureSourcePlatform } from './source-platform.js';
+import { chunkWriteItems } from './write-batches.js';
 
 export const VETTS_PLATFORM_NAME = 'Tournament Software';
 export const VETTS_PLATFORM_BASE_URL = 'https://www.tournamentsoftware.com';
@@ -389,46 +390,49 @@ export async function upsertVettsResultRows(
 ): Promise<void> {
     if (matches.length === 0) return;
     const now = new Date();
+    const values = matches.map((match) => ({
+        source_event_id: sourceEventId,
+        source: VETTS_SOURCE,
+        external_id: match.externalId,
+        played_at: match.playedAt,
+        round_name: match.roundName,
+        round_order: match.roundOrder,
+        round_raw: { eventExternalId: match.eventExternalId, eventName: match.eventName },
+        home_raw: JSON.stringify({ players: match.homePlayers, scores: match.gameScores }),
+        away_raw: JSON.stringify({ players: match.awayPlayers, scores: match.gameScores }),
+        home_player_name: match.homePlayers.map((player) => player.name).join(' / '),
+        home_player_external_id: match.homePlayers.map((player) => player.externalId).join('|'),
+        away_player_name: match.awayPlayers.map((player) => player.name).join(' / '),
+        away_player_external_id: match.awayPlayers.map((player) => player.externalId).join('|'),
+        winner_side: match.winnerSide,
+        raw_payload: match,
+        last_seen_at: now,
+        updated_at: now,
+    }));
 
-    await database
-        .insertInto('staging.source_event_result_rows')
-        .values(matches.map((match) => ({
-            source_event_id: sourceEventId,
-            source: VETTS_SOURCE,
-            external_id: match.externalId,
-            played_at: match.playedAt,
-            round_name: match.roundName,
-            round_order: match.roundOrder,
-            round_raw: { eventExternalId: match.eventExternalId, eventName: match.eventName },
-            home_raw: JSON.stringify({ players: match.homePlayers, scores: match.gameScores }),
-            away_raw: JSON.stringify({ players: match.awayPlayers, scores: match.gameScores }),
-            home_player_name: match.homePlayers.map((player) => player.name).join(' / '),
-            home_player_external_id: match.homePlayers.map((player) => player.externalId).join('|'),
-            away_player_name: match.awayPlayers.map((player) => player.name).join(' / '),
-            away_player_external_id: match.awayPlayers.map((player) => player.externalId).join('|'),
-            winner_side: match.winnerSide,
-            raw_payload: match,
-            last_seen_at: now,
-            updated_at: now,
-        })))
-        .onConflict((conflict: any) =>
-            conflict.columns(['source', 'external_id']).doUpdateSet({
-                source_event_id: sourceEventId,
-                played_at: (eb: any) => eb.ref('excluded.played_at'),
-                round_name: (eb: any) => eb.ref('excluded.round_name'),
-                round_order: (eb: any) => eb.ref('excluded.round_order'),
-                round_raw: (eb: any) => eb.ref('excluded.round_raw'),
-                home_raw: (eb: any) => eb.ref('excluded.home_raw'),
-                away_raw: (eb: any) => eb.ref('excluded.away_raw'),
-                home_player_name: (eb: any) => eb.ref('excluded.home_player_name'),
-                home_player_external_id: (eb: any) => eb.ref('excluded.home_player_external_id'),
-                away_player_name: (eb: any) => eb.ref('excluded.away_player_name'),
-                away_player_external_id: (eb: any) => eb.ref('excluded.away_player_external_id'),
-                winner_side: (eb: any) => eb.ref('excluded.winner_side'),
-                raw_payload: (eb: any) => eb.ref('excluded.raw_payload'),
-                last_seen_at: now,
-                updated_at: now,
-            }),
-        )
-        .execute();
+    for (const batch of chunkWriteItems(values)) {
+        await database
+            .insertInto('staging.source_event_result_rows')
+            .values(batch)
+            .onConflict((conflict: any) =>
+                conflict.columns(['source', 'external_id']).doUpdateSet({
+                    source_event_id: sourceEventId,
+                    played_at: (eb: any) => eb.ref('excluded.played_at'),
+                    round_name: (eb: any) => eb.ref('excluded.round_name'),
+                    round_order: (eb: any) => eb.ref('excluded.round_order'),
+                    round_raw: (eb: any) => eb.ref('excluded.round_raw'),
+                    home_raw: (eb: any) => eb.ref('excluded.home_raw'),
+                    away_raw: (eb: any) => eb.ref('excluded.away_raw'),
+                    home_player_name: (eb: any) => eb.ref('excluded.home_player_name'),
+                    home_player_external_id: (eb: any) => eb.ref('excluded.home_player_external_id'),
+                    away_player_name: (eb: any) => eb.ref('excluded.away_player_name'),
+                    away_player_external_id: (eb: any) => eb.ref('excluded.away_player_external_id'),
+                    winner_side: (eb: any) => eb.ref('excluded.winner_side'),
+                    raw_payload: (eb: any) => eb.ref('excluded.raw_payload'),
+                    last_seen_at: now,
+                    updated_at: now,
+                }),
+            )
+            .execute();
+    }
 }
