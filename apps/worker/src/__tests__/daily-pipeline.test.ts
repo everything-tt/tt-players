@@ -89,7 +89,7 @@ describe('daily pipeline', () => {
         expect(taskHelpers.addJob).not.toHaveBeenCalled();
     });
 
-    it('waits while current-window ingestion jobs remain', async () => {
+    it('waits while required scrape-run resources remain pending', async () => {
         const deps = dependencies({
             inspectIngestion: vi.fn(async () => ({ pending: 2, failed: 0 })),
         });
@@ -98,7 +98,9 @@ describe('daily pipeline', () => {
         await runDailyPipelineStage(undefined, taskHelpers, deps);
 
         expect(deps.inspectIngestion).toHaveBeenCalledWith(
+            '2026-07-31',
             new Date('2026-07-31T00:00:00.000Z'),
+            false,
         );
         expect(taskHelpers.addJob).toHaveBeenCalledWith(
             'completeDailyPipelineTask',
@@ -114,14 +116,14 @@ describe('daily pipeline', () => {
         );
     });
 
-    it('blocks derived data when ingestion has permanently failed', async () => {
+    it('blocks derived data when a required ingestion resource has permanently failed', async () => {
         const deps = dependencies({
             inspectIngestion: vi.fn(async () => ({ pending: 0, failed: 1 })),
         });
         const taskHelpers = helpers();
 
         await expect(runDailyPipelineStage(undefined, taskHelpers, deps))
-            .rejects.toThrow('blocked by 1 permanently failed ingestion jobs');
+            .rejects.toThrow('blocked by 1 permanently failed ingestion resources');
         expect(taskHelpers.addJob).not.toHaveBeenCalled();
     });
 
@@ -138,7 +140,11 @@ describe('daily pipeline', () => {
 
         await runDailyPipelineStage(normalized, taskHelpers, deps);
 
-        expect(deps.inspectIngestion).toHaveBeenCalledWith(TRIGGERED_AT);
+        expect(deps.inspectIngestion).toHaveBeenCalledWith(
+            '2026-07-31-manual-123',
+            TRIGGERED_AT,
+            true,
+        );
         expect(taskHelpers.addJob).toHaveBeenCalledWith(
             'completeDailyPipelineTask',
             expect.objectContaining({
@@ -183,7 +189,9 @@ describe('daily pipeline', () => {
         await runDailyPipelineStage(normalized, taskHelpers, deps);
 
         expect(deps.inspectIngestion).toHaveBeenCalledWith(
+            '2026-07-31-manual-125',
             new Date('2026-07-31T02:00:00.000Z'),
+            true,
         );
     });
 

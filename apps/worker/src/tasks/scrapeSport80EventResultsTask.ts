@@ -7,6 +7,7 @@ import {
 } from '../event-embeddings.js';
 import { storeScrapePayload } from '../extractor.js';
 import { fetchSport80EventResults, sport80Urls } from '../sport80-client.js';
+import { claimSport80EventForScrape } from '../sport80-event-claim.js';
 import { loadTTLeaguesData } from '../loader.js';
 import { parseSport80EventName, parseSport80EventResults } from '../sport80-parser.js';
 import {
@@ -23,6 +24,8 @@ export interface ScrapeSport80EventResultsPayload {
     eventDate?: string | null;
     category?: string;
     force?: boolean;
+    refreshProcessed?: boolean;
+    refreshObservedProcessedAt?: string | null;
 }
 
 interface CompetitionResolution {
@@ -346,53 +349,27 @@ async function resolveCompetition(
 }
 
 export const scrapeSport80EventResultsTask: Task = async (payload, helpers) => {
-    const { eventId, eventName, eventDate, category, force = false } = payload as ScrapeSport80EventResultsPayload;
-    const claimTime = new Date();
+    const {
+        eventId,
+        eventName,
+        eventDate,
+        category,
+        force = false,
+        refreshProcessed = false,
+        refreshObservedProcessedAt,
+    } = payload as ScrapeSport80EventResultsPayload;
 
-    const claim = await db
-        .insertInto('staging.sport80_event_scrape_state')
-        .values({
-            event_id: eventId,
-            event_name: eventName ?? null,
-            event_date: eventDate ?? null,
-            category: category ?? null,
-            status: 'pending',
-            last_attempted_at: claimTime,
-            updated_at: claimTime,
-        })
-        .onConflict((oc) =>
-            oc.column('event_id').doUpdateSet({
-                event_name: (eb) => eb.ref('excluded.event_name'),
-                event_date: (eb) => eb.ref('excluded.event_date'),
-                category: (eb) => eb.ref('excluded.category'),
-                status: force
-                    ? 'pending'
-                    : sql`case
-                        when sport80_event_scrape_state.status = 'processed'
-                        then sport80_event_scrape_state.status
-                        else 'pending'::scrape_status
-                    end`,
-                last_attempted_at: force
-                    ? claimTime
-                    : sql`case
-                        when sport80_event_scrape_state.status = 'processed'
-                        then sport80_event_scrape_state.last_attempted_at
-                        else excluded.last_attempted_at
-                    end`,
-                last_error: force
-                    ? null
-                    : sql`case
-                        when sport80_event_scrape_state.status = 'processed'
-                        then sport80_event_scrape_state.last_error
-                        else null
-                    end`,
-                updated_at: claimTime,
-            }),
-        )
-        .returning('status')
-        .executeTakeFirstOrThrow();
+    const claim = await claimSport80EventForScrape(db, {
+        eventId,
+        eventName,
+        eventDate,
+        category,
+        force,
+        refreshProcessed,
+        refreshObservedProcessedAt,
+    });
 
-    if (!force && claim.status === 'processed') {
+    if (!claim.claimed) {
         helpers.logger.info(`scrapeSport80EventResultsTask: event ${eventId} already processed, skipping`);
         return;
     }

@@ -5,18 +5,7 @@ import { PIPELINE_JOB_SPEC, stableJobKey } from '../job-policy.js';
 import { reconcilePlayersByName } from '../player-reconciler.js';
 import { refreshApiReadModels } from '../read-models.js';
 import { calculateRatingsWithReplay } from '../ratings/calculate-ratings-with-replay.js';
-
-export const INGESTION_TASK_IDENTIFIERS = [
-    'scrapeUrlTask',
-    'processLogTask',
-    'scrapeMatchesTask',
-    'scrapeMatchSetsBatchTask',
-    'processMatchSetsBatchTask',
-    'scrapeSport80EventsTask',
-    'scrapeSport80EventResultsTask',
-    'scrapeSport80RankingsDiscoveryTask',
-    'scrapeSport80RankingTableTask',
-] as const;
+import { inspectScrapeRun, type ScrapeRunSummary } from '../scrape-run.js';
 
 export type DailyPipelineStage = 'wait-for-ingestion' | 'reconcile' | 'ratings' | 'read-models';
 export type DailyPipelineStageOutcomeStatus = 'waiting' | 'advanced' | 'complete';
@@ -29,9 +18,8 @@ export interface DailyPipelinePayload {
     leaseOwner?: string;
     /**
      * Manual runs use their own window (the trigger time) instead of the
-     * daily 00:00 window, so they are not blocked by ingestion jobs that
-     * permanently failed earlier in the day. Failures created after the
-     * manual trigger still block the run.
+     * scheduled scrape-run membership. This preserves operator-triggered
+     * derived-data refreshes without inventing an ingestion run.
      */
     manual?: boolean;
 }
@@ -46,6 +34,9 @@ export interface DailyPipelineInvocation {
 export interface IngestionQueueState {
     pending: number;
     failed: number;
+    expected?: number;
+    succeeded?: number;
+    missingRun?: boolean;
     queuePending?: number;
     queueFailed?: number;
     stagedPending?: number;
@@ -90,7 +81,11 @@ interface RatingRunResult {
 export interface DailyPipelineDependencies {
     claimActiveRun: (runKey: string, leaseOwner: string) => Promise<boolean>;
     ownsActiveRun: (runKey: string, leaseOwner: string) => Promise<boolean>;
-    inspectIngestion: (windowStart: Date) => Promise<IngestionQueueState>;
+    inspectIngestion: (
+        runKey: string,
+        windowStart: Date,
+        manual: boolean,
+    ) => Promise<IngestionQueueState>;
     reconcile: (log: (message: string) => void) => Promise<void>;
     calculateRatings: (log: (message: string) => void) => Promise<RatingRunResult>;
     refreshReadModels: (log: (message: string) => void) => Promise<void>;
@@ -261,6 +256,10 @@ export function isFinalJobAttempt(job: { attempts: number; max_attempts: number 
     return job.attempts >= job.max_attempts;
 }
 
+/**
+ * Compatibility summary used only by manual pipeline runs. Scheduled runs use
+ * explicit scrape-run membership instead of time-window/task-name inference.
+ */
 export function summarizeIngestionBarrier(
     components: IngestionBarrierComponents,
 ): IngestionQueueState {
@@ -277,6 +276,28 @@ export function summarizeIngestionBarrier(
     };
 }
 
+export function summarizeScrapeRunBarrier(
+    state: ScrapeRunSummary,
+): IngestionQueueState {
+    if (!state.exists || state.expected === 0) {
+        return {
+            pending: 1,
+            failed: 0,
+            expected: state.expected,
+            succeeded: state.succeeded,
+            missingRun: true,
+        };
+    }
+
+    return {
+        pending: state.pending,
+        failed: state.failed,
+        expected: state.expected,
+        succeeded: state.succeeded,
+        missingRun: false,
+    };
+}
+
 async function assertDailyPipelineLease(
     payload: Required<DailyPipelinePayload>,
     dependencies: DailyPipelineDependencies,
@@ -284,6 +305,16 @@ async function assertDailyPipelineLease(
     if (!await dependencies.ownsActiveRun(payload.runKey, payload.leaseOwner)) {
         throw new Error(`daily pipeline ${payload.runKey} lost active-run lease`);
     }
+}
+
+function ingestionSummary(queue: IngestionQueueState): Record<string, string | number | boolean | null> {
+    return {
+        pending: queue.pending,
+        failed: queue.failed,
+        expected: queue.expected ?? null,
+        succeeded: queue.succeeded ?? null,
+        missing_run: queue.missingRun ?? false,
+    };
 }
 
 export async function runDailyPipelineStage(
@@ -309,16 +340,20 @@ export async function runDailyPipelineStage(
     }
 
     if (normalized.stage === 'wait-for-ingestion') {
-        const queue = await dependencies.inspectIngestion(new Date(normalized.windowStart));
+        const queue = await dependencies.inspectIngestion(
+            normalized.runKey,
+            new Date(normalized.windowStart),
+            normalized.manual,
+        );
         if (queue.failed > 0) {
             throw new Error(
-                `daily pipeline ${normalized.runKey} blocked by ${queue.failed} permanently failed ingestion jobs/resources`,
+                `daily pipeline ${normalized.runKey} blocked by ${queue.failed} permanently failed ingestion resources`,
             );
         }
 
         if (queue.pending > 0) {
             await assertDailyPipelineLease(normalized, dependencies);
-            log(`daily pipeline ${normalized.runKey}: waiting for ${queue.pending} ingestion jobs/resources`);
+            log(`daily pipeline ${normalized.runKey}: waiting for ${queue.pending} ingestion resources`);
             await queuePipelineStage(
                 helpers,
                 normalized,
@@ -329,7 +364,7 @@ export async function runDailyPipelineStage(
                 stage: normalized.stage,
                 status: 'waiting',
                 nextStage: 'wait-for-ingestion',
-                summary: { pending: queue.pending, failed: queue.failed },
+                summary: ingestionSummary(queue),
             };
         }
 
@@ -340,7 +375,7 @@ export async function runDailyPipelineStage(
             stage: normalized.stage,
             status: 'advanced',
             nextStage: 'reconcile',
-            summary: { pending: queue.pending, failed: queue.failed },
+            summary: ingestionSummary(queue),
         };
     }
 
@@ -419,16 +454,10 @@ const productionDependencies: DailyPipelineDependencies = {
             DEFAULT_DAILY_PIPELINE_STALE_RUN_MS,
         ),
     ),
-    inspectIngestion: async (windowStart) => {
-        const identifiers = INGESTION_TASK_IDENTIFIERS.map((identifier) => sql`${identifier}`);
-        const queueResult = await sql<{ pending: number | string; failed: number | string }>`
-            SELECT
-                COUNT(*) FILTER (WHERE attempts < max_attempts)::int AS pending,
-                COUNT(*) FILTER (WHERE attempts >= max_attempts)::int AS failed
-            FROM graphile_worker.jobs
-            WHERE task_identifier IN (${sql.join(identifiers)})
-              AND created_at >= ${windowStart}
-        `.execute(db);
+    inspectIngestion: async (runKey, windowStart, manual) => {
+        if (!manual) {
+            return summarizeScrapeRunBarrier(await inspectScrapeRun(db, runKey));
+        }
 
         const rawResult = await sql<{ pending: number | string; failed: number | string }>`
             SELECT
@@ -446,13 +475,11 @@ const productionDependencies: DailyPipelineDependencies = {
             WHERE updated_at >= ${windowStart}
         `.execute(db);
 
-        const queueRow = queueResult.rows[0];
         const rawRow = rawResult.rows[0];
         const resourceRow = resourceResult.rows[0];
-
         return summarizeIngestionBarrier({
-            queuePending: Number(queueRow?.pending ?? 0),
-            queueFailed: Number(queueRow?.failed ?? 0),
+            queuePending: 0,
+            queueFailed: 0,
             rawPending: Number(rawRow?.pending ?? 0),
             rawFailed: Number(rawRow?.failed ?? 0),
             resourcePending: Number(resourceRow?.pending ?? 0),
