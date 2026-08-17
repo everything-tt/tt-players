@@ -46,7 +46,7 @@ describe('authoritative scrape run resources', () => {
         database = new Kysely({
             dialect: new PostgresDialect({ pool: new Pool({ connectionString: TEST_URL }) }),
         });
-        const result = await new Migrator({ database, provider: new Provider() } as any).migrateToLatest();
+        const result = await new Migrator({ db: database, provider: new Provider() }).migrateToLatest();
         if (result.error) throw result.error;
     }, 30_000);
 

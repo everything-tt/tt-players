@@ -138,7 +138,6 @@ export async function registerScrapeRunResource(
     database: Kysely<any>,
     context: ScrapeRunContext,
 ): Promise<void> {
-    await ensureScrapeRun(database, context.runKey);
     await sql`
         INSERT INTO scrape_run_resources (
             run_key,
