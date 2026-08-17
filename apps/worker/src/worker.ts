@@ -54,6 +54,7 @@ graphilePool.on('error', (error) => {
 
 const CRONTAB = `
  30 1 * * 1 scheduleWeeklyVettsScrapeRunTask ?fill=7d
+ 45 1 * * * scheduleDueSourceResourcesTask ?fill=1d
  0 2 * * * scheduleDailyScrapeRunTask ?fill=1d
  30 3 * * * purgeExpiredCacheEntries ?fill=1d
  45 3 * * * completeDailyPipelineTask ?fill=1d
