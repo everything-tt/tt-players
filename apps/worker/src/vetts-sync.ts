@@ -197,6 +197,13 @@ export async function syncVettsTournament(
         resultsAttemptedAt = new Date();
 
         const pages = enumerateCompleteSourceDates(metadata.startDate, metadata.endDate);
+        let matchRows = 0;
+        let rejectedRows = 0;
+        let duplicateLinks = 0;
+        let duplicateConflicts = 0;
+        const eventStatus = deriveVettsEventStatus(metadata);
+        const isCancelled = isVettsCancelledTournament(metadata);
+
         for (const date of pages) {
             const matchesUrl = vettsUrls.matches(tournamentId, date);
             const resultsContext: SourceAdapterContext = {

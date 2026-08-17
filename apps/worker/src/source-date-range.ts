@@ -5,7 +5,12 @@ function parseIsoDate(value: string, field: string): number {
         throw new Error(`invalid ${field} date ${value}`);
     }
     const timestamp = Date.parse(`${value}T00:00:00Z`);
-    if (Number.isNaN(timestamp)) throw new Error(`invalid ${field} date ${value}`);
+    if (
+        Number.isNaN(timestamp)
+        || new Date(timestamp).toISOString().slice(0, 10) !== value
+    ) {
+        throw new Error(`invalid ${field} date ${value}`);
+    }
     return timestamp;
 }
 
