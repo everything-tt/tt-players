@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Kysely, Migrator, PostgresDialect } from 'kysely';
 import type { Migration, MigrationProvider } from 'kysely';
 import pg from 'pg';
@@ -113,6 +113,38 @@ function withFixtureStatus(
     };
 }
 
+function scaleData(): ParsedTTLeaguesData {
+    const teams = Array.from({ length: 100 }, (_value, index) => ({
+        externalId: `team-${index}`,
+        name: `Team ${index}`,
+    }));
+    const players = Array.from({ length: 1_200 }, (_value, index) => ({
+        externalId: `player-${index}`,
+        name: `Player ${index}`,
+    }));
+    const fixtures = Array.from({ length: 600 }, (_value, index) => ({
+        externalId: `fixture-${index}`,
+        homeTeamExternalId: `team-${index % teams.length}`,
+        awayTeamExternalId: `team-${(index + 1) % teams.length}`,
+        datePlayed: '2026-08-16',
+        status: 'completed' as const,
+        roundName: null,
+        roundOrder: null,
+    }));
+    const rubbers = Array.from({ length: 1_200 }, (_value, index) => ({
+        externalId: `rubber-${index % 2}`,
+        matchExternalId: `fixture-${Math.floor(index / 2)}`,
+        isDoubles: false,
+        homePlayers: [`player-${(index * 2) % players.length}`],
+        awayPlayers: [`player-${(index * 2 + 1) % players.length}`],
+        homeGamesWon: 3,
+        awayGamesWon: 1,
+        outcomeType: 'normal' as const,
+    }));
+
+    return { teams, players, fixtures, rubbers, standings: [] };
+}
+
 describe('shared loader concurrency contracts', () => {
     beforeAll(async () => {
         const admin = new Pool({ connectionString: ADMIN_URL });
@@ -168,6 +200,10 @@ describe('shared loader concurrency contracts', () => {
         await database.deleteFrom('raw_scrape_logs').execute();
     });
 
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
     it('concurrent equivalent loads converge without duplicates', async () => {
         const first = await rawLog('concurrent-a');
         const second = await rawLog('concurrent-b');
@@ -182,6 +218,20 @@ describe('shared loader concurrency contracts', () => {
         expect(await database.selectFrom('fixtures').selectAll().execute()).toHaveLength(1);
         expect(await database.selectFrom('rubbers').selectAll().execute()).toHaveLength(1);
     });
+
+    it('loads and replays scale payloads through 37-row SQL batches', async () => {
+        vi.stubEnv('DB_LOAD_CHUNK_SIZE', '37');
+        const log = await rawLog('scale');
+        const data = scaleData();
+
+        await load(data, [log.id]);
+        await load(data, [log.id]);
+
+        expect(await database.selectFrom('teams').select('id').execute()).toHaveLength(100);
+        expect(await database.selectFrom('external_players').select('id').execute()).toHaveLength(1_200);
+        expect(await database.selectFrom('fixtures').select('id').execute()).toHaveLength(600);
+        expect(await database.selectFrom('rubbers').select('id').execute()).toHaveLength(1_200);
+    }, 30_000);
 
     it('concurrent completed and stale snapshots always converge to completed', async () => {
         const completed = await rawLog('race-completed');
