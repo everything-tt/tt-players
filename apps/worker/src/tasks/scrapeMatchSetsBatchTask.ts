@@ -3,6 +3,14 @@ import { db } from '@tt-players/db';
 import { createRequestFingerprint, storeScrapePayload } from '../extractor.js';
 import { fetchWithTTLeaguesPolicy } from '../ttleagues-http.js';
 import { RETRYABLE_JOB_SPEC, stableJobKey } from '../job-policy.js';
+import {
+    addTrackedScrapeJob,
+    beginScrapeRunResource,
+    recordScrapeRunTaskFailure,
+    scrapeRunContext,
+    succeedScrapeRunResource,
+    type ScrapeRunContext,
+} from '../scrape-run.js';
 import { SetsResponseSchema, type Match } from '../zod-schemas.js';
 
 export interface ScrapeMatchSetPayload {
@@ -11,6 +19,7 @@ export interface ScrapeMatchSetPayload {
     platformId: string;
     competitionId: string;
     match: Match;
+    scrapeRun?: ScrapeRunContext;
 }
 
 interface LegacyScrapeMatchSetsBatchPayload {
@@ -79,52 +88,73 @@ async function scrapeOneMatchResult(
         competitionId,
         match,
     } = item;
+    const runContext = scrapeRunContext(item);
 
-    if (!tenantHost) {
-        throw new Error(`scrapeMatchSetsBatchTask: missing tenantHost for division ${divisionId}`);
+    if (runContext) await beginScrapeRunResource(db, runContext);
+
+    try {
+        if (!tenantHost) {
+            throw new Error(`scrapeMatchSetsBatchTask: missing tenantHost for division ${divisionId}`);
+        }
+        if (!match) {
+            throw new Error('scrapeMatchSetsBatchTask: missing match payload');
+        }
+
+        const headers = { Tenant: tenantHost, Entry: '1' };
+        const url = `${TTL_API_BASE}/matches/${match.id}/sets`;
+        const response = await fetchWithTTLeaguesPolicy(url, { headers }, {
+            timeoutMs: TTL_SETS_FETCH_TIMEOUT_MS,
+        });
+
+        if (response.status === 404) {
+            helpers.logger.info(`scrapeMatchSetsBatchTask: no sets found for match ${match.id}`);
+            if (runContext) await succeedScrapeRunResource(db, runContext);
+            return;
+        }
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status} fetching ${url}`);
+        }
+
+        const parsedSets = SetsResponseSchema.parse(await response.json());
+        const body = JSON.stringify({
+            standings: [],
+            matches: { groups: [], matches: [match] },
+            sets: { [String(match.id)]: parsedSets },
+        });
+        const logId = await storeScrapePayload(url, platformId, body, db, {
+            requestFingerprint: createRequestFingerprint(url, { headers }),
+            httpStatus: response.status,
+        });
+
+        helpers.logger.info(
+            `scrapeMatchSetsBatchTask: stored result for match ${match.id} in log ${logId}`,
+        );
+        if (runContext) {
+            await addTrackedScrapeJob(db, helpers, runContext, 'processMatchSetsBatchTask', {
+                logId,
+                competitionId,
+                platformId,
+            }, {
+                ...RETRYABLE_JOB_SPEC,
+                jobKey: stableJobKey('process-match-sets-batch', logId),
+            });
+            await succeedScrapeRunResource(db, runContext);
+        } else {
+            await helpers.addJob('processMatchSetsBatchTask', {
+                logId,
+                competitionId,
+                platformId,
+            }, {
+                ...RETRYABLE_JOB_SPEC,
+                jobKey: stableJobKey('process-match-sets-batch', logId),
+            });
+        }
+    } catch (error) {
+        if (runContext) {
+            await recordScrapeRunTaskFailure(db, runContext, helpers.job, error);
+        }
+        throw error;
     }
-    if (!match) {
-        throw new Error('scrapeMatchSetsBatchTask: missing match payload');
-    }
-
-    const headers = { Tenant: tenantHost, Entry: '1' };
-    const url = `${TTL_API_BASE}/matches/${match.id}/sets`;
-    // Transient 429/5xx responses are retried with backoff by the TT Leagues
-    // policy, so sustained backfills no longer exhaust jobs on rate limits.
-    const response = await fetchWithTTLeaguesPolicy(url, { headers }, {
-        timeoutMs: TTL_SETS_FETCH_TIMEOUT_MS,
-    });
-
-    if (response.status === 404) {
-        helpers.logger.info(`scrapeMatchSetsBatchTask: no sets found for match ${match.id}`);
-        return;
-    }
-    if (!response.ok) {
-        throw new Error(`HTTP ${response.status} fetching ${url}`);
-    }
-
-    const parsedSets = SetsResponseSchema.parse(await response.json());
-    const body = JSON.stringify({
-        standings: [],
-        matches: { groups: [], matches: [match] },
-        sets: { [String(match.id)]: parsedSets },
-    });
-    const logId = await storeScrapePayload(url, platformId, body, db, {
-        requestFingerprint: createRequestFingerprint(url, { headers }),
-        httpStatus: response.status,
-    });
-
-    helpers.logger.info(
-        `scrapeMatchSetsBatchTask: stored result for match ${match.id} in log ${logId}`,
-    );
-    await helpers.addJob('processMatchSetsBatchTask', {
-        logId,
-        competitionId,
-        platformId,
-    }, {
-        ...RETRYABLE_JOB_SPEC,
-        jobKey: stableJobKey('process-match-sets-batch', logId),
-    });
 }
 
 function sequentialResultPromises(
@@ -155,10 +185,6 @@ export const scrapeMatchSetsBatchTask: Task = (payload, helpers) => {
 
     const operations = sequentialResultPromises(items, helpers);
 
-    // For new array payloads, Graphile Worker keeps only rejected entries when
-    // retrying the job. Legacy object payloads may still be present across a
-    // deployment, so they retain whole-job retry behaviour while still saving
-    // successful match results before a later item fails.
     return graphileBatchPayload
         ? operations
         : Promise.all(operations).then(() => undefined);

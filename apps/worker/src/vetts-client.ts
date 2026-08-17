@@ -1,5 +1,10 @@
+import { runSourceRateLimited } from './source-rate-limit.js';
+
 const VETTS_RESULTS_BASE_URL = 'https://vetts.tournamentsoftware.com';
 const VETTS_CALENDAR_BASE_URL = 'https://www.vetts.org.uk';
+const VETTS_SOURCE_RATE_KEY = 'vetts';
+const VETTS_FETCH_MIN_INTERVAL_MS = Number(process.env['VETTS_FETCH_MIN_INTERVAL_MS'] ?? '750');
+const VETTS_FETCH_TIMEOUT_MS = Number(process.env['VETTS_FETCH_TIMEOUT_MS'] ?? '30000');
 
 export const vettsUrls = {
     discovery: (year: number) => `${VETTS_CALENDAR_BASE_URL}/tournaments.aspx?year=${year}`,
@@ -10,11 +15,6 @@ export const vettsUrls = {
     },
 };
 
-/**
- * Both VETTS hosts enforce a cookie consent wall that redirects requests to
- * /cookies/ or /cookiewall/ until consent is given. The consent cookie
- * `st=cp=33&c=1` bypasses this wall.
- */
 const VETTS_CONSENT_COOKIE = 'st=cp=33&c=1';
 
 function isVettsUrl(url: string): boolean {
@@ -23,8 +23,17 @@ function isVettsUrl(url: string): boolean {
 
 function isCookieWallResponse(url: string, body: string): boolean {
     if (/(?:\/|^)(?:cookies|cookiewall)(?:\/|$)/i.test(url)) return true;
-    return /<form[^>]+action=["'][^"']*cookiewall/i.test(body) &&
-        /how do i clear cookies/i.test(body);
+    return /<form[^>]+action=["'][^"']*cookiewall/i.test(body)
+        && /how do i clear cookies/i.test(body);
+}
+
+function retryAfterMs(response: Response): number {
+    const value = response.headers.get('retry-after');
+    if (!value) return 30_000;
+    const seconds = Number(value);
+    if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000;
+    const timestamp = Date.parse(value);
+    return Number.isNaN(timestamp) ? 30_000 : Math.max(0, timestamp - Date.now());
 }
 
 export async function fetchVettsHtml(url: string): Promise<string> {
@@ -34,14 +43,18 @@ export async function fetchVettsHtml(url: string): Promise<string> {
         'User-Agent': 'tt-players/1.0 (+https://ttp.tourneypilot.com)',
     };
 
-    if (isVettsUrl(url)) {
-        headers['Cookie'] = VETTS_CONSENT_COOKIE;
-    }
+    if (isVettsUrl(url)) headers['Cookie'] = VETTS_CONSENT_COOKIE;
 
-    const response = await fetch(url, {
-        headers,
-        signal: AbortSignal.timeout(30_000),
-    });
+    const response = await runSourceRateLimited(
+        VETTS_SOURCE_RATE_KEY,
+        Math.max(0, VETTS_FETCH_MIN_INTERVAL_MS),
+        Math.max(1_000, VETTS_FETCH_TIMEOUT_MS + 10_000),
+        () => fetch(url, {
+            headers,
+            signal: AbortSignal.timeout(VETTS_FETCH_TIMEOUT_MS),
+        }),
+        (result) => result.status === 429 ? retryAfterMs(result) : 0,
+    );
 
     if (!response.ok) {
         throw new Error(`VETTS HTTP ${response.status} ${response.statusText} for ${url}`);
