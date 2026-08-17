@@ -14,6 +14,7 @@ import {
     upsertSport80RankingCategory,
     upsertSport80RankingPeriod,
 } from '../sport80-loader.js';
+import { chunkWriteItems } from '../write-batches.js';
 
 export interface ScrapeSport80RankingTablePayload {
     categoryEndpointId: string;
@@ -110,22 +111,22 @@ export const scrapeSport80RankingTableTask: Task = async (payload, helpers) => {
     }
 
     const entries = Array.from(entriesByPlayer.values());
-    if (entries.length === 0) return;
-
-    await db
-        .insertInto('staging.ranking_entries')
-        .values(entries)
-        .onConflict((oc) =>
-            oc.columns(['period_id', 'category_id', 'player_id', 'list_kind']).doUpdateSet({
-                ranking_row_external_id: (eb) => eb.ref('excluded.ranking_row_external_id'),
-                athlete_external_id: (eb) => eb.ref('excluded.athlete_external_id'),
-                rank: (eb) => eb.ref('excluded.rank'),
-                points: (eb) => eb.ref('excluded.points'),
-                county_country: (eb) => eb.ref('excluded.county_country'),
-                inactive_periods: (eb) => eb.ref('excluded.inactive_periods'),
-                is_initial_rating: (eb) => eb.ref('excluded.is_initial_rating'),
-                updated_at: new Date(),
-            }),
-        )
-        .execute();
+    for (const batch of chunkWriteItems(entries)) {
+        await db
+            .insertInto('staging.ranking_entries')
+            .values(batch)
+            .onConflict((oc) =>
+                oc.columns(['period_id', 'category_id', 'player_id', 'list_kind']).doUpdateSet({
+                    ranking_row_external_id: (eb) => eb.ref('excluded.ranking_row_external_id'),
+                    athlete_external_id: (eb) => eb.ref('excluded.athlete_external_id'),
+                    rank: (eb) => eb.ref('excluded.rank'),
+                    points: (eb) => eb.ref('excluded.points'),
+                    county_country: (eb) => eb.ref('excluded.county_country'),
+                    inactive_periods: (eb) => eb.ref('excluded.inactive_periods'),
+                    is_initial_rating: (eb) => eb.ref('excluded.is_initial_rating'),
+                    updated_at: new Date(),
+                }),
+            )
+            .execute();
+    }
 };
