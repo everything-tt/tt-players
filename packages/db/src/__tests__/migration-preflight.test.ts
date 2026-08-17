@@ -85,6 +85,7 @@ describe('migration preflight', () => {
             '058_create_raw_scrape_evidence_dependencies',
             '059_harden_source_ingestion_uniqueness',
             '060_create_scrape_run_resources',
+            '061_create_source_request_limits',
         ]);
     });
 });
