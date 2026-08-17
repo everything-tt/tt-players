@@ -1,6 +1,7 @@
 import { sql, type Kysely } from 'kysely';
 import type { Database, FixtureStatus } from '@tt-players/db';
 import type { ParsedTTLeaguesData } from './parser.js';
+import { chunkWriteItems } from './write-batches.js';
 
 export interface LoadTTLeaguesOptions {
     competitionId: string;
@@ -11,7 +12,7 @@ export interface LoadTTLeaguesOptions {
 
 export function resolveFixtureStatusForLoad(
     incomingStatus: FixtureStatus,
-    hasRubbers: boolean,
+    _hasRubbers: boolean,
     existingStatus: FixtureStatus | null,
 ): FixtureStatus {
     if (
@@ -27,9 +28,13 @@ export function resolveFixtureStatusForLoad(
  * Loads normalized result data atomically.
  *
  * Identity-bearing rows are written with database-enforced UPSERTs so retries
- * and concurrent workers converge. Source players without a stable external ID
- * are deliberately not materialized: callers must provide a stable source ID
- * before a player can participate in the canonical player graph.
+ * and concurrent workers converge. Large collections are written in bounded
+ * batches inside the same transaction, preserving atomicity without allowing a
+ * single source payload to create an unbounded SQL statement.
+ *
+ * Source players without a stable external ID are deliberately not
+ * materialized: callers must provide a stable source ID before a player can
+ * participate in the canonical player graph.
  */
 export async function loadTTLeaguesData(
     db: Kysely<Database>,
@@ -41,11 +46,11 @@ export async function loadTTLeaguesData(
         await db.transaction().execute(async (trx) => {
             const teamIdMap = new Map<string, string>();
 
-            if (parsedData.teams.length > 0) {
+            for (const batch of chunkWriteItems(parsedData.teams)) {
                 const teamRows = await trx
                     .insertInto('teams')
                     .values(
-                        parsedData.teams.map((team) => ({
+                        batch.map((team) => ({
                             competition_id: competitionId,
                             external_id: team.externalId,
                             name: team.name,
@@ -69,11 +74,11 @@ export async function loadTTLeaguesData(
                 (player) => player.externalId != null && player.externalId !== '',
             );
 
-            if (sourceLinkedPlayers.length > 0) {
+            for (const batch of chunkWriteItems(sourceLinkedPlayers)) {
                 const playerRows = await trx
                     .insertInto('external_players')
                     .values(
-                        sourceLinkedPlayers.map((player) => ({
+                        batch.map((player) => ({
                             platform_id: platformId,
                             external_id: player.externalId,
                             name: player.name,
@@ -98,11 +103,11 @@ export async function loadTTLeaguesData(
             }
 
             const fixtureIdMap = new Map<string, string>();
-            if (parsedData.fixtures.length > 0) {
+            for (const batch of chunkWriteItems(parsedData.fixtures)) {
                 const fixtureRows = await trx
                     .insertInto('fixtures')
                     .values(
-                        parsedData.fixtures.map((fixture) => {
+                        batch.map((fixture) => {
                             const homeTeamId = fixture.homeTeamExternalId
                                 ? teamIdMap.get(fixture.homeTeamExternalId)
                                 : null;
@@ -139,11 +144,6 @@ export async function loadTTLeaguesData(
                             home_team_id: (eb) => eb.ref('excluded.home_team_id'),
                             away_team_id: (eb) => eb.ref('excluded.away_team_id'),
                             date_played: (eb) => eb.ref('excluded.date_played'),
-                            // Scraper writes are monotonic once a fixture is
-                            // completed. Reopening/correction is an explicit
-                            // operator/domain action, never an effect of a stale
-                            // source snapshot. Keeping this in SQL makes the
-                            // rule replica-safe regardless of writer ordering.
                             status: sql<FixtureStatus>`case
                                 when fixtures.status = 'completed'
                                  and excluded.status <> 'completed'
@@ -163,11 +163,11 @@ export async function loadTTLeaguesData(
                 }
             }
 
-            if (parsedData.rubbers.length > 0) {
+            for (const batch of chunkWriteItems(parsedData.rubbers)) {
                 await trx
                     .insertInto('rubbers')
                     .values(
-                        parsedData.rubbers.map((rubber) => {
+                        batch.map((rubber) => {
                             const fixtureId = fixtureIdMap.get(rubber.matchExternalId);
                             if (!fixtureId) {
                                 throw new Error(
@@ -226,11 +226,11 @@ export async function loadTTLeaguesData(
                     .execute();
             }
 
-            if (parsedData.standings.length > 0) {
+            for (const batch of chunkWriteItems(parsedData.standings)) {
                 await trx
                     .insertInto('league_standings')
                     .values(
-                        parsedData.standings.map((standing) => {
+                        batch.map((standing) => {
                             const teamId = teamIdMap.get(standing.teamExternalId);
                             if (!teamId) {
                                 throw new Error(
@@ -264,20 +264,20 @@ export async function loadTTLeaguesData(
                     .execute();
             }
 
-            if (scrapeLogIds.length > 0) {
+            for (const batch of chunkWriteItems(scrapeLogIds)) {
                 await trx
                     .updateTable('staging.raw_scrape_logs')
                     .set({ status: 'processed', updated_at: new Date() })
-                    .where('id', 'in', scrapeLogIds)
+                    .where('id', 'in', batch)
                     .execute();
             }
         });
     } catch (error) {
-        if (scrapeLogIds.length > 0) {
+        for (const batch of chunkWriteItems(scrapeLogIds)) {
             await db
                 .updateTable('staging.raw_scrape_logs')
                 .set({ status: 'failed', updated_at: new Date() })
-                .where('id', 'in', scrapeLogIds)
+                .where('id', 'in', batch)
                 .where('status', '!=', 'processed')
                 .execute();
         }
