@@ -2,12 +2,32 @@ import type { Task } from 'graphile-worker';
 import { db } from '@tt-players/db';
 import { RETRYABLE_JOB_SPEC, stableJobKey } from '../job-policy.js';
 import { discoverVettsTournaments } from '../vetts-discovery.js';
+import type { VettsTournamentLink } from '../vetts-parser.js';
 
 const VETTS_UPSTREAM_QUEUE = 'vetts-tournamentsoftware';
+const MAX_CONFIGURED_DISCOVERY_GUARD = 10_000;
 
-function maximumTournaments(): number {
-    const value = Number(process.env['VETTS_DISCOVERY_LIMIT'] ?? 30);
-    return Number.isInteger(value) && value > 0 ? Math.min(value, 100) : 30;
+export function vettsDiscoveryLimit(raw = process.env['VETTS_DISCOVERY_LIMIT']): number | null {
+    if (raw === undefined || raw.trim() === '') return null;
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value <= 0 || value > MAX_CONFIGURED_DISCOVERY_GUARD) {
+        throw new Error(
+            `VETTS_DISCOVERY_LIMIT must be a positive integer <= ${MAX_CONFIGURED_DISCOVERY_GUARD}`,
+        );
+    }
+    return value;
+}
+
+export function completeVettsDiscovery(
+    tournaments: readonly VettsTournamentLink[],
+    limit: number | null = vettsDiscoveryLimit(),
+): VettsTournamentLink[] {
+    if (limit !== null && tournaments.length > limit) {
+        throw new Error(
+            `VETTS discovery incomplete: explicit VETTS_DISCOVERY_LIMIT=${limit} would truncate ${tournaments.length} discovered tournaments`,
+        );
+    }
+    return [...tournaments];
 }
 
 export const scrapeVettsTournamentsTask: Task = async (_payload, helpers) => {
@@ -15,7 +35,7 @@ export const scrapeVettsTournamentsTask: Task = async (_payload, helpers) => {
         info: (message) => helpers.logger.info(message),
         warn: (message) => helpers.logger.warn(message),
     });
-    const tournaments = discovery.tournaments.slice(0, maximumTournaments());
+    const tournaments = completeVettsDiscovery(discovery.tournaments);
 
     if (tournaments.length === 0) {
         throw new AggregateError(discovery.failures, 'No usable VETTS tournaments discovered');

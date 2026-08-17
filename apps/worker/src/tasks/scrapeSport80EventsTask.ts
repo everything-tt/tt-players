@@ -8,8 +8,57 @@ export interface ScrapeSport80EventsPayload {
     page?: number;
     limit?: number;
     category?: number;
+    /**
+     * Optional diagnostic guard. Discovery no longer has a default page cap;
+     * if callers set one and the API reports more rows, the task fails loudly
+     * instead of silently treating a truncated discovery as complete.
+     */
     maxPages?: number;
     force?: boolean;
+}
+
+export interface Sport80PaginationInput {
+    page: number;
+    limit: number;
+    rowCount: number;
+    total: number;
+    maxPages?: number;
+}
+
+export function nextSport80EventsPage(input: Sport80PaginationInput): number | null {
+    const { page, limit, rowCount, total, maxPages } = input;
+    if (!Number.isInteger(page) || page < 0) throw new Error(`invalid Sport80 page ${page}`);
+    if (!Number.isInteger(limit) || limit <= 0) throw new Error(`invalid Sport80 page limit ${limit}`);
+    if (!Number.isInteger(rowCount) || rowCount < 0 || rowCount > limit) {
+        throw new Error(`invalid Sport80 row count ${rowCount} for limit ${limit}`);
+    }
+    if (!Number.isInteger(total) || total < 0) throw new Error(`invalid Sport80 total ${total}`);
+    if (maxPages !== undefined && (!Number.isInteger(maxPages) || maxPages <= 0)) {
+        throw new Error(`invalid Sport80 maxPages ${maxPages}`);
+    }
+
+    const alreadyBeforePage = page * limit;
+    const fetched = alreadyBeforePage + rowCount;
+    if (fetched >= total) return null;
+
+    if (rowCount === 0) {
+        throw new Error(
+            `Sport80 pagination incomplete: page ${page} returned no rows after ${alreadyBeforePage}/${total}`,
+        );
+    }
+    if (rowCount < limit) {
+        throw new Error(
+            `Sport80 pagination incomplete: page ${page} returned ${rowCount}/${limit} rows but API reports ${total} total`,
+        );
+    }
+
+    const nextPage = page + 1;
+    if (maxPages !== undefined && nextPage >= maxPages) {
+        throw new Error(
+            `Sport80 pagination incomplete: explicit maxPages=${maxPages} would stop after ${fetched}/${total} rows`,
+        );
+    }
+    return nextPage;
 }
 
 export const scrapeSport80EventsTask: Task = async (payload, helpers) => {
@@ -17,7 +66,7 @@ export const scrapeSport80EventsTask: Task = async (payload, helpers) => {
         page = 0,
         limit = 100,
         category,
-        maxPages = 3,
+        maxPages,
         force = false,
     } = payload as ScrapeSport80EventsPayload;
 
@@ -86,14 +135,19 @@ export const scrapeSport80EventsTask: Task = async (payload, helpers) => {
         });
     }
 
-    const nextPage = page + 1;
-    const fetched = nextPage * limit;
-    if (nextPage < maxPages && fetched < result.total) {
+    const nextPage = nextSport80EventsPage({
+        page,
+        limit,
+        rowCount: result.data.length,
+        total: result.total,
+        maxPages,
+    });
+    if (nextPage !== null) {
         await helpers.addJob('scrapeSport80EventsTask', {
             page: nextPage,
             limit,
             category,
-            maxPages,
+            ...(maxPages === undefined ? {} : { maxPages }),
             force,
         }, {
             ...RETRYABLE_JOB_SPEC,

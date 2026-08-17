@@ -1,6 +1,8 @@
 import * as cheerio from 'cheerio';
+import { runSourceRateLimited } from './source-rate-limit.js';
 
 const TTE_ORIGIN = 'https://www.tabletennisengland.co.uk';
+const TTE_SOURCE_RATE_KEY = 'tte-calendar';
 const MAX_PARSE_DIAGNOSTIC_WARNINGS = 5;
 let parseDiagnosticWarnings = 0;
 
@@ -42,6 +44,22 @@ export class TteEventParseError extends Error {
 }
 
 type JsonObject = Record<string, unknown>;
+
+function envNumber(name: string, fallback: number): number {
+    const raw = process.env[name];
+    if (raw === undefined || raw.trim() === '') return fallback;
+    const value = Number(raw);
+    return Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
+function retryAfterMs(response: Response): number {
+    const value = response.headers.get('retry-after');
+    if (!value) return 30_000;
+    const seconds = Number(value);
+    if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000;
+    const timestamp = Date.parse(value);
+    return Number.isNaN(timestamp) ? 30_000 : Math.max(0, timestamp - Date.now());
+}
 
 function absoluteTteUrl(value: string, baseUrl: string = TTE_ORIGIN): string | null {
     try {
@@ -435,12 +453,18 @@ export function parseTteEventPage(html: string, sourceUrl: string): TteCalendarE
 }
 
 export async function fetchTtePage(url: string, fetchImpl: typeof fetch = fetch): Promise<string> {
-    const response = await fetchImpl(url, {
-        headers: {
-            accept: 'text/html,application/xhtml+xml',
-            'user-agent': 'tt-players-calendar-sync/1.0 (+https://github.com/wudong/tt-players)',
-        },
-    });
+    const response = await runSourceRateLimited(
+        TTE_SOURCE_RATE_KEY,
+        envNumber('TTE_FETCH_MIN_INTERVAL_MS', 500),
+        envNumber('TTE_FETCH_LEASE_MS', 40_000),
+        () => fetchImpl(url, {
+            headers: {
+                accept: 'text/html,application/xhtml+xml',
+                'user-agent': 'tt-players-calendar-sync/1.0 (+https://github.com/wudong/tt-players)',
+            },
+        }),
+        (result) => result.status === 429 ? retryAfterMs(result) : 0,
+    );
     if (!response.ok) {
         throw new Error(`TTE request failed (${response.status}) for ${url}`);
     }
