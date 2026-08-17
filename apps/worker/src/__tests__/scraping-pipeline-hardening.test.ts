@@ -1,9 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { summarizeIngestionBarrier } from '../tasks/completeDailyPipelineTask.js';
+import {
+    summarizeIngestionBarrier,
+    summarizeScrapeRunBarrier,
+} from '../tasks/completeDailyPipelineTask.js';
 
 describe('scraping pipeline hardening', () => {
-    it('blocks on failed staged raw evidence even when the Graphile queue is clean', () => {
+    it('blocks on failed staged raw evidence for manual compatibility runs', () => {
         expect(summarizeIngestionBarrier({
             queuePending: 0,
             queueFailed: 0,
@@ -11,50 +14,49 @@ describe('scraping pipeline hardening', () => {
             rawFailed: 1,
             resourcePending: 0,
             resourceFailed: 0,
-        })).toEqual({
-            pending: 0,
-            failed: 1,
-            queuePending: 0,
-            queueFailed: 0,
-            stagedPending: 0,
-            stagedFailed: 1,
-        });
+        })).toMatchObject({ pending: 0, failed: 1 });
     });
 
-    it('waits on unresolved staged resource state without requiring a task identifier', () => {
-        expect(summarizeIngestionBarrier({
-            queuePending: 0,
-            queueFailed: 0,
-            rawPending: 0,
-            rawFailed: 0,
-            resourcePending: 2,
-            resourceFailed: 0,
+    it('uses explicit scrape-run membership for scheduled publication', () => {
+        expect(summarizeScrapeRunBarrier({
+            exists: true,
+            expected: 7,
+            pending: 2,
+            succeeded: 4,
+            failed: 1,
         })).toEqual({
             pending: 2,
-            failed: 0,
-            queuePending: 0,
-            queueFailed: 0,
-            stagedPending: 2,
-            stagedFailed: 0,
+            failed: 1,
+            expected: 7,
+            succeeded: 4,
+            missingRun: false,
         });
     });
 
-    it('combines queue and staged state into one authoritative barrier result', () => {
-        expect(summarizeIngestionBarrier({
-            queuePending: 2,
-            queueFailed: 1,
-            rawPending: 3,
-            rawFailed: 4,
-            resourcePending: 5,
-            resourceFailed: 6,
+    it('fails closed when the scheduled scrape run does not exist', () => {
+        expect(summarizeScrapeRunBarrier({
+            exists: false,
+            expected: 0,
+            pending: 0,
+            succeeded: 0,
+            failed: 0,
         })).toEqual({
-            pending: 10,
-            failed: 11,
-            queuePending: 2,
-            queueFailed: 1,
-            stagedPending: 8,
-            stagedFailed: 10,
+            pending: 1,
+            failed: 0,
+            expected: 0,
+            succeeded: 0,
+            missingRun: true,
         });
+    });
+
+    it('does not infer scheduled completeness from Graphile task names', async () => {
+        const source = await readFile(
+            new URL('../tasks/completeDailyPipelineTask.ts', import.meta.url),
+            'utf8',
+        );
+        expect(source).not.toContain('INGESTION_TASK_IDENTIFIERS');
+        expect(source).not.toContain('graphile_worker.jobs');
+        expect(source).toContain('inspectScrapeRun');
     });
 
     it('keeps per-log transform/load free of global player reconciliation', async () => {

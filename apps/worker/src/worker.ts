@@ -53,12 +53,12 @@ graphilePool.on('error', (error) => {
 });
 
 const CRONTAB = `
- 0 2 * * * scheduleScrapeTasks ?fill=1d
- 30 2 * * * scrapeSport80EventsTask ?fill=1d
- 0 3 * * * scrapeSport80RankingsDiscoveryTask ?fill=1d
+ 30 1 * * 1 scheduleWeeklyVettsScrapeRunTask ?fill=7d
+ 45 1 * * * scheduleDueSourceResourcesTask ?fill=1d
+ 0 2 * * * scheduleDailyScrapeRunTask ?fill=1d
  30 3 * * * purgeExpiredCacheEntries ?fill=1d
  45 3 * * * completeDailyPipelineTask ?fill=1d
- 15 4 * * 1 scrapeVettsTournamentsTask ?fill=7d
+ 15 4 * * * pruneRawScrapeLogsTask ?fill=1d
  `;
 
 export async function startWorker(): Promise<void> {

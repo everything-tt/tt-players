@@ -63,7 +63,7 @@ describe('VETTS discovery task', () => {
         expect(addJob).not.toHaveBeenCalled();
     });
 
-    it('applies the bounded discovery limit before queueing', async () => {
+    it('fails closed instead of silently truncating an explicit discovery limit', async () => {
         process.env['VETTS_DISCOVERY_LIMIT'] = '1';
         mocks.discoverVettsTournaments.mockResolvedValue({
             tournaments: [
@@ -82,16 +82,11 @@ describe('VETTS discovery task', () => {
         });
         const addJob = vi.fn(async () => undefined);
 
-        await scrapeVettsTournamentsTask({}, {
+        await expect(scrapeVettsTournamentsTask({}, {
             addJob,
             logger: { info: vi.fn(), warn: vi.fn() },
-        } as any);
+        } as any)).rejects.toThrow(/discovery incomplete.*would truncate 2/);
 
-        expect(addJob).toHaveBeenCalledOnce();
-        expect(addJob).toHaveBeenCalledWith(
-            'scrapeVettsTournamentTask',
-            { tournamentId: TOURNAMENT_ID },
-            expect.anything(),
-        );
+        expect(addJob).not.toHaveBeenCalled();
     });
 });

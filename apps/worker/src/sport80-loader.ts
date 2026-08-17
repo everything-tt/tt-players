@@ -8,6 +8,7 @@ import {
     sport80Timestamp,
 } from './sport80-parser.js';
 import { ensureSourcePlatform } from './source-platform.js';
+import { chunkWriteItems } from './write-batches.js';
 
 export const SPORT80_PLATFORM_NAME = 'Sport:80 Table Tennis England Rankings';
 export const SPORT80_PLATFORM_BASE_URL = 'https://tabletennisengland.sport80.com/public/rankings';
@@ -238,27 +239,29 @@ export async function upsertSport80SourceEventResultRows(
         };
     });
 
-    await db
-        .insertInto('staging.source_event_result_rows')
-        .values(values)
-        .onConflict((oc) =>
-            oc.columns(['source', 'external_id']).doUpdateSet({
-                source_event_id: (eb: any) => eb.ref('excluded.source_event_id'),
-                played_at: (eb: any) => eb.ref('excluded.played_at'),
-                round_name: (eb: any) => eb.ref('excluded.round_name'),
-                round_order: (eb: any) => eb.ref('excluded.round_order'),
-                round_raw: (eb: any) => eb.ref('excluded.round_raw'),
-                home_raw: (eb: any) => eb.ref('excluded.home_raw'),
-                away_raw: (eb: any) => eb.ref('excluded.away_raw'),
-                home_player_name: (eb: any) => eb.ref('excluded.home_player_name'),
-                home_player_external_id: (eb: any) => eb.ref('excluded.home_player_external_id'),
-                away_player_name: (eb: any) => eb.ref('excluded.away_player_name'),
-                away_player_external_id: (eb: any) => eb.ref('excluded.away_player_external_id'),
-                winner_side: (eb: any) => eb.ref('excluded.winner_side'),
-                raw_payload: (eb: any) => eb.ref('excluded.raw_payload'),
-                last_seen_at: new Date(),
-                updated_at: new Date(),
-            }),
-        )
-        .execute();
+    for (const batch of chunkWriteItems(values)) {
+        await db
+            .insertInto('staging.source_event_result_rows')
+            .values(batch)
+            .onConflict((oc) =>
+                oc.columns(['source', 'external_id']).doUpdateSet({
+                    source_event_id: (eb: any) => eb.ref('excluded.source_event_id'),
+                    played_at: (eb: any) => eb.ref('excluded.played_at'),
+                    round_name: (eb: any) => eb.ref('excluded.round_name'),
+                    round_order: (eb: any) => eb.ref('excluded.round_order'),
+                    round_raw: (eb: any) => eb.ref('excluded.round_raw'),
+                    home_raw: (eb: any) => eb.ref('excluded.home_raw'),
+                    away_raw: (eb: any) => eb.ref('excluded.away_raw'),
+                    home_player_name: (eb: any) => eb.ref('excluded.home_player_name'),
+                    home_player_external_id: (eb: any) => eb.ref('excluded.home_player_external_id'),
+                    away_player_name: (eb: any) => eb.ref('excluded.away_player_name'),
+                    away_player_external_id: (eb: any) => eb.ref('excluded.away_player_external_id'),
+                    winner_side: (eb: any) => eb.ref('excluded.winner_side'),
+                    raw_payload: (eb: any) => eb.ref('excluded.raw_payload'),
+                    last_seen_at: new Date(),
+                    updated_at: new Date(),
+                }),
+            )
+            .execute();
+    }
 }
