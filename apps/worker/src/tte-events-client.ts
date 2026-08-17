@@ -1,10 +1,17 @@
-import { load as loadHtml } from 'cheerio';
+import * as cheerio from 'cheerio';
 import { runSourceRateLimited } from './source-rate-limit.js';
 
-const TTE_BASE_URL = 'https://www.tabletennisengland.co.uk';
+const TTE_ORIGIN = 'https://www.tabletennisengland.co.uk';
 const TTE_SOURCE_RATE_KEY = 'tte-calendar';
-const TTE_FETCH_MIN_INTERVAL_MS = Number(process.env['TTE_FETCH_MIN_INTERVAL_MS'] ?? '500');
-const TTE_FETCH_TIMEOUT_MS = Number(process.env['TTE_FETCH_TIMEOUT_MS'] ?? '30000');
+const MAX_PARSE_DIAGNOSTIC_WARNINGS = 5;
+let parseDiagnosticWarnings = 0;
+
+export const TTE_ALL_COMPETITIONS_URL = `${TTE_ORIGIN}/events-cat/all-competitions/`;
+
+export interface TteCompetitionArchive {
+    eventUrls: string[];
+    monthUrls: string[];
+}
 
 export interface TteCalendarEvent {
     sourceKey: string;
@@ -23,282 +30,26 @@ export interface TteCalendarEvent {
     categories: string[];
     entryDeadline: string | null;
     entryUrl: string | null;
-    publishedStatus: 'confirmed' | 'cancelled' | 'postponed';
-}
-
-export interface TteCompetitionArchive {
-    eventUrls: string[];
-}
-
-const MONTHS: Record<string, number> = {
-    jan: 1,
-    january: 1,
-    feb: 2,
-    february: 2,
-    mar: 3,
-    march: 3,
-    apr: 4,
-    april: 4,
-    may: 5,
-    jun: 6,
-    june: 6,
-    jul: 7,
-    july: 7,
-    aug: 8,
-    august: 8,
-    sep: 9,
-    sept: 9,
-    september: 9,
-    oct: 10,
-    october: 10,
-    nov: 11,
-    november: 11,
-    dec: 12,
-    december: 12,
-};
-
-function isoDate(year: number, month: number, day: number): string {
-    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
-
-function normalizeYear(value: string): number {
-    const year = Number(value);
-    if (value.length === 2) return year >= 70 ? 1900 + year : 2000 + year;
-    return year;
-}
-
-function parseDateToken(value: string): string | null {
-    const normalized = value.replace(/\u00a0/g, ' ').trim();
-    let match = normalized.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\s+(\d{2,4})\b/i);
-    if (match) {
-        const month = MONTHS[match[2].toLowerCase()];
-        if (month) return isoDate(normalizeYear(match[3]), month, Number(match[1]));
-    }
-
-    match = normalized.match(/\b([A-Za-z]{3,9})\s+(\d{1,2})(?:st|nd|rd|th)?[,]?\s+(\d{2,4})\b/i);
-    if (match) {
-        const month = MONTHS[match[1].toLowerCase()];
-        if (month) return isoDate(normalizeYear(match[3]), month, Number(match[2]));
-    }
-
-    match = normalized.match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\b/);
-    if (match) return isoDate(normalizeYear(match[3]), Number(match[2]), Number(match[1]));
-    return null;
-}
-
-function parseDateRange(value: string): { startDate: string | null; endDate: string | null } {
-    const text = value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
-    const sameMonth = text.match(
-        /(\d{1,2})(?:st|nd|rd|th)?\s*[-–]\s*(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\s+(\d{2,4})/i,
-    );
-    if (sameMonth) {
-        const month = MONTHS[sameMonth[3].toLowerCase()];
-        if (month) {
-            const year = normalizeYear(sameMonth[4]);
-            return {
-                startDate: isoDate(year, month, Number(sameMonth[1])),
-                endDate: isoDate(year, month, Number(sameMonth[2])),
-            };
-        }
-    }
-
-    const explicitRange = text.match(
-        /(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\s+\d{2,4})\s*[-–]\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\s+\d{2,4})/i,
-    );
-    if (explicitRange) {
-        return {
-            startDate: parseDateToken(explicitRange[1]),
-            endDate: parseDateToken(explicitRange[2]),
-        };
-    }
-
-    const startDate = parseDateToken(text);
-    return { startDate, endDate: null };
-}
-
-function normalizeText(value: string | null | undefined): string | null {
-    if (!value) return null;
-    const normalized = value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
-    return normalized || null;
-}
-
-function absoluteUrl(value: string | undefined): string | null {
-    if (!value) return null;
-    try {
-        return new URL(value, TTE_BASE_URL).toString();
-    } catch {
-        return null;
-    }
-}
-
-function sourceKeyFromUrl(sourceUrl: string): string {
-    const url = new URL(sourceUrl, TTE_BASE_URL);
-    const match = url.pathname.match(/^\/event\/([^/]+)\/?$/);
-    if (!match) throw new Error(`Unsupported TTE event URL: ${sourceUrl}`);
-    return match[1];
-}
-
-function bodyLabelValue(bodyText: string, label: string): string | null {
-    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const pattern = new RegExp(`${escaped}\\s*:?\\s*([^\\n|]+)`, 'i');
-    return normalizeText(bodyText.match(pattern)?.[1]);
-}
-
-function parsePostcode(value: string | null): string | null {
-    if (!value) return null;
-    return value.match(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/i)?.[0]?.toUpperCase() ?? null;
-}
-
-function eventStatusFromText(value: string): TteCalendarEvent['publishedStatus'] {
-    if (/\bcancel(?:led|ed)\b/i.test(value)) return 'cancelled';
-    if (/\bpostponed\b/i.test(value)) return 'postponed';
-    return 'confirmed';
+    publishedStatus: 'confirmed' | 'provisional' | 'cancelled' | 'postponed';
 }
 
 export class TteEventParseError extends Error {
-    constructor(
-        message: string,
-        readonly sourceUrl: string,
-    ) {
-        super(message);
+    readonly sourceUrl: string;
+
+    constructor(sourceUrl: string, diagnostics?: string) {
+        super(`Unable to parse TTE event: ${sourceUrl}${diagnostics ? `; ${diagnostics}` : ''}`);
         this.name = 'TteEventParseError';
+        this.sourceUrl = sourceUrl;
     }
 }
 
-export function buildTteCompetitionArchiveUrl(month: string): string {
-    const parsed = month.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?$/);
-    if (!parsed) throw new Error(`Invalid TTE archive month: ${month}`);
-    return `${TTE_BASE_URL}/events/category/competition/list/?tribe-bar-date=${parsed[1]}-${parsed[2]}-01`;
-}
+type JsonObject = Record<string, unknown>;
 
-export function parseTteCompetitionArchive(html: string): TteCompetitionArchive {
-    const $ = loadHtml(html);
-    const urls = new Set<string>();
-    $('a[href]').each((_index, element) => {
-        const href = $(element).attr('href');
-        const url = absoluteUrl(href);
-        if (!url) return;
-        const pathname = new URL(url).pathname;
-        if (/^\/event\/[^/]+\/?$/.test(pathname)) urls.add(url);
-    });
-    return { eventUrls: [...urls].sort() };
-}
-
-export function parseTteEventPage(html: string, sourceUrl: string): TteCalendarEvent {
-    const $ = loadHtml(html);
-    const bodyText = $('body').text().replace(/\r/g, '\n');
-    const heading = normalizeText($('h1').first().text());
-    const title = normalizeText($('title').text());
-    const name = heading
-        ?? title?.replace(/\s*[|–-].*Table Tennis England.*$/i, '').trim()
-        ?? null;
-    if (!name) throw new TteEventParseError(`Unable to parse TTE event name: ${sourceUrl}`, sourceUrl);
-
-    const dateCandidates = [
-        $('[class*="tribe-events-start-date"]').first().text(),
-        $('time[datetime]').first().attr('datetime') ?? '',
-        bodyLabelValue(bodyText, 'Date') ?? '',
-        bodyText,
-    ];
-    let startDate: string | null = null;
-    let endDate: string | null = null;
-    for (const candidate of dateCandidates) {
-        if (!candidate) continue;
-        const dateTimeMatch = candidate.match(/^(\d{4}-\d{2}-\d{2})/);
-        if (dateTimeMatch) {
-            startDate = dateTimeMatch[1];
-            break;
-        }
-        const range = parseDateRange(candidate);
-        if (range.startDate) {
-            startDate = range.startDate;
-            endDate = range.endDate;
-            break;
-        }
-    }
-    if (!startDate) {
-        const bodySample = normalizeText(bodyText)?.slice(0, 300) ?? '';
-        throw new TteEventParseError(
-            `Unable to parse TTE event date: ${sourceUrl}; htmlLength=${html.length}, title=${JSON.stringify(title ?? '')}, heading=${JSON.stringify(heading ?? '')}, dateCandidates=${JSON.stringify(dateCandidates.map((value) => normalizeText(value)?.slice(0, 120) ?? ''))}, bodySample=${JSON.stringify(bodySample)}`,
-            sourceUrl,
-        );
-    }
-
-    const endTime = $('time[datetime]').eq(1).attr('datetime');
-    if (!endDate && endTime?.match(/^\d{4}-\d{2}-\d{2}/)) endDate = endTime.slice(0, 10);
-
-    const venueBlock = $('[class*="tribe-venue"], [class*="venue"]')
-        .filter((_index, element) => /venue/i.test($(element).text()))
-        .first();
-    const venueName = normalizeText(
-        $('[class*="tribe-venue"] a, [class*="tribe-venue"] dd, [class*="venue"] a')
-            .filter((_index, element) => !/map/i.test($(element).text()))
-            .first()
-            .text(),
-    ) ?? bodyLabelValue(bodyText, 'Venue');
-    const venueAddress = normalizeText(
-        venueBlock.find('[class*="address"], address').first().text(),
-    ) ?? bodyLabelValue(bodyText, 'Address');
-    const venueTown = normalizeText(
-        venueBlock.find('[class*="locality"], [class*="city"]').first().text(),
-    );
-    const venuePostcode = normalizeText(
-        venueBlock.find('[class*="postal"], [class*="zip"]').first().text(),
-    ) ?? parsePostcode(venueAddress ?? bodyText);
-    const venueUrl = absoluteUrl(
-        venueBlock.find('a[href*="map"], a[href*="maps"]').first().attr('href'),
-    );
-
-    const organizerBlock = $('[class*="organizer"], [class*="organiser"]').first();
-    const organizerName = normalizeText(
-        organizerBlock.find('a').first().text() || organizerBlock.text(),
-    ) ?? bodyLabelValue(bodyText, 'Organiser')
-        ?? bodyLabelValue(bodyText, 'Organizer');
-    const organizerUrl = absoluteUrl(organizerBlock.find('a[href]').first().attr('href'));
-
-    const entryDeadlineRaw = bodyLabelValue(bodyText, 'Entry Deadline')
-        ?? bodyLabelValue(bodyText, 'Closing Date')
-        ?? bodyLabelValue(bodyText, 'Closing date');
-    const entryDeadline = entryDeadlineRaw ? parseDateToken(entryDeadlineRaw) : null;
-    let entryUrl: string | null = null;
-    $('a[href]').each((_index, element) => {
-        if (entryUrl) return;
-        const text = normalizeText($(element).text()) ?? '';
-        const href = absoluteUrl($(element).attr('href'));
-        if (href && /enter|entry|book|register/i.test(text)) entryUrl = href;
-    });
-
-    const categories = new Set<string>();
-    $('[class*="tribe-events-event-categories"] a, a[href*="/category/"]').each((_index, element) => {
-        const value = normalizeText($(element).text());
-        if (value && !/^competition$/i.test(value)) categories.add(value);
-    });
-    for (const match of bodyText.matchAll(/\b(?:1|2|3|4)-?star\b/gi)) categories.add(match[0]);
-    for (const match of bodyText.matchAll(/\b(?:1|2|3|4)\*\b/g)) categories.add(match[0]);
-
-    const description = normalizeText(
-        $('[class*="tribe-events-single-event-description"], .entry-content').first().text(),
-    );
-
-    return {
-        sourceKey: sourceKeyFromUrl(sourceUrl),
-        sourceUrl: new URL(sourceUrl, TTE_BASE_URL).toString(),
-        name,
-        description,
-        startDate,
-        endDate,
-        venueName,
-        venueAddress,
-        venueTown,
-        venuePostcode,
-        venueUrl,
-        organizerName,
-        organizerUrl,
-        categories: [...categories].sort(),
-        entryDeadline,
-        entryUrl,
-        publishedStatus: eventStatusFromText(`${name}\n${bodyText}`),
-    };
+function envNumber(name: string, fallback: number): number {
+    const raw = process.env[name];
+    if (raw === undefined || raw.trim() === '') return fallback;
+    const value = Number(raw);
+    return Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 
 function retryAfterMs(response: Response): number {
@@ -310,29 +61,412 @@ function retryAfterMs(response: Response): number {
     return Number.isNaN(timestamp) ? 30_000 : Math.max(0, timestamp - Date.now());
 }
 
-export async function fetchTtePage(
-    url: string,
-    fetchImpl: typeof fetch = fetch,
-): Promise<string> {
-    const operation = () => fetchImpl(url, {
-        headers: {
-            Accept: 'text/html,application/xhtml+xml',
-            'User-Agent': 'tt-players/1.0 (+https://ttp.tourneypilot.com)',
-        },
-        signal: AbortSignal.timeout(TTE_FETCH_TIMEOUT_MS),
-    });
-    const response = fetchImpl === fetch
-        ? await runSourceRateLimited(
-            TTE_SOURCE_RATE_KEY,
-            Math.max(0, TTE_FETCH_MIN_INTERVAL_MS),
-            Math.max(1_000, TTE_FETCH_TIMEOUT_MS + 10_000),
-            operation,
-            (result) => result.status === 429 ? retryAfterMs(result) : 0,
-        )
-        : await operation();
+function absoluteTteUrl(value: string, baseUrl: string = TTE_ORIGIN): string | null {
+    try {
+        const url = new URL(value, baseUrl);
+        if (url.origin !== TTE_ORIGIN) return null;
+        url.hash = '';
+        return url.toString();
+    } catch {
+        return null;
+    }
+}
 
+function absoluteUrlValue(value: unknown, baseUrl: string): string | null {
+    const text = stringValue(value);
+    if (!text) return null;
+    try {
+        const url = new URL(text, baseUrl);
+        url.hash = '';
+        return url.toString();
+    } catch {
+        return null;
+    }
+}
+
+export function buildTteCompetitionArchiveUrl(date: string): string {
+    const normalized = /^\d{4}-\d{2}-\d{2}$/.test(date)
+        ? date
+        : (() => {
+            throw new Error(`Invalid archive date: ${date}`);
+        })();
+    return `${TTE_ALL_COMPETITIONS_URL}?date=${normalized}`;
+}
+
+export function parseTteCompetitionArchive(html: string): TteCompetitionArchive {
+    const $ = cheerio.load(html);
+    const eventUrls = new Set<string>();
+    const monthUrls = new Set<string>();
+
+    $('a[href]').each((_index, element) => {
+        const href = $(element).attr('href');
+        if (!href) return;
+        const absolute = absoluteTteUrl(href, TTE_ALL_COMPETITIONS_URL);
+        if (!absolute) return;
+        const url = new URL(absolute);
+
+        if (/^\/event\/[^/]+\/?$/.test(url.pathname)) {
+            if (!url.pathname.endsWith('/')) url.pathname += '/';
+            url.search = '';
+            eventUrls.add(url.toString());
+            return;
+        }
+
+        if (url.pathname === '/events-cat/all-competitions/' && /^\d{4}-\d{2}-01$/.test(url.searchParams.get('date') ?? '')) {
+            monthUrls.add(url.toString());
+        }
+    });
+
+    return {
+        eventUrls: [...eventUrls],
+        monthUrls: [...monthUrls].sort(),
+    };
+}
+
+function asObject(value: unknown): JsonObject | null {
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+        ? value as JsonObject
+        : null;
+}
+
+function firstObject(value: unknown): JsonObject | null {
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const object = asObject(item);
+            if (object) return object;
+        }
+        return null;
+    }
+    return asObject(value);
+}
+
+function findEventNode(value: unknown): JsonObject | null {
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const event = findEventNode(item);
+            if (event) return event;
+        }
+        return null;
+    }
+
+    const object = asObject(value);
+    if (!object) return null;
+    const type = object['@type'];
+    if (type === 'Event' || (Array.isArray(type) && type.includes('Event'))) return object;
+    if ('@graph' in object) return findEventNode(object['@graph']);
+    return null;
+}
+
+function parseEventJsonLd($: cheerio.CheerioAPI): JsonObject | null {
+    let result: JsonObject | null = null;
+    $('script[type="application/ld+json"]').each((_index, element) => {
+        if (result) return;
+        const raw = $(element).text().trim();
+        if (!raw) return;
+        try {
+            result = findEventNode(JSON.parse(raw));
+        } catch {
+            // Ignore unrelated or malformed structured-data blocks and use DOM fallbacks.
+        }
+    });
+    return result;
+}
+
+function stringValue(value: unknown): string | null {
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function plainTextValue(value: unknown): string | null {
+    const text = stringValue(value);
+    if (!text) return null;
+    const normalized = cheerio.load(`<body>${text}</body>`)('body')
+        .text()
+        .replace(/\s+/g, ' ')
+        .trim();
+    return normalized || null;
+}
+
+function dateOnly(value: unknown): string | null {
+    const text = stringValue(value);
+    if (!text) return null;
+    const match = text.match(/^(\d{4}-\d{2}-\d{2})/);
+    return match?.[1] ?? null;
+}
+
+function textFromDom($: cheerio.CheerioAPI, selectors: string[]): string | null {
+    for (const selector of selectors) {
+        const value = $(selector).first().text().replace(/\s+/g, ' ').trim();
+        if (value) return value;
+    }
+    return null;
+}
+
+function hrefFromDom(
+    $: cheerio.CheerioAPI,
+    selectors: string[],
+    baseUrl: string,
+): string | null {
+    for (const selector of selectors) {
+        const href = $(selector).first().attr('href');
+        const absolute = absoluteUrlValue(href, baseUrl);
+        if (absolute) return absolute;
+    }
+    return null;
+}
+
+function nameFromTitle($: cheerio.CheerioAPI): string | null {
+    const title = textFromDom($, ['title']);
+    if (!title) return null;
+    const name = title.replace(/\s+-\s+Table Tennis England\s*$/i, '').trim();
+    return name || null;
+}
+
+function dateFromDom($: cheerio.CheerioAPI, selectors: string[]): string | null {
+    const attributes = ['datetime', 'title', 'content', 'data-start-date', 'data-end-date', 'data-date'];
+    for (const selector of selectors) {
+        const element = $(selector).first();
+        if (element.length === 0) continue;
+        for (const attribute of attributes) {
+            const parsed = dateOnly(element.attr(attribute));
+            if (parsed) return parsed;
+        }
+    }
+    return null;
+}
+
+interface ScoredDateCandidate {
+    date: string;
+    score: number;
+    order: number;
+}
+
+function scoredDateFromAnyAttribute($: cheerio.CheerioAPI): string | null {
+    const candidates: ScoredDateCandidate[] = [];
+    let order = 0;
+
+    $('*').each((_index, element) => {
+        const attributes = $(element).attr();
+        if (!attributes) return;
+
+        const context = [
+            attributes.class,
+            attributes.id,
+            attributes.itemprop,
+            attributes.property,
+        ].filter(Boolean).join(' ').toLowerCase();
+
+        for (const [attribute, value] of Object.entries(attributes)) {
+            const date = dateOnly(value);
+            if (!date) continue;
+
+            const descriptor = `${attribute} ${context}`.toLowerCase();
+            let score = 0;
+            if (/(start|event|calendar|date|dtstart)/.test(descriptor)) score += 6;
+            if (/00:00:00/.test(value)) score += 4;
+            if (attribute === 'title' || attribute.startsWith('data-')) score += 1;
+            if (/(modified|published|updated|article)/.test(descriptor)) score -= 12;
+            if (/T\d{2}:\d{2}:\d{2}/.test(value) && !/T00:00:00/.test(value)) score -= 3;
+
+            candidates.push({ date, score, order });
+            order += 1;
+        }
+    });
+
+    candidates.sort((left, right) => right.score - left.score || left.order - right.order);
+    const best = candidates[0];
+    return best && best.score >= 0 ? best.date : null;
+}
+
+function describeUnparseablePage($: cheerio.CheerioAPI, html: string): string {
+    const title = textFromDom($, ['title']) ?? '';
+    const heading = textFromDom($, ['h1']) ?? '';
+    const bodySample = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 180);
+    const dateCandidates = new Set<string>();
+
+    $('*').each((_index, element) => {
+        const attributes = $(element).attr();
+        if (!attributes) return;
+        for (const value of Object.values(attributes)) {
+            if (/\d{4}-\d{2}-\d{2}/.test(value)) dateCandidates.add(value.slice(0, 80));
+            if (dateCandidates.size >= 5) return false;
+        }
+        return undefined;
+    });
+
+    return [
+        `htmlLength=${html.length}`,
+        `title=${JSON.stringify(title.slice(0, 100))}`,
+        `heading=${JSON.stringify(heading.slice(0, 100))}`,
+        `dateCandidates=${JSON.stringify([...dateCandidates])}`,
+        `bodySample=${JSON.stringify(bodySample)}`,
+    ].join(', ');
+}
+
+function parseEnglishDate(value: string): string | null {
+    const cleaned = value.replace(/(\d+)(st|nd|rd|th)/gi, '$1').replace(/,/g, '').trim();
+    const match = cleaned.match(/^(?:(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+)?(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/i);
+    if (!match) return null;
+    const months = [
+        'january', 'february', 'march', 'april', 'may', 'june',
+        'july', 'august', 'september', 'october', 'november', 'december',
+    ];
+    const month = months.indexOf(match[2].toLowerCase());
+    if (month < 0) return null;
+    const day = Number(match[1]);
+    const year = Number(match[3]);
+    if (day < 1 || day > 31) return null;
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function entryDeadlineFromText(text: string): string | null {
+    const match = text.match(/closing\s+date(?:\s+for\s+entries)?\s*:\s*((?:(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+)?\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+,?\s+\d{4})/i);
+    return match ? parseEnglishDate(match[1]) : null;
+}
+
+function sourceKeyFromUrl(sourceUrl: string): string | null {
+    try {
+        const url = new URL(sourceUrl);
+        const match = url.pathname.match(/^\/event\/([^/]+)\/?$/);
+        return match?.[1] ?? null;
+    } catch {
+        return null;
+    }
+}
+
+function findEntryUrl($: cheerio.CheerioAPI, sourceUrl: string): string | null {
+    const candidates: Array<{ score: number; url: string }> = [];
+    $('a[href]').each((_index, element) => {
+        const label = $(element).text().replace(/\s+/g, ' ').trim().toLowerCase();
+        if (!/(enter\s+online|online\s+entry|entry\s+form|download\s+entry)/.test(label)) return;
+        const href = $(element).attr('href');
+        if (!href) return;
+        try {
+            const absolute = new URL(href, sourceUrl).toString();
+            const score = /enter\s+online|online\s+entry/.test(label) ? 2 : 1;
+            candidates.push({ score, url: absolute });
+        } catch {
+            // Ignore malformed links.
+        }
+    });
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates[0]?.url ?? null;
+}
+
+function categoriesFromDom($: cheerio.CheerioAPI): string[] {
+    const categories = new Set<string>();
+    $('.tribe-events-event-categories a, a[href*="/events-cat/"]').each((_index, element) => {
+        const value = $(element).text().replace(/\s+/g, ' ').trim();
+        if (value && !/^all competitions$/i.test(value)) categories.add(value);
+    });
+    return [...categories];
+}
+
+function publishedStatus(event: JsonObject, pageText: string): TteCalendarEvent['publishedStatus'] {
+    const schemaStatus = stringValue(event.eventStatus)?.toLowerCase() ?? '';
+    if (schemaStatus.includes('cancelled')) return 'cancelled';
+    if (schemaStatus.includes('postponed')) return 'postponed';
+    if (/\bcancelled\b/i.test(pageText)) return 'cancelled';
+    if (/\bpostponed\b/i.test(pageText)) return 'postponed';
+    if (/\bprovisional\b/i.test(pageText)) return 'provisional';
+    return 'confirmed';
+}
+
+export function parseTteEventPage(html: string, sourceUrl: string): TteCalendarEvent {
+    const sourceKey = sourceKeyFromUrl(sourceUrl);
+    const $ = cheerio.load(html);
+    const event = parseEventJsonLd($) ?? {};
+    const pageText = $('body').text().replace(/\s+/g, ' ').trim();
+
+    const name = stringValue(event.name)
+        ?? textFromDom($, ['h1.tribe-events-single-event-title', 'h1'])
+        ?? nameFromTitle($);
+    const startDate = dateOnly(event.startDate)
+        ?? dateFromDom($, [
+            '[itemprop="startDate"]',
+            '.tribe-events-start-date',
+            '.tribe-event-date-start',
+            'time.tribe-events-start-date',
+        ])
+        ?? scoredDateFromAnyAttribute($);
+    const endDate = dateOnly(event.endDate)
+        ?? dateFromDom($, [
+            '[itemprop="endDate"]',
+            '.tribe-events-end-date',
+            '.tribe-event-date-end',
+            'time.tribe-events-end-date',
+        ]);
+
+    if (!sourceKey || !name || !startDate) {
+        const error = new TteEventParseError(sourceUrl, describeUnparseablePage($, html));
+        if (parseDiagnosticWarnings < MAX_PARSE_DIAGNOSTIC_WARNINGS) {
+            console.warn(error.message);
+            parseDiagnosticWarnings += 1;
+        }
+        throw error;
+    }
+
+    const location = firstObject(event.location);
+    const address = firstObject(location?.address);
+    const organizer = firstObject(event.organizer);
+
+    return {
+        sourceKey,
+        sourceUrl,
+        name,
+        description: plainTextValue(event.description)
+            ?? textFromDom($, [
+                '.tribe-events-single-event-description',
+                '[itemprop="description"]',
+                '.event-description',
+            ]),
+        startDate,
+        endDate,
+        venueName: stringValue(location?.name)
+            ?? textFromDom($, ['.tribe-events-meta-group-venue .tribe-venue', '.tribe-venue']),
+        venueAddress: stringValue(address?.streetAddress)
+            ?? textFromDom($, ['.tribe-events-address .tribe-street-address', '.tribe-street-address']),
+        venueTown: stringValue(address?.addressLocality)
+            ?? textFromDom($, ['.tribe-events-address .tribe-locality', '.tribe-locality']),
+        venuePostcode: stringValue(address?.postalCode)
+            ?? textFromDom($, ['.tribe-events-address .tribe-postal-code', '.tribe-postal-code']),
+        venueUrl: absoluteUrlValue(location?.url, sourceUrl)
+            ?? hrefFromDom($, [
+                '.tribe-events-meta-group-venue .tribe-venue-url a[href]',
+                '.tribe-venue-url a[href]',
+            ], sourceUrl),
+        organizerName: stringValue(organizer?.name)
+            ?? stringValue(event.organizer)
+            ?? textFromDom($, [
+                '.tribe-events-meta-group-organizer .tribe-organizer',
+                '.tribe-organizer',
+            ]),
+        organizerUrl: absoluteUrlValue(organizer?.url, sourceUrl)
+            ?? hrefFromDom($, [
+                '.tribe-events-meta-group-organizer .tribe-organizer-url a[href]',
+                '.tribe-organizer-url a[href]',
+            ], sourceUrl),
+        categories: categoriesFromDom($),
+        entryDeadline: entryDeadlineFromText(pageText),
+        entryUrl: findEntryUrl($, sourceUrl),
+        publishedStatus: publishedStatus(event, pageText),
+    };
+}
+
+export async function fetchTtePage(url: string, fetchImpl: typeof fetch = fetch): Promise<string> {
+    const response = await runSourceRateLimited(
+        TTE_SOURCE_RATE_KEY,
+        envNumber('TTE_FETCH_MIN_INTERVAL_MS', 500),
+        envNumber('TTE_FETCH_LEASE_MS', 40_000),
+        () => fetchImpl(url, {
+            headers: {
+                accept: 'text/html,application/xhtml+xml',
+                'user-agent': 'tt-players-calendar-sync/1.0 (+https://github.com/wudong/tt-players)',
+            },
+        }),
+        (result) => result.status === 429 ? retryAfterMs(result) : 0,
+    );
     if (!response.ok) {
-        throw new Error(`TTE calendar HTTP ${response.status} ${response.statusText} for ${url}`);
+        throw new Error(`TTE request failed (${response.status}) for ${url}`);
     }
     return response.text();
 }

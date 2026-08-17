@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Kysely, Migrator, PostgresDialect, sql } from 'kysely';
 import type { Migration, MigrationProvider } from 'kysely';
 import pg from 'pg';
-import * as m060 from '@tt-players/db/src/migrations/060_create_source_request_limits.js';
+import * as m061 from '@tt-players/db/src/migrations/061_create_source_request_limits.js';
 import {
     releaseSourceRequestLease,
     tryAcquireSourceRequestLease,
@@ -16,7 +16,7 @@ const TEST_URL = `${BASE}/${TEST_DB_NAME}`;
 
 class Provider implements MigrationProvider {
     async getMigrations(): Promise<Record<string, Migration>> {
-        return { '060_create_source_request_limits': m060 };
+        return { '061_create_source_request_limits': m061 };
     }
 }
 
