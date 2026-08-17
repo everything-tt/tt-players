@@ -57,6 +57,7 @@ const CRONTAB = `
  0 2 * * * scheduleDailyScrapeRunTask ?fill=1d
  30 3 * * * purgeExpiredCacheEntries ?fill=1d
  45 3 * * * completeDailyPipelineTask ?fill=1d
+ 15 4 * * * pruneRawScrapeLogsTask ?fill=1d
  `;
 
 export async function startWorker(): Promise<void> {

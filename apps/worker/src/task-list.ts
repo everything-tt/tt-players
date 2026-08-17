@@ -27,6 +27,7 @@ import { calculateRatingsTask } from './tasks/calculateRatingsTask.js';
 import { refreshApiReadModelsTask } from './tasks/refreshApiReadModelsTask.js';
 import { completeDailyPipelineTask } from './tasks/completeDailyPipelineTask.js';
 import { processManualTournamentSubmissionTask } from './tasks/processManualTournamentSubmissionTask.js';
+import { pruneRawScrapeLogsTask } from './tasks/pruneRawScrapeLogsTask.js';
 
 let scheduledScrapeTargets: ScrapeTarget[] = [];
 
@@ -242,6 +243,7 @@ export const taskList = {
     refreshApiReadModelsTask,
     completeDailyPipelineTask,
     processManualTournamentSubmissionTask,
+    pruneRawScrapeLogsTask,
     scheduleScrapeTasks: trackScrapeTask(db, scheduleScrapeTasks),
     scheduleDailyScrapeRunTask,
     scheduleWeeklyVettsScrapeRunTask,
