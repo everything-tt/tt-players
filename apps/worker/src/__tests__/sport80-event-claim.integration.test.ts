@@ -1,10 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { Kysely, Migrator, PostgresDialect } from 'kysely';
+import { Kysely, Migrator, PostgresDialect, sql } from 'kysely';
 import type { Migration, MigrationProvider } from 'kysely';
 import pg from 'pg';
 import * as m001 from '@tt-players/db/src/migrations/001_create_enums.js';
 import * as m016 from '@tt-players/db/src/migrations/016_create_sport80_event_scrape_state.js';
-import * as m020 from '@tt-players/db/src/migrations/020_create_staging_schema.js';
 import { claimSport80EventForScrape } from '../sport80-event-claim.js';
 
 const { Pool } = pg;
@@ -18,7 +17,6 @@ class Provider implements MigrationProvider {
         return {
             '001_create_enums': m001,
             '016_create_sport80_event_scrape_state': m016,
-            '020_create_staging_schema': m020,
         };
     }
 }
@@ -52,6 +50,8 @@ describe('Sport80 processed refresh claim', () => {
         });
         const result = await new Migrator({ db: database, provider: new Provider() }).migrateToLatest();
         if (result.error) throw result.error;
+        await sql`CREATE SCHEMA staging`.execute(database);
+        await sql`ALTER TABLE sport80_event_scrape_state SET SCHEMA staging`.execute(database);
     }, 30_000);
 
     beforeEach(async () => {
