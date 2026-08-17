@@ -27,6 +27,8 @@ export interface SourceResourceSchedulerOptions {
 
 export interface DueSourceResourceScan {
     resources: PersistedSourceResource[];
+    due: number;
+    unsupported: number;
     scanned: number;
 }
 
@@ -137,8 +139,6 @@ export function sourceResourceJob(resource: PersistedSourceResource): DueSourceJ
         return {
             taskIdentifier: 'scrapeVettsTournamentTask',
             payload: { tournamentId },
-            // Match the VETTS discovery fan-out key so both scheduling paths
-            // converge on the same logical refresh job.
             jobKey: stableJobKey('scrape-vetts-tournament', tournamentId),
         };
     }
@@ -152,11 +152,17 @@ export async function loadDueSourceResources(
     options: SourceResourceSchedulerOptions = {},
 ): Promise<DueSourceResourceScan> {
     const { scanBatchSize, dueLimit } = sourceResourceSchedulerLimits(options);
-    const due: PersistedSourceResource[] = [];
+    const supportedDue: PersistedSourceResource[] = [];
+    let due = 0;
+    let unsupported = 0;
     let afterId: string | null = null;
     let scanned = 0;
 
-    while (due.length < dueLimit) {
+    // Scan with bounded SQL pages and retain only a bounded number of resources
+    // that this scheduler can actually route. Unsupported resources remain
+    // observable but cannot consume the supported scheduling budget and starve
+    // migrated adapters behind them.
+    while (supportedDue.length < dueLimit) {
         let query = database
             .selectFrom('source_resources as resource')
             .innerJoin('source_instances as instance', 'instance.id', 'resource.source_instance_id')
@@ -183,9 +189,13 @@ export async function loadDueSourceResources(
 
         scanned += rows.length;
         for (const resource of rows) {
-            if (isPersistedSourceResourceDue(resource, now)) {
-                due.push(resource);
-                if (due.length >= dueLimit) break;
+            if (!isPersistedSourceResourceDue(resource, now)) continue;
+            due += 1;
+            if (sourceResourceJob(resource)) {
+                supportedDue.push(resource);
+                if (supportedDue.length >= dueLimit) break;
+            } else {
+                unsupported += 1;
             }
         }
 
@@ -193,7 +203,7 @@ export async function loadDueSourceResources(
         if (rows.length < scanBatchSize) break;
     }
 
-    return { resources: due, scanned };
+    return { resources: supportedDue, due, unsupported, scanned };
 }
 
 export async function enqueueDueSourceResources(
@@ -208,16 +218,11 @@ export async function enqueueDueSourceResources(
 ): Promise<{ due: number; queued: number; unsupported: number; scanned: number }> {
     const scan = await loadDueSourceResources(database, now, options);
     let queued = 0;
-    let unsupported = 0;
     const queuedJobKeys = new Set<string>();
 
     for (const resource of scan.resources) {
         const job = sourceResourceJob(resource);
-        if (!job) {
-            unsupported += 1;
-            continue;
-        }
-        if (queuedJobKeys.has(job.jobKey)) continue;
+        if (!job || queuedJobKeys.has(job.jobKey)) continue;
 
         await addJob(job.taskIdentifier, job.payload, {
             ...RETRYABLE_JOB_SPEC,
@@ -228,9 +233,9 @@ export async function enqueueDueSourceResources(
     }
 
     return {
-        due: scan.resources.length,
+        due: scan.due,
         queued,
-        unsupported,
+        unsupported: scan.unsupported,
         scanned: scan.scanned,
     };
 }
