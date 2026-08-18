@@ -42,3 +42,17 @@ describe('tournament filter persistence', () => {
     expect(eventsTab).toContain('writeTournamentPreferences');
   });
 });
+
+describe('manual tournament submission feedback', () => {
+  it('makes successful submissions visible and avoids silent submit exits', () => {
+    const { readFileSync } = require('node:fs');
+    const eventsTab = readFileSync(new URL('./EventsTabContent.tsx', import.meta.url), 'utf8');
+
+    expect(eventsTab).toContain('Your session expired. Please sign in again.');
+    expect(eventsTab).toContain('Tournament submitted. Processing details…');
+    expect(eventsTab).toContain('This tournament has already been submitted.');
+    expect(eventsTab).toContain("search.setQuery('');");
+    expect(eventsTab).toContain("setListScope('submitted');");
+    expect(eventsTab).not.toContain('void manualSubmissions.retry();');
+  });
+});

@@ -535,7 +535,17 @@ export function EventsTabContent() {
   const submitManualTournament = async () => {
     const session = auth.session;
     const url = manualSubmitUrl.trim();
-    if (!session || !url || manualSubmitState === 'submitting') return;
+    if (manualSubmitState === 'submitting') return;
+    if (!session) {
+      setManualSubmitState('error');
+      setManualSubmitMessage('Your session expired. Please sign in again.');
+      return;
+    }
+    if (!url) {
+      setManualSubmitState('error');
+      setManualSubmitMessage('Enter a tournament link.');
+      return;
+    }
 
     setManualSubmitState('submitting');
     setManualSubmitMessage('');
@@ -553,10 +563,15 @@ export function EventsTabContent() {
 
       setManualSubmitUrl('');
       setManualSubmitState('success');
-      setManualSubmitMessage('');
+      setManualSubmitMessage(
+        payload.status === 'already_submitted'
+          ? 'This tournament has already been submitted.'
+          : 'Tournament submitted. Processing details…',
+      );
       setManualSubmitOpen(false);
+      setSearchOpen(false);
+      search.setQuery('');
       setListScope('submitted');
-      void manualSubmissions.retry();
     } catch (error) {
       setManualSubmitState('error');
       setManualSubmitMessage(
@@ -722,6 +737,14 @@ export function EventsTabContent() {
               </p>
             ) : null}
           </form>
+        ) : null}
+        {!manualSubmitOpen && manualSubmitMessage ? (
+          <p
+            className={`tt-tournament-manual-submit__message tt-tournament-manual-submit__message--${manualSubmitState}`}
+            role={manualSubmitState === 'error' ? 'alert' : 'status'}
+          >
+            {manualSubmitMessage}
+          </p>
         ) : null}
       </div>
 
