@@ -19,6 +19,7 @@ import {
   toggleTournamentCategory,
   type TournamentCategoryFilter,
 } from './tournament-category-filter';
+import { getTournamentEntryDeadlineStatus } from './tournament-entry-deadline';
 import {
   getTournamentDateParts,
   getTournamentDateValue,
@@ -109,19 +110,22 @@ function TournamentMetadata({
 }) {
   const details = [event.category ?? 'Tournament', formatVenue(event)].filter(Boolean).join(' · ');
   const isUpcoming = status === 'upcoming';
+  const deadlineStatus = getTournamentEntryDeadlineStatus(event.entry_deadline, event.status);
   const statusLabel = isUpcoming
-    ? event.status === 'entries_open'
-      ? 'Entries open'
-      : event.status === 'entries_closed'
-        ? 'Entries closed'
-        : 'Upcoming'
+    ? deadlineStatus.label
+      ?? (event.status === 'entries_open'
+        ? 'Entries open'
+        : event.status === 'entries_closed'
+          ? 'Entries closed'
+          : 'Upcoming')
     : 'Completed';
   const statusTone = isUpcoming
-    ? event.status === 'entries_open'
-      ? 'success'
-      : event.status === 'entries_closed'
-        ? 'neutral'
-        : 'accent'
+    ? deadlineStatus.tone
+      ?? (event.status === 'entries_open'
+        ? 'success'
+        : event.status === 'entries_closed'
+          ? 'danger'
+          : 'accent')
     : 'neutral';
 
   return (
