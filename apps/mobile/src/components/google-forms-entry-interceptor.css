@@ -1,5 +1,13 @@
 .tt-entry-assist-status-indicator {
   display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-inline-start: 8px;
   vertical-align: middle;
+}
+
+.tt-entry-deadline-confirm-message {
+  color: var(--ink-muted);
+  line-height: 1.5;
+  margin: 0;
 }
