@@ -230,7 +230,7 @@ jobs:
             rating-backtest-report/
             rating-backtest-output.txt
           if-no-files-found: warn
-          retention-days: 90
+          retention-days: 30
 
       - name: Add workflow summary
         if: always()
