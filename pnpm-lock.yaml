@@ -66,8 +66,8 @@ importers:
   apps/mobile:
     dependencies:
       '@everything-tt/tt-players-design-system':
-        specifier: 0.1.8
-        version: 0.1.8(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: 0.1.9
+        version: 0.1.9(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@supabase/supabase-js':
         specifier: ^2.110.8
         version: 2.111.0
@@ -1099,8 +1099,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@everything-tt/tt-players-design-system@0.1.8':
-    resolution: {integrity: sha512-TAe9X2XeKAPR3eBDzCTXKDKwAkd0SumnTxGehbeXyY+YMTWTP+EL7tIGDwdu1V4EpHV4CA3b4aq0u4KvlMnpAA==, tarball: https://npm.pkg.github.com/download/@everything-tt/tt-players-design-system/0.1.8/948fc4cbefc2cd4be447b255e53e0b61b5027b2f}
+  '@everything-tt/tt-players-design-system@0.1.9':
+    resolution: {integrity: sha512-D4UWSCJJDu4vd7+li7OIcodRTR6+cbNgOhMBopJsaSj/dbh6YrTiBqfxqmTdOXDq7jEWaurX7XDKCorJ2Cgi8A==, tarball: https://npm.pkg.github.com/download/@everything-tt/tt-players-design-system/0.1.9/363512b4c3a386752cc57510be5eea3acb1707e1}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: '>=18.0.0'
@@ -4653,7 +4653,7 @@ snapshots:
   '@esbuild/win32-x64@0.27.3':
     optional: true
 
-  '@everything-tt/tt-players-design-system@0.1.8(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@everything-tt/tt-players-design-system@0.1.9(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@radix-ui/react-dialog': 1.1.23(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@radix-ui/react-slot': 1.3.3(@types/react@18.3.28)(react@18.3.1)
