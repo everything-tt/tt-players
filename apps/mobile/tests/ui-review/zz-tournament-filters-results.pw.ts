@@ -132,7 +132,8 @@ test('reviews one-row tournament toolbar, filter sheet, and favourite alignment'
   await expect(statusToggle).toBeVisible();
   await expect(filterButton).toBeVisible();
   await expect(searchButton).toBeVisible();
-  await expect(filterRail.locator('.tt-tournament-toolbar-icon__label')).toBeHidden();
+  await expect(filterButton.locator('.tt-tournament-toolbar-icon__label')).toBeHidden();
+  await expect(searchButton.locator('.tt-tournament-toolbar-icon__label')).toBeHidden();
   await expect(page.getByRole('button', { name: /Select leagues/i })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Tournament list:/i })).toHaveCount(0);
 
