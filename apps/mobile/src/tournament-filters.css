@@ -187,7 +187,9 @@
   padding-block: 0;
 }
 
-.tt-tournament-scope-filter {
+.tt-tournament-scope-filter > span {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
 }
 
