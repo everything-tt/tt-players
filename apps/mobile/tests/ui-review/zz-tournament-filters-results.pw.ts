@@ -11,11 +11,6 @@ interface ScreenshotEntry {
   diagnosticsPath: string;
 }
 
-interface EventListResponse {
-  data: Array<{ id: string; match_count: number }>;
-  total: number;
-}
-
 const reportDir = process.env.UI_REVIEW_REPORT_DIR ?? 'ui-review-report';
 const screenshotsDir = join(reportDir, 'screenshots');
 const diagnosticsDir = join(reportDir, 'diagnostics');
@@ -177,15 +172,12 @@ test('reviews one-row tournament toolbar, filter sheet, and favourite alignment'
   await page.getByRole('button', { name: 'Close tournament search' }).click();
   await expect(filterRail).toBeVisible();
   await expect(page.getByRole('button', { name: /Search tournaments, active query regional/i })).toBeVisible();
-  await page.getByRole('button', { name: /Search tournaments, active query regional/i }).click();
-  await expect(page.getByLabel('Search upcoming tournaments')).toHaveValue('regional');
-  await page.getByRole('button', { name: 'Close tournament search' }).click();
-  await expect(filterRail).toBeVisible();
-  search.setTimeout;
 
   await page.getByRole('button', { name: /Search tournaments, active query regional/i }).click();
+  await expect(page.getByLabel('Search upcoming tournaments')).toHaveValue('regional');
   await page.getByLabel('Search upcoming tournaments').fill('');
   await page.getByRole('button', { name: 'Close tournament search' }).click();
+  await expect(filterRail).toBeVisible();
 
   await filterButton.click();
   const scopeFilters = page.getByRole('group', { name: 'Tournament list filters' });
