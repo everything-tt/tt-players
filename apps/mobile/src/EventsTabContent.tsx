@@ -514,6 +514,10 @@ export function EventsTabContent() {
   };
 
   const openManualSubmit = () => {
+    if (!auth.session) {
+      navigateInActiveTab('sign-in');
+      return;
+    }
     setCategoryFiltersOpen(false);
     setManualSubmitOpen(true);
     setManualSubmitState('idle');
@@ -641,6 +645,19 @@ export function EventsTabContent() {
                 <span>My submissions</span>
               </div>
             )}
+
+            <AppButton
+              tone="ghost"
+              size="sm"
+              rounded="m"
+              iconOnly
+              className="tt-tournament-toolbar-action"
+              onClick={openManualSubmit}
+              aria-label="Post a tournament"
+              title={auth.session ? 'Post a tournament' : 'Sign in to post a tournament'}
+            >
+              <i className="fa fa-plus" aria-hidden="true" />
+            </AppButton>
 
             <AppToggleButton
               pressed={categoryFiltersOpen || activeFilterCount > 0}
@@ -773,6 +790,7 @@ export function EventsTabContent() {
             <h3 id="tournament-filter-scope-title" className="tt-tournament-filter-sheet__heading">Show</h3>
             <FilterBar
               ariaLabel="Tournament list filters"
+              scrollable={false}
               className="tt-tournament-scope-filters"
             >
               {LIST_SCOPE_OPTIONS
@@ -791,18 +809,6 @@ export function EventsTabContent() {
                   </AppToggleButton>
                 ))}
             </FilterBar>
-            {auth.session ? (
-              <AppButton
-                tone="outline"
-                size="sm"
-                full
-                className="tt-tournament-filter-sheet__post"
-                onClick={openManualSubmit}
-              >
-                <i className="fa fa-plus" aria-hidden="true" />
-                Post a tournament
-              </AppButton>
-            ) : null}
           </section>
 
           {listScope !== 'submitted' ? (
@@ -810,6 +816,7 @@ export function EventsTabContent() {
               <h3 id="tournament-filter-category-title" className="tt-tournament-filter-sheet__heading">Category</h3>
               <FilterBar
                 ariaLabel="Tournament category filters"
+                scrollable={false}
                 className="tt-tournament-category-filters__options"
               >
                 {TOURNAMENT_CATEGORY_OPTIONS.map((option) => (
