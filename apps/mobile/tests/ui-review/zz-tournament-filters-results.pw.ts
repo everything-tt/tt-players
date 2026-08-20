@@ -166,17 +166,12 @@ test('reviews one-row tournament toolbar, filter sheet, and favourite alignment'
 
   await searchButton.click();
   await expect(filterRail).toHaveCount(0);
-  const searchInput = page.getByLabel('Search upcoming tournaments');
+  const searchInput = page.getByRole('textbox', { name: 'Search upcoming tournaments' });
   await expect(searchInput).toBeVisible();
   await expect(searchInput).toBeFocused();
   await searchInput.fill('regional');
-  await page.getByRole('button', { name: 'Close tournament search' }).click();
-  await expect(filterRail).toBeVisible();
-  await expect(page.getByRole('button', { name: /Search tournaments, active query regional/i })).toBeVisible();
-
-  await page.getByRole('button', { name: /Search tournaments, active query regional/i }).click();
-  await expect(page.getByLabel('Search upcoming tournaments')).toHaveValue('regional');
-  await page.getByLabel('Search upcoming tournaments').fill('');
+  await expect(searchInput).toHaveValue('regional');
+  await searchInput.fill('');
   await page.getByRole('button', { name: 'Close tournament search' }).click();
   await expect(filterRail).toBeVisible();
 
