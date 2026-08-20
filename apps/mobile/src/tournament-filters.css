@@ -8,7 +8,7 @@
 .tt-tournament-filter-rail {
   box-sizing: border-box;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 48px 48px;
+  grid-template-columns: minmax(0, 1fr) repeat(3, 44px);
   align-items: stretch;
   gap: 8px;
   min-width: 0;
@@ -20,17 +20,9 @@
 }
 
 .tt-tournament-status-toggle {
-  --tt-segmented-button-min-height: 40px;
-  --tt-segmented-button-padding-inline: 12px;
-  --tt-segmented-button-font-size: 13px;
+  --tt-segmented-button-padding-inline: 8px;
   width: 100%;
   min-width: 0;
-  min-height: 44px;
-  padding: 3px;
-  border: 1px solid color-mix(in oklch, var(--tt-border) 82%, transparent);
-  border-radius: 14px;
-  background: var(--surface-raised, var(--tt-surface-raised));
-  box-shadow: 0 3px 12px oklch(21% 0.034 158 / 0.035);
 }
 
 .tt-tournament-scope-summary {
@@ -56,12 +48,20 @@
   white-space: nowrap;
 }
 
-.tt-tournament-filter-rail .tt-tournament-toolbar-icon {
-  width: 48px;
-  min-width: 48px;
+.tt-tournament-filter-rail .tt-tournament-toolbar-icon,
+.tt-tournament-toolbar-action {
+  width: 44px;
+  min-width: 44px;
   min-height: 44px;
+}
+
+.tt-tournament-filter-rail .tt-tournament-toolbar-icon {
   border-radius: 14px;
   box-shadow: none;
+}
+
+.tt-tournament-toolbar-action {
+  background: var(--surface-subtle-strong, var(--tt-surface-subtle));
 }
 
 .tt-tournament-search-toolbar {
@@ -185,16 +185,15 @@
   min-height: 38px;
   margin: 0;
   padding-block: 0;
+  flex-wrap: wrap;
+  overflow: visible;
+  row-gap: 8px;
 }
 
 .tt-tournament-scope-filter > span {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-
-.tt-tournament-filter-sheet__post {
-  margin-top: 2px;
 }
 
 .tt-tournament-filter-sheet__footer {
@@ -213,27 +212,17 @@
   }
 
   .tt-tournament-filter-rail {
-    grid-template-columns: minmax(0, 1fr) 44px 44px;
     gap: 6px;
   }
 
   .tt-tournament-status-toggle {
-    --tt-segmented-button-min-height: 38px;
-    --tt-segmented-button-padding-inline: 8px;
-    --tt-segmented-button-font-size: 12px;
-    min-height: 44px;
+    --tt-segmented-button-padding-inline: 6px;
   }
 
   .tt-tournament-scope-summary {
     min-height: 44px;
     padding-inline: 12px;
     font-size: 12px;
-  }
-
-  .tt-tournament-filter-rail .tt-tournament-toolbar-icon {
-    width: 44px;
-    min-width: 44px;
-    min-height: 44px;
   }
 
   .tt-tournament-manual-submit__row {
@@ -248,22 +237,16 @@
   }
 
   .tt-tournament-filter-rail {
-    grid-template-columns: minmax(0, 1fr) 42px 42px;
     gap: 4px;
   }
 
   .tt-tournament-status-toggle {
-    --tt-segmented-button-padding-inline: 6px;
-    --tt-segmented-button-font-size: 11px;
+    --tt-segmented-button-padding-inline: 4px;
+    --tt-segmented-button-font-size: 12px;
   }
 
   .tt-tournament-scope-summary {
     padding-inline: 10px;
     font-size: 11px;
-  }
-
-  .tt-tournament-filter-rail .tt-tournament-toolbar-icon {
-    width: 42px;
-    min-width: 42px;
   }
 }
