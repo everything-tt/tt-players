@@ -25,6 +25,13 @@ on:
       - 'playwright.ui-review.config.ts'
       - 'apps/mobile/tests/ui-review/**'
       - '.github/workflows/build.yml'
+  workflow_dispatch:
+    inputs:
+      bootstrap_design_system:
+        description: 'Create/reuse and deploy the tt-design-system Netlify site'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -72,9 +79,6 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # Same-repository PR previews remain the deliberately narrow GitHub-secret
-  # exception. Fork PRs never enter this job and therefore receive no Netlify
-  # credential. The job deploys only the validated artifact from build.
   preview-deploy:
     if: >-
       github.event_name == 'pull_request' &&
@@ -121,8 +125,6 @@ jobs:
           NETLIFY_SITE_ID: ${{ vars.NETLIFY_SITE_ID }}
         timeout-minutes: 5
 
-  # The production identity exists only on the push-to-main path. It is never
-  # available to pull_request jobs, including same-repository PRs.
   deploy-production:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
@@ -179,6 +181,115 @@ jobs:
           NETLIFY_AUTH_TOKEN: ${{ steps.gcp-secrets.outputs.netlify_auth_token }}
           NETLIFY_SITE_ID: ${{ vars.NETLIFY_SITE_ID }}
         timeout-minutes: 5
+
+      - name: Clean temporary Google credentials
+        if: always()
+        run: |
+          find "${RUNNER_TEMP:-/tmp}" -maxdepth 1 -type f -name 'gha-creds-*.json' -delete 2>/dev/null || true
+
+  bootstrap-design-system-netlify:
+    if: github.event_name == 'workflow_dispatch' && inputs.bootstrap_design_system
+    runs-on: [self-hosted, Linux, ARM64, everything-tt]
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: wudong-agent-master
+          workload_identity_provider: ${{ vars.TT_PLAYERS_FRONTEND_WIF_PROVIDER }}
+          service_account: ${{ vars.TT_PLAYERS_FRONTEND_SERVICE_ACCOUNT }}
+
+      - name: Load production Netlify credential
+        id: gcp-secrets
+        uses: google-github-actions/get-secretmanager-secrets@v3
+        with:
+          secrets: |-
+            netlify_auth_token:wudong-agent-master/tt-players-netlify-auth-token
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.24.0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build design system showcase
+        run: |
+          set -euo pipefail
+          rm -rf design-system
+          git clone --depth 1 https://github.com/everything-tt/tt-design-system.git design-system
+          cd design-system
+          pnpm install --frozen-lockfile
+          pnpm test
+          pnpm build
+          pnpm demo:typecheck
+          pnpm demo:build
+          test -f examples/showcase/dist/index.html
+
+      - name: Create or reuse Netlify site and deploy
+        id: design-system-netlify
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ steps.gcp-secrets.outputs.netlify_auth_token }}
+        run: |
+          set -euo pipefail
+          node <<'NODE' > /tmp/design-system-site.json
+          const token = process.env.NETLIFY_AUTH_TOKEN;
+          if (!token) throw new Error('Missing NETLIFY_AUTH_TOKEN');
+          const headers = { Authorization: `Bearer ${token}` };
+          const list = await fetch('https://api.netlify.com/api/v1/sites?per_page=100', { headers });
+          if (!list.ok) throw new Error(`Netlify list failed: ${list.status} ${await list.text()}`);
+          const sites = await list.json();
+          let site = sites.find((item) => item.name === 'everything-tt-design-system');
+          if (!site) {
+            const create = await fetch('https://api.netlify.com/api/v1/sites', {
+              method: 'POST',
+              headers: { ...headers, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: 'everything-tt-design-system' }),
+            });
+            if (!create.ok) throw new Error(`Netlify create failed: ${create.status} ${await create.text()}`);
+            site = await create.json();
+          }
+          console.log(JSON.stringify({ id: site.id, url: site.ssl_url || site.url }));
+          NODE
+
+          SITE_ID=$(node -p "require('/tmp/design-system-site.json').id")
+          SITE_URL=$(node -p "require('/tmp/design-system-site.json').url")
+          NETLIFY_AUTH_TOKEN="$NETLIFY_AUTH_TOKEN" npx --yes netlify-cli@latest deploy \
+            --dir=design-system/examples/showcase/dist \
+            --site="$SITE_ID" \
+            --prod \
+            --message="Design system production bootstrap"
+          echo "SITE_ID=$SITE_ID"
+          echo "SITE_URL=$SITE_URL"
+          echo "### Design system Netlify" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Site: $SITE_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Site ID: $SITE_ID" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check whether durable design-system secret can be provisioned
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ steps.gcp-secrets.outputs.netlify_auth_token }}
+        run: |
+          set -euo pipefail
+          if ! command -v gcloud >/dev/null 2>&1; then
+            echo 'gcloud CLI is not installed on this runner; durable secret provisioning remains separate.'
+            exit 0
+          fi
+          SECRET=tt-design-system-netlify-auth-token
+          if gcloud secrets describe "$SECRET" --project=wudong-agent-master >/dev/null 2>&1; then
+            printf '%s' "$NETLIFY_AUTH_TOKEN" | gcloud secrets versions add "$SECRET" --project=wudong-agent-master --data-file=- >/dev/null
+            echo 'Updated existing tt-design-system-netlify-auth-token secret.'
+          elif gcloud secrets create "$SECRET" --project=wudong-agent-master --replication-policy=automatic >/dev/null 2>&1; then
+            printf '%s' "$NETLIFY_AUTH_TOKEN" | gcloud secrets versions add "$SECRET" --project=wudong-agent-master --data-file=- >/dev/null
+            echo 'Created tt-design-system-netlify-auth-token secret.'
+          else
+            echo 'Frontend reader cannot create Secret Manager secrets; no IAM boundary was widened.'
+          fi
 
       - name: Clean temporary Google credentials
         if: always()
@@ -276,9 +387,6 @@ jobs:
           retention-days: 14
           path: ui-review-report/
 
-  # This job runs on a fresh hosted runner after the self-hosted browser job.
-  # It uses the same-repository PR-preview exception only to publish the
-  # report artifact; it never checks out or executes PR-controlled code.
   ui-report-deploy:
     if: >-
       always() &&
