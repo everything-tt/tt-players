@@ -31,8 +31,8 @@
   padding-inline: 2px;
 }
 
-.tt-tournament-timeline-list > .tt-list-item > .tt-list-item__trailing {
-  padding-right: 14px;
+.tt-tournament-timeline-list .tt-favourite-button {
+  margin-right: 14px;
 }
 
 .tt-tournament-date-tile {
@@ -119,8 +119,8 @@
     gap: 20px;
   }
 
-  .tt-tournament-timeline-list > .tt-list-item > .tt-list-item__trailing {
-    padding-right: 12px;
+  .tt-tournament-timeline-list .tt-favourite-button {
+    margin-right: 12px;
   }
 
   .tt-tournament-date-tile {
