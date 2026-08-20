@@ -29,7 +29,6 @@ import {
   readTournamentPreferences,
   writeTournamentPreferences,
 } from './tournament-preferences';
-import { TournamentListPicker } from './TournamentListPicker';
 import {
   AppButton,
   AppSearchInput,
@@ -59,17 +58,15 @@ interface ManualSubmitResponse {
   duplicate: boolean;
 }
 
-const LIST_SCOPE_LABELS: Record<TournamentListScope, string> = {
-  all: 'All tournaments',
-  saved: 'Saved tournaments',
-  submitted: 'My submissions',
-};
-
-const LIST_SCOPE_SHORT_LABELS: Record<TournamentListScope, string> = {
-  all: 'All',
-  saved: 'Saved',
-  submitted: 'Submitted',
-};
+const LIST_SCOPE_OPTIONS: Array<{
+  value: TournamentListScope;
+  label: string;
+  iconClassName: string;
+}> = [
+  { value: 'all', label: 'All', iconClassName: 'fa fa-list-ul' },
+  { value: 'saved', label: 'Saved', iconClassName: 'fa fa-heart' },
+  { value: 'submitted', label: 'My submissions', iconClassName: 'fa fa-upload' },
+];
 
 function formatVenue(event: TournamentEventItem): string | null {
   return event.venue_name ?? event.venue_town ?? event.venue_postcode;
@@ -180,7 +177,7 @@ function TournamentResults({
       <EmptyState
         iconClassName="fa fa-heart-o"
         title="No saved tournaments"
-        message="Choose All tournaments, then use the heart beside a tournament to save it."
+        message="Choose All in Filters, then use the heart beside a tournament to save it."
       />
     );
   } else if (list.isLoadingInitial) {
@@ -458,7 +455,6 @@ export function EventsTabContent() {
   const [initialPreferences] = useState(() => readTournamentPreferences());
   const [status, setStatus] = useState<TournamentListStatus>(initialPreferences.status);
   const [listScope, setListScope] = useState<TournamentListScope>(initialPreferences.savedOnly ? 'saved' : 'all');
-  const [listPickerOpen, setListPickerOpen] = useState(false);
   const [categoryFiltersOpen, setCategoryFiltersOpen] = useState(false);
   const [categories, setCategories] = useState<TournamentCategoryFilter[]>(initialPreferences.categories);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -479,6 +475,7 @@ export function EventsTabContent() {
   );
   const mayFetch = listScope !== 'submitted' && !(savedOnly && favouriteTournaments.length === 0);
   const categoryFilterActive = categories.length > 0;
+  const activeFilterCount = categories.length + (listScope === 'all' ? 0 : 1);
   const manualSubmissions = useManualTournamentSubmissions(
     auth.session?.access_token,
     listScope === 'submitted',
@@ -491,14 +488,9 @@ export function EventsTabContent() {
   useEffect(() => {
     if (!auth.session) {
       setManualSubmitOpen(false);
-      setListPickerOpen(false);
       if (listScope === 'submitted') setListScope('all');
     }
   }, [auth.session, listScope]);
-
-  useEffect(() => {
-    if (listScope === 'submitted') setCategoryFiltersOpen(false);
-  }, [listScope]);
 
   const upcoming = useTournamentList({
     status: 'upcoming',
@@ -519,12 +511,10 @@ export function EventsTabContent() {
 
   const chooseListScope = (scope: TournamentListScope) => {
     setListScope(scope);
-    setListPickerOpen(false);
-    if (scope === 'submitted') setCategoryFiltersOpen(false);
   };
 
   const openManualSubmit = () => {
-    setListPickerOpen(false);
+    setCategoryFiltersOpen(false);
     setManualSubmitOpen(true);
     setManualSubmitState('idle');
     setManualSubmitMessage('');
@@ -534,6 +524,11 @@ export function EventsTabContent() {
     // Keep the active query so closing search only collapses the field;
     // results stay filtered until the user clears the query explicitly.
     setSearchOpen(false);
+  };
+
+  const clearFilters = () => {
+    setListScope('all');
+    setCategories([]);
   };
 
   const submitManualTournament = async () => {
@@ -590,6 +585,9 @@ export function EventsTabContent() {
   const searchPlaceholder = listScope === 'submitted'
     ? 'Search my submissions…'
     : `Search ${status} tournaments…`;
+  const filterLabel = activeFilterCount > 0
+    ? `Tournament filters, ${activeFilterCount} active`
+    : 'Tournament filters';
 
   return (
     <>
@@ -637,42 +635,30 @@ export function EventsTabContent() {
                   { value: 'completed', label: 'Completed' },
                 ]}
               />
-            ) : null}
+            ) : (
+              <div className="tt-tournament-scope-summary" aria-label="Showing my tournament submissions">
+                <i className="fa fa-upload" aria-hidden="true" />
+                <span>My submissions</span>
+              </div>
+            )}
 
             <AppToggleButton
-              pressed={listPickerOpen || listScope !== 'all'}
-              variant="filter"
-              className="tt-tournament-scope-button"
-              onClick={() => setListPickerOpen(true)}
-              aria-label={`Tournament list: ${LIST_SCOPE_LABELS[listScope]}`}
-              aria-expanded={listPickerOpen}
-              title={LIST_SCOPE_LABELS[listScope]}
+              pressed={categoryFiltersOpen || activeFilterCount > 0}
+              variant="icon"
+              iconClassName="fa fa-filter"
+              className="tt-tournament-toolbar-icon tt-tournament-filter-button"
+              onClick={() => setCategoryFiltersOpen(true)}
+              aria-label={filterLabel}
+              aria-expanded={categoryFiltersOpen}
+              title="Tournament filters"
             >
-              <span className="tt-tournament-scope-button__label">{LIST_SCOPE_SHORT_LABELS[listScope]}</span>
-              <i className="fa fa-chevron-down tt-tournament-scope-button__chevron" aria-hidden="true" />
+              <span className="tt-tournament-toolbar-icon__label">Filters</span>
+              {activeFilterCount > 0 ? (
+                <span className="tt-tournament-toolbar-icon__count" aria-hidden="true">
+                  {activeFilterCount}
+                </span>
+              ) : null}
             </AppToggleButton>
-
-            {listScope !== 'submitted' ? (
-              <AppToggleButton
-                pressed={categoryFiltersOpen || categoryFilterActive}
-                variant="icon"
-                iconClassName="fa fa-filter"
-                className="tt-tournament-toolbar-icon"
-                onClick={() => setCategoryFiltersOpen(true)}
-                aria-label={categoryFilterActive
-                  ? `Tournament filters, ${categories.length} active`
-                  : 'Tournament filters'}
-                aria-expanded={categoryFiltersOpen}
-                title="Tournament filters"
-              >
-                <span className="tt-tournament-toolbar-icon__label">Filters</span>
-                {categoryFilterActive ? (
-                  <span className="tt-tournament-toolbar-icon__count" aria-hidden="true">
-                    {categories.length}
-                  </span>
-                ) : null}
-              </AppToggleButton>
-            ) : null}
 
             <AppToggleButton
               pressed={Boolean(search.query.trim())}
@@ -775,51 +761,90 @@ export function EventsTabContent() {
         />
       )}
 
-      <TournamentListPicker
-        isOpen={listPickerOpen}
-        value={listScope}
-        showSubmissions={Boolean(auth.session)}
-        onClose={() => setListPickerOpen(false)}
-        onChange={chooseListScope}
-        onPost={auth.session ? openManualSubmit : undefined}
-      />
-
       <BottomSheet
-        isOpen={categoryFiltersOpen && listScope !== 'submitted'}
+        isOpen={categoryFiltersOpen}
         onClose={() => setCategoryFiltersOpen(false)}
-        title="Tournament filters"
-        description="Choose the tournament categories you want to include."
-        height="min(58dvh, 440px)"
+        title="Filters"
+        description="Choose which tournaments you want to see."
+        height="min(68dvh, 520px)"
       >
-        <div className="tt-tournament-category-filter-sheet">
-          <FilterBar
-            ariaLabel="Tournament category filters"
-            className="tt-tournament-category-filters__options"
-          >
-            {TOURNAMENT_CATEGORY_OPTIONS.map((option) => (
-              <AppToggleButton
-                key={option.value}
-                pressed={categories.includes(option.value)}
+        <div className="tt-tournament-filter-sheet">
+          <section className="tt-tournament-filter-sheet__section" aria-labelledby="tournament-filter-scope-title">
+            <h3 id="tournament-filter-scope-title" className="tt-tournament-filter-sheet__heading">Show</h3>
+            <FilterBar
+              ariaLabel="Tournament list filters"
+              className="tt-tournament-scope-filters"
+            >
+              {LIST_SCOPE_OPTIONS
+                .filter((option) => option.value !== 'submitted' || Boolean(auth.session))
+                .map((option) => (
+                  <AppToggleButton
+                    key={option.value}
+                    pressed={listScope === option.value}
+                    size="sm"
+                    variant="filter"
+                    className="tt-tournament-scope-filter"
+                    onClick={() => chooseListScope(option.value)}
+                  >
+                    <i className={option.iconClassName} aria-hidden="true" />
+                    {option.label}
+                  </AppToggleButton>
+                ))}
+            </FilterBar>
+            {auth.session ? (
+              <AppButton
+                tone="outline"
                 size="sm"
-                variant="filter"
-                className="tt-tournament-category-filter"
-                onClick={() => setCategories((current) => toggleTournamentCategory(current, option.value))}
+                full
+                className="tt-tournament-filter-sheet__post"
+                onClick={openManualSubmit}
               >
-                {option.label}
-              </AppToggleButton>
-            ))}
-          </FilterBar>
-          <div className="tt-tournament-category-filter-sheet__footer">
-            {categoryFilterActive ? (
+                <i className="fa fa-plus" aria-hidden="true" />
+                Post a tournament
+              </AppButton>
+            ) : null}
+          </section>
+
+          {listScope !== 'submitted' ? (
+            <section className="tt-tournament-filter-sheet__section" aria-labelledby="tournament-filter-category-title">
+              <h3 id="tournament-filter-category-title" className="tt-tournament-filter-sheet__heading">Category</h3>
+              <FilterBar
+                ariaLabel="Tournament category filters"
+                className="tt-tournament-category-filters__options"
+              >
+                {TOURNAMENT_CATEGORY_OPTIONS.map((option) => (
+                  <AppToggleButton
+                    key={option.value}
+                    pressed={categories.includes(option.value)}
+                    size="sm"
+                    variant="filter"
+                    className="tt-tournament-category-filter"
+                    onClick={() => setCategories((current) => toggleTournamentCategory(current, option.value))}
+                  >
+                    {option.label}
+                  </AppToggleButton>
+                ))}
+              </FilterBar>
+            </section>
+          ) : null}
+
+          <div className="tt-tournament-filter-sheet__footer">
+            {activeFilterCount > 0 ? (
               <AppButton
                 tone="ghost"
                 size="s"
                 className="tt-tournament-category-filters__clear"
-                onClick={() => setCategories([])}
+                onClick={clearFilters}
               >
                 Clear filters
               </AppButton>
-            ) : null}
+            ) : <span />}
+            <AppButton
+              size="s"
+              onClick={() => setCategoryFiltersOpen(false)}
+            >
+              Done
+            </AppButton>
           </div>
         </div>
       </BottomSheet>

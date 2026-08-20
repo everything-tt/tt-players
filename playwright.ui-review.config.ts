@@ -42,8 +42,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './apps/mobile/tests/ui-review',
 
-  // Current PR scenario: historical queue failures are distinct from active work.
-  testMatch: 'zz-scraping-monitor-queue.pw.ts',
+  // Current PR scenario: tournament filtering toolbar hierarchy and alignment.
+  testMatch: 'zz-tournament-filters-results.pw.ts',
 
   timeout: 120_000,
   expect: {
