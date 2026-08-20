@@ -125,11 +125,13 @@ test('reviews one-row tournament toolbar, filter sheet, and favourite alignment'
 
   const filterRail = page.locator('.tt-tournament-filter-rail');
   const statusToggle = page.getByRole('radiogroup', { name: 'Tournament status' });
+  const postButton = page.getByRole('button', { name: 'Post a tournament', exact: true });
   const filterButton = page.getByRole('button', { name: 'Tournament filters', exact: true });
   const searchButton = page.getByRole('button', { name: 'Search tournaments', exact: true });
 
   await expect(filterRail).toBeVisible();
   await expect(statusToggle).toBeVisible();
+  await expect(postButton).toBeVisible();
   await expect(filterButton).toBeVisible();
   await expect(searchButton).toBeVisible();
   await expect(filterButton.locator('.tt-tournament-toolbar-icon__label')).toBeHidden();
@@ -140,6 +142,7 @@ test('reviews one-row tournament toolbar, filter sheet, and favourite alignment'
   const railBounds = await filterRail.boundingBox();
   const controlBounds = await Promise.all([
     statusToggle.boundingBox(),
+    postButton.boundingBox(),
     filterButton.boundingBox(),
     searchButton.boundingBox(),
   ]);
@@ -182,6 +185,11 @@ test('reviews one-row tournament toolbar, filter sheet, and favourite alignment'
   await expect(scopeFilters.getByRole('button', { name: 'All', exact: true })).toBeVisible();
   await expect(scopeFilters.getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
   await expect(categoryFilters).toBeVisible();
+
+  const categoryRows = await categoryFilters.getByRole('button').evaluateAll((buttons) => (
+    [...new Set(buttons.map((button) => Math.round(button.getBoundingClientRect().top)))]
+  ));
+  expect(categoryRows.length).toBeGreaterThan(1);
 
   const juniorResponse = page.waitForResponse((response) => {
     const url = new URL(response.url());
