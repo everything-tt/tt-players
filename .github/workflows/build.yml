@@ -4,199 +4,16 @@ on:
   push:
     branches: [main]
     paths:
-      - 'apps/mobile/**'
-      - 'packages/design-system/**'
-      - 'netlify.toml'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - 'playwright.ui-review.config.ts'
-      - 'apps/mobile/tests/ui-review/**'
       - '.github/workflows/build.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'apps/mobile/**'
-      - 'packages/design-system/**'
-      - 'netlify.toml'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - 'playwright.ui-review.config.ts'
-      - 'apps/mobile/tests/ui-review/**'
-      - '.github/workflows/build.yml'
-  workflow_dispatch:
-    inputs:
-      bootstrap_design_system:
-        description: 'Create/reuse and deploy the tt-design-system Netlify site'
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
-  packages: read
-
-concurrency:
-  group: netlify-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  id-token: write
 
 jobs:
-  build:
-    runs-on: [self-hosted, Linux, ARM64, everything-tt]
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
-        run: pnpm install --frozen-lockfile
-
-      - name: Build frontend
-        env:
-          VITE_API_URL: /api
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
-        run: pnpm --filter @tt-players/mobile build
-
-      - name: Upload frontend artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-build-${{ github.run_id }}-${{ github.run_attempt }}
-          path: apps/mobile/dist
-          if-no-files-found: error
-          retention-days: 7
-
-  preview-deploy:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    needs: build
-    runs-on: [self-hosted, Linux, ARM64, everything-tt]
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      packages: read
-      pull-requests: write
-    outputs:
-      deploy_url: ${{ steps.netlify.outputs.deploy-url }}
-
-    steps:
-      - name: Download frontend artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-build-${{ github.run_id }}-${{ github.run_attempt }}
-          path: apps/mobile/dist
-
-      - name: Validate frontend artifact
-        run: |
-          set -euo pipefail
-          test -f apps/mobile/dist/index.html
-          if find apps/mobile/dist -type l -print -quit | grep -q .; then
-            echo 'Frontend artifact contains a symlink' >&2
-            exit 1
-          fi
-
-      - name: Deploy PR preview to Netlify
-        id: netlify
-        uses: nwtgck/actions-netlify@v3.0
-        with:
-          publish-dir: ./apps/mobile/dist
-          production-branch: main
-          github-token: ${{ github.token }}
-          deploy-message: "Preview from GitHub Actions — PR #${{ github.event.pull_request.number }} (${{ github.sha }})"
-          enable-pull-request-comment: true
-          enable-commit-comment: false
-          overwrites-pull-request-comment: true
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ vars.NETLIFY_SITE_ID }}
-        timeout-minutes: 5
-
-  deploy-production:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: build
-    runs-on: [self-hosted, Linux, ARM64, everything-tt]
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      id-token: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download frontend artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-build-${{ github.run_id }}-${{ github.run_attempt }}
-          path: apps/mobile/dist
-
-      - name: Validate frontend artifact
-        run: |
-          set -euo pipefail
-          test -f apps/mobile/dist/index.html
-          if find apps/mobile/dist -type l -print -quit | grep -q .; then
-            echo 'Frontend artifact contains a symlink' >&2
-            exit 1
-          fi
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v3
-        with:
-          project_id: wudong-agent-master
-          workload_identity_provider: ${{ vars.TT_PLAYERS_FRONTEND_WIF_PROVIDER }}
-          service_account: ${{ vars.TT_PLAYERS_FRONTEND_SERVICE_ACCOUNT }}
-
-      - name: Load production Netlify credential
-        id: gcp-secrets
-        uses: google-github-actions/get-secretmanager-secrets@v3
-        with:
-          secrets: |-
-            netlify_auth_token:wudong-agent-master/tt-players-netlify-auth-token
-
-      - name: Deploy production frontend to Netlify
-        uses: nwtgck/actions-netlify@v3.0
-        with:
-          publish-dir: ./apps/mobile/dist
-          production-branch: main
-          github-token: ${{ github.token }}
-          deploy-message: "Production deploy from GitHub Actions — ${{ github.sha }}"
-          enable-pull-request-comment: false
-          enable-commit-comment: false
-          enable-github-deployment: false
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ steps.gcp-secrets.outputs.netlify_auth_token }}
-          NETLIFY_SITE_ID: ${{ vars.NETLIFY_SITE_ID }}
-        timeout-minutes: 5
-
-      - name: Clean temporary Google credentials
-        if: always()
-        run: |
-          find "${RUNNER_TEMP:-/tmp}" -maxdepth 1 -type f -name 'gha-creds-*.json' -delete 2>/dev/null || true
-
   bootstrap-design-system-netlify:
-    if: >-
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
-      contains(github.event.head_commit.message, '[bootstrap-design-system]')
     runs-on: [self-hosted, Linux, ARM64, everything-tt]
     timeout-minutes: 15
-    permissions:
-      contents: read
-      id-token: write
     steps:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
@@ -236,7 +53,6 @@ jobs:
           test -f examples/showcase/dist/index.html
 
       - name: Create or reuse Netlify site and deploy
-        id: design-system-netlify
         env:
           NETLIFY_AUTH_TOKEN: ${{ steps.gcp-secrets.outputs.netlify_auth_token }}
         run: |
@@ -263,254 +79,43 @@ jobs:
 
           SITE_ID=$(node -p "require('/tmp/design-system-site.json').id")
           SITE_URL=$(node -p "require('/tmp/design-system-site.json').url")
-          NETLIFY_AUTH_TOKEN="$NETLIFY_AUTH_TOKEN" npx --yes netlify-cli@latest deploy \
-            --dir=design-system/examples/showcase/dist \
-            --site="$SITE_ID" \
-            --prod \
-            --message="Design system production bootstrap"
           echo "SITE_ID=$SITE_ID"
           echo "SITE_URL=$SITE_URL"
+
+          (
+            cd design-system/examples/showcase
+            NETLIFY_AUTH_TOKEN="$NETLIFY_AUTH_TOKEN" npx --yes netlify-cli@latest deploy \
+              --dir=dist \
+              --site="$SITE_ID" \
+              --prod \
+              --message="Design system production bootstrap"
+          )
+
           echo "### Design system Netlify" >> "$GITHUB_STEP_SUMMARY"
           echo "- Site: $SITE_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "- Site ID: $SITE_ID" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Check whether durable design-system secret can be provisioned
+      - name: Try durable Secret Manager provisioning
         env:
           NETLIFY_AUTH_TOKEN: ${{ steps.gcp-secrets.outputs.netlify_auth_token }}
         run: |
           set -euo pipefail
           if ! command -v gcloud >/dev/null 2>&1; then
-            echo 'gcloud CLI is not installed on this runner; durable secret provisioning remains separate.'
+            echo 'gcloud CLI is not installed on this runner; no durable design-system secret was created.'
             exit 0
           fi
           SECRET=tt-design-system-netlify-auth-token
           if gcloud secrets describe "$SECRET" --project=wudong-agent-master >/dev/null 2>&1; then
             printf '%s' "$NETLIFY_AUTH_TOKEN" | gcloud secrets versions add "$SECRET" --project=wudong-agent-master --data-file=- >/dev/null
-            echo 'Updated existing tt-design-system-netlify-auth-token secret.'
+            echo 'Updated existing tt-design-system-netlify-auth-token.'
           elif gcloud secrets create "$SECRET" --project=wudong-agent-master --replication-policy=automatic >/dev/null 2>&1; then
             printf '%s' "$NETLIFY_AUTH_TOKEN" | gcloud secrets versions add "$SECRET" --project=wudong-agent-master --data-file=- >/dev/null
-            echo 'Created tt-design-system-netlify-auth-token secret.'
+            echo 'Created tt-design-system-netlify-auth-token.'
           else
-            echo 'Frontend reader cannot create Secret Manager secrets; no IAM boundary was widened.'
+            echo 'Current frontend reader cannot create Secret Manager secrets; IAM was not broadened.'
           fi
 
       - name: Clean temporary Google credentials
         if: always()
         run: |
           find "${RUNNER_TEMP:-/tmp}" -maxdepth 1 -type f -name 'gha-creds-*.json' -delete 2>/dev/null || true
-
-  ui-screenshots:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      needs.preview-deploy.outputs.deploy_url != ''
-    needs: preview-deploy
-    runs-on: [self-hosted, Linux, ARM64, everything-tt]
-    timeout-minutes: 60
-    permissions:
-      contents: read
-    concurrency:
-      group: ui-screenshots-pr-${{ github.event.pull_request.number }}
-      cancel-in-progress: true
-    env:
-      PREVIEW_URL: ${{ needs.preview-deploy.outputs.deploy_url }}
-      UI_REVIEW_REPORT_DIR: ${{ github.workspace }}/ui-review-report
-      UI_REVIEW_MAX_ROUTES: 10
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.24.0
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Chromium
-        run: pnpm --filter @tt-players/mobile exec playwright install chromium
-
-      - name: Wait for Netlify preview
-        run: |
-          set -euo pipefail
-          case "$PREVIEW_URL" in
-            https://*) ;;
-            *) echo "Invalid preview URL: $PREVIEW_URL" >&2; exit 64 ;;
-          esac
-          for attempt in $(seq 1 60); do
-            if curl -fsS --max-time 10 "$PREVIEW_URL" >/dev/null; then
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "Preview did not become ready: $PREVIEW_URL" >&2
-          exit 1
-
-      - name: Record host resources before
-        run: |
-          rm -rf ui-review-report test-results
-          mkdir -p ui-review-report/diagnostics
-          {
-            date -u +"%Y-%m-%dT%H:%M:%SZ"
-            hostname
-            uname -a
-            free -h
-            df -h
-          } > ui-review-report/diagnostics/host-before.txt
-
-      - name: Capture UI screenshots
-        run: pnpm --filter @tt-players/mobile exec playwright test --config=../../playwright.ui-review.config.ts
-
-      - name: Record host resources after
-        if: always()
-        run: |
-          mkdir -p ui-review-report/diagnostics
-          {
-            date -u +"%Y-%m-%dT%H:%M:%SZ"
-            free -h
-            df -h
-            ps --sort=-rss -eo pid,ppid,rss,comm,args | head -40 || true
-          } > ui-review-report/diagnostics/host-after.txt
-
-      - name: Upload UI review artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ui-review-pr-${{ github.event.pull_request.number }}-${{ github.sha }}
-          retention-days: 14
-          path: ui-review-report/
-
-  ui-report-deploy:
-    if: >-
-      always() &&
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      needs.ui-screenshots.result != 'cancelled'
-    needs: [preview-deploy, ui-screenshots]
-    runs-on: [self-hosted, Linux, ARM64, everything-tt]
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      pull-requests: write
-    outputs:
-      report_url: ${{ steps.report.outputs.deploy-url }}
-
-    steps:
-      - name: Download UI review artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ui-review-pr-${{ github.event.pull_request.number }}-${{ github.sha }}
-          path: ui-review-report
-
-      - name: Validate UI review artifact
-        run: |
-          set -euo pipefail
-          test -f ui-review-report/index.html
-          test -f ui-review-report/manifest.json
-          if find ui-review-report -type l -print -quit | grep -q .; then
-            echo 'UI review artifact contains a symlink' >&2
-            exit 1
-          fi
-          while IFS= read -r -d '' path; do
-            relative="${path#ui-review-report/}"
-            case "$relative" in
-              index.html|manifest.json|coverage.json|diagnostics/*|screenshots/*|playwright-report/*) ;;
-              *) echo "Unexpected UI review artifact path: $relative" >&2; exit 1 ;;
-            esac
-          done < <(find ui-review-report -type f -print0)
-
-      - name: Deploy UI review report to Netlify
-        if: hashFiles('ui-review-report/index.html') != ''
-        id: report
-        uses: nwtgck/actions-netlify@v3.0
-        with:
-          publish-dir: ./ui-review-report
-          production-branch: main
-          production-deploy: false
-          github-token: ${{ github.token }}
-          deploy-message: "UI review screenshots for PR #${{ github.event.pull_request.number }} (${{ github.sha }})"
-          alias: ui-review-pr-${{ github.event.pull_request.number }}
-          enable-pull-request-comment: false
-          enable-commit-comment: false
-          enable-commit-status: false
-          enable-github-deployment: false
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ vars.NETLIFY_SITE_ID }}
-        timeout-minutes: 5
-
-      - name: Comment UI screenshots on PR
-        if: always() && steps.report.outputs.deploy-url != ''
-        uses: actions/github-script@v7
-        env:
-          REPORT_URL: ${{ steps.report.outputs.deploy-url }}
-          PREVIEW_URL: ${{ needs.preview-deploy.outputs.deploy_url }}
-        with:
-          script: |
-            const fs = require('node:fs');
-            const marker = '<!-- tt-players-ui-screenshots -->';
-            const manifestPath = 'ui-review-report/manifest.json';
-            const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-            const reportUrl = process.env.REPORT_URL.replace(/\/$/, '');
-            const previewUrl = process.env.PREVIEW_URL;
-            const shortSha = context.sha.slice(0, 7);
-            const byProject = manifest.reduce((acc, item) => {
-              acc[item.project] ||= [];
-              acc[item.project].push(item);
-              return acc;
-            }, {});
-            const sections = Object.entries(byProject).map(([project, items]) => {
-              const images = items.map((item) => [
-                `#### ${project}: ${item.title}`,
-                `[Open page](${item.url})`,
-                `![${project} ${item.title}](${reportUrl}/${item.path}?sha=${context.sha})`,
-              ].join('\n\n')).join('\n\n');
-              return `### ${project}\n\n${images}`;
-            }).join('\n\n');
-            const body = [
-              marker,
-              '## UI screenshots',
-              '',
-              `Preview: ${previewUrl}`,
-              `Report: ${reportUrl}`,
-              `Commit: \`${shortSha}\``,
-              '',
-              sections,
-              '',
-              '_This comment is updated on each same-repository PR run._',
-            ].join('\n');
-            const { owner, repo } = context.repo;
-            const issue_number = context.issue.number;
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner,
-              repo,
-              issue_number,
-              per_page: 100,
-            });
-            const existing = comments.find((comment) =>
-              comment.user.type === 'Bot' && comment.body?.includes(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner,
-                repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number,
-                body,
-              });
-            }
