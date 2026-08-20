@@ -202,7 +202,7 @@ test('reviews one-row tournament toolbar, filter sheet, and favourite alignment'
   });
   await categoryFilters.getByRole('button', { name: 'Girls', exact: true }).click();
   await girlsResponse;
-  await expect(page.getByRole('button', { name: 'Tournament filters, 2 active' }).locator('.tt-tournament-toolbar-icon__count')).toHaveText('2');
+  await expect(page.locator('.tt-tournament-filter-button .tt-tournament-toolbar-icon__count')).toHaveText('2');
   await capture(page, testInfo, 'tournaments-filter-sheet');
 
   await page.getByRole('button', { name: 'Clear filters', exact: true }).click();
