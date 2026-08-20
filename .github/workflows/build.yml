@@ -188,7 +188,10 @@ jobs:
           find "${RUNNER_TEMP:-/tmp}" -maxdepth 1 -type f -name 'gha-creds-*.json' -delete 2>/dev/null || true
 
   bootstrap-design-system-netlify:
-    if: github.event_name == 'workflow_dispatch' && inputs.bootstrap_design_system
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      contains(github.event.head_commit.message, '[bootstrap-design-system]')
     runs-on: [self-hosted, Linux, ARM64, everything-tt]
     timeout-minutes: 15
     permissions:
