@@ -24,7 +24,7 @@ export function RootHeader({
     : 'Select leagues';
   const actions: BrowseHeaderAction[] = [];
 
-  if (onOpenLeagues && title !== 'Players') {
+  if (onOpenLeagues && title !== 'Players' && title !== 'Tournaments') {
     actions.push({
       id: 'league-scope',
       ariaLabel: leagueAriaLabel,

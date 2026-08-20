@@ -139,20 +139,37 @@ test('reviews compact filter rail, search toggle, category sheet, and results-on
   await expect(listButton).toBeVisible();
   await expect(filterButton).toBeVisible();
   await expect(searchButton).toBeVisible();
-  await expect(filterRail.locator('.tt-tournament-toolbar-icon__label')).toBeHidden();
+  await expect(filterRail.locator('.tt-tournament-toolbar-icon__label').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /Select leagues/i })).toHaveCount(0);
 
   const railBounds = await filterRail.boundingBox();
-  const controlBounds = await Promise.all([
-    statusToggle.boundingBox(),
+  const statusBounds = await statusToggle.boundingBox();
+  const secondRowBounds = await Promise.all([
     listButton.boundingBox(),
     filterButton.boundingBox(),
     searchButton.boundingBox(),
   ]);
   expect(railBounds).not.toBeNull();
-  for (const bounds of controlBounds) {
+  expect(statusBounds).not.toBeNull();
+  expect(Math.abs((statusBounds?.y ?? 0) - (railBounds?.y ?? 0))).toBeLessThan(12);
+  const secondRowY = secondRowBounds[0]?.y ?? 0;
+  expect(secondRowY).toBeGreaterThan((statusBounds?.y ?? 0) + (statusBounds?.height ?? 0));
+  for (const bounds of secondRowBounds) {
     expect(bounds).not.toBeNull();
-    expect(Math.abs((bounds?.y ?? 0) - (railBounds?.y ?? 0))).toBeLessThan(12);
+    expect(Math.abs((bounds?.y ?? 0) - secondRowY)).toBeLessThan(4);
   }
+
+  const firstTournamentRow = page.locator('.tt-tournament-timeline-list > .tt-list-item').first();
+  const firstFavourite = firstTournamentRow.getByRole('button', { name: 'Save to favourites' });
+  await expect(firstTournamentRow).toBeVisible();
+  await expect(firstFavourite).toBeVisible();
+  const rowBounds = await firstTournamentRow.boundingBox();
+  const favouriteBounds = await firstFavourite.boundingBox();
+  expect(rowBounds).not.toBeNull();
+  expect(favouriteBounds).not.toBeNull();
+  const favouriteRightInset = (rowBounds?.x ?? 0) + (rowBounds?.width ?? 0)
+    - ((favouriteBounds?.x ?? 0) + (favouriteBounds?.width ?? 0));
+  expect(favouriteRightInset).toBeGreaterThanOrEqual(10);
 
   await searchButton.click();
   await expect(filterRail).toHaveCount(0);
