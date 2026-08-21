@@ -1,25 +1,44 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
-import { bootstrap, type BootstrapOptions, type ScrapeTarget } from './bootstrap.js';
-import { bootstrapNationalTTLeagues } from './national-ttleagues.js';
+import { resolveScrapeTargets, type BootstrapLogger, type ScrapeTarget } from './bootstrap.js';
+import {
+    bootstrapNationalTTLeagues,
+    type NationalTTLeaguesSource,
+} from './national-ttleagues.js';
+import {
+    loadPersistedScrapeTargets,
+    persistConfiguredScrapeTargets,
+} from './scrape-target-registry.js';
 
-interface TargetLogger {
-    info?: (message: string) => void;
-    warn?: (message: string) => void;
+export interface ResolveAllScrapeTargetsOptions {
+    logger?: BootstrapLogger;
+    nationalSources?: NationalTTLeaguesSource[];
+    throwOnNationalError?: boolean;
 }
 
-export interface ResolveAllScrapeTargetsOptions extends BootstrapOptions {
-    logger?: TargetLogger;
-}
-
+/**
+ * Refresh configured + discovered target state into the durable source registry,
+ * then project the currently enabled registry state back into legacy ScrapeTarget
+ * jobs. This function performs upstream discovery and must run as Graphile work,
+ * never during worker process bootstrap.
+ */
 export async function resolveAllScrapeTargets(
     db: Kysely<Database>,
     options: ResolveAllScrapeTargetsOptions = {},
 ): Promise<ScrapeTarget[]> {
-    const configuredTargets = await bootstrap(db, options);
+    const configuredTargets = await resolveScrapeTargets(db);
+    await persistConfiguredScrapeTargets(db, configuredTargets);
+
     const nationalTargets = await bootstrapNationalTTLeagues(db, {
-        includeHistory: options.includeHistory,
+        sources: options.nationalSources,
         logger: options.logger,
+        throwOnError: options.throwOnNationalError ?? false,
     });
-    return [...configuredTargets, ...nationalTargets];
+    const persistedTargets = await loadPersistedScrapeTargets(db);
+
+    options.logger?.info(
+        `Scrape target registry refreshed: ${configuredTargets.length} configured, `
+        + `${nationalTargets.length} national discovered, ${persistedTargets.length} enabled persisted targets`,
+    );
+    return persistedTargets;
 }
