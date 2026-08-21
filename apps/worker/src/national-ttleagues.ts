@@ -4,10 +4,21 @@ import { fileURLToPath } from 'node:url';
 import type { Kysely } from 'kysely';
 import type { Database } from '@tt-players/db';
 import type { ScrapeTarget } from './bootstrap.js';
-import { upsertSourceInstance, upsertSourceResource } from './sources/registry.js';
+import {
+    recordSourceInstanceDiscovery,
+    upsertSourceInstance,
+    upsertSourceResource,
+} from './sources/registry.js';
+import {
+    discoverTTLeaguesArchives,
+    discoverTTLeaguesDivisions,
+    discoverTTLeaguesTenant,
+    TTLEAGUES_API_BASE,
+    type TTLeaguesCompetition,
+    type TTLeaguesDivision,
+} from './ttleagues-discovery.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const TTL_API_BASE = 'https://ttleagues-api.azurewebsites.net/api';
 const CONFIG_PATH = resolve(__dirname, '../config/national-ttleagues.json');
 const CURRENT_SEASON_EXTERNAL_ID = 'current-national-competitions';
 const CURRENT_SEASON_NAME = 'Current national competitions';
@@ -18,16 +29,6 @@ export interface NationalTTLeaguesSource {
     baseUrl: string;
     regions: string[];
     historyMaxCompetitions: number;
-}
-
-interface TTLeaguesCompetition {
-    id: number;
-    name: string;
-}
-
-interface TTLeaguesDivision {
-    id: number;
-    name: string;
 }
 
 interface Logger {
@@ -44,20 +45,6 @@ export interface NationalTTLeaguesOptions {
 
 function readSources(): NationalTTLeaguesSource[] {
     return JSON.parse(readFileSync(CONFIG_PATH, 'utf8')) as NationalTTLeaguesSource[];
-}
-
-async function fetchJson<T>(url: string, tenantHost: string): Promise<T> {
-    const response = await fetch(url, {
-        headers: {
-            Tenant: tenantHost,
-            Entry: '1',
-            'User-Agent': 'tt-players/1.0',
-        },
-    });
-    if (!response.ok) {
-        throw new Error(`HTTP ${response.status} ${response.statusText} for ${url}`);
-    }
-    return response.json() as Promise<T>;
 }
 
 function normalizeRegionSlug(value: string): string {
@@ -79,7 +66,7 @@ async function upsertPlatform(db: Kysely<Database>): Promise<string> {
 
     const row = await db
         .insertInto('platforms')
-        .values({ name: 'TT Leagues', base_url: TTL_API_BASE })
+        .values({ name: 'TT Leagues', base_url: TTLEAGUES_API_BASE })
         .returning('id')
         .executeTakeFirstOrThrow();
     return row.id;
@@ -248,11 +235,12 @@ async function registerDivisionResources(
             cadence: isHistorical ? 'historical' : 'daily',
             isHistorical,
         },
+        lifecycle: isHistorical ? 'historical' as const : 'active' as const,
         leagueId,
         seasonId,
         competitionId: canonicalCompetitionId,
         enabled: true,
-    } as const;
+    };
 
     await upsertSourceResource(db, {
         ...shared,
@@ -268,13 +256,42 @@ async function registerDivisionResources(
     });
 }
 
+async function markStaleResourcesHistorical(
+    db: Kysely<Database>,
+    sourceInstanceId: string,
+    seasonId: string,
+    activeCanonicalCompetitionIds: string[],
+): Promise<void> {
+    if (activeCanonicalCompetitionIds.length === 0) return;
+
+    const staleCurrent = await db
+        .selectFrom('competitions')
+        .select('id')
+        .where('season_id', '=', seasonId)
+        .where('deleted_at', 'is', null)
+        .where('id', 'not in', activeCanonicalCompetitionIds)
+        .execute();
+
+    if (staleCurrent.length === 0) return;
+    const staleIds = staleCurrent.map((row) => row.id);
+    await db
+        .updateTable('source_resources')
+        .set({
+            lifecycle: 'historical',
+            refresh_policy: { cadence: 'historical', isHistorical: true },
+            updated_at: new Date(),
+        })
+        .where('source_instance_id', '=', sourceInstanceId)
+        .where('competition_id', 'in', staleIds)
+        .execute();
+}
+
 async function buildSourceTargets(
     db: Kysely<Database>,
     platformId: string,
     source: NationalTTLeaguesSource,
     includeHistory: boolean,
 ): Promise<ScrapeTarget[]> {
-    const tenantHost = new URL(source.baseUrl).host;
     const leagueId = await upsertLeague(db, platformId, source);
     await syncRegions(db, leagueId, source.regions);
 
@@ -286,6 +303,35 @@ async function buildSourceTargets(
         adapterKey: 'ttleagues',
         config: { nationalBridge: true },
     });
+
+    let discovery;
+    try {
+        discovery = await discoverTTLeaguesTenant(source.baseUrl);
+    } catch (error) {
+        await recordSourceInstanceDiscovery(db, sourceInstance.id, {
+            status: 'failed',
+            error,
+        });
+        throw error;
+    }
+
+    const competitionIds = discovery.competitions.map((competition) => competition.id);
+    const divisionCount = discovery.competitions.reduce(
+        (count, competition) => count + competition.divisions.length,
+        0,
+    );
+    await recordSourceInstanceDiscovery(db, sourceInstance.id, {
+        status: discovery.status,
+        metadata: {
+            competitionIds,
+            competitionCount: competitionIds.length,
+            divisionCount,
+        },
+    });
+
+    if (discovery.status === 'no_active_competition') {
+        return [];
+    }
 
     const currentSeasonId = await upsertSeason(
         db,
@@ -301,18 +347,10 @@ async function buildSourceTargets(
         .where('id', '!=', currentSeasonId)
         .execute();
 
-    const activeCompetitions = await fetchJson<TTLeaguesCompetition[]>(
-        `${TTL_API_BASE}/competitions`,
-        tenantHost,
-    );
-    const activeById = new Set(activeCompetitions.map((competition) => competition.id));
-
+    const activeById = new Set(discovery.competitions.map((competition) => competition.id));
     let historicalCompetitions: TTLeaguesCompetition[] = [];
     if (includeHistory && source.historyMaxCompetitions > 0) {
-        const archives = await fetchJson<TTLeaguesCompetition[]>(
-            `${TTL_API_BASE}/competitions/archives`,
-            tenantHost,
-        );
+        const archives = await discoverTTLeaguesArchives(source.baseUrl);
         historicalCompetitions = archives
             .filter((competition) => !activeById.has(competition.id))
             .sort((a, b) => b.id - a.id)
@@ -322,12 +360,8 @@ async function buildSourceTargets(
     const targets: ScrapeTarget[] = [];
     const activeCanonicalCompetitionIds: string[] = [];
 
-    for (const upstreamCompetition of activeCompetitions) {
-        const divisions = await fetchJson<TTLeaguesDivision[]>(
-            `${TTL_API_BASE}/competitions/${upstreamCompetition.id}/divisions`,
-            tenantHost,
-        );
-        for (const division of divisions) {
+    for (const upstreamCompetition of discovery.competitions) {
+        for (const division of upstreamCompetition.divisions) {
             const canonicalCompetitionId = await upsertDivision(
                 db,
                 leagueId,
@@ -348,9 +382,9 @@ async function buildSourceTargets(
                 false,
             );
             targets.push({
-                url: `${TTL_API_BASE}/divisions/${division.id}/standings`,
+                url: `${TTLEAGUES_API_BASE}/divisions/${division.id}/standings`,
                 fixturesUrl: null,
-                tenantHost,
+                tenantHost: discovery.tenantHost,
                 platformId,
                 platformType: 'ttleagues',
                 competitionId: canonicalCompetitionId,
@@ -362,34 +396,12 @@ async function buildSourceTargets(
         }
     }
 
-    const staleCurrent = activeCanonicalCompetitionIds.length === 0
-        ? await db
-            .selectFrom('competitions')
-            .select('id')
-            .where('season_id', '=', currentSeasonId)
-            .where('deleted_at', 'is', null)
-            .execute()
-        : await db
-            .selectFrom('competitions')
-            .select('id')
-            .where('season_id', '=', currentSeasonId)
-            .where('deleted_at', 'is', null)
-            .where('id', 'not in', activeCanonicalCompetitionIds)
-            .execute();
-    if (staleCurrent.length > 0) {
-        const staleIds = staleCurrent.map((row) => row.id);
-        await db
-            .updateTable('competitions')
-            .set({ deleted_at: new Date() })
-            .where('id', 'in', staleIds)
-            .execute();
-        await db
-            .updateTable('source_resources')
-            .set({ enabled: false, updated_at: new Date() })
-            .where('source_instance_id', '=', sourceInstance.id)
-            .where('competition_id', 'in', staleIds)
-            .execute();
-    }
+    await markStaleResourcesHistorical(
+        db,
+        sourceInstance.id,
+        currentSeasonId,
+        activeCanonicalCompetitionIds,
+    );
 
     for (const upstreamCompetition of historicalCompetitions) {
         const historicalSeasonId = await upsertSeason(
@@ -399,9 +411,9 @@ async function buildSourceTargets(
             upstreamCompetition.name,
             false,
         );
-        const divisions = await fetchJson<TTLeaguesDivision[]>(
-            `${TTL_API_BASE}/competitions/${upstreamCompetition.id}/divisions`,
-            tenantHost,
+        const divisions = await discoverTTLeaguesDivisions(
+            discovery.tenantHost,
+            upstreamCompetition.id,
         );
         for (const division of divisions) {
             const canonicalCompetitionId = await upsertDivision(
@@ -423,9 +435,9 @@ async function buildSourceTargets(
                 true,
             );
             targets.push({
-                url: `${TTL_API_BASE}/divisions/${division.id}/standings`,
+                url: `${TTLEAGUES_API_BASE}/divisions/${division.id}/standings`,
                 fixturesUrl: null,
-                tenantHost,
+                tenantHost: discovery.tenantHost,
                 platformId,
                 platformType: 'ttleagues',
                 competitionId: canonicalCompetitionId,

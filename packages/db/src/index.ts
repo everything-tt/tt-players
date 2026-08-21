@@ -44,6 +44,8 @@ export type {
 } from './read-model-types.js';
 export type {
     SourceRegistryDatabase,
+    SourceDiscoveryStatus,
+    SourceResourceLifecycle,
     SourceInstance,
     NewSourceInstance,
     SourceInstanceUpdate,
