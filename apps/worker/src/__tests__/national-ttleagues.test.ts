@@ -7,6 +7,7 @@ import * as m002 from '@tt-players/db/src/migrations/002_create_core_tables.js';
 import * as m003 from '@tt-players/db/src/migrations/003_create_match_tables.js';
 import * as m009 from '@tt-players/db/src/migrations/009_create_regions.js';
 import * as m029 from '@tt-players/db/src/migrations/029_create_source_registry.js';
+import * as m062 from '@tt-players/db/src/migrations/062_add_source_discovery_lifecycle.js';
 import {
     __internal,
     bootstrapNationalTTLeagues,
@@ -105,6 +106,7 @@ describe('national TT Leagues bridge discovery', () => {
         await m003.up(db);
         await m009.up(db);
         await m029.up(db);
+        await m062.up(db);
     }, 30_000);
 
     afterEach(() => {
@@ -181,6 +183,29 @@ describe('national TT Leagues bridge discovery', () => {
         expect(await db.selectFrom('source_instances').selectAll().execute()).toHaveLength(1);
         expect(await db.selectFrom('source_resources').selectAll().execute()).toHaveLength(8);
 
+        const sourceInstance = await db
+            .selectFrom('source_instances')
+            .select(['discovery_status', 'last_discovery_at', 'last_discovery_error'])
+            .where('key', '=', TEST_SOURCE.externalId)
+            .executeTakeFirstOrThrow();
+        expect(sourceInstance.discovery_status).toBe('healthy');
+        expect(sourceInstance.last_discovery_at).not.toBeNull();
+        expect(sourceInstance.last_discovery_error).toBeNull();
+
+        const resourceLifecycles = await db
+            .selectFrom('source_resources')
+            .select(['external_id', 'lifecycle'])
+            .where('source_instance_id', '=', db
+                .selectFrom('source_instances')
+                .select('id')
+                .where('key', '=', TEST_SOURCE.externalId)
+            )
+            .execute();
+        expect(resourceLifecycles.filter((row) => row.external_id.startsWith('99:'))
+            .every((row) => row.lifecycle === 'historical')).toBe(true);
+        expect(resourceLifecycles.filter((row) => !row.external_id.startsWith('99:'))
+            .every((row) => row.lifecycle === 'active')).toBe(true);
+
         const secondTargets = await bootstrapNationalTTLeagues(db, {
             includeHistory: true,
             sources: [TEST_SOURCE],
@@ -194,7 +219,73 @@ describe('national TT Leagues bridge discovery', () => {
         expect(await db.selectFrom('source_resources').selectAll().execute()).toHaveLength(8);
     });
 
-    it('isolates an unavailable national tenant instead of blocking all sources', async () => {
+    it('preserves the last known resources when a later catalogue is empty', async () => {
+        const source: NationalTTLeaguesSource = {
+            ...TEST_SOURCE,
+            leagueName: 'Safe Empty National Source',
+            externalId: 'safe-empty-national-source',
+            baseUrl: 'https://safe-empty.ttleagues.com',
+            historyMaxCompetitions: 0,
+        };
+        let catalogueEmpty = false;
+        vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+            const url = String(input);
+            if (url.endsWith('/competitions')) {
+                return jsonResponse(catalogueEmpty ? [] : [{ id: 201, name: '2026/27' }]);
+            }
+            if (url.endsWith('/competitions/201/divisions')) {
+                return jsonResponse([{ id: 2001, name: 'Premier' }]);
+            }
+            throw new Error(`Unexpected request: ${url}`);
+        }));
+
+        const firstTargets = await bootstrapNationalTTLeagues(db, {
+            sources: [source],
+            throwOnError: true,
+        });
+        expect(firstTargets).toHaveLength(1);
+
+        const persistedCompetition = await db
+            .selectFrom('competitions as competition')
+            .innerJoin('seasons as season', 'season.id', 'competition.season_id')
+            .innerJoin('leagues as league', 'league.id', 'season.league_id')
+            .select(['competition.id', 'competition.deleted_at'])
+            .where('league.external_id', '=', source.externalId)
+            .where('competition.external_id', '=', '201:2001')
+            .executeTakeFirstOrThrow();
+
+        catalogueEmpty = true;
+        const secondTargets = await bootstrapNationalTTLeagues(db, {
+            sources: [source],
+            throwOnError: true,
+        });
+        expect(secondTargets).toEqual([]);
+
+        const afterCompetition = await db
+            .selectFrom('competitions')
+            .select(['deleted_at'])
+            .where('id', '=', persistedCompetition.id)
+            .executeTakeFirstOrThrow();
+        expect(afterCompetition.deleted_at).toBeNull();
+
+        const instance = await db
+            .selectFrom('source_instances')
+            .select(['id', 'discovery_status'])
+            .where('key', '=', source.externalId)
+            .executeTakeFirstOrThrow();
+        expect(instance.discovery_status).toBe('no_active_competition');
+
+        const resources = await db
+            .selectFrom('source_resources')
+            .select(['enabled', 'lifecycle'])
+            .where('source_instance_id', '=', instance.id)
+            .execute();
+        expect(resources).toHaveLength(2);
+        expect(resources.every((resource) => resource.enabled)).toBe(true);
+        expect(resources.every((resource) => resource.lifecycle === 'active')).toBe(true);
+    });
+
+    it('isolates an unavailable national tenant and persists discovery outcomes', async () => {
         const warnings: string[] = [];
         vi.stubGlobal('fetch', vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
             const tenant = new Headers(init?.headers).get('Tenant');
@@ -226,5 +317,24 @@ describe('national TT Leagues bridge discovery', () => {
         expect(warnings).toHaveLength(1);
         expect(warnings[0]).toContain('Broken National Source');
         expect(warnings[0]).toContain('temporary DNS failure');
+
+        const states = await db
+            .selectFrom('source_instances')
+            .select(['key', 'discovery_status', 'last_discovery_error'])
+            .where('key', 'in', ['broken-national-source', 'empty-national-source'])
+            .orderBy('key')
+            .execute();
+        expect(states).toEqual([
+            {
+                key: 'broken-national-source',
+                discovery_status: 'failed',
+                last_discovery_error: 'temporary DNS failure',
+            },
+            {
+                key: 'empty-national-source',
+                discovery_status: 'no_active_competition',
+                last_discovery_error: null,
+            },
+        ]);
     });
 });

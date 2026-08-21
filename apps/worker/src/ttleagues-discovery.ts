@@ -14,6 +14,11 @@ export interface DiscoveredTTLeaguesCompetition extends TTLeaguesCompetition {
     divisions: TTLeaguesDivision[];
 }
 
+export interface TTLeaguesCompetitionCatalogue {
+    tenantHost: string;
+    competitions: TTLeaguesCompetition[];
+}
+
 export interface TTLeaguesTenantDiscovery {
     tenantHost: string;
     status: 'healthy' | 'no_active_competition';
@@ -77,6 +82,23 @@ export async function fetchTTLeaguesJson(
     return response.json();
 }
 
+export async function discoverTTLeaguesCompetitions(
+    baseUrl: string,
+    options: TTLeaguesDiscoveryOptions = {},
+): Promise<TTLeaguesCompetitionCatalogue> {
+    const tenantHost = new URL(baseUrl).host;
+    const payload = await fetchTTLeaguesJson(
+        `${TTLEAGUES_API_BASE}/competitions`,
+        tenantHost,
+        options,
+    );
+    assertArray(payload, 'competition catalogue');
+    return {
+        tenantHost,
+        competitions: payload.map(parseCompetition),
+    };
+}
+
 export async function discoverTTLeaguesDivisions(
     tenantHost: string,
     competitionId: number,
@@ -109,29 +131,22 @@ export async function discoverTTLeaguesTenant(
     baseUrl: string,
     options: TTLeaguesDiscoveryOptions = {},
 ): Promise<TTLeaguesTenantDiscovery> {
-    const tenantHost = new URL(baseUrl).host;
-    const payload = await fetchTTLeaguesJson(
-        `${TTLEAGUES_API_BASE}/competitions`,
-        tenantHost,
-        options,
-    );
-    assertArray(payload, 'competition catalogue');
-    const competitions = payload.map(parseCompetition);
+    const catalogue = await discoverTTLeaguesCompetitions(baseUrl, options);
 
-    if (competitions.length === 0) {
+    if (catalogue.competitions.length === 0) {
         return {
-            tenantHost,
+            tenantHost: catalogue.tenantHost,
             status: 'no_active_competition',
             competitions: [],
         };
     }
 
     const discovered: DiscoveredTTLeaguesCompetition[] = [];
-    for (const competition of competitions) {
+    for (const competition of catalogue.competitions) {
         discovered.push({
             ...competition,
             divisions: await discoverTTLeaguesDivisions(
-                tenantHost,
+                catalogue.tenantHost,
                 competition.id,
                 options,
             ),
@@ -139,7 +154,7 @@ export async function discoverTTLeaguesTenant(
     }
 
     return {
-        tenantHost,
+        tenantHost: catalogue.tenantHost,
         status: 'healthy',
         competitions: discovered,
     };
