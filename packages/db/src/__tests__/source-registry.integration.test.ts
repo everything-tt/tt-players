@@ -4,6 +4,7 @@ import pg from 'pg';
 import * as m001 from '../migrations/001_create_enums.js';
 import * as m002 from '../migrations/002_create_core_tables.js';
 import * as m029 from '../migrations/029_create_source_registry.js';
+import * as m062 from '../migrations/062_add_source_discovery_lifecycle.js';
 
 const { Pool } = pg;
 const TEST_DB_NAME = 'tt_players_source_registry_test';
@@ -44,13 +45,14 @@ describe('source registry migration', () => {
         await m001.up(db);
         await m002.up(db);
         await m029.up(db);
+        await m062.up(db);
     }, 30_000);
 
     afterAll(async () => {
         await dropDatabase();
     }, 15_000);
 
-    it('creates source instance and resource tables with health fields', async () => {
+    it('creates source instance and resource tables with health and lifecycle fields', async () => {
         const result = await sql<{ table_name: string; column_name: string }>`
             SELECT table_name, column_name
             FROM information_schema.columns
@@ -65,9 +67,14 @@ describe('source registry migration', () => {
             'source_instances.adapter_key',
             'source_instances.config',
             'source_instances.last_seen_at',
+            'source_instances.discovery_status',
+            'source_instances.last_discovery_at',
+            'source_instances.last_discovery_error',
+            'source_instances.discovery_metadata',
             'source_resources.resource_type',
             'source_resources.adapter_version',
             'source_resources.refresh_policy',
+            'source_resources.lifecycle',
             'source_resources.last_succeeded_at',
             'source_resources.last_error',
             'source_resources.consecutive_failures',
@@ -126,6 +133,36 @@ describe('source registry migration', () => {
                 external_id: 'division-1',
                 adapter_version: '2',
             })
+            .execute()
+        ).rejects.toThrow();
+    });
+
+    it('defaults to healthy/active and rejects invalid lifecycle values', async () => {
+        const instance = await db
+            .selectFrom('source_instances')
+            .select(['id', 'discovery_status'])
+            .where('key', '=', 'example-tenant')
+            .executeTakeFirstOrThrow();
+        expect(instance.discovery_status).toBe('healthy');
+
+        const resource = await db
+            .selectFrom('source_resources')
+            .select(['id', 'lifecycle'])
+            .where('source_instance_id', '=', instance.id)
+            .executeTakeFirstOrThrow();
+        expect(resource.lifecycle).toBe('active');
+
+        await expect(db
+            .updateTable('source_instances')
+            .set({ discovery_status: 'unknown' })
+            .where('id', '=', instance.id)
+            .execute()
+        ).rejects.toThrow();
+
+        await expect(db
+            .updateTable('source_resources')
+            .set({ lifecycle: 'deleted' })
+            .where('id', '=', resource.id)
             .execute()
         ).rejects.toThrow();
     });

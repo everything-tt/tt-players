@@ -1,5 +1,11 @@
 import type { Kysely } from 'kysely';
-import type { Database, SourceInstance, SourceResource } from '@tt-players/db';
+import type {
+    Database,
+    SourceDiscoveryStatus,
+    SourceInstance,
+    SourceResource,
+    SourceResourceLifecycle,
+} from '@tt-players/db';
 import type { SourceResourceType } from './adapter.js';
 
 export interface UpsertSourceInstanceInput {
@@ -21,9 +27,17 @@ export interface UpsertSourceResourceInput {
     publicUrl?: string | null;
     refreshPolicy?: unknown;
     enabled?: boolean;
+    lifecycle?: SourceResourceLifecycle;
     leagueId?: string | null;
     seasonId?: string | null;
     competitionId?: string | null;
+}
+
+export interface RecordSourceInstanceDiscoveryInput {
+    status: SourceDiscoveryStatus;
+    attemptedAt?: Date;
+    error?: unknown;
+    metadata?: unknown;
 }
 
 export async function upsertSourceInstance(
@@ -59,11 +73,35 @@ export async function upsertSourceInstance(
         .executeTakeFirstOrThrow();
 }
 
+export async function recordSourceInstanceDiscovery(
+    db: Kysely<Database>,
+    sourceInstanceId: string,
+    input: RecordSourceInstanceDiscoveryInput,
+): Promise<void> {
+    const attemptedAt = input.attemptedAt ?? new Date();
+    const errorMessage = input.status === 'failed' && input.error !== undefined
+        ? input.error instanceof Error ? input.error.message : String(input.error)
+        : null;
+
+    await db
+        .updateTable('source_instances')
+        .set({
+            discovery_status: input.status,
+            last_discovery_at: attemptedAt,
+            last_discovery_error: errorMessage,
+            discovery_metadata: input.metadata ?? {},
+            updated_at: new Date(),
+        })
+        .where('id', '=', sourceInstanceId)
+        .executeTakeFirst();
+}
+
 export async function upsertSourceResource(
     db: Kysely<Database>,
     input: UpsertSourceResourceInput,
 ): Promise<SourceResource> {
     const now = new Date();
+    const lifecycle = input.lifecycle ?? 'active';
     return db
         .insertInto('source_resources')
         .values({
@@ -75,6 +113,7 @@ export async function upsertSourceResource(
             public_url: input.publicUrl ?? null,
             refresh_policy: input.refreshPolicy ?? {},
             enabled: input.enabled ?? true,
+            lifecycle,
             league_id: input.leagueId ?? null,
             season_id: input.seasonId ?? null,
             competition_id: input.competitionId ?? null,
@@ -87,6 +126,7 @@ export async function upsertSourceResource(
                 public_url: input.publicUrl ?? null,
                 refresh_policy: input.refreshPolicy ?? {},
                 enabled: input.enabled ?? true,
+                ...(input.lifecycle ? { lifecycle: input.lifecycle } : {}),
                 league_id: input.leagueId ?? null,
                 season_id: input.seasonId ?? null,
                 competition_id: input.competitionId ?? null,
