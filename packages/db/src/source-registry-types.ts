@@ -24,7 +24,7 @@ export interface SourceInstancesTable {
     config: unknown;
     discovery_status: Generated<SourceDiscoveryStatus>;
     last_discovery_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
-    last_discovery_error: string | null;
+    last_discovery_error: ColumnType<string | null, string | null | undefined, string | null>;
     discovery_metadata: Generated<unknown>;
     first_seen_at: Generated<Date>;
     last_seen_at: ColumnType<Date, Date | undefined, Date>;

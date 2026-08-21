@@ -40,13 +40,14 @@ function parseCompetition(value: unknown): TTLeaguesCompetition {
         throw new Error('TT Leagues competition entry must be an object');
     }
     const row = value as Record<string, unknown>;
-    if (!Number.isInteger(row.id) || Number(row.id) <= 0) {
+    const id = Number(row.id);
+    if (!Number.isInteger(id) || id <= 0) {
         throw new Error('TT Leagues competition id must be a positive integer');
     }
     if (typeof row.name !== 'string' || row.name.trim().length === 0) {
-        throw new Error(`TT Leagues competition ${String(row.id)} must have a name`);
+        throw new Error(`TT Leagues competition ${id} must have a name`);
     }
-    return { id: Number(row.id), name: row.name.trim() };
+    return { id, name: row.name.trim() };
 }
 
 function parseDivision(value: unknown): TTLeaguesDivision {
@@ -54,13 +55,14 @@ function parseDivision(value: unknown): TTLeaguesDivision {
         throw new Error('TT Leagues division entry must be an object');
     }
     const row = value as Record<string, unknown>;
-    if (!Number.isInteger(row.id) || Number(row.id) <= 0) {
+    const id = Number(row.id);
+    if (!Number.isInteger(id) || id <= 0) {
         throw new Error('TT Leagues division id must be a positive integer');
     }
     if (typeof row.name !== 'string') {
-        throw new Error(`TT Leagues division ${String(row.id)} must have a string name`);
+        throw new Error(`TT Leagues division ${id} must have a string name`);
     }
-    return { id: Number(row.id), name: row.name.trim() };
+    return { id, name: row.name.trim() };
 }
 
 export async function fetchTTLeaguesJson(
