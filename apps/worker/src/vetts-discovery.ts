@@ -71,7 +71,16 @@ export async function discoverVettsTournaments(
 
         try {
             const html = await vettsSourceAdapter.extract(context);
-            rawLogId = await storeScrapePayload(discoveryUrl, platformId, html, database);
+            rawLogId = await storeScrapePayload(
+                discoveryUrl,
+                platformId,
+                html,
+                database,
+                {
+                    sourceResourceId: resource.id,
+                    adapterVersion: VETTS_ADAPTER_VERSION,
+                },
+            );
             const transformed = await vettsSourceAdapter.transform(html, context);
             if (!Array.isArray(transformed) || transformed.length === 0) {
                 throw new Error(
